@@ -1,0 +1,35 @@
+{
+  "name": "trusted-routebook",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env server.mjs",
+    "dev:frontend": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server.mjs",
+    "smoke:api": "node --env-file-if-exists=.env scripts/smoke-api.mjs",
+    "test:security": "node scripts/security-regression.mjs",
+    "test:profile-migration": "node scripts/profile-migration-regression.mjs",
+    "test:checkin-queue": "node scripts/checkin-queue-regression.mjs",
+    "test:p0": "node scripts/p0-regression.mjs",
+    "test:w3-w5": "node scripts/w3-w5-regression.mjs",
+    "test:postgres-schema": "node scripts/postgres-schema-regression.mjs",
+    "verify": "node --check server.mjs && node --check scripts/security-regression.mjs && node --check scripts/smoke-api.mjs && node --check scripts/profile-migration-regression.mjs && node --check scripts/checkin-queue-regression.mjs && node --check scripts/p0-regression.mjs && node --check scripts/w3-w5-regression.mjs && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5 && npm run build",
+    "verify:full": "npm run verify && npm run smoke:api",
+    "preview": "npm run build && npm run start"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "vite": "^7.2.7"
+  }
+}

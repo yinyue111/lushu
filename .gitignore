@@ -1,0 +1,16 @@
+node_modules
+dist
+.DS_Store
+*.log
+.playwright-cli/
+output/
+outputs/
+.codex-spreadsheet/
+.claude/
+.workbuddy/
+.env
+.env.*
+!.env.example
+data/*.jsonl
+data/reviews.jsonl
+data/*.json
