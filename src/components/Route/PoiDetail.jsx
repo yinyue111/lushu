@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, MapPin, Clock, DollarSign, Users, AlertTriangle, Shield, ExternalLink, Ticket, Flag, FileSearch } from 'lucide-react';
+import { MapPin, Clock, Wallet, Users, AlertTriangle, ShieldCheck, ExternalLink, Ticket, Flag, FileSearch } from 'lucide-react';
 import { createPoiCorrection, getPoiKnowledge, recordClick, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
 import { productsForStop, useProductCards } from '../../lib/products';
@@ -7,8 +7,12 @@ import { clickStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { coordinateReviewLabel, isNavigableCoordinate } from '../../lib/coordinates';
 import { trustedCities } from '../../lib/content';
 import { PUBLIC_TRUST_SAMPLE_THRESHOLD, evaluatePoiTrustSample } from '../../lib/trust';
-import { useDialogFocus } from '../../lib/useDialogFocus';
+import { Sheet } from '../ui/sheet';
+import { Button } from '../ui/button';
+import { Field, inputClass } from '../ui/field';
+import { cn } from '../ui/cn';
 
+/** @param {Record<string, any>} props */
 export default function PoiDetail({ stop, routebook, onClose }) {
   const profile = useMemo(() => getProfile(), []);
   const [showCorrection, setShowCorrection] = useState(false);
@@ -17,7 +21,6 @@ export default function PoiDetail({ stop, routebook, onClose }) {
   const [knowledge, setKnowledge] = useState([]);
   const exposureRef = useRef(new Set());
   const productCards = useProductCards();
-  const dialogRef = useDialogFocus(Boolean(stop), onClose);
   const stopName = stop?.name ?? '';
   const stopArea = stop?.area ?? '';
   const lat = Number(stop?.lat);
@@ -30,7 +33,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
   const routeCity = routebook?.city;
   const poiTrustState = buildPoiTrustState(stop, routeCity);
   const realFeedback = useMemo(() => buildPoiRealFeedback(stop), [stop]);
-  const PoiTrustIcon = poiTrustState.tone === 'trial' ? AlertTriangle : Shield;
+  const PoiTrustIcon = poiTrustState.tone === 'trial' ? AlertTriangle : ShieldCheck;
   const creatorId = routebook?.creator?.id;
   const relatedProducts = useMemo(() => {
     const cityScoped = productCards.filter((item) => !item.city || item.city === routeCity);
@@ -139,289 +142,295 @@ export default function PoiDetail({ stop, routebook, onClose }) {
     }
   }
 
+  const trustTone = poiTrustState.tone === 'trial' ? 'warn' : poiTrustState.verified ? 'ok' : 'sky';
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="modal-content poi-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="poi-detail-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="poi-detail-header">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span className={`badge ${poiTrustState.badgeClass}`}>
-                <PoiTrustIcon size={11} /> {poiTrustState.label}
-              </span>
-              {!canNavigate && <span className="badge badge-orange">定位待复核</span>}
-              <span className="text-micro">{stop.area}</span>
-            </div>
-            <h2 className="text-title" id="poi-detail-title">
-              {stop.name}
-            </h2>
-          </div>
-          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭 POI 详情">
-            <X size={18} />
-          </button>
-        </div>
+    <Sheet title={stop.name} description={stop.area || routebook?.city} onClose={onClose} wide>
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill tone={trustTone}>
+          <PoiTrustIcon aria-hidden="true" /> {poiTrustState.label}
+        </Pill>
+        {!canNavigate && <Pill tone="warn">定位待复核</Pill>}
+      </div>
 
-        {/* Info grid */}
-        <div className="poi-info-grid">
-          <div className="poi-info-item">
-            <Clock size={14} style={{ color: 'var(--blue)' }} />
-            <div>
-              <span className="text-micro">建议停留</span>
-              <strong>{stop.stay}</strong>
-            </div>
-          </div>
-          <div className="poi-info-item">
-            <DollarSign size={14} style={{ color: 'var(--green)' }} />
-            <div>
-              <span className="text-micro">预计费用</span>
-              <strong>{stop.cost}</strong>
-            </div>
-          </div>
-          <div className="poi-info-item">
-            <MapPin size={14} style={{ color: 'var(--orange)' }} />
-            <div>
-              <span className="text-micro">坐标</span>
-              <strong>{coordinateLabel}</strong>
-              {!canNavigate && <small className="text-micro">仅展示模糊范围，不建议直接导航</small>}
-            </div>
-          </div>
-          <div className="poi-info-item">
-            <Users size={14} style={{ color: 'var(--muted)' }} />
-            <div>
-              <span className="text-micro">适合人群</span>
-              <strong>{realFeedback.audienceText || '待真实验证'}</strong>
-            </div>
-          </div>
-        </div>
+      <dl className="mt-4 grid grid-cols-2 gap-2.5">
+        <InfoTile icon={Clock} iconClass="text-sky-ink bg-sky-soft" label="建议停留" value={stop.stay || '—'} />
+        <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="预计费用" value={stop.cost || '—'} />
+        <InfoTile
+          icon={MapPin}
+          iconClass="text-primary-strong bg-primary-soft"
+          label="坐标"
+          value={coordinateLabel}
+          hint={!canNavigate ? '仅展示模糊范围，不建议直接导航' : ''}
+        />
+        <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待真实验证'} />
+      </dl>
 
-        {/* Real feedback（poiTrust 反哺；字段可能暂缺，防御渲染） */}
-        <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-            真实人群与排队数据
-          </h3>
-          {realFeedback.hasData ? (
-            <div className="card-flat" style={{ display: 'grid', gap: 8 }}>
-              {realFeedback.audienceText && (
-                <p className="text-caption">
-                  <Users size={12} style={{ color: 'var(--blue)' }} /> 适合人群
-                  {realFeedback.feedbackCount > 0 ? `（近 30 天 ${realFeedback.feedbackCount} 份真实反馈）` : ''}：{realFeedback.audienceText}
-                </p>
-              )}
-              {(realFeedback.queueMinutes != null || realFeedback.costMedian != null) && (
-                <p className="text-caption">
-                  <Clock size={12} style={{ color: 'var(--green)' }} />{' '}
-                  {[
-                    realFeedback.queueMinutes != null ? `实测排队约 ${realFeedback.queueMinutes} 分钟` : '',
-                    realFeedback.costMedian != null ? `人均约 ${realFeedback.costMedian} 元` : ''
-                  ]
-                    .filter(Boolean)
-                    .join(' / ')}
-                </p>
-              )}
-              {realFeedback.crowdLabel && (
-                <p className="text-caption">
-                  <Users size={12} style={{ color: 'var(--orange)' }} /> 实测拥挤程度：{realFeedback.crowdLabel}
-                </p>
-              )}
-              {realFeedback.latestDaysAgo != null && (
-                <p className="text-caption">
-                  <Clock size={12} style={{ color: 'var(--muted)' }} />{' '}
-                  {realFeedback.latestDaysAgo === 0 ? '今天有人反馈了该点位的真实情况' : `${realFeedback.latestDaysAgo} 天前有人反馈了该点位的真实情况`}
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-caption">待真实打卡验证 · 打卡后这里会出现真实人群与排队数据</p>
-          )}
-          {realFeedback.correctionCount > 0 && (
-            <p className="text-caption" style={{ color: 'var(--orange)', marginTop: 8 }}>
-              <AlertTriangle size={12} /> 近期有 {realFeedback.correctionCount} 条营业信息纠错，出行前请复核
-            </p>
-          )}
-        </div>
-
-        {/* Verify + Risk */}
-        <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-            出发前复核与风险
-          </h3>
-          <div className="card-flat" style={{ display: 'grid', gap: 8 }}>
-            <p className="text-caption">
-              <Shield size={12} style={{ color: 'var(--blue)' }} /> 复核建议：{stop.verify || '出发前核对开放时间与现场条件'}
-            </p>
-            <p className="text-caption">
-              <AlertTriangle size={12} style={{ color: 'var(--orange)' }} /> {stop.risk}
-            </p>
-          </div>
-        </div>
-
-        {(evidence.length > 0 || approvedKnowledge.length > 0) && (
-          <div className="poi-detail-section">
-            <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-              <FileSearch size={12} /> 证据与已审纠错
-            </h3>
-            <div className="poi-evidence-list">
-              {evidence.slice(0, 4).map((item) => (
-                <a
-                  key={item.id || item.url || item.label}
-                  className="poi-evidence-card"
-                  href={item.url || undefined}
-                  target={item.url ? '_blank' : undefined}
-                  rel="noreferrer"
-                >
-                  <span className="badge badge-blue">{item.platform || (item.type === 'matched-source' ? '来源命中' : '路线来源')}</span>
-                  <strong>{item.label}</strong>
-                  <small>{item.detail || '来源只作为规划线索，出发前仍需复核。'}</small>
-                </a>
-              ))}
-              {approvedKnowledge.map((item) => (
-                <div key={item.correctionId || item.id} className="poi-evidence-card approved">
-                  <span className="badge badge-green">运营已审</span>
-                  <strong>{item.field || '综合信息'}</strong>
-                  <small>
-                    {item.value || item.suggestedValue}
-                    {item.reason ? `；依据：${item.reason}` : ''}
-                  </small>
-                </div>
-              ))}
-            </div>
-          </div>
+      <Section title="真实人群与排队">
+        {realFeedback.hasData ? (
+          <ul className="grid gap-2 rounded-tile bg-canvas p-3.5 text-sm text-ink-2">
+            {realFeedback.audienceText && (
+              <Line icon={Users}>
+                适合人群{realFeedback.feedbackCount > 0 ? `（近 30 天 ${realFeedback.feedbackCount} 份真实反馈）` : ''}：{realFeedback.audienceText}
+              </Line>
+            )}
+            {(realFeedback.queueMinutes != null || realFeedback.costMedian != null) && (
+              <Line icon={Clock}>
+                {[
+                  realFeedback.queueMinutes != null ? `实测排队约 ${realFeedback.queueMinutes} 分钟` : '',
+                  realFeedback.costMedian != null ? `人均约 ${realFeedback.costMedian} 元` : ''
+                ]
+                  .filter(Boolean)
+                  .join(' / ')}
+              </Line>
+            )}
+            {realFeedback.crowdLabel && <Line icon={Users}>实测拥挤程度：{realFeedback.crowdLabel}</Line>}
+            {realFeedback.latestDaysAgo != null && (
+              <Line icon={Clock}>
+                {realFeedback.latestDaysAgo === 0 ? '今天有人反馈了该点位的真实情况' : `${realFeedback.latestDaysAgo} 天前有人反馈了该点位的真实情况`}
+              </Line>
+            )}
+          </ul>
+        ) : (
+          <p className="rounded-tile border border-dashed border-line-strong p-3.5 text-sm text-muted">
+            还没有真实打卡。有人打卡后，这里会出现真实人群与排队数据。
+          </p>
         )}
+        {realFeedback.correctionCount > 0 && (
+          <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-lemon-ink">
+            <AlertTriangle className="size-4" aria-hidden="true" /> 近期有 {realFeedback.correctionCount} 条营业信息纠错，出发前请再确认
+          </p>
+        )}
+      </Section>
 
-        {stop.facts?.length > 0 && (
-          <div className="poi-detail-section">
-            <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-              <FileSearch size={12} /> 事实核验
-            </h3>
-            <div className="poi-fact-list">
-              {stop.facts.slice(0, 6).map((fact) => (
-                <a
-                  key={fact.id || `${fact.field}-${fact.value}`}
-                  className="poi-fact-row"
-                  href={fact.sourceUrl || undefined}
-                  target={fact.sourceUrl ? '_blank' : undefined}
-                  rel="noreferrer"
-                >
-                  <span className="badge badge-blue">{fact.confidence ?? '-'}%</span>
-                  <div>
-                    <strong>{fact.field}</strong>
-                    <small>{fact.value}</small>
-                    <em>
+      <Section title="出发前确认">
+        <ul className="grid gap-2 rounded-tile bg-lemon-soft/60 p-3.5 text-sm text-ink-2">
+          <Line icon={ShieldCheck} iconClass="text-sky-ink">
+            {stop.verify || '出发前核对开放时间与现场条件'}
+          </Line>
+          {stop.risk && (
+            <Line icon={AlertTriangle} iconClass="text-lemon-ink">
+              {stop.risk}
+            </Line>
+          )}
+        </ul>
+      </Section>
+
+      {(evidence.length > 0 || approvedKnowledge.length > 0) && (
+        <Section title="来源与已审纠错" icon={FileSearch}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {evidence.slice(0, 4).map((item) => (
+              <EvidenceCard
+                key={item.id || item.url || item.label}
+                href={item.url}
+                tag={item.platform || (item.type === 'matched-source' ? '来源命中' : '路线来源')}
+                title={item.label}
+                detail={item.detail || '来源只作为规划线索，出发前仍需复核。'}
+              />
+            ))}
+            {approvedKnowledge.map((item) => (
+              <EvidenceCard
+                key={item.correctionId || item.id}
+                approved
+                tag="运营已审"
+                title={item.field || '综合信息'}
+                detail={`${item.value || item.suggestedValue || ''}${item.reason ? `；依据：${item.reason}` : ''}`}
+              />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {stop.facts?.length > 0 && (
+        <Section title="事实核验" icon={FileSearch}>
+          <ul className="divide-y divide-line overflow-hidden rounded-tile border border-line">
+            {stop.facts.slice(0, 6).map((fact) => {
+              const body = (
+                <>
+                  <span className="num shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{fact.confidence ?? '-'}%</span>
+                  <span className="min-w-0">
+                    <strong className="block text-sm font-bold">{fact.field}</strong>
+                    <span className="block text-sm text-ink-2">{fact.value}</span>
+                    <span className="block text-xs text-muted">
                       {fact.status} · {fact.sourceLabel || fact.sourceType || '来源待补充'}
-                    </em>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
+                    </span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={fact.id || `${fact.field}-${fact.value}`}>
+                  {fact.sourceUrl ? (
+                    <a className="flex items-start gap-3 p-3 hover:bg-canvas" href={fact.sourceUrl} target="_blank" rel="noreferrer">
+                      {body}
+                    </a>
+                  ) : (
+                    <div className="flex items-start gap-3 p-3">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
+      )}
 
-        {/* Confidence */}
-        <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-            可信度指标
-          </h3>
-          <div className={`poi-evidence-card ${poiTrustState.verified ? 'approved' : ''}`} style={{ marginBottom: 10 }}>
-            <span className={`badge ${poiTrustState.badgeClass}`}>{poiTrustState.verified ? '真实 POI 反馈' : poiTrustState.value}</span>
-            <strong>{poiTrustState.detailLabel}</strong>
-            <small>{poiTrustState.detail}</small>
+      <Section title="可信度">
+        <div className={cn('rounded-tile border p-3.5', poiTrustState.verified ? 'border-success/30 bg-success-soft/60' : 'border-line bg-white')}>
+          <div className="flex items-center justify-between gap-3">
+            <strong className="text-sm font-extrabold">{poiTrustState.detailLabel}</strong>
+            <Pill tone={trustTone}>{poiTrustState.verified ? `可信分 ${poiTrustState.value}` : poiTrustState.value}</Pill>
           </div>
-          <div className="poi-confidence-bar">
+          <p className="mt-1 text-[13px] text-muted">{poiTrustState.detail}</p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas" aria-hidden="true">
             <div
-              className="poi-confidence-fill"
-              style={{
-                width: poiTrustState.verified ? `${poiTrustState.score}%` : '0%',
-                background: poiTrustState.tone === 'trial' ? 'var(--orange)' : poiTrustState.verified ? 'var(--green)' : 'var(--blue)'
-              }}
+              className={cn('h-full rounded-full', poiTrustState.tone === 'trial' ? 'bg-lemon' : poiTrustState.verified ? 'bg-success' : 'bg-sky')}
+              style={{ width: poiTrustState.verified ? `${poiTrustState.score}%` : '0%' }}
             />
           </div>
-          <div className="poi-confidence-labels">
-            <span className="text-micro">地理精度: {stop.geoConfidence ?? 72}%</span>
-            <span className="text-micro">坐标系: {stop.coordinateSystem ?? 'WGS84'}</span>
+          <div className="mt-2 flex justify-between text-xs text-muted">
+            <span>地理精度 {stop.geoConfidence ?? 72}%</span>
+            <span>坐标系 {stop.coordinateSystem ?? 'WGS84'}</span>
           </div>
         </div>
+      </Section>
 
-        {/* Related products */}
-        {relatedProducts.length > 0 && (
-          <div className="poi-detail-section">
-            <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-              <Ticket size={12} /> 相关商品
-            </h3>
+      {relatedProducts.length > 0 && (
+        <Section title="相关门票与商品" icon={Ticket}>
+          <div className="grid gap-2">
             {relatedProducts.map((item, index) => (
               <button
                 key={item.id || item.url || `${item.provider}-${item.title}-${index}`}
-                className="poi-product-card"
+                type="button"
+                className="flex items-center justify-between gap-3 rounded-tile border border-line bg-white p-3 text-left hover:border-line-strong hover:shadow-card"
                 onClick={() => handleProductClick(item)}
               >
-                <div>
-                  <strong>{item.title}</strong>
-                  <span className="text-micro">
+                <span className="min-w-0">
+                  <strong className="block truncate text-sm font-bold">{item.title}</strong>
+                  <span className="text-xs text-muted">
                     {item.type} · {item.price}
                   </span>
-                </div>
-                <span className="badge badge-blue">{item.deepLinkStatus === 'verified' ? '可归因深链' : '外部入口'}</span>
+                </span>
+                <Pill tone="sky">{item.deepLinkStatus === 'verified' ? '可归因深链' : '外部入口'}</Pill>
               </button>
             ))}
           </div>
-        )}
+        </Section>
+      )}
 
-        {/* Actions */}
-        <div className="poi-detail-actions">
-          <button className="btn btn-secondary" onClick={openInMap} disabled={!canNavigate}>
-            <ExternalLink size={14} /> 在地图中查看
-          </button>
-          <button className="btn btn-secondary" onClick={() => setShowCorrection((value) => !value)}>
-            <Flag size={14} /> POI 纠错
-          </button>
-        </div>
-        {showCorrection && (
-          <form className="poi-correction-form" onSubmit={submitCorrection}>
-            <label>
-              <span className="input-label">纠错字段</span>
-              <select className="input-field" value={correction.field} onChange={(event) => setCorrection((prev) => ({ ...prev, field: event.target.value }))}>
-                {['开放时间/价格', '位置坐标', '排队/拥挤', '闭店/暂停', '适合人群', '其他'].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="input-label">建议修正</span>
-              <textarea
-                className="input-field"
-                value={correction.suggestedValue}
-                onChange={(event) => setCorrection((prev) => ({ ...prev, suggestedValue: event.target.value }))}
-                placeholder="例如：门票已涨到 15 元，周一闭馆..."
-              />
-            </label>
-            <label>
-              <span className="input-label">依据</span>
-              <input
-                className="input-field"
-                value={correction.reason}
-                onChange={(event) => setCorrection((prev) => ({ ...prev, reason: event.target.value }))}
-                placeholder="现场打卡、官方公告、地图信息..."
-              />
-            </label>
-            <button className="btn btn-primary btn-sm" type="submit">
-              提交纠错
-            </button>
-          </form>
-        )}
-        {message && (
-          <p className="text-caption" style={{ padding: '0 var(--space-lg) var(--space-lg)' }}>
-            {message}
-          </p>
-        )}
+      <div className="sticky -bottom-6 -mx-6 mt-5 flex flex-wrap gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
+        <Button variant="dark" onClick={openInMap} disabled={!canNavigate}>
+          <ExternalLink /> 在地图中查看
+        </Button>
+        <Button variant="outline" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
+          <Flag /> 信息有误？纠错
+        </Button>
+      </div>
+
+      {showCorrection && (
+        <form className="mt-3 grid gap-3 rounded-tile bg-canvas p-4" onSubmit={submitCorrection}>
+          <Field label="哪里不对">
+            <select className={inputClass} value={correction.field} onChange={(event) => setCorrection((prev) => ({ ...prev, field: event.target.value }))}>
+              {['开放时间/价格', '位置坐标', '排队/拥挤', '闭店/暂停', '适合人群', '其他'].map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="正确的是">
+            <textarea
+              className={cn(inputClass, 'min-h-20')}
+              value={correction.suggestedValue}
+              onChange={(event) => setCorrection((prev) => ({ ...prev, suggestedValue: event.target.value }))}
+              placeholder="例如：门票已涨到 15 元，周一闭馆..."
+            />
+          </Field>
+          <Field label="依据">
+            <input
+              className={inputClass}
+              value={correction.reason}
+              onChange={(event) => setCorrection((prev) => ({ ...prev, reason: event.target.value }))}
+              placeholder="现场打卡、官方公告、地图信息..."
+            />
+          </Field>
+          <Button type="submit" variant="primary" size="sm" className="justify-self-start">
+            提交纠错
+          </Button>
+        </form>
+      )}
+      {message && (
+        <p role="status" className="mt-3 text-sm font-semibold text-ink-2">
+          {message}
+        </p>
+      )}
+    </Sheet>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function Pill({ tone = 'sky', children }) {
+  const tones = {
+    sky: 'bg-sky-soft text-sky-ink',
+    ok: 'bg-success-soft text-success-ink',
+    warn: 'bg-lemon-soft text-lemon-ink'
+  };
+  return <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold [&_svg]:size-3.5', tones[tone])}>{children}</span>;
+}
+
+/** @param {Record<string, any>} props */
+function InfoTile({ icon: Icon, iconClass, label, value, hint }) {
+  return (
+    <div className="flex gap-2.5 rounded-tile bg-canvas p-3">
+      <span className={cn('grid size-8 shrink-0 place-items-center rounded-full', iconClass)}>
+        <Icon className="size-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <dt className="text-xs font-semibold text-muted">{label}</dt>
+        <dd className="num text-sm font-extrabold break-words">{value}</dd>
+        {hint && <dd className="mt-0.5 text-xs text-muted">{hint}</dd>}
       </div>
     </div>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function Section({ title, icon: Icon, children }) {
+  return (
+    <section className="mt-5">
+      <h3 className="mb-2 flex items-center gap-1.5 text-[15px] font-extrabold">
+        {Icon && <Icon className="size-4 text-muted" aria-hidden="true" />}
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function Line({ icon: Icon, iconClass = 'text-muted', children }) {
+  return (
+    <li className="flex items-start gap-2">
+      <Icon className={cn('mt-0.5 size-4 shrink-0', iconClass)} aria-hidden="true" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function EvidenceCard({ href, tag, title, detail, approved = false }) {
+  const body = (
+    <>
+      <span className={cn('self-start rounded-full px-2 py-0.5 text-xs font-bold', approved ? 'bg-success-soft text-success-ink' : 'bg-sky-soft text-sky-ink')}>
+        {tag}
+      </span>
+      <strong className="text-sm font-bold">{title}</strong>
+      <span className="line-clamp-3 text-xs text-muted">{detail}</span>
+    </>
+  );
+  const cls = cn('flex flex-col gap-1 rounded-tile border p-3', approved ? 'border-success/30 bg-success-soft/40' : 'border-line bg-white');
+  return href ? (
+    <a className={cn(cls, 'hover:border-line-strong hover:shadow-card')} href={href} target="_blank" rel="noreferrer">
+      {body}
+    </a>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 

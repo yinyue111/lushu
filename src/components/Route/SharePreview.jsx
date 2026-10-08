@@ -1,12 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Shield, X, ExternalLink, Link2 } from 'lucide-react';
+import { ClipboardCopy, ExternalLink, Link2, MapPin, Share2 } from 'lucide-react';
 import { getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, saveRoutebookRemote } from '../../lib/api';
 import { curatedRoutes } from '../../lib/content';
 import { getProfile, profileRoutebookFields } from '../../lib/profile';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
-import { useDialogFocus } from '../../lib/useDialogFocus';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
+import { Sheet } from '../ui/sheet';
+import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
+import { TrustChip } from '../cards/TrustChip';
+import { cityCover, dayTheme } from '../visual/theme';
 
+/** @param {Record<string, any>} props */
 export default function SharePreview({ routebook, onClose, onShared, onConflictDraftSaved }) {
   // 只有精选目录里的原始 id 才允许派生 /share/publicId（服务端该路径有效已验证）；
   // 用户复制精选生成的个人草稿（provider 仍为 curation）不派生，避免复制到无效链接。
@@ -24,9 +29,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const stops = routebook.stops ?? [];
   const days = routebook.days ?? ['Day 1'];
   const trustState = getRouteTrustBadgeState(routebook);
-  const TrustStateIcon = trustState.tone === 'trial' ? AlertTriangle : Shield;
   const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 4);
-  const dialogRef = useDialogFocus(true, onClose);
   const requestSequenceRef = useRef(0);
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
@@ -134,158 +137,147 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
     }
   }
 
+  const cover = cityCover(routebook.city);
+  const curatedHint = '精选路线请先「定制同款」复制为个人路书再发布';
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="modal-content share-preview"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="share-preview-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="share-header">
-          <div>
-            <h2 className="text-title" id="share-preview-title">
-              {routebook.title}
-            </h2>
-            <p className="text-caption" style={{ marginTop: 4 }}>
-              {routebook.summary}
-            </p>
+    <Sheet title="分享路书" description="公开页只展示路线结构与可信状态，不搬运第三方攻略原文。" onClose={onClose} wide>
+      <article className="overflow-hidden rounded-card border border-line shadow-card">
+        <header className="relative isolate p-5 text-white" style={cover ? undefined : { backgroundImage: 'linear-gradient(135deg,#e8553d,#7c5cdb)' }}>
+          {cover && <img src={cover} alt="" className="absolute inset-0 -z-20 size-full object-cover" />}
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2),rgba(10,12,16,.78))]" aria-hidden="true" />
+          <TrustChip routebook={routebook} curated={isCuratedRoute} className="bg-white/95" />
+          <h3 className="mt-3 text-2xl leading-tight font-black tracking-tight">{routebook.title}</h3>
+          {routebook.summary && <p className="mt-1.5 line-clamp-2 text-sm text-white/90">{routebook.summary}</p>}
+          <div className="num mt-4 flex gap-5 text-sm font-semibold">
+            <span>
+              <b className="text-xl font-black">{stops.length}</b> 站
+            </span>
+            <span>
+              <b className="text-xl font-black">{days.length}</b> 天
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin className="size-4" aria-hidden="true" /> {routebook.city}
+            </span>
           </div>
-          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭分享预览">
-            <X size={18} />
-          </button>
-        </div>
+          {trustState.tone === 'prediction' && trustState.sampleProgressText && <p className="mt-2 text-xs text-white/85">{trustState.sampleProgressText}</p>}
+        </header>
 
-        {/* Hero trust score */}
-        <div className={`share-trust-hero trust-${trustState.tone}`}>
-          <div className="share-trust-ring">
-            <TrustStateIcon size={20} />
-            <strong>{trustState.value}</strong>
-            <span>{trustState.text}</span>
-          </div>
-          <div className="share-trust-stats">
-            <span>
-              <b>{stops.length}</b> 站点
-            </span>
-            <span>
-              <b>{days.length}</b> 天
-            </span>
-            <span>
-              <b>{routebook.city}</b>
-            </span>
-          </div>
-          {trustState.tone === 'prediction' && trustState.sampleProgressText && <p className="text-micro">{trustState.sampleProgressText}</p>}
-        </div>
-
-        {/* Route summary */}
-        <div className="share-route-list">
-          {days.map((day) => (
-            <div key={day} className="share-day-section">
-              <span className="badge badge-blue">{day}</span>
-              <div className="share-stops">
-                {stops
-                  .filter((s) => s.day === day)
-                  .map((stop, i) => {
+        <div className="grid gap-4 bg-white p-4">
+          {days.map((day, dayIndex) => {
+            const theme = dayTheme(dayIndex);
+            const dayStops = stops.filter((s) => s.day === day);
+            if (!dayStops.length) return null;
+            return (
+              <section key={day}>
+                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-extrabold text-white" style={{ background: theme.ink }}>
+                  {day}
+                </span>
+                <ol className="mt-2 grid gap-1">
+                  {dayStops.map((stop, i) => {
                     const stopTrust = getStopTrustState(stop, trustState.tone);
                     return (
-                      <div key={stop.id ?? i} className="share-stop-row">
-                        <span className="share-stop-time">{stop.time}</span>
-                        <div>
-                          <strong>{stop.name}</strong>
-                          <span className="text-micro">
-                            {stop.stay} · {stop.cost}
-                          </span>
-                        </div>
-                        <span className={`share-stop-score trust-${stopTrust.tone}`}>{stopTrust.value}</span>
-                      </div>
+                      <li key={stop.id ?? i} className="flex items-center gap-3 rounded-tile px-1 py-1.5">
+                        <span
+                          className="num grid size-6 shrink-0 place-items-center rounded-full text-xs font-black text-white"
+                          style={{ background: theme.ink }}
+                          aria-hidden="true"
+                        >
+                          {i + 1}
+                        </span>
+                        <span className="num w-11 shrink-0 text-xs font-bold text-muted">{stop.time}</span>
+                        <span className="min-w-0 flex-1">
+                          <strong className="block truncate text-sm font-bold">{stop.name}</strong>
+                          <span className="text-xs text-muted">{[stop.stay, stop.cost].filter(Boolean).join(' · ')}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
+                            stopTrust.tone === 'verified'
+                              ? 'bg-success-soft text-success-ink'
+                              : stopTrust.tone === 'trial'
+                                ? 'bg-lemon-soft text-lemon-ink'
+                                : 'bg-sky-soft text-sky-ink'
+                          )}
+                        >
+                          {stopTrust.value}
+                        </span>
+                      </li>
                     );
                   })}
-              </div>
+                </ol>
+              </section>
+            );
+          })}
+
+          {routebook.validations?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
+              <span className="w-full text-xs font-bold text-muted">出发前检查</span>
+              {routebook.validations.slice(0, 3).map((v) => (
+                <span key={v.id} className="rounded-full bg-lemon-soft px-2.5 py-0.5 text-xs font-bold text-lemon-ink">
+                  {v.label}：{v.state}
+                </span>
+              ))}
             </div>
-          ))}
-        </div>
-
-        {/* Validations highlight */}
-        {routebook.validations?.length > 0 && (
-          <div className="share-validations">
-            <p className="text-micro" style={{ marginBottom: 8 }}>
-              可执行校验
-            </p>
-            {routebook.validations.slice(0, 3).map((v) => (
-              <span key={v.id} className="badge badge-orange" style={{ marginRight: 6, marginBottom: 4 }}>
-                {v.label}: {v.state}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Metrics */}
-        {visibleMetrics.length > 0 && (
-          <div className="share-metrics">
-            {visibleMetrics.map((m) => (
-              <div key={m.label} className="share-metric-item">
-                <span className="text-micro">{m.label}</span>
-                <strong>{m.value}</strong>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="share-footer">
-          <p className="text-caption">公开页只展示路线结构与可信状态，不搬运第三方攻略原文。真实打卡持续校准。</p>
-          <div className="share-actions">
-            <button
-              className="btn btn-primary"
-              onClick={createShareLink}
-              disabled={shareState.loading || (isCuratedRoute && !shareUrl)}
-              title={isCuratedRoute && !shareUrl ? '精选路线请先『定制同款』复制为个人路书再发布' : undefined}
-            >
-              <Link2 size={14} /> {shareState.loading ? '生成中...' : shareUrl ? '复制 H5 链接' : '发布 H5 链接'}
-            </button>
-            <button className="btn btn-secondary" onClick={copyShareText}>
-              <ExternalLink size={14} /> 复制摘要
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={!shareUrl}
-              title={shareUrl ? undefined : '发布 H5 链接后才能系统分享，不会分享私有链接'}
-              onClick={() => {
-                if (!shareUrl) return;
-                if (navigator.share) {
-                  navigator.share({ title: routebook.title, text: buildShareText(routebook), url: shareUrl }).catch(() => {});
-                } else {
-                  copyShareText();
-                }
-              }}
-            >
-              系统分享
-            </button>
-            {shareUrl && (
-              <a className="btn btn-ghost" href={shareUrl}>
-                <ExternalLink size={14} /> 打开公开分享页
-              </a>
-            )}
-          </div>
-          {!shareUrl && (
-            <p className="text-caption" style={{ marginTop: 10 }}>
-              {isCuratedRoute ? '精选路线请先『定制同款』复制为个人路书再发布。' : '路线尚未发布：发布 H5 链接后才能使用系统分享，私有编辑链接不会被分享。'}
-            </p>
           )}
+
+          {visibleMetrics.length > 0 && (
+            <dl className="grid grid-cols-2 gap-2 border-t border-line pt-3 sm:grid-cols-4">
+              {visibleMetrics.map((m) => (
+                <div key={m.label} className="rounded-tile bg-canvas p-2.5">
+                  <dt className="text-xs text-muted">{m.label}</dt>
+                  <dd className="num text-base font-extrabold">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      </article>
+
+      <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="primary"
+            onClick={createShareLink}
+            disabled={shareState.loading || (isCuratedRoute && !shareUrl)}
+            title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
+          >
+            <Link2 /> {shareState.loading ? '生成中...' : shareUrl ? '复制分享链接' : '发布并生成链接'}
+          </Button>
+          <Button variant="outline" onClick={copyShareText}>
+            <ClipboardCopy /> 复制文字摘要
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!shareUrl}
+            title={shareUrl ? undefined : '发布后才能系统分享，不会分享私有链接'}
+            onClick={() => {
+              if (!shareUrl) return;
+              if (navigator.share) {
+                navigator.share({ title: routebook.title, text: buildShareText(routebook), url: shareUrl }).catch(() => {});
+              } else {
+                copyShareText();
+              }
+            }}
+          >
+            <Share2 /> 系统分享
+          </Button>
           {shareUrl && (
-            <p className="text-caption" style={{ marginTop: 10, wordBreak: 'break-all' }}>
-              {shareUrl}
-            </p>
+            <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-[15px] font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
+              <ExternalLink className="size-[18px]" aria-hidden="true" /> 打开公开页
+            </a>
           )}
-          <p className="text-caption" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: shareState.message ? 8 : 0 }}>
-            {shareState.message}
-          </p>
         </div>
+        <p className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-2" role="status" aria-live="polite" aria-atomic="true">
+          {shareState.message}
+        </p>
       </div>
-    </div>
+      {shareUrl ? (
+        <p className="mt-3 rounded-tile bg-canvas px-3 py-2 font-mono text-xs break-all text-ink-2">{shareUrl}</p>
+      ) : (
+        <p className="mt-3 text-sm text-muted">{isCuratedRoute ? `${curatedHint}。` : '还没发布：发布后才能用系统分享，私有编辑链接不会被分享出去。'}</p>
+      )}
+    </Sheet>
   );
 }
 
