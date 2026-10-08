@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, Camera, CheckCircle, Clock, MapPin, Shield } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Camera, Check, Flag, MapPin, ShieldCheck, X } from 'lucide-react';
 import { checkinPhotoUrl, getReviewShare } from '../../lib/api';
 import { decodeTripExecution, normalizeTripStops } from '../../lib/tripSession';
+import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
+import { StopThumb } from '../visual/StopThumb';
 
+/** @param {Record<string, any>} props */
 export default function PublicReviewPage({ publicId, onBack }) {
   const [state, setState] = useState({ loading: true, error: '', review: null });
 
@@ -16,21 +20,27 @@ export default function PublicReviewPage({ publicId, onBack }) {
 
   if (state.loading) {
     return (
-      <div className="share-page-loading">
-        <Camera size={28} />
-        <p>正在读取路线回顾...</p>
+      <div className="grid min-h-[60vh] place-items-center px-4" role="status">
+        <div className="flex flex-col items-center gap-3 text-muted">
+          <Camera className="size-7 animate-pulse text-success" aria-hidden="true" />
+          <p className="text-sm font-semibold">正在读取旅程回顾...</p>
+        </div>
       </div>
     );
   }
   if (state.error || !state.review) {
     return (
-      <div className="share-page-error">
-        <AlertCircle size={28} />
-        <h1>路线回顾暂不可用</h1>
-        <p>{state.error || '链接不存在或已失效'}</p>
-        <button className="btn btn-secondary" onClick={onBack}>
-          <ArrowLeft size={16} /> 返回首页
-        </button>
+      <div className="grid min-h-[60vh] place-items-center px-4">
+        <div className="max-w-sm rounded-panel border border-line bg-white p-6 text-center shadow-card">
+          <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
+            <AlertCircle className="size-6" aria-hidden="true" />
+          </span>
+          <h1 className="mt-3 text-xl font-extrabold">这份回顾暂时打不开</h1>
+          <p className="mt-1 text-sm text-muted">{state.error || '链接不存在或已失效'}</p>
+          <Button variant="outline" className="mt-4" onClick={onBack}>
+            <ArrowLeft /> 返回首页
+          </Button>
+        </div>
       </div>
     );
   }
@@ -44,109 +54,134 @@ export default function PublicReviewPage({ publicId, onBack }) {
   const photoCheckins = [...latestByStop.values()].filter((item) => String(item?.photoId ?? '').trim());
 
   return (
-    <div className="container page-enter" style={{ paddingTop: 40, paddingBottom: 60, maxWidth: 760, margin: '0 auto' }}>
-      <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom: 24 }}>
-        <ArrowLeft size={16} /> 返回平台
-      </button>
-      <div className="card review-hero">
-        <span className="badge badge-blue">
-          <Shield size={12} /> 路线执行与体验反馈
+    <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-16 lg:pt-8">
+      <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2">
+        <ArrowLeft /> 返回平台
+      </Button>
+      <section className="relative isolate mt-3 overflow-hidden rounded-panel p-5 text-white shadow-pop lg:p-7">
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(135deg,#157a51_0%,#1e9e6a_45%,#1666c1_100%)]" aria-hidden="true" />
+        <Flag className="absolute -right-6 -bottom-8 -z-10 size-48 text-white/10" strokeWidth={1.2} aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur">
+          <ShieldCheck className="size-3.5" aria-hidden="true" /> 真实走过的路线 · 体验反馈
         </span>
-        <h1 className="text-title" style={{ marginTop: 12 }}>
-          {routebook.title}
-        </h1>
-        <p className="text-caption" style={{ marginTop: 6 }}>
-          {routebook.city} · {stops.length} 站 · 有效 GPS 到达率 {displayStats.completionRate}%
+        <h1 className="mt-3 text-2xl leading-tight font-black tracking-tight lg:text-3xl">{routebook.title}</h1>
+        <p className="mt-1 text-sm text-white/85">
+          {routebook.city} · {stops.length} 站
         </p>
-        <div className="review-stats-grid">
-          <div className="review-stat">
-            <CheckCircle size={18} style={{ color: 'var(--green)' }} />
-            <strong>{displayStats.completionRate}%</strong>
-            <span>有效 GPS 到达率</span>
-          </div>
-          <div className="review-stat">
-            <Camera size={18} style={{ color: 'var(--blue)' }} />
-            <strong>{displayStats.feedbackCount}</strong>
-            <span>体验反馈</span>
-          </div>
-          <div className="review-stat">
-            <Clock size={18} style={{ color: 'var(--orange)' }} />
-            <strong>{displayStats.pitfallCount}</strong>
-            <span>踩坑</span>
-          </div>
-          <div className="review-stat">
-            <AlertCircle size={18} style={{ color: 'var(--orange)' }} />
-            <strong>{displayStats.lowConfidenceArrivalCount}</strong>
-            <span>低置信</span>
-          </div>
-        </div>
-      </div>
-      <div className="review-timeline" style={{ marginTop: 24 }}>
-        {stops.map((stop, index) => {
-          const checkin = latestByStop.get(stopKeyForStop(stop));
-          const evidence = publicReviewEvidence(checkin, stop);
-          const hasResult = evidence.kind !== 'missing';
-          return (
-            <div
-              key={stop.id ?? index}
-              className={`review-stop ${hasResult ? (['skipped', 'replaced'].includes(evidence.kind) ? 'skipped' : evidence.kind === 'valid' ? 'done' : 'feedback') : 'missed'}`}
-            >
-              <div className="review-stop-marker">{reviewMarker(evidence.kind)}</div>
-              <div className="review-stop-content">
-                <div className="review-stop-header">
-                  <strong>{stop.name}</strong>
-                  <span className="text-micro">{stop.time}</span>
-                </div>
-                {hasResult ? (
-                  <div className="review-stop-feedback">
-                    <span className={`badge ${evidence.badgeClass}`}>{evidence.label}</span>
-                    {checkin?.worth && !['跳过', '替换'].includes(checkin.worth) && <span className="text-micro">体验：{checkin.worth}</span>}
-                    {['valid', 'low', 'feedback'].includes(evidence.kind) && checkin?.queue && <span className="text-micro">排队 {checkin.queue}</span>}
-                    {['valid', 'low', 'feedback'].includes(evidence.kind) && checkin?.cost && <span className="text-micro">花费 {checkin.cost}</span>}
+        <dl className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <HeroStat label="有效 GPS 到达率" value={`${displayStats.completionRate}%`} />
+          <HeroStat label="体验反馈" value={displayStats.feedbackCount} />
+          <HeroStat label="踩坑" value={displayStats.pitfallCount} />
+          <HeroStat label="定位存疑" value={displayStats.lowConfidenceArrivalCount} />
+        </dl>
+      </section>
+
+      <section className="mt-8" aria-labelledby="public-review-timeline">
+        <h2 id="public-review-timeline" className="text-xl font-extrabold">
+          每一站的真实情况
+        </h2>
+        <ol className="relative mt-4 grid gap-3 pl-9 before:absolute before:top-2 before:bottom-2 before:left-[13px] before:w-0.5 before:rounded-full before:bg-line">
+          {stops.map((stop, index) => {
+            const checkin = latestByStop.get(stopKeyForStop(stop));
+            const evidence = publicReviewEvidence(checkin, stop);
+            const hasResult = evidence.kind !== 'missing';
+            const tone = EVIDENCE_TONES[evidence.kind] ?? EVIDENCE_TONES.missing;
+            const Marker = tone.icon;
+            const showNumbers = ['valid', 'low', 'feedback'].includes(evidence.kind);
+            return (
+              <li key={stop.id ?? index} className="relative">
+                <span
+                  className={cn('absolute top-3 -left-9 grid size-7 place-items-center rounded-full border-2 border-white shadow-card', tone.marker)}
+                  aria-hidden="true"
+                >
+                  <Marker className="size-3.5" strokeWidth={2.5} />
+                </span>
+                <article
+                  className={cn(
+                    'rounded-card border p-3.5',
+                    evidence.kind === 'valid' || evidence.kind === 'feedback' || evidence.kind === 'low'
+                      ? 'border-line bg-white shadow-card'
+                      : 'border-dashed border-line-strong bg-[repeating-linear-gradient(135deg,#fff_0_10px,#f6f6f4_10px_20px)]'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <StopThumb stop={stop} compact className="size-12 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <strong className="truncate text-[15px] font-extrabold">{stop.name}</strong>
+                        <span className="num shrink-0 text-xs font-bold text-muted">{stop.time}</span>
+                      </div>
+                      {hasResult ? (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className={cn('rounded-full px-2 py-0.5 font-bold', tone.chip)}>{evidence.label}</span>
+                          {checkin?.worth && !['跳过', '替换'].includes(checkin.worth) && <span className="text-ink-2">体验：{checkin.worth}</span>}
+                          {showNumbers && checkin?.queue && <span className="text-ink-2">排队 {checkin.queue}</span>}
+                          {showNumbers && checkin?.cost && <span className="text-ink-2">花费 {checkin.cost}</span>}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-sm font-semibold text-muted">这站还没有到达或体验反馈</p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-caption">暂无到达或体验反馈</p>
-                )}
-                {checkin?.comment && <p className="text-caption">{checkin.comment}</p>}
-                {checkin?.pitfall && (
-                  <p className="text-caption" style={{ color: 'var(--red)' }}>
-                    踩坑: {checkin.pitfall}
-                  </p>
-                )}
-                {checkin?.photoId && (
-                  <a href={checkinPhotoUrl(checkin.photoId)} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6 }}>
-                    <img
-                      src={checkinPhotoUrl(checkin.photoId)}
-                      alt={`${stop.name}打卡照片`}
-                      loading="lazy"
-                      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }}
-                    />
-                  </a>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  {checkin?.comment && <p className="mt-2 text-sm text-ink-2">“{checkin.comment}”</p>}
+                  {checkin?.pitfall && <p className="mt-1.5 text-sm font-semibold text-danger">踩坑：{checkin.pitfall}</p>}
+                  {checkin?.photoId && (
+                    <a href={checkinPhotoUrl(checkin.photoId)} target="_blank" rel="noreferrer" className="mt-2 inline-block">
+                      <img src={checkinPhotoUrl(checkin.photoId)} alt={`${stop.name}打卡照片`} loading="lazy" className="size-20 rounded-tile object-cover" />
+                    </a>
+                  )}
+                </article>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
       {photoCheckins.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <h2 className="text-subtitle" style={{ marginBottom: 12 }}>
+        <section className="mt-8" aria-labelledby="public-review-photos">
+          <h2 id="public-review-photos" className="text-xl font-extrabold">
             打卡照片墙
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {photoCheckins.map((item) => (
-              <a key={item.photoId} href={checkinPhotoUrl(item.photoId)} target="_blank" rel="noreferrer" title={item.stopName || '打卡照片'}>
+              <a
+                key={item.photoId}
+                href={checkinPhotoUrl(item.photoId)}
+                target="_blank"
+                rel="noreferrer"
+                title={item.stopName || '打卡照片'}
+                className="overflow-hidden rounded-tile"
+              >
                 <img
                   src={checkinPhotoUrl(item.photoId)}
                   alt={`${item.stopName || '打卡'}照片`}
                   loading="lazy"
-                  style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8 }}
+                  className="aspect-square w-full object-cover transition-transform hover:scale-105"
                 />
               </a>
             ))}
           </div>
-        </div>
+        </section>
       )}
+    </div>
+  );
+}
+
+const EVIDENCE_TONES = {
+  valid: { icon: Check, marker: 'bg-success text-white', chip: 'bg-success-soft text-success-ink' },
+  low: { icon: AlertCircle, marker: 'bg-lemon text-ink', chip: 'bg-lemon-soft text-lemon-ink' },
+  feedback: { icon: Camera, marker: 'bg-sky text-white', chip: 'bg-sky-soft text-sky-ink' },
+  skipped: { icon: X, marker: 'bg-canvas text-muted', chip: 'bg-canvas text-ink-2' },
+  replaced: { icon: X, marker: 'bg-canvas text-muted', chip: 'bg-canvas text-ink-2' },
+  missing: { icon: MapPin, marker: 'bg-white text-muted-2', chip: 'bg-canvas text-ink-2' }
+};
+
+/** @param {Record<string, any>} props */
+function HeroStat({ label, value }) {
+  return (
+    <div className="rounded-tile bg-white/15 p-3 backdrop-blur">
+      <dt className="text-xs font-semibold text-white/85">{label}</dt>
+      <dd className="num mt-0.5 text-xl font-black">{value}</dd>
     </div>
   );
 }
@@ -217,11 +252,4 @@ function isVisitedFeedback(checkin) {
 function isValidGpsArrival(checkin) {
   if (typeof checkin?.arrival?.valid === 'boolean') return checkin.arrival.valid === true;
   return checkin?.arrivalConfidence === 'valid' || checkin?.arrival?.confidence === 'valid';
-}
-
-function reviewMarker(kind) {
-  if (kind === 'valid') return <CheckCircle size={16} style={{ color: 'var(--green)' }} />;
-  if (kind === 'low') return <AlertCircle size={16} style={{ color: 'var(--orange)' }} />;
-  if (kind === 'feedback') return <Camera size={16} style={{ color: 'var(--blue)' }} />;
-  return <MapPin size={16} style={{ color: 'var(--muted-2)' }} />;
 }
