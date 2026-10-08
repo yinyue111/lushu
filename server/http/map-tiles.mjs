@@ -1,22 +1,37 @@
-// Map tile proxy with an in-memory LRU cache.
+// Map tile proxy with an in-memory LRU cache, provider fallback and
+// placeholder-tile detection (see map-providers.mjs).
+import { createHash } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
-import { MAP_TILE_CACHE_MAX_ENTRIES, MAP_TILE_MAX_BYTES, MAP_TILE_UPSTREAM_TIMEOUT_MS, MAP_TILE_TIMEOUT_MS, MAP_TILE_UPSTREAMS } from '../config/index.mjs';
-import { requestIdHeaders, securityHeaders } from './response.mjs';
+import {
+  MAP_TILE_CACHE_MAX_ENTRIES,
+  MAP_TILE_MAX_BYTES,
+  MAP_TILE_PROVIDER_COOLDOWN_MS,
+  MAP_TILE_UPSTREAM_TIMEOUT_MS,
+  MAP_TILE_TIMEOUT_MS,
+  MAP_TILE_UPSTREAMS
+} from '../config/index.mjs';
+import { describeMapTileProviders, isPlaceholderTile, looksLikeImage } from './map-providers.mjs';
+import { requestIdHeaders, securityHeaders, sendJson } from './response.mjs';
 import { createHttpError } from '../lib/util.mjs';
 
 const mapTileCache = new Map();
+// Per provider+layer: hash of the 0/0/0 world tile, used to spot placeholders.
+const referenceHashes = new Map();
+// Per provider: timestamp until which it is skipped after serving placeholders.
+const providerCooldowns = new Map();
+const REFERENCE_TTL_MS = 6 * 60 * 60 * 1000;
 
 function parseMapTilePath(pathname) {
-  const match = String(pathname ?? '').match(/^\/api\/map-tiles\/(\d{1,2})\/(\d{1,10})\/(\d{1,10})\.png$/);
+  const match = String(pathname ?? '').match(/^\/api\/map-tiles\/(?:(labels)\/)?(\d{1,2})\/(\d{1,10})\/(\d{1,10})\.png$/);
   if (!match) return null;
-  const [, zText, xText, yText] = match;
+  const [, labels, zText, xText, yText] = match;
   const z = Number(zText);
   const x = Number(xText);
   const y = Number(yText);
   if (!Number.isInteger(z) || z < 0 || z > 19) return null;
   const maxIndex = 2 ** z - 1;
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x > maxIndex || y > maxIndex) return null;
-  return { z, x, y, key: `${z}/${x}/${y}` };
+  return { z, x, y, key: `${z}/${x}/${y}`, layer: labels ? 'labels' : 'base' };
 }
 
 function readCachedMapTile(key) {
@@ -48,6 +63,10 @@ function sendMapTile(res, tile, cacheState) {
   res.end(tile.body);
 }
 
+function sha256(body) {
+  return createHash('sha256').update(body).digest('hex');
+}
+
 function requestMapTileUpstream(upstream, tileRequest, signal) {
   return new Promise((resolvePromise, rejectPromise) => {
     const chunks = [];
@@ -55,10 +74,10 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
     const request = httpsRequest(
       {
         protocol: 'https:',
-        hostname: upstream.hostname,
+        hostname: upstream.hostname(tileRequest),
         port: 443,
         method: 'GET',
-        path: upstream.path(tileRequest.key),
+        path: upstream.path(tileRequest, tileRequest.layer, upstream.key),
         signal,
         headers: {
           accept: 'image/png,image/*;q=0.8,*/*;q=0.5',
@@ -88,11 +107,12 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
         });
         response.on('end', () => {
           const body = Buffer.concat(chunks);
-          if (!body.length) {
+          const upstreamType = String(response.headers['content-type'] ?? '');
+          // HTML/XML error pages (bad key, quota) are often sent with HTTP 200.
+          if (!body.length || (upstreamType && !upstreamType.startsWith('image/')) || !looksLikeImage(body)) {
             rejectPromise(createHttpError('地图瓦片内容无效', 502, 'MAP_TILE_INVALID'));
             return;
           }
-          const upstreamType = String(response.headers['content-type'] ?? '');
           resolvePromise({
             body,
             contentType: upstreamType.startsWith('image/') ? upstreamType : 'image/png',
@@ -110,11 +130,45 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
   });
 }
 
+async function referenceHashFor(upstream, layer, signal) {
+  const cacheKey = `${upstream.id}:${layer}`;
+  const known = referenceHashes.get(cacheKey);
+  if (known && Date.now() - known.at < REFERENCE_TTL_MS) return known.hash;
+  try {
+    const world = await requestMapTileUpstream(upstream, { z: 0, x: 0, y: 0, key: '0/0/0', layer }, signal);
+    const hash = sha256(world.body);
+    referenceHashes.set(cacheKey, { hash, at: Date.now() });
+    return hash;
+  } catch {
+    // Without a reference we can still rely on the known-placeholder list.
+    return null;
+  }
+}
+
+async function fetchVerifiedTile(upstream, tileRequest, signal) {
+  const tile = await requestMapTileUpstream(upstream, tileRequest, signal);
+  const hash = sha256(tile.body);
+  const referenceHash = tileRequest.z >= 3 ? await referenceHashFor(upstream, tileRequest.layer, signal) : null;
+  if (isPlaceholderTile({ hash, z: tileRequest.z, referenceHash })) {
+    providerCooldowns.set(upstream.id, Date.now() + MAP_TILE_PROVIDER_COOLDOWN_MS);
+    throw createHttpError('地图上游返回了占位图', 502, 'MAP_TILE_PLACEHOLDER');
+  }
+  return tile;
+}
+
+function sendMapTileConfig(res) {
+  return sendJson(res, 200, describeMapTileProviders(MAP_TILE_UPSTREAMS));
+}
+
 export async function handleMapTile(req, res, url) {
+  if (url.pathname === '/api/map-tiles/config') return sendMapTileConfig(res);
   const tileRequest = parseMapTilePath(url.pathname);
   if (!tileRequest) throw createHttpError('地图瓦片路径不合法', 400, 'INVALID_MAP_TILE');
+  const upstreams = MAP_TILE_UPSTREAMS.filter((upstream) => tileRequest.layer === 'base' || upstream.hasLabels);
+  if (!upstreams.length) throw createHttpError('当前底图没有独立注记图层', 404, 'MAP_TILE_NO_LABELS');
+  const cacheKey = `${tileRequest.layer}:${tileRequest.key}`;
 
-  const cached = readCachedMapTile(tileRequest.key);
+  const cached = readCachedMapTile(cacheKey);
   if (cached) return sendMapTile(res, cached, 'HIT');
 
   const controller = new AbortController();
@@ -127,9 +181,11 @@ export async function handleMapTile(req, res, url) {
   try {
     let tile = null;
     let lastError = null;
-    for (const upstream of MAP_TILE_UPSTREAMS) {
+    const now = Date.now();
+    const available = upstreams.filter((upstream) => (providerCooldowns.get(upstream.id) ?? 0) <= now);
+    for (const upstream of available.length ? available : upstreams) {
       try {
-        tile = await requestMapTileUpstream(upstream, tileRequest, controller.signal);
+        tile = await fetchVerifiedTile(upstream, tileRequest, controller.signal);
         break;
       } catch (error) {
         if (controller.signal.aborted) throw error;
@@ -137,7 +193,7 @@ export async function handleMapTile(req, res, url) {
       }
     }
     if (!tile) throw lastError || createHttpError('地图底图暂时不可用', 502, 'MAP_TILE_UNAVAILABLE');
-    cacheMapTile(tileRequest.key, tile);
+    cacheMapTile(cacheKey, tile);
     return sendMapTile(res, tile, 'MISS');
   } catch (error) {
     if (req.aborted || res.destroyed) return undefined;

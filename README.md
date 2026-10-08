@@ -77,6 +77,7 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 
 - JSONL 适合本地演示和单进程内测；多实例生产环境应完成 PostgreSQL 适配、双写一致性和回滚验证后再切换。
 - 未配置高德地理编码密钥时，低置信度模型坐标会保持模糊状态，不用于精确导航。
+- 地图底图通过同源代理 `/api/map-tiles` 加载，按 `MAP_TILE_PROVIDERS` 顺序回退，并自动识别以 HTTP 200 返回的占位图（如 CARTO 的 “API KEY REQUIRED”）。不配置任何密钥时使用 OpenStreetMap 镜像（仅适合开发和演示）；生产环境请配置 `TIANDITU_KEY`（天地图服务端密钥，WGS-84 坐标，与路书坐标一致），或使用高德（`MAP_TILE_PROVIDERS=amap`，可选 `AMAP_TILE_KEY`，GCJ-02，前端会自动偏移标记，商用需高德授权）。当前底图信息见 `GET /api/map-tiles/config`。
 - 公网部署必须配置独立的 `ROUTEBOOK_API_TOKEN`、`ROUTEBOOK_ADMIN_TOKEN` 和 `PROFILE_ID_SECRET`，并建议配置 `PUBLIC_BASE_URL`（分享页 og:image 的绝对地址）。
 - 生产模式只从 `OPENAI_*` 环境变量读取模型配置，不再读取 `~/.codex`；如确需沿用，设置 `AI_RUNTIME_FROM_CODEX=true`。开发模式默认仍读取。
 - 不要在公网环境启用 `ALLOW_LOCAL_API_BYPASS` 或 `ALLOW_LOCAL_ADMIN_BYPASS`：生产模式下若同时 `HOST` 不是回环地址，服务会拒绝启动（可用 `ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST=true` 强制）；开发模式下会打印告警。
@@ -147,4 +148,4 @@ public/assets/  本地演示素材
 | GET | `/api/checkins`、`/api/clicks`、`/api/favorites`、`/api/product-analytics`、`/api/poi-corrections` | profile token（按 `profileId`）或管理员 |
 | POST | `/api/profile`、`/api/checkins`、`/api/checkin-photos`、`/api/favorites`、`/api/reviews`、`/api/poi-corrections`、`/api/clicks`、`/api/exposures` | profile token（匿名写入有限制） |
 | POST | `/api/generate-routebook`、`/api/ocr-guide`、`/api/import-guide` | 本机或 `x-routebook-token` |
-| GET | `/api/checkin-photos/:id`、`/api/map-tiles/:z/:x/:y.png` | 公开（限流） |
+| GET | `/api/checkin-photos/:id`、`/api/map-tiles/:z/:x/:y.png`、`/api/map-tiles/labels/:z/:x/:y.png`、`/api/map-tiles/config` | 公开（限流） |

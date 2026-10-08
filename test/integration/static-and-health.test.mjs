@@ -83,3 +83,15 @@ test('L8: hashed assets are immutable; SPA fallback and 404s are unchanged', { s
     assert.equal(missing.status, 404, path);
   }
 });
+
+test('map tiles: /api/map-tiles/config describes the basemap without keys; bad paths are rejected', async () => {
+  const config = await fetchJson(`${server.baseUrl}/api/map-tiles/config`);
+  assert.equal(config.status, 200);
+  assert.equal(config.data.provider, 'osm-de');
+  assert.equal(config.data.coordinateSystem, 'wgs84');
+  assert.equal(config.data.labels, false);
+  const labels = await rawGet(server.baseUrl, '/api/map-tiles/labels/3/1/2.png');
+  assert.equal(labels.status, 404);
+  const bad = await rawGet(server.baseUrl, '/api/map-tiles/30/1/2.png');
+  assert.equal(bad.status, 400);
+});

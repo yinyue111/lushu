@@ -6,6 +6,7 @@ import { envNumber, envFlag } from './env.mjs';
 import { resolveProfileIdSecret } from './startup-checks.mjs';
 import { curatedRoutes } from '../../src/lib/content.js';
 import { sanitizePublicId } from '../lib/util.mjs';
+import { resolveMapTileProviders } from '../http/map-providers.mjs';
 
 export const PORT = envNumber('PORT', 5173, { min: 0, max: 65535 });
 export const HOST = process.env.HOST ?? '127.0.0.1';
@@ -167,11 +168,12 @@ export const MAP_TILE_UPSTREAM_TIMEOUT_MS = Math.max(1000, Math.min(10000, Numbe
 export const MAP_TILE_CACHE_MAX_ENTRIES = Math.max(50, Math.min(5000, Number(process.env.MAP_TILE_CACHE_MAX_ENTRIES) || 600));
 export const MAP_TILE_MAX_BYTES = Math.max(64 * 1024, Math.min(4 * 1024 * 1024, Number(process.env.MAP_TILE_MAX_BYTES) || 1024 * 1024));
 
-export const MAP_TILE_UPSTREAMS = [
-  { id: 'carto-light', hostname: 'a.basemaps.cartocdn.com', path: (key) => `/light_all/${key}.png` },
-  { id: 'osm-de', hostname: 'tile.openstreetmap.de', path: (key) => `/${key}.png` },
-  { id: 'osm-fr', hostname: 'a.tile.openstreetmap.fr', path: (key) => `/hot/${key}.png` }
-];
+// Ordered basemap providers (see server/http/map-providers.mjs and .env.example).
+const resolvedMapTileProviders = resolveMapTileProviders(process.env);
+export const MAP_TILE_UPSTREAMS = resolvedMapTileProviders.providers;
+export const MAP_TILE_SKIPPED_PROVIDERS = resolvedMapTileProviders.skipped;
+// After a provider serves a placeholder or keeps failing it is skipped for this long.
+export const MAP_TILE_PROVIDER_COOLDOWN_MS = envNumber('MAP_TILE_PROVIDER_COOLDOWN_MS', 10 * 60 * 1000, { min: 1000 });
 
 export const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
