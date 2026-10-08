@@ -1,11 +1,26 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera, Map as MapIcon, Check, ChevronRight, LocateFixed, SkipForward, CloudRain, Footprints, BookOpen, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  BookOpen,
+  Camera,
+  Check,
+  ChevronRight,
+  Clock,
+  CloudCheck,
+  CloudRain,
+  CloudUpload,
+  Footprints,
+  MapPin,
+  Navigation,
+  RefreshCw,
+  SkipForward,
+  TriangleAlert,
+  X
+} from 'lucide-react';
 import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
-import { coordinateForName, distanceKm, isNavigableCoordinate } from '../../lib/coordinates';
+import { isNavigableCoordinate } from '../../lib/coordinates';
 import { normalizeTripStops, readTripSession, saveTripSession, tripRoutebookId } from '../../lib/tripSession';
-import { greedyModeOrder } from '../../lib/routeModes';
 import {
   capCheckinRows,
   checkinEvidenceState,
@@ -20,8 +35,30 @@ import {
   recoverInterruptedCheckins,
   upsertCheckin
 } from '../../lib/checkinQueue';
-import { useDialogFocus } from '../../lib/useDialogFocus';
 import { trustedCities } from '../../lib/content';
+import { Button } from '../ui/button';
+import { Chip } from '../ui/chip';
+import { cn } from '../ui/cn';
+import { Drawer, DrawerContent } from '../ui/drawer';
+import { StopThumb } from '../visual/StopThumb';
+import { dayTheme } from '../visual/theme';
+import CheckinForm from './CheckinForm';
+import {
+  buildAlternativeStop,
+  buildAlternatives,
+  buildPendingCheckin,
+  buildReview,
+  buildStopsForMode,
+  checkinForStatusDisplay,
+  latestCheckinsByStop,
+  navigationForStop,
+  nextStopEta,
+  publicTrustEvidenceLabel,
+  safeReadCheckins,
+  stopKeyForStop,
+  summarizeProgress,
+  syncStatusLabel
+} from './tripModel';
 
 export default function TripView({ routebook, onBack, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
@@ -51,7 +88,6 @@ export default function TripView({ routebook, onBack, onReview }) {
   const [queueFlushing, setQueueFlushing] = useState(false);
   const [poiKnowledge, setPoiKnowledge] = useState([]);
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const checkinDialogRef = useDialogFocus(showCheckin, () => setShowCheckin(false));
 
   const stops = activeStops;
   const latestByStop = useMemo(() => latestCheckinsByStop(checkins), [checkins]);
@@ -362,812 +398,271 @@ export default function TripView({ routebook, onBack, onReview }) {
 
   if (!current)
     return (
-      <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
-        <p className="text-body" style={{ color: 'var(--muted)' }}>
-          暂无站点
-        </p>
-        <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={onBack}>
-          返回
-        </button>
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 pt-24 text-center">
+        <p className="text-muted">这条路书还没有站点</p>
+        <Button onClick={onBack}>返回</Button>
       </div>
     );
 
+  const theme = dayTheme(Math.max(0, (routebook.days ?? []).indexOf(current.day)));
+  const actionDisabled = currentProcessed || currentSyncPending || isFinished;
+  const notes = [modeNote, storageWarning, tripStorageWarning].filter(Boolean);
+
   return (
-    <div className="trip-layout page-enter">
-      <div className="trip-header">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}>
-          <ArrowLeft size={16} /> 退出行中
-        </button>
-        <span className="text-micro">
-          {effectiveIdx + 1} / {stops.length} · 行程进度 {progress}%
-        </span>
-      </div>
-
-      <div className="trip-columns">
-        <div className="trip-main">
-          <div className="trip-progress">
-            <div className="trip-progress-bar">
-              <span style={{ width: `${Math.min(100, progress)}%` }} />
-            </div>
-            <div>
-              <strong>{routebook.title}</strong>
-              <span>{review}</span>
-            </div>
+    <div className="min-h-dvh bg-canvas pb-[calc(96px+env(safe-area-inset-bottom))] text-ink lg:pb-12">
+      {/* Sticky header with progress */}
+      <header className="sticky top-0 z-[1200] border-b border-line bg-white/94 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1180px] items-center gap-3 px-4 lg:px-8">
+          <Button size="icon" onClick={onBack} aria-label="退出行中">
+            <X />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-extrabold">{routebook.title}</p>
+            <p className="truncate text-[13px] text-muted">{review}</p>
           </div>
+          <span className="num shrink-0 rounded-full bg-ink px-3 py-1.5 text-sm text-white">
+            {effectiveIdx + 1} / {stops.length}
+          </span>
+        </div>
+        <div className="h-1.5 bg-line" role="progressbar" aria-label="行程进度" aria-valuenow={Math.min(100, progress)} aria-valuemin={0} aria-valuemax={100}>
+          <div
+            className="h-full rounded-r-full transition-[width] duration-500"
+            style={{ width: `${Math.min(100, progress)}%`, backgroundImage: `linear-gradient(90deg, ${theme.from}, ${theme.to})` }}
+          />
+        </div>
+      </header>
 
+      <div className="mx-auto grid max-w-[1180px] gap-5 px-4 pt-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8 lg:px-8 lg:pt-8">
+        <main className="flex min-w-0 flex-col gap-4">
           {!trustedCities.includes(routebook.city) && (
-            <p className="text-caption trip-mode-note" role="status">
-              {routebook.city}为试验生成，POI、营业信息和导航需人工复核。
+            <p className="rounded-card bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink" role="status">
+              {routebook.city}还在试运行：地点、营业时间和导航请出发前自己再核对。
             </p>
           )}
 
-          <div className="trip-current-card card">
-            <span className="badge badge-green">当前站点</span>
-            <h1 className="text-hero" style={{ marginTop: 12 }}>
-              {current.name}
-            </h1>
-            <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
-              {current.time} · {current.stay} · {current.area}
-            </p>
-            <p className="text-caption" style={{ marginTop: 12 }}>
-              {current.risk}
-            </p>
-          </div>
-
-          {next && !isFinished && (
-            <div className="trip-next">
-              <ChevronRight size={16} style={{ color: 'var(--muted)' }} />
-              <span className="text-caption">
-                下一站：<strong>{next.name}</strong> · {next.time}
-                {nextStopCountdown && (
-                  <strong style={{ marginLeft: 6, color: nextStopCountdown.overdue ? 'var(--orange)' : 'var(--green)' }}>{nextStopCountdown.label}</strong>
+          {/* Current stop */}
+          <section className="overflow-hidden rounded-panel bg-white shadow-card" aria-labelledby="trip-current-title">
+            <StopThumb stop={current} number={effectiveIdx + 1} color={theme.ink} time={current.time} className="h-40 rounded-none sm:h-52" />
+            <div className="p-5">
+              <Chip tone={isFinished ? 'ok' : 'primary'}>{isFinished ? '全部完成' : currentProcessed ? '这一站已记录' : '现在在这一站'}</Chip>
+              <h1 id="trip-current-title" className="mt-2.5 text-[28px] leading-tight font-extrabold tracking-tight lg:text-[34px]">
+                {current.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {current.time && (
+                  <Chip size="sm">
+                    <Clock /> {current.time}
+                  </Chip>
                 )}
-              </span>
+                {current.stay && <Chip size="sm">停留 {String(current.stay).replace(/^停留\s*/, '')}</Chip>}
+                {current.area && (
+                  <Chip size="sm">
+                    <MapPin /> {current.area}
+                  </Chip>
+                )}
+                {!isNavigableCoordinate(current) && (
+                  <Chip size="sm" tone="warn">
+                    位置待确认
+                  </Chip>
+                )}
+              </div>
+              {current.risk && (
+                <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-primary-soft px-3 py-2 text-sm font-semibold text-primary-strong">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  {current.risk}
+                </p>
+              )}
+              {next && !isFinished && (
+                <div className="mt-4 flex items-center gap-3 rounded-card bg-canvas px-3.5 py-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink-2 shadow-card">
+                    <ChevronRight className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-muted">下一站 · {next.time}</p>
+                    <p className="truncate text-[15px] font-bold">{next.name}</p>
+                  </div>
+                  {nextStopCountdown && (
+                    <Chip size="sm" tone={nextStopCountdown.overdue ? 'warn' : 'ok'} className="shrink-0">
+                      {nextStopCountdown.label.replace('距建议到达还有', '还有').replace('已超出建议时间', '超时')}
+                    </Chip>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+          </section>
 
-          <div className="trip-adjustments">
-            <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('少走路')}>
-              <Footprints size={14} /> 少走路
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('雨天')}>
-              <CloudRain size={14} /> 雨天
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={skipStop} disabled={currentProcessed || currentSyncPending || isFinished}>
-              <SkipForward size={14} /> 跳过此站
-            </button>
+          {/* Desktop actions (phones use the fixed bottom bar) */}
+          <div className="hidden gap-3 lg:flex">
+            <Button variant="primary" size="lg" className="flex-[2]" onClick={() => setShowCheckin(true)} disabled={actionDisabled}>
+              <Camera /> {checkinLabel(isFinished, currentProcessed, currentSyncPending)}
+            </Button>
+            <Button variant="dark" size="lg" className="flex-1" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
+              <Navigation /> {navigation.label}
+            </Button>
           </div>
-          {modeNote && <p className="text-caption trip-mode-note">{modeNote}</p>}
-          {storageWarning && <p className="text-caption trip-mode-note">{storageWarning}</p>}
-          {tripStorageWarning && <p className="text-caption trip-mode-note">{tripStorageWarning}</p>}
+
+          <div className="flex flex-wrap gap-2" aria-label="临时调整">
+            <Button size="sm" variant="outline" onClick={() => applyTripMode('少走路')}>
+              <Footprints /> 少走点路
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => applyTripMode('雨天')}>
+              <CloudRain /> 下雨了
+            </Button>
+            <Button size="sm" variant="outline" onClick={skipStop} disabled={actionDisabled}>
+              <SkipForward /> 跳过这站
+            </Button>
+          </div>
+          {notes.map((note) => (
+            <p key={note} className="rounded-card bg-sky-soft px-4 py-3 text-sm text-sky-ink" role="status">
+              {note}
+            </p>
+          ))}
+
           {statusCheckin && (
-            <div className="trip-sync-state" role="status" aria-live="polite">
-              <span>
-                <strong>{statusEvidence.localCompleted ? '已记录' : '还没记录'}</strong>
-                {' · '}
-                {syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
-                <br />
-                <small>{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</small>
-                {pendingSyncCount > 1 && (
-                  <>
-                    <br />
-                    <small>另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</small>
-                  </>
+            <div className="flex items-start gap-3 rounded-card bg-white p-4 shadow-card" role="status" aria-live="polite">
+              <span
+                className={cn(
+                  'grid size-10 shrink-0 place-items-center rounded-full',
+                  statusEvidence.syncStatus === 'synced'
+                    ? 'bg-success-soft text-success-ink'
+                    : statusEvidence.syncStatus === 'failed'
+                      ? 'bg-primary-soft text-primary-strong'
+                      : 'bg-sky-soft text-sky-ink'
                 )}
-                {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
-                  <>
-                    <br />
-                    <small>最近错误：{statusCheckin.clientSyncError}</small>
-                  </>
-                )}
+              >
+                {statusEvidence.syncStatus === 'synced' ? <CloudCheck className="size-5" /> : <CloudUpload className="size-5" />}
               </span>
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="font-bold">
+                  {statusEvidence.localCompleted ? '已记录' : '还没记录'} · {syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
+                </p>
+                <p className="mt-0.5 text-[13px] text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
+                {pendingSyncCount > 1 && <p className="mt-0.5 text-[13px] text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>}
+                {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
+                  <p className="mt-0.5 text-[13px] text-primary-strong">原因：{statusCheckin.clientSyncError}</p>
+                )}
+              </div>
               {pendingSyncCount > 0 && (
-                <button className="btn btn-secondary btn-sm" onClick={handleSyncAction} disabled={queueFlushing}>
-                  <RefreshCw size={14} /> {queueFlushing ? '同步中' : statusEvidence.syncStatus === 'failed' ? '重试此条' : '立即同步'}
-                </button>
+                <Button size="sm" onClick={handleSyncAction} disabled={queueFlushing}>
+                  <RefreshCw /> {queueFlushing ? '上传中' : statusEvidence.syncStatus === 'failed' ? '重试' : '立即上传'}
+                </Button>
               )}
             </div>
           )}
 
-          <details className="trip-alternatives">
-            <summary>
-              <span>附近替代与休息点</span>
-              <small>
+          <details className="group rounded-card bg-white shadow-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5">
+              <span className="text-[15px] font-bold">附近可以换去的地方</span>
+              <span className="text-[13px] text-muted">
                 {alternatives.length} 个
-                {alternatives.length > 0 && (alternatives.some((item) => item.source === '平台 POI 库') ? ' · 含平台 POI 库' : ' · 路书内替代站点')}
-              </small>
+                {alternatives.length > 0 && (alternatives.some((item) => item.source === '平台 POI 库') ? ' · 含平台地点库' : ' · 来自本路书')}
+              </span>
             </summary>
-            <div className="trip-alternative-list">
+            <div className="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
               {alternatives.map((item) => (
                 <button
+                  type="button"
                   key={item.stop.id}
-                  className="trip-alt-card"
                   onClick={() => applyAlternative(item)}
-                  disabled={currentProcessed || currentSyncPending || isFinished}
+                  disabled={actionDisabled}
+                  className="flex items-center gap-3 rounded-tile bg-canvas p-2.5 text-left hover:bg-line disabled:opacity-50"
                 >
-                  <strong>{item.name}</strong>
-                  <span>
-                    {item.type} · {item.reason}
+                  <StopThumb stop={item.stop} compact className="size-12 shrink-0 rounded-xl" />
+                  <span className="min-w-0">
+                    <b className="block truncate text-[15px]">{item.name}</b>
+                    <span className="line-clamp-2 text-[13px] text-muted">
+                      {item.type} · {item.reason}
+                    </span>
                   </span>
                 </button>
               ))}
-              {!alternatives.length && (
-                <p className="text-caption" style={{ color: 'var(--muted)' }}>
-                  当前路书及路线变体中没有可确认坐标或类别的替代站点。
-                </p>
-              )}
+              {!alternatives.length && <p className="p-2 text-sm text-muted">这条路书里暂时没有能确认位置的替代地点。</p>}
             </div>
           </details>
 
-          <div className="trip-actions">
-            <button
-              className="btn btn-primary btn-lg"
-              style={{ flex: 1 }}
-              onClick={() => setShowCheckin(true)}
-              disabled={currentProcessed || currentSyncPending || isFinished}
-            >
-              <Camera size={18} /> {isFinished ? '已完成' : currentProcessed ? '已记录' : currentSyncPending ? '同步中' : '记录到达'}
-            </button>
-            <button className="btn btn-secondary btn-lg" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
-              <MapIcon size={18} /> {navigation.label}
-            </button>
-          </div>
-
           {checkins.length > 0 && (
-            <div style={{ textAlign: 'center', marginTop: 16 }}>
-              <p className="text-caption">
-                服务端有效到达 {progressStats.validArrivals} 站，公开可信样本 {progressStats.publicTrustSamples} 站
+            <div className="rounded-card bg-white p-4 text-center shadow-card">
+              <p className="text-sm text-ink-2">
+                到达验证 <b className="num">{progressStats.validArrivals}</b> 站 · 计入可信度 <b className="num">{progressStats.publicTrustSamples}</b> 站
               </p>
-              <p className="text-caption" style={{ marginTop: 4 }}>
-                普通反馈 {progressStats.feedbackOnly} 站，低置信/偏离 {progressStats.lowConfidenceArrivals} 次，跳过 {progressStats.skipped} 站，替换{' '}
+              <p className="mt-1 text-[13px] text-muted">
+                普通反馈 {progressStats.feedbackOnly} 站 · 定位偏离 {progressStats.lowConfidenceArrivals} 次 · 跳过 {progressStats.skipped} 站 · 替换{' '}
                 {progressStats.replaced} 次
               </p>
-              <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onReview}>
-                <BookOpen size={14} /> {isFinished ? '生成完整路线回顾' : '查看路线回顾'}
-              </button>
+              <Button size="sm" variant="ghost" className="mt-2 text-sky-ink" onClick={onReview}>
+                <BookOpen /> {isFinished ? '生成这趟旅程的回顾' : '看看目前的回顾'}
+              </Button>
             </div>
           )}
-        </div>
+        </main>
 
-        <aside className="trip-rail" aria-label="行程总览">
-          <h2 className="text-subtitle">行程总览</h2>
-          <ol className="trip-rail-list">
-            {stops.map((stop, idx) => {
-              const processed = isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)));
-              const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
-              return (
-                <li key={stopKeyForStop(stop) || idx} className={`trip-rail-item ${state}`}>
-                  <span className="rail-marker" aria-hidden="true">
-                    {processed ? <Check size={13} /> : idx + 1}
-                  </span>
-                  <div className="rail-stop">
-                    <strong>{stop.name}</strong>
-                    <small>{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</small>
-                  </div>
-                  {state === 'current' && <span className="badge badge-green">当前</span>}
-                  {state === 'done' && <span className="rail-done-label">已打卡</span>}
-                </li>
-              );
-            })}
-          </ol>
+        <aside className="lg:sticky lg:top-24 lg:self-start" aria-label="行程总览">
+          <div className="rounded-panel bg-white p-4 shadow-card lg:p-5">
+            <h2 className="mb-3 text-lg font-extrabold">行程总览</h2>
+            <ol className="relative flex flex-col gap-1 before:absolute before:top-4 before:bottom-4 before:left-[15px] before:border-l-2 before:border-dotted before:border-line-strong before:content-['']">
+              {stops.map((stop, idx) => {
+                const processed = isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)));
+                const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
+                return (
+                  <li
+                    key={stopKeyForStop(stop) || idx}
+                    className={cn('relative flex items-center gap-3 rounded-tile px-0 py-1.5', state === 'current' && 'bg-primary-soft/60')}
+                  >
+                    <span
+                      className={cn(
+                        'num relative z-[1] grid size-8 shrink-0 place-items-center rounded-full border-2 border-white text-[13px]',
+                        state === 'done' && 'bg-success-ink text-white',
+                        state === 'current' && 'bg-primary-strong text-white shadow-[0_0_0_3px_rgba(232,85,61,.25)]',
+                        state === 'upcoming' && 'bg-canvas text-ink-2'
+                      )}
+                      aria-hidden="true"
+                    >
+                      {processed ? <Check className="size-4" /> : idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn('truncate text-[15px] font-bold', state === 'done' && 'text-muted line-through decoration-1')}>{stop.name}</p>
+                      <p className="truncate text-[13px] text-muted">{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</p>
+                    </div>
+                    {state === 'current' && (
+                      <Chip size="sm" tone="primary" className="mr-2">
+                        当前
+                      </Chip>
+                    )}
+                    {state === 'done' && (
+                      <Chip size="sm" tone="ok" className="mr-2">
+                        已打卡
+                      </Chip>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         </aside>
       </div>
 
-      {showCheckin && (
-        <div className="modal-backdrop" onClick={() => setShowCheckin(false)}>
-          <div
-            ref={checkinDialogRef}
-            className="sheet-content"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="checkin-title"
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-title" id="checkin-title">
-              记录到达 · {current.name}
-            </h2>
-            <p className="text-caption" style={{ marginTop: 4 }}>
-              GPS 和体验字段均为选填；只有服务端确认的实名有效 GPS 到达才计入公开可信样本。
-            </p>
-            <CheckinForm onSubmit={submitCheckin} onCancel={() => setShowCheckin(false)} />
-          </div>
-        </div>
-      )}
+      {/* Phone action bar */}
+      <div className="fixed inset-x-0 bottom-0 z-[1300] flex gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
+        <Button variant="dark" size="lg" className="h-[54px] flex-1 text-base" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
+          <Navigation /> 导航
+        </Button>
+        <Button variant="primary" size="lg" className="h-[54px] flex-[2]" onClick={() => setShowCheckin(true)} disabled={actionDisabled}>
+          <Camera /> {checkinLabel(isFinished, currentProcessed, currentSyncPending)}
+        </Button>
+      </div>
+
+      <Drawer open={showCheckin} onOpenChange={setShowCheckin}>
+        <DrawerContent title={`记录到达 · ${current.name}`} description="都是选填。开了 GPS 且服务端确认到达的记录，才会计入路线可信度。">
+          <CheckinForm onSubmit={submitCheckin} onCancel={() => setShowCheckin(false)} />
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
 
-// 打卡不需要路书写凭证（editToken），payload 里不带，减少凭证暴露面。
-function buildCheckinPayload(routebook, stop, profile, data) {
-  return {
-    profileId: profile.id,
-    routeId: tripRoutebookId(routebook),
-    routeTitle: routebook.title,
-    city: routebook.city,
-    stopId: stop?.id,
-    stopName: stop?.name,
-    localStopKey: stopKeyForStop(stop),
-    target: stop ? { lat: stop.lat, lng: stop.lng } : null,
-    ...data,
-    time: new Date().toISOString()
-  };
-}
-
-function buildPendingCheckin(routebook, stop, profile, data, clientAction) {
-  return {
-    ...buildCheckinPayload(routebook, stop, profile, data),
-    clientLocalId: createClientCheckinId(),
-    clientSyncStatus: 'queued',
-    clientSyncError: '',
-    clientAction
-  };
-}
-
-function createClientCheckinId() {
-  if (globalThis.crypto?.randomUUID) return `checkin-${globalThis.crypto.randomUUID()}`;
-  return `checkin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// 本地暂存照片 dataURL 上限（约 400KB），防 localStorage 被撑爆。
-const MAX_PHOTO_DATA_URL_LENGTH = 400 * 1024;
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('照片读取失败'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function loadImageFromDataUrl(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('照片解码失败'));
-    image.src = dataUrl;
-  });
-}
-
-async function compressImageToDataUrl(file, maxEdge = 1280, quality = 0.8) {
-  const sourceDataUrl = await readFileAsDataUrl(file);
-  const image = await loadImageFromDataUrl(sourceDataUrl);
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
-  if (!width || !height) throw new Error('照片内容为空');
-  const scale = Math.min(1, maxEdge / Math.max(width, height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('当前浏览器不支持照片压缩');
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', quality);
-}
-
-// 下一站建议时间倒计时：解析 stop.time 里的 HH:mm，与当前时间比较；
-// 解析不到或相差超过 12 小时（可能非当日）时不展示。
-function nextStopEta(stop, nowMs) {
-  const match = String(stop?.time ?? '').match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) return null;
-  const target = new Date(nowMs);
-  target.setHours(hours, minutes, 0, 0);
-  const diffMinutes = Math.round((target.getTime() - nowMs) / 60_000);
-  if (Math.abs(diffMinutes) > 12 * 60) return null;
-  if (diffMinutes >= 0) return { overdue: false, label: `距建议到达还有 ${diffMinutes} 分钟` };
-  return { overdue: true, label: `已超出建议时间 ${Math.abs(diffMinutes)} 分钟` };
-}
-
-function CheckinForm({ onSubmit, onCancel }) {
-  const fieldPrefix = useId().replaceAll(':', '');
-  const [queue, setQueue] = useState('');
-  const [cost, setCost] = useState('');
-  const [worth, setWorth] = useState('');
-  const [crowd, setCrowd] = useState('');
-  const [comment, setComment] = useState('');
-  const [pitfall, setPitfall] = useState('');
-  const [audience, setAudience] = useState('');
-  const [photoName, setPhotoName] = useState('');
-  const [photoData, setPhotoData] = useState('');
-  const [photoError, setPhotoError] = useState('');
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [gps, setGps] = useState(null);
-  const [gpsError, setGpsError] = useState('');
-
-  function locate() {
-    setGpsError('');
-    if (!navigator.geolocation) {
-      setGpsError('当前浏览器不支持 GPS，仍可记录到达；服务端会保存为普通反馈。');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
-        setGps({
-          lat: Number(position.coords.latitude.toFixed(6)),
-          lng: Number(position.coords.longitude.toFixed(6)),
-          accuracy: Math.round(position.coords.accuracy),
-          // 客户端无法可靠判定浏览器返回的坐标系，标注 unknown 交由服务端双算纠偏。
-          coordinateSystem: 'unknown',
-          userAgent: String(navigator.userAgent ?? '').slice(0, 160)
-        }),
-      () => setGpsError('定位失败，仍可记录到达；服务端会保存为普通反馈，不是已验证到达。'),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-    );
-  }
-
-  async function handlePhotoChange(event) {
-    const file = event.target.files?.[0];
-    setPhotoError('');
-    setPhotoData('');
-    setPhotoName(file?.name ?? '');
-    if (!file) return;
-    setPhotoBusy(true);
-    try {
-      // canvas 压缩到最长边 1280、JPEG 质量 0.8，控制上传与本地暂存体积。
-      const dataUrl = await compressImageToDataUrl(file, 1280, 0.8);
-      if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
-        setPhotoError('照片压缩后仍超过 400KB，本次不上传；请稍后重拍或换一张照片。');
-        return;
-      }
-      setPhotoData(dataUrl);
-    } catch {
-      setPhotoError('照片处理失败，本次不上传；仍可直接记录到达。');
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  return (
-    <form
-      className="checkin-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (photoBusy) return;
-        onSubmit({ queue, cost, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
-      }}
-    >
-      <button type="button" className="btn btn-secondary" style={{ marginTop: 18 }} onClick={locate}>
-        <LocateFixed size={16} /> 可选：用 GPS 验证到达
-      </button>
-      {gps && (
-        <p className="text-caption" style={{ marginTop: 8 }}>
-          已定位：{gps.lat}, {gps.lng} · 精度约 {gps.accuracy}m
-        </p>
-      )}
-      {gpsError && (
-        <p className="text-caption" style={{ marginTop: 8, color: 'var(--orange)' }}>
-          {gpsError}
-        </p>
-      )}
-      {!gps && !gpsError && (
-        <p className="text-caption" style={{ marginTop: 8 }}>
-          不使用 GPS 也可记录到达；服务端会保存为普通反馈，不是已验证到达。
-        </p>
-      )}
-      <fieldset className="checkin-option-group" style={{ marginTop: 20 }}>
-        <legend className="input-label">是否值得去（选填）</legend>
-        <div className="chip-group">
-          {['值得', '一般', '踩坑'].map((v) => (
-            <button type="button" key={v} aria-pressed={worth === v} className={`chip ${worth === v ? 'active' : ''}`} onClick={() => setWorth(v)}>
-              {v}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <fieldset className="checkin-option-group" style={{ marginTop: 12 }}>
-        <legend className="input-label">现场拥挤度（选填）</legend>
-        <div className="chip-group">
-          {['空', '适中', '拥挤', '不建议'].map((v) => (
-            <button type="button" key={v} aria-pressed={crowd === v} className={`chip ${crowd === v ? 'active' : ''}`} onClick={() => setCrowd(v)}>
-              {v}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <details className="trip-alternatives">
-        <summary>
-          <span>补充详情（选填）</span>
-          <small>排队、花费、短评等</small>
-        </summary>
-        <div style={{ padding: 16 }}>
-          <div>
-            <label className="input-label" htmlFor={`${fieldPrefix}-queue`}>
-              排队时间
-            </label>
-            <input
-              id={`${fieldPrefix}-queue`}
-              className="input-field"
-              value={queue}
-              onChange={(e) => setQueue(e.target.value)}
-              placeholder="按现场情况填写，例如 15 分钟"
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-cost`}>
-              实际花费
-            </label>
-            <input
-              id={`${fieldPrefix}-cost`}
-              className="input-field"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="按实际支付填写，例如 80 元"
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-audience`}>
-              适合人群
-            </label>
-            <input
-              id={`${fieldPrefix}-audience`}
-              className="input-field"
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              placeholder="朋友/情侣/亲子/独行"
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-comment`}>
-              短评
-            </label>
-            <textarea
-              id={`${fieldPrefix}-comment`}
-              className="input-field"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="现场体验、是否顺路、是否值得保留..."
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-pitfall`}>
-              踩坑/风险
-            </label>
-            <input
-              id={`${fieldPrefix}-pitfall`}
-              className="input-field"
-              value={pitfall}
-              onChange={(e) => setPitfall(e.target.value)}
-              placeholder="闭店、涨价、排队、商业推销..."
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-photo`}>
-              打卡照片（选填）
-            </label>
-            <input id={`${fieldPrefix}-photo`} className="input-field" type="file" accept="image/*" onChange={handlePhotoChange} />
-            {photoError && (
-              <p className="text-caption" style={{ marginTop: 6, color: 'var(--orange)' }}>
-                {photoError}
-              </p>
-            )}
-            <p className="text-caption" style={{ marginTop: 6 }}>
-              {photoBusy
-                ? '照片压缩中...'
-                : photoData
-                  ? `已压缩待上传：${photoName || '打卡照片'}`
-                  : '照片将作为打卡证据上传（压缩到最长边 1280 后上传，离线时先本地暂存、恢复网络自动补传）。'}
-            </p>
-          </div>
-        </div>
-      </details>
-      <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-        <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>
-          取消
-        </button>
-        <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={photoBusy}>
-          <Check size={16} /> {photoBusy ? '照片处理中...' : '记录到达'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function buildReview(checkins, stops) {
-  if (!checkins.length) return '记录到达后会自动沉淀完成度、花费、排队和踩坑反馈';
-  const progress = summarizeProgress(checkins, stops);
-  const stopIds = new Set((stops ?? []).map(stopKeyForStop));
-  const routeCheckins = checkins.filter((item) => isServerSyncedCheckin(item) && stopIds.has(checkinKey(item)));
-  const pitfallCount = routeCheckins.filter((item) => item.status === 'visited' && (item.worth === '踩坑' || item.pitfall)).length;
-  return `有效到达 ${progress.validArrivals}/${stops.length} 站，公开可信样本 ${progress.publicTrustSamples} 站，踩坑 ${pitfallCount} 条`;
-}
-
-function safeReadCheckins(storageKey) {
-  try {
-    const rows = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
-    return Array.isArray(rows) ? rows : [];
-  } catch {
-    return [];
-  }
-}
-
-function summarizeProgress(checkins, stops) {
-  const stopIds = new Set((stops ?? []).map(stopKeyForStop));
-  const latestByStop = new Map();
-  for (const item of checkins ?? []) {
-    const key = checkinKey(item);
-    if (!key || !stopIds.has(key)) continue;
-    latestByStop.set(key, item);
-  }
-  const locallyProcessedRows = [...latestByStop.values()].filter(isLocallyProcessedCheckin);
-  const syncedRows = [...latestByStop.values()].filter(isServerSyncedCheckin);
-  const syncedFeedbackRows = syncedRows.filter((item) => item.status === 'visited');
-  const skipped = locallyProcessedRows.filter((item) => item.status === 'skipped' || item.worth === '跳过').length;
-  const replaced = (checkins ?? []).filter((item) => isLocallyProcessedCheckin(item) && (item.status === 'replaced' || item.worth === '替换')).length;
-  const visited = locallyProcessedRows.filter((item) => item.status === 'visited').length;
-  const validArrivals = syncedFeedbackRows.filter((item) => checkinEvidenceState(item).validArrival).length;
-  const publicTrustSamples = syncedRows.filter((item) => checkinEvidenceState(item).countsTowardPublicTrust).length;
-  const lowConfidenceArrivals = syncedFeedbackRows.filter((item) => ['weak', 'invalid'].includes(item.arrivalConfidence || item.arrival?.confidence)).length;
-  const feedbackOnly = Math.max(0, syncedFeedbackRows.length - validArrivals - lowConfidenceArrivals);
-  const processed = locallyProcessedRows.length;
-  return {
-    visited,
-    skipped,
-    replaced,
-    validArrivals,
-    publicTrustSamples,
-    lowConfidenceArrivals,
-    feedbackOnly,
-    processed,
-    progress: stops.length ? Math.min(100, Math.round((processed / stops.length) * 100)) : 0
-  };
-}
-
-function latestCheckinsByStop(checkins) {
-  const latest = new Map();
-  for (const item of checkins ?? []) {
-    const key = checkinKey(item);
-    if (key) latest.set(key, item);
-  }
-  return latest;
-}
-
-function stopKeyForStop(stop) {
-  return String(stop?.id ?? '').trim();
-}
-
-function checkinKey(item) {
-  return String(item?.localStopKey ?? item?.stopId ?? '').trim();
-}
-
-function queuedCheckinsByTime(checkins) {
-  return [...listQueuedCheckins(checkins)].sort((left, right) => {
-    const leftTime = String(left?.time ?? left?.createdAt ?? '');
-    const rightTime = String(right?.time ?? right?.createdAt ?? '');
-    return leftTime.localeCompare(rightTime) || String(left?.clientLocalId ?? '').localeCompare(String(right?.clientLocalId ?? ''));
-  });
-}
-
-function latestCheckinByTime(checkins) {
-  return (
-    [...(checkins ?? [])].sort((left, right) => {
-      const leftTime = String(left?.time ?? left?.createdAt ?? '');
-      const rightTime = String(right?.time ?? right?.createdAt ?? '');
-      return rightTime.localeCompare(leftTime) || String(right?.clientLocalId ?? '').localeCompare(String(left?.clientLocalId ?? ''));
-    })[0] ?? null
-  );
-}
-
-function checkinForStatusDisplay(checkins) {
-  const rows = checkins ?? [];
-  return (
-    rows.find((item) => item?.clientSyncStatus === 'syncing') ??
-    rows.find((item) => item?.clientSyncStatus === 'failed') ??
-    queuedCheckinsByTime(rows)[0] ??
-    latestCheckinByTime(rows)
-  );
-}
-
-function syncStatusLabel(status, row) {
-  if (status === 'syncing') return '正在上传';
-  if (status === 'synced') return '已保存到云端';
-  if (status === 'failed') return row?.clientSyncRetryable === false ? '上传失败，请手动重试' : '上传失败，稍后自动重试';
-  return '联网后自动上传';
-}
-
-function publicTrustEvidenceLabel(row, evidence) {
-  if (row?.status === 'skipped' || row?.status === 'replaced') {
-    return '公开可信：行程跳过或替换记录不作为到达样本。';
-  }
-  if (evidence.syncStatus !== 'synced') {
-    return '上传并校验通过后，才会计入路线可信度。';
-  }
-  if (evidence.countsTowardPublicTrust) {
-    return '公开可信：实名身份与有效 GPS 到达均已通过，已计入样本。';
-  }
-  if (evidence.validArrival && !evidence.identityAttested) {
-    return '公开可信：GPS 到达有效，但身份尚未完成可信绑定，不计入样本。';
-  }
-  if (evidence.arrivalConfidence === 'weak') {
-    return '普通反馈：GPS 接近但置信度不足，不计入公开可信样本。';
-  }
-  if (evidence.arrivalConfidence === 'invalid') {
-    return '普通反馈：GPS 位置疑似偏离，不计入公开可信样本。';
-  }
-  return '普通反馈：没有形成有效 GPS 到达，不计入公开可信样本。';
-}
-
-function buildAlternatives(current, routebook, activeStops, latestByStop, poiKnowledge = []) {
-  if (!current) return [];
-  const currentCategory = stopCategory(current);
-  const decorate = (candidate) => {
-    const category = stopCategory(candidate.stop);
-    const distance = distanceKm(current, candidate.stop);
-    const sameArea = Boolean(current.area && candidate.stop.area && current.area === candidate.stop.area);
-    const categoryMatch = category !== '其他' && category === currentCategory;
-    return { ...candidate, category, distance, sameArea, categoryMatch };
-  };
-
-  // 平台 POI 库（运营审核过的修正知识）按与当前站点的距离排序，取前 3 个。
-  const platformCandidates = buildPlatformAlternatives(current, routebook, latestByStop, poiKnowledge)
-    .map(decorate)
-    .sort((a, b) => {
-      const distanceA = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
-      const distanceB = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
-      return distanceA - distanceB;
-    })
-    .slice(0, 3);
-
-  // 平台库无数据/接口失败时回退路书内候选，来源文案标注为「路书内替代站点」。
-  const routeSourceLabel = (label) => (platformCandidates.length ? label : '路书内替代站点');
-  const sources = [
-    { label: routeSourceLabel('主路线'), stops: routebook?.stops ?? [] },
-    ...(routebook?.variants ?? []).map((variant) => ({ label: routeSourceLabel(variant.label || `${variant.mode || '路线'}变体`), stops: variant.stops ?? [] }))
-  ];
-  const candidates = new Map();
-  for (const source of sources) {
-    for (const stop of normalizeTripStops(routebook, source.stops)) {
-      const key = stopKeyForStop(stop);
-      if (!key || key === stopKeyForStop(current) || isLocallyProcessedCheckin(latestByStop.get(key))) continue;
-      if (!candidates.has(key)) candidates.set(key, { stop, source: source.label });
-    }
-  }
-  const routeCandidates = [...candidates.values()]
-    .map(decorate)
-    .filter((candidate) => Number.isFinite(candidate.distance) || candidate.category !== '其他' || candidate.sameArea)
-    .sort((a, b) => {
-      if (a.categoryMatch !== b.categoryMatch) return a.categoryMatch ? -1 : 1;
-      if (a.sameArea !== b.sameArea) return a.sameArea ? -1 : 1;
-      const distanceA = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
-      const distanceB = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
-      return distanceA - distanceB || Number(b.stop.score ?? 0) - Number(a.stop.score ?? 0);
-    });
-
-  const combined = [];
-  const seenNames = new Set([String(current.name ?? '').trim()]);
-  for (const candidate of [...platformCandidates, ...routeCandidates]) {
-    const name = String(candidate.stop.name ?? '').trim();
-    if (!name || seenNames.has(name)) continue;
-    seenNames.add(name);
-    combined.push(candidate);
-    if (combined.length >= 5) break;
-  }
-  return combined.map((candidate) => ({
-    ...candidate,
-    name: candidate.stop.name,
-    type: `${candidate.category} · ${candidate.source}`,
-    reason: alternativeReason(candidate, currentCategory, activeStops)
-  }));
-}
-
-// 把平台 POI 库知识行转换成可替换的候选站点；坐标从本地已知 POI 坐标表兜底解析。
-function buildPlatformAlternatives(current, routebook, latestByStop, poiKnowledge) {
-  const seen = new Set();
-  const candidates = [];
-  for (const row of Array.isArray(poiKnowledge) ? poiKnowledge : []) {
-    const name = String(row?.stopName ?? '').trim();
-    if (!name || name === String(current?.name ?? '').trim() || seen.has(name)) continue;
-    seen.add(name);
-    const coordinate = coordinateForName(name, routebook?.city);
-    const stop = {
-      id: `poi-knowledge-${String(row?.id ?? name)}`,
-      name,
-      day: current?.day,
-      time: current?.time,
-      area: current?.area || routebook?.city || '',
-      verify: `平台 POI 库运营审核：${row?.field || '综合信息'}${row?.value ? ` · ${row.value}` : ''}`.slice(0, 120),
-      risk: String(row?.reason ?? '').slice(0, 120),
-      ...(coordinate ? { lat: coordinate.lat, lng: coordinate.lng, geoConfidence: 75, coordinateSource: 'known-poi' } : {})
-    };
-    if (isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)))) continue;
-    candidates.push({ stop, source: '平台 POI 库' });
-  }
-  return candidates;
-}
-
-function buildAlternativeStop(current, alternative) {
-  const candidate = alternative.stop;
-  return {
-    ...candidate,
-    day: current?.day || candidate.day,
-    time: current?.time || candidate.time,
-    tripOriginalDay: candidate.day,
-    tripOriginalTime: candidate.time,
-    tripReplacementFor: current?.id,
-    tripStatus: 'pending',
-    verify: candidate.verify || `来自${alternative.source}的真实替代站点`,
-    risk: candidate.risk || alternative.reason
-  };
-}
-
-function buildStopsForMode(mode, sourceStops, routebook, anchorStop, processedKeys) {
-  const matchingVariant = (routebook?.variants ?? []).find((variant) => variant.mode === mode || String(variant.label ?? '').includes(mode));
-  if (matchingVariant?.stops?.length) {
-    const seen = new Set();
-    const variantStops = normalizeTripStops(routebook, matchingVariant.stops).filter((stop) => {
-      const key = stopKeyForStop(stop);
-      if (!key || processedKeys.has(key) || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    if (variantStops.length) {
-      return { stops: variantStops, source: `采用现有「${matchingVariant.label || `${mode}版`}」路线变体` };
-    }
-  }
-
-  // 贪心重排复用 lib/routeModes 的共享实现，与行前「一键重排」保持同一套权重。
-  const days = [...new Set(sourceStops.map((stop) => stop.day || 'Day 1'))];
-  let anchor = anchorStop;
-  const ordered = [];
-  for (const day of days) {
-    const dayStops = sourceStops.filter((stop) => (stop.day || 'Day 1') === day);
-    const reordered = greedyModeOrder(dayStops, anchor, mode);
-    ordered.push(...reordered);
-    anchor = reordered.at(-1) ?? anchor;
-  }
-  return {
-    stops: ordered,
-    source: mode === '雨天' ? '按室内属性与相邻距离重新计算' : '按站点坐标与区域做最近邻重排'
-  };
-}
-
-function navigationForStop(stops, currentIndex, routebook, latestByStop) {
-  const current = stops[currentIndex];
-  const previous =
-    [...stops.slice(0, currentIndex)].reverse().find((stop) => {
-      const checkin = latestByStop.get(stopKeyForStop(stop));
-      return checkin?.status !== 'skipped' && checkin?.status !== 'replaced' && checkin?.worth !== '跳过' && checkin?.worth !== '替换';
-    }) ?? stops[currentIndex - 1];
-  const distance = previous && current ? distanceKm(previous, current) : null;
-  // 站点上并没有 transport/transfer 之类的转场字段；从实际存在的 verify/risk 文本
-  // 与路书约束里的交通偏好推断导航模式。
-  const legHint = `${current?.verify ?? ''} ${current?.risk ?? ''}`;
-  const routeHint = String(routebook?.constraints?.transport ?? '');
-  let mode = 'walk';
-  if (/打车|驾车|自驾|租车|网约车|car/i.test(legHint)) mode = 'car';
-  else if (/步行|走路|walk/i.test(legHint)) mode = 'walk';
-  else if (Number.isFinite(distance)) mode = distance <= 1.5 ? 'walk' : 'car';
-  else if (/打车|驾车|自驾|地铁|少走路|少换乘|car/i.test(routeHint)) mode = 'car';
-  return {
-    mode,
-    label: mode === 'car' ? '驾车导航' : '步行导航'
-  };
-}
-
-function stopCategory(stop) {
-  const text = `${stop?.name ?? ''} ${stop?.area ?? ''} ${stop?.verify ?? ''} ${stop?.risk ?? ''}`;
-  if (/馆|展|博物|美术|书店|剧场|艺术/.test(text)) return '展馆文化';
-  if (/餐|饭|小吃|咖啡|茶|酒吧|甜品|店/.test(text)) return '餐饮休息';
-  if (/寺|庙|教堂|道观/.test(text)) return '人文宗教';
-  if (/园|湖|山|江|河|街|巷|古镇|景区|公园/.test(text)) return '户外景点';
-  if (/商场|银泰|中心|购物/.test(text)) return '室内商业';
-  return '其他';
-}
-
-function alternativeReason(candidate, currentCategory, activeStops) {
-  const details = [];
-  if (Number.isFinite(candidate.distance)) {
-    details.push(candidate.distance < 1 ? `距当前约 ${Math.round(candidate.distance * 1000)}m` : `距当前约 ${candidate.distance.toFixed(1)}km`);
-  } else if (candidate.sameArea) {
-    details.push(`同在${candidate.stop.area}`);
-  } else {
-    details.push(`位于${candidate.stop.area || '当前目的地区域'}`);
-  }
-  if (candidate.categoryMatch) details.push(`与当前同属${currentCategory}`);
-  else details.push(`可切换为${candidate.category}`);
-  if (activeStops.some((stop) => stopKeyForStop(stop) === stopKeyForStop(candidate.stop))) details.push('将同步移除后续重复站点');
-  return details.join('，');
+function checkinLabel(isFinished, processed, syncing) {
+  if (isFinished) return '全部完成';
+  if (processed) return '已记录';
+  if (syncing) return '上传中';
+  return '我到了，记录一下';
 }

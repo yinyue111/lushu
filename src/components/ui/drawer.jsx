@@ -3,7 +3,10 @@ import { cn } from './cn';
 
 export const Drawer = VaulDrawer.Root;
 
-/** Bottom sheet (phones) built on vaul; capped to 560px wide on larger screens. */
+/**
+ * Bottom sheet (phones) built on vaul; capped to 560px wide on larger screens.
+ * @param {Record<string, any>} props
+ */
 export function DrawerContent({ className, children, title, description, ...props }) {
   return (
     <VaulDrawer.Portal>
