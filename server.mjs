@@ -10,8 +10,11 @@ import { checkServerIdentity } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 import { cities as supportedCities, getRegionForCity, isSupportedCity, regionCenters, regionCityGroups } from './src/lib/chinaCities.js';
 import { curatedRoutes, curatedRouteToRoutebook, cityStories, defaultCityImage, productCards as seedProductCards } from './src/lib/content.js';
+import { envFlag, envNumber } from './server/config/env.mjs';
+import { evaluateStartupSafety, resolveProfileIdSecret } from './server/config/startup-checks.mjs';
+import { DEFAULT_MODEL, createModelRuntimeLoader, redactBaseUrl } from './server/ai/runtime.mjs';
 
-const PORT = Number(process.env.PORT ?? 5173);
+const PORT = envNumber('PORT', 5173, { min: 0, max: 65535 });
 const HOST = process.env.HOST ?? '127.0.0.1';
 // `--production` lets `npm start` work on every OS (no POSIX `NODE_ENV=... node` syntax).
 if (process.argv.includes('--production')) process.env.NODE_ENV = 'production';
@@ -39,41 +42,50 @@ const PRODUCT_CONFIG_PATH = join(DATA_DIR, 'product-config.json');
 const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
 const CODEX_CONFIG_PATH = process.env.CODEX_CONFIG_PATH ?? join(CODEX_HOME, 'config.toml');
 const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH ?? join(CODEX_HOME, 'auth.json');
-const DEFAULT_MODEL = 'gpt-5.5';
+// H6: the operator's personal Codex CLI config is only read in development unless
+// explicitly enabled; production must use OPENAI_* env vars.
+const AI_RUNTIME_FROM_CODEX = envFlag('AI_RUNTIME_FROM_CODEX', !IS_PRODUCTION);
+const loadCodexRuntime = createModelRuntimeLoader({
+  readCodex: AI_RUNTIME_FROM_CODEX,
+  configPath: CODEX_CONFIG_PATH,
+  authPath: CODEX_AUTH_PATH
+});
 const APP_ID = 'trusted-routebook';
 const JSONL_SCAN_CHUNK_BYTES = 256 * 1024;
 const JSONL_NEWLINE_BYTE = 0x0a;
 const JSONL_EMPTY_BUFFER = Buffer.alloc(0);
-const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES ?? 1024 * 1024);
-const MAX_GUIDE_CHARS = Number(process.env.MAX_GUIDE_CHARS ?? 20000);
-const MAX_IMPORT_URLS = Number(process.env.MAX_IMPORT_URLS ?? 5);
-const MAX_IMPORT_PAGE_BYTES = Number(process.env.MAX_IMPORT_PAGE_BYTES ?? 512 * 1024);
-const MAX_ROUTEBOOK_STOPS = Number(process.env.MAX_ROUTEBOOK_STOPS ?? 40);
-const MAX_OCR_IMAGES = Number(process.env.MAX_OCR_IMAGES ?? 4);
-const MAX_OCR_IMAGE_BYTES = Number(process.env.MAX_OCR_IMAGE_BYTES ?? 2 * 1024 * 1024);
-const MAX_OCR_REQUEST_BYTES = Number(process.env.MAX_OCR_REQUEST_BYTES ?? Math.ceil(MAX_OCR_IMAGES * MAX_OCR_IMAGE_BYTES * 4 / 3) + 64 * 1024);
-const IMPORT_TIMEOUT_MS = Number(process.env.IMPORT_TIMEOUT_MS ?? 12000);
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 120000);
+const MAX_JSON_BODY_BYTES = envNumber('MAX_JSON_BODY_BYTES', 1024 * 1024, { min: 1024 });
+const MAX_GUIDE_CHARS = envNumber('MAX_GUIDE_CHARS', 20000, { min: 100 });
+const MAX_IMPORT_URLS = envNumber('MAX_IMPORT_URLS', 5, { min: 1, max: 50 });
+const MAX_IMPORT_PAGE_BYTES = envNumber('MAX_IMPORT_PAGE_BYTES', 512 * 1024, { min: 1024 });
+const MAX_ROUTEBOOK_STOPS = envNumber('MAX_ROUTEBOOK_STOPS', 40, { min: 2, max: 500 });
+const MAX_OCR_IMAGES = envNumber('MAX_OCR_IMAGES', 4, { min: 1, max: 20 });
+const MAX_OCR_IMAGE_BYTES = envNumber('MAX_OCR_IMAGE_BYTES', 2 * 1024 * 1024, { min: 1024 });
+const MAX_OCR_REQUEST_BYTES = envNumber('MAX_OCR_REQUEST_BYTES', Math.ceil(MAX_OCR_IMAGES * MAX_OCR_IMAGE_BYTES * 4 / 3) + 64 * 1024, { min: 1024 });
+const IMPORT_TIMEOUT_MS = envNumber('IMPORT_TIMEOUT_MS', 12000, { min: 100 });
+const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 120000, { min: 1000 });
 // A 12-stop Chinese routebook plus assets/validations/metrics does not fit in the
 // old 2400-token budget; the retry limit covers the longest 3-day itineraries.
-const AI_MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 6000);
-const AI_MAX_OUTPUT_TOKENS_RETRY = Number(process.env.AI_MAX_OUTPUT_TOKENS_RETRY ?? 12000);
-const OCR_MAX_OUTPUT_TOKENS = Number(process.env.OCR_MAX_OUTPUT_TOKENS ?? 4000);
-const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60000);
-const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 12);
+const AI_MAX_OUTPUT_TOKENS = envNumber('AI_MAX_OUTPUT_TOKENS', 6000, { min: 256 });
+const AI_MAX_OUTPUT_TOKENS_RETRY = envNumber('AI_MAX_OUTPUT_TOKENS_RETRY', 12000, { min: 256 });
+const OCR_MAX_OUTPUT_TOKENS = envNumber('OCR_MAX_OUTPUT_TOKENS', 4000, { min: 256 });
+const RATE_LIMIT_WINDOW_MS = envNumber('RATE_LIMIT_WINDOW_MS', 60000, { min: 1000 });
+const RATE_LIMIT_MAX = envNumber('RATE_LIMIT_MAX', 12, { min: 1 });
 // rank9 写限流分桶：埋点、AI、核心写与只读热点各自独立配额，互不挤兑。
-const RATE_LIMIT_TELEMETRY_MAX = Number(process.env.RATE_LIMIT_TELEMETRY_MAX ?? 60);
-const RATE_LIMIT_CORE_WRITE_MAX = Number(process.env.RATE_LIMIT_CORE_WRITE_MAX ?? 24);
-const RATE_LIMIT_MAP_TILE_MAX = Number(process.env.RATE_LIMIT_MAP_TILE_MAX ?? 300);
-const RATE_LIMIT_PUBLIC_READ_MAX = Number(process.env.RATE_LIMIT_PUBLIC_READ_MAX ?? 60);
+const RATE_LIMIT_TELEMETRY_MAX = envNumber('RATE_LIMIT_TELEMETRY_MAX', 60, { min: 1 });
+const RATE_LIMIT_CORE_WRITE_MAX = envNumber('RATE_LIMIT_CORE_WRITE_MAX', 24, { min: 1 });
+const RATE_LIMIT_MAP_TILE_MAX = envNumber('RATE_LIMIT_MAP_TILE_MAX', 300, { min: 1 });
+const RATE_LIMIT_PUBLIC_READ_MAX = envNumber('RATE_LIMIT_PUBLIC_READ_MAX', 60, { min: 1 });
+// L9: cheap public config reads (cities/cms/products) get their own, larger bucket.
+const RATE_LIMIT_PUBLIC_CONFIG_MAX = envNumber('RATE_LIMIT_PUBLIC_CONFIG_MAX', 240, { min: 1 });
 const RATE_LIMIT_BUCKET_SWEEP_SIZE = 10000;
 // rank13 打卡照片：解码后大小上限与 OCR 同级；请求体按 base64 膨胀预留余量。
-const MAX_CHECKIN_PHOTO_BYTES = Number(process.env.MAX_CHECKIN_PHOTO_BYTES ?? MAX_OCR_IMAGE_BYTES);
+const MAX_CHECKIN_PHOTO_BYTES = envNumber('MAX_CHECKIN_PHOTO_BYTES', MAX_OCR_IMAGE_BYTES, { min: 1024 });
 const MAX_CHECKIN_PHOTO_REQUEST_BYTES = Math.ceil(MAX_CHECKIN_PHOTO_BYTES * 4 / 3) + 64 * 1024;
 const CHECKIN_PHOTO_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const CHECKIN_PHOTO_GPS_MATCH_METERS = 500;
 // 照片上传配额：同一 profile 24 小时滚动窗口内最多 60 张。
-const CHECKIN_PHOTO_QUOTA_MAX = Number(process.env.CHECKIN_PHOTO_QUOTA_MAX ?? 60);
+const CHECKIN_PHOTO_QUOTA_MAX = envNumber('CHECKIN_PHOTO_QUOTA_MAX', 60, { min: 1 });
 const CHECKIN_PHOTO_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000;
 const CHECKIN_PHOTO_EXTENSIONS = [
   ['image/jpeg', '.jpg'],
@@ -87,10 +99,14 @@ const CHECKIN_GCJ_CORRECTION_MAX_METERS = 800;
 const PUBLIC_MODEL_PROXY_ALLOWED = process.env.ALLOW_PUBLIC_MODEL_PROXY === 'true';
 const API_TOKEN = process.env.ROUTEBOOK_API_TOKEN ?? '';
 const ADMIN_API_TOKEN = process.env.ROUTEBOOK_ADMIN_TOKEN ?? '';
-const PROFILE_ID_SECRET = process.env.PROFILE_ID_SECRET || ADMIN_API_TOKEN || API_TOKEN || (IS_PRODUCTION ? '' : 'trusted-routebook-local-profile-id-v1');
-if (!PROFILE_ID_SECRET) {
-  throw new Error('PROFILE_ID_SECRET must be set in production, or provide ROUTEBOOK_ADMIN_TOKEN/ROUTEBOOK_API_TOKEN as a fallback secret.');
-}
+// M2: the legacy fallback (admin token → API token → dev default) is kept so existing
+// stored profile ids / token hashes stay valid; startup checks warn when it is used.
+const { secret: PROFILE_ID_SECRET, source: PROFILE_ID_SECRET_SOURCE } = resolveProfileIdSecret({
+  profileIdSecret: process.env.PROFILE_ID_SECRET,
+  adminToken: ADMIN_API_TOKEN,
+  apiToken: API_TOKEN,
+  isProduction: IS_PRODUCTION
+});
 const REQUIRE_LOCAL_ADMIN_TOKEN = process.env.REQUIRE_LOCAL_ADMIN_TOKEN === 'true';
 const ALLOW_LOCAL_API_BYPASS = process.env.ALLOW_LOCAL_API_BYPASS === 'true' ||
   (!IS_PRODUCTION && process.env.ALLOW_LOCAL_API_BYPASS !== 'false');
@@ -98,6 +114,34 @@ const ALLOW_LOCAL_ADMIN_BYPASS = process.env.ALLOW_LOCAL_ADMIN_BYPASS === 'true'
   (!IS_PRODUCTION && !REQUIRE_LOCAL_ADMIN_TOKEN && process.env.ALLOW_LOCAL_ADMIN_BYPASS !== 'false');
 const PROFILE_IDENTITY_ASSERTION_SECRET = process.env.PROFILE_IDENTITY_ASSERTION_SECRET || '';
 const TRUST_PROXY_HEADERS = process.env.TRUST_PROXY_HEADERS === 'true';
+// L4: canonical public origin for absolute URLs in share-page og:image tags.
+const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL);
+{
+  const { errors, warnings } = evaluateStartupSafety({
+    host: HOST,
+    isProduction: IS_PRODUCTION,
+    allowLocalApiBypass: ALLOW_LOCAL_API_BYPASS,
+    allowLocalAdminBypass: ALLOW_LOCAL_ADMIN_BYPASS,
+    trustProxyHeaders: TRUST_PROXY_HEADERS,
+    allowBypassOnPublicHost: envFlag('ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST', false),
+    profileSecretSource: PROFILE_ID_SECRET_SOURCE,
+    publicBaseUrl: PUBLIC_BASE_URL
+  });
+  for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
+  if (errors.length) throw new Error(errors.join('\n'));
+}
+
+function normalizePublicBaseUrl(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocol');
+    return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    throw new Error(`PUBLIC_BASE_URL must be an absolute http(s) URL, got ${JSON.stringify(text)}`);
+  }
+}
 const TRUSTED_PROXY_CIDRS = (process.env.TRUSTED_PROXY_CIDRS ?? '127.0.0.1,::1')
   .split(',')
   .map((item) => item.trim())
@@ -106,17 +150,17 @@ const PUBLIC_ROUTE_STATUSES = new Set(['published', 'featured']);
 const ROUTEBOOK_STATUSES = new Set(['draft', 'published', 'featured', 'archived']);
 const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';
 const CURATED_ROUTE_IDS = new Set(curatedRoutes.map((route) => sanitizePublicId(route.id)).filter(Boolean));
-const TRUST_FEEDBACK_SAMPLE_TARGET = Number(process.env.TRUST_FEEDBACK_SAMPLE_TARGET ?? 12);
+const TRUST_FEEDBACK_SAMPLE_TARGET = envNumber('TRUST_FEEDBACK_SAMPLE_TARGET', 12, { min: 1 });
 const PUBLIC_TRUST_SAMPLE_THRESHOLD = 3;
 // profile-owned = holds a server-issued profile token; profile-attested additionally
 // bound a phone/WeChat identity. Both count as public samples; only attested is
 // reported as strongly verified.
 const PUBLIC_TRUST_ELIGIBLE_STATES = new Set(['profile-attested', 'profile-owned']);
-const CHECKIN_TRUSTED_ACCURACY_METERS = Number(process.env.CHECKIN_TRUSTED_ACCURACY_METERS ?? 200);
-const CHECKIN_MAX_REPORTED_ACCURACY_METERS = Number(process.env.CHECKIN_MAX_REPORTED_ACCURACY_METERS ?? 500);
-const CHECKIN_MAX_PLAUSIBLE_KMH = Number(process.env.CHECKIN_MAX_PLAUSIBLE_KMH ?? 300);
-const CHECKIN_PLAUSIBILITY_WINDOW_HOURS = Number(process.env.CHECKIN_PLAUSIBILITY_WINDOW_HOURS ?? 12);
-const POI_FEEDBACK_WINDOW_DAYS = Number(process.env.POI_FEEDBACK_WINDOW_DAYS ?? 30);
+const CHECKIN_TRUSTED_ACCURACY_METERS = envNumber('CHECKIN_TRUSTED_ACCURACY_METERS', 200, { min: 1, integer: false });
+const CHECKIN_MAX_REPORTED_ACCURACY_METERS = envNumber('CHECKIN_MAX_REPORTED_ACCURACY_METERS', 500, { min: 1, integer: false });
+const CHECKIN_MAX_PLAUSIBLE_KMH = envNumber('CHECKIN_MAX_PLAUSIBLE_KMH', 300, { min: 1, integer: false });
+const CHECKIN_PLAUSIBILITY_WINDOW_HOURS = envNumber('CHECKIN_PLAUSIBILITY_WINDOW_HOURS', 12, { min: 0, integer: false });
+const POI_FEEDBACK_WINDOW_DAYS = envNumber('POI_FEEDBACK_WINDOW_DAYS', 30, { min: 1, integer: false });
 const TRAVEL_DAY_TIME_ZONE = 'Asia/Shanghai';
 const TRAVEL_DAY_WINDOW_DAYS = 1;
 const TRAVEL_DAY_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -126,7 +170,7 @@ const TRAVEL_DAY_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit'
 });
 const AMAP_GEOCODE_KEY = String(process.env.AMAP_GEOCODE_KEY ?? '').trim();
-const GEOCODE_TIMEOUT_MS = Number(process.env.GEOCODE_TIMEOUT_MS ?? 5000);
+const GEOCODE_TIMEOUT_MS = envNumber('GEOCODE_TIMEOUT_MS', 5000, { min: 100 });
 const geocodeCache = new Map();
 const MAP_TILE_TIMEOUT_MS = Math.max(3000, Math.min(30000, Number(process.env.MAP_TILE_TIMEOUT_MS) || 12000));
 const MAP_TILE_UPSTREAM_TIMEOUT_MS = Math.max(1000, Math.min(10000, Number(process.env.MAP_TILE_UPSTREAM_TIMEOUT_MS) || 4000));
@@ -700,7 +744,7 @@ async function buildStoredProfile(input = {}) {
   let accessTokenHash = hashSecretToken(accessToken);
 
   if (existing) {
-    const validExistingToken = requestedToken && hashSecretToken(requestedToken) === existing.accessTokenHash;
+    const validExistingToken = Boolean(requestedToken) && safeTokenEqual(hashSecretToken(requestedToken), existing.accessTokenHash);
     // 换设备找回：identityBound 只有在 verifiedProfileIdentity 通过（签名 + 10 分钟
     // 时效 + nonce）后才为 true，且 normalizedProfile.id 就是该身份的 stableId，与
     // existing 按同一 id 命中；此时允许在无旧 accessToken 的情况下轮换新 token。
@@ -2308,7 +2352,7 @@ function normalizeUserRouteCreator(input = {}, profileId = '') {
 function canOverwriteRoutebook(existingRoutebook, input) {
   if (!existingRoutebook) return true;
   const existingToken = sanitizeEditToken(existingRoutebook.editToken);
-  if (existingToken) return sanitizeEditToken(input?.editToken) === existingToken;
+  if (existingToken) return safeTokenEqual(sanitizeEditToken(input?.editToken), existingToken);
   return false;
 }
 
@@ -5796,84 +5840,6 @@ async function readJsonBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
   }
 }
 
-function stripQuotes(value) {
-  return value?.replace(/^["']|["']$/g, '').trim();
-}
-
-function parseCodexConfig(text) {
-  const config = {
-    modelProvider: 'openai',
-    model: DEFAULT_MODEL,
-    providers: {}
-  };
-  let section = '';
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-
-    const sectionMatch = line.match(/^\[(.+)]$/);
-    if (sectionMatch) {
-      section = sectionMatch[1];
-      continue;
-    }
-
-    const keyMatch = line.match(/^([A-Za-z0-9_]+)\s*=\s*(.+)$/);
-    if (!keyMatch) continue;
-
-    const [, key, rawValue] = keyMatch;
-    const value = stripQuotes(rawValue);
-    if (!section) {
-      if (key === 'model_provider') config.modelProvider = value;
-      if (key === 'model') config.model = value;
-      continue;
-    }
-
-    const providerMatch = section.match(/^model_providers\.([A-Za-z0-9_-]+)$/);
-    if (providerMatch) {
-      const providerName = providerMatch[1];
-      config.providers[providerName] ??= {};
-      config.providers[providerName][key] = value;
-    }
-  }
-
-  return config;
-}
-
-async function loadCodexRuntime() {
-  const configText = existsSync(CODEX_CONFIG_PATH) ? await readFile(CODEX_CONFIG_PATH, 'utf8') : '';
-  const codexConfig = parseCodexConfig(configText);
-  const providerName = process.env.AI_PROVIDER ?? codexConfig.modelProvider ?? 'yinyue';
-  const provider = codexConfig.providers[providerName] ?? {};
-  let auth = {};
-  if (existsSync(CODEX_AUTH_PATH)) {
-    try {
-      auth = JSON.parse(await readFile(CODEX_AUTH_PATH, 'utf8'));
-    } catch {
-      auth = {};
-    }
-  }
-
-  const baseUrl = process.env.OPENAI_BASE_URL ?? provider.base_url;
-  const apiKey = process.env.OPENAI_API_KEY ?? auth.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL ?? codexConfig.model ?? DEFAULT_MODEL;
-  const wireApi = process.env.OPENAI_WIRE_API ?? provider.wire_api ?? 'responses';
-  const supportedWireApis = new Set(['responses', 'chat_completions']);
-  const supportsWireApi = supportedWireApis.has(wireApi);
-
-  return {
-    providerName,
-    model,
-    wireApi,
-    baseUrl,
-    apiKey,
-    ready: Boolean(baseUrl && apiKey && supportsWireApi),
-    readyReason: supportsWireApi ? '' : `暂不支持 wire_api=${wireApi}`,
-    configPath: CODEX_CONFIG_PATH,
-    authPath: CODEX_AUTH_PATH
-  };
-}
-
 function openAiEndpoint(baseUrl, wireApi) {
   let trimmed = '';
   try {
@@ -5883,16 +5849,6 @@ function openAiEndpoint(baseUrl, wireApi) {
   }
   const path = wireApi === 'chat_completions' ? 'chat/completions' : 'responses';
   return trimmed.endsWith('/v1') ? `${trimmed}/${path}` : `${trimmed}/v1/${path}`;
-}
-
-function redactBaseUrl(baseUrl) {
-  if (!baseUrl) return null;
-  try {
-    const url = new URL(baseUrl);
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return '[configured]';
-  }
 }
 
 function isLocalAddress(address) {
@@ -6057,6 +6013,7 @@ function rateLimitQuotaForCategory(category) {
     case 'core-write': return RATE_LIMIT_CORE_WRITE_MAX;
     case 'map-tile': return RATE_LIMIT_MAP_TILE_MAX;
     case 'public-read': return RATE_LIMIT_PUBLIC_READ_MAX;
+    case 'public-config': return RATE_LIMIT_PUBLIC_CONFIG_MAX;
     case 'ai':
     default: return RATE_LIMIT_MAX;
   }
@@ -7527,6 +7484,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/cities') {
+      enforceRateLimit(req, 'public-config');
       const rawQuery = String(url.searchParams.get('q') ?? '').trim();
       const query = rawQuery ? normalizeCityName(rawQuery) : '';
       const matches = !query
@@ -7619,6 +7577,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/routebooks') {
+      enforceRateLimit(req, 'public-read');
       const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
       const statuses = String(url.searchParams.get('status') ?? '')
@@ -7649,6 +7608,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/cms') {
+      enforceRateLimit(req, 'public-config');
       return sendJson(res, 200, {
         ok: true,
         config: await readCmsConfig()
@@ -7665,6 +7625,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/products') {
+      enforceRateLimit(req, 'public-config');
       const config = await readProductConfig();
       return sendJson(res, 200, {
         ok: true,
@@ -7885,6 +7846,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/poi-knowledge') {
+      enforceRateLimit(req, 'public-read');
       const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
       const stopName = truncateString(url.searchParams.get('stopName'), 80);
       return sendJson(res, 200, {
@@ -7954,6 +7916,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname.startsWith('/api/reviews/')) {
+      enforceRateLimit(req, 'public-read');
       const id = sanitizePublicId(safeDecodePathSegment(url.pathname.replace('/api/reviews/', '')));
       const review = await getSavedReview(id);
       if (!review) throw createHttpError('路线回顾不存在或尚未保存', 404, 'REVIEW_NOT_FOUND');
@@ -8500,15 +8463,32 @@ function injectShareLandingMeta(html, meta) {
   return output;
 }
 
+// L4: prefer the configured PUBLIC_BASE_URL. Otherwise only trust X-Forwarded-Proto
+// from a trusted proxy and only accept a syntactically valid Host header, so a
+// spoofed Host cannot inject arbitrary origins into og:image.
+const VALID_HOST_HEADER = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
+
+function shareLandingOrigin(req) {
+  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  const host = String(req.headers.host ?? '').trim();
+  if (!host || host.length > 255 || !VALID_HOST_HEADER.test(host)) return '';
+  const forwardedProto = shouldTrustProxyHeaders(req)
+    ? String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim().toLowerCase()
+    : '';
+  const proto = forwardedProto === 'https' || forwardedProto === 'http'
+    ? forwardedProto
+    : (req.socket?.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
 // 返回 true 表示已响应；返回 false 让调用方回退到 vite/静态托管原样返回 index.html。
 async function serveShareLandingHtml(req, res, target) {
   const meta = await buildShareLandingMeta(target);
   if (!meta) return false;
   // og:image 需要绝对 URL（微信/QQ 等抓取器不解析相对路径）；以请求来源组装 origin。
   if (meta.image?.startsWith('/')) {
-    const proto = String(req.headers['x-forwarded-proto'] ?? 'http').split(',')[0].trim() || 'http';
-    const host = String(req.headers.host ?? '').split(',')[0].trim();
-    if (host) meta.image = `${proto}://${host}${meta.image}`;
+    const origin = shareLandingOrigin(req);
+    if (origin) meta.image = `${origin}${meta.image}`;
   }
   let html = '';
   try {
@@ -8536,7 +8516,7 @@ const vite = IS_PRODUCTION ? null : await createDevelopmentViteServer();
 
 async function createDevelopmentViteServer() {
   const { createServer: createViteServer } = await import('vite');
-  const preferredHmrPort = Number(process.env.VITE_HMR_PORT ?? 24679);
+  const preferredHmrPort = envNumber('VITE_HMR_PORT', 24679, { min: 0, max: 65535 });
   const hmrPort = await findAvailablePort(preferredHmrPort, '0.0.0.0');
   return createViteServer({
     server: { middlewareMode: true, hmr: { host: HOST === '0.0.0.0' ? 'localhost' : HOST, port: hmrPort } },
@@ -8567,7 +8547,12 @@ function probeAvailablePort(port, host = '127.0.0.1') {
   });
 }
 
-function listen(port, attemptsLeft = 10) {
+// L3: auto-incrementing the port on EADDRINUSE is a development convenience only;
+// in production a busy port must fail loudly instead of silently drifting.
+const DEV_PORT_FALLBACK_ATTEMPTS = IS_PRODUCTION ? 0 : 10;
+const SHUTDOWN_GRACE_MS = envNumber('SHUTDOWN_GRACE_MS', 10000, { min: 0, max: 120000 });
+
+function listen(port, attemptsLeft = DEV_PORT_FALLBACK_ATTEMPTS) {
   const server = createServer(async (req, res) => {
     if (req.url?.startsWith('/api/')) {
       assignRequestId(req, res);
@@ -8588,13 +8573,18 @@ function listen(port, attemptsLeft = 10) {
     }
     await sendStatic(req, res);
   });
-  server.requestTimeout = Number(process.env.REQUEST_TIMEOUT_MS ?? 130000);
-  server.headersTimeout = Number(process.env.HEADERS_TIMEOUT_MS ?? 15000);
+  server.requestTimeout = envNumber('REQUEST_TIMEOUT_MS', 130000, { min: 0 });
+  server.headersTimeout = envNumber('HEADERS_TIMEOUT_MS', 15000, { min: 0 });
 
   const onError = (error) => {
     if (error.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      console.warn(`[server] port ${port} is in use, trying ${port + 1} (development only)`);
       listen(port + 1, attemptsLeft - 1);
       return;
+    }
+    if (error.code === 'EADDRINUSE') {
+      console.error(`[server] port ${port} on ${HOST} is already in use; set PORT to a free port.`);
+      process.exit(1);
     }
     throw error;
   };
@@ -8602,9 +8592,37 @@ function listen(port, attemptsLeft = 10) {
   server.once('error', onError);
   server.listen(port, HOST, () => {
     server.off('error', onError);
+    installGracefulShutdown(server);
     const mode = IS_PRODUCTION ? 'production' : 'dev';
     console.log(`Trusted Routebook ${mode} server: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${port}/`);
   });
+}
+
+// L3: stop accepting connections on SIGTERM/SIGINT, let in-flight requests (and
+// their JSONL appends) finish, then exit. A second signal or the grace timeout
+// forces the exit.
+function installGracefulShutdown(server) {
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) {
+      process.exit(1);
+      return;
+    }
+    shuttingDown = true;
+    console.log(`[server] ${signal} received, shutting down`);
+    const forceTimer = setTimeout(() => {
+      server.closeAllConnections?.();
+      process.exit(0);
+    }, SHUTDOWN_GRACE_MS);
+    forceTimer.unref();
+    server.close(async () => {
+      await vite?.close().catch(() => {});
+      process.exit(0);
+    });
+    server.closeIdleConnections?.();
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 listen(PORT);

@@ -25,15 +25,14 @@ export function freePort() {
 
 /**
  * Spawns an isolated production-mode server on a free port with a temp data dir.
- * @param {{ env?: Record<string, string>, dataDir?: string, waitFor?: 'live' | 'none', args?: string[] }} [options]
+ * Env overrides set to `null` remove the variable entirely.
+ * @param {{ env?: Record<string, string | null>, dataDir?: string, waitFor?: 'live' | 'none', args?: string[], port?: number }} [options]
  */
 export async function startServer(options = {}) {
-  const port = await freePort();
+  const port = options.port ?? await freePort();
   const dataDir = options.dataDir ?? await mkdtemp(join(tmpdir(), 'routebook-unit-'));
   const output = [];
-  const child = spawn(process.execPath, ['server.mjs', ...(options.args ?? [])], {
-    cwd: PROJECT_ROOT,
-    env: hermeticServerEnv({
+  const env = hermeticServerEnv({
       NODE_ENV: 'production',
       HOST: '127.0.0.1',
       PORT: String(port),
@@ -48,7 +47,13 @@ export async function startServer(options = {}) {
       RATE_LIMIT_CORE_WRITE_MAX: '1000',
       RATE_LIMIT_PUBLIC_READ_MAX: '1000',
       ...(options.env ?? {})
-    }),
+  });
+  for (const [key, value] of Object.entries(env)) {
+    if (value == null) delete env[key];
+  }
+  const child = spawn(process.execPath, ['server.mjs', ...(options.args ?? [])], {
+    cwd: PROJECT_ROOT,
+    env: /** @type {NodeJS.ProcessEnv} */ (env),
     stdio: ['ignore', 'pipe', 'pipe']
   });
   child.stdout.on('data', (chunk) => output.push(chunk.toString()));
@@ -96,4 +101,22 @@ export async function fetchJson(url, init = {}) {
 }
 
 export const adminHeaders = (extra = {}) => ({ 'x-routebook-admin-token': ADMIN_TOKEN, ...extra });
+/**
+ * Resolves when the child exits (or rejects after timeoutMs).
+ * @param {{ exited: Promise<{ code: number | null, signal: string | null }> }} server
+ */
+export function waitForExit(server, timeoutMs = 15000) {
+  return Promise.race([
+    server.exited,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('process did not exit')), timeoutMs))
+  ]);
+}
+
+/** Appends JSON rows to a JSONL file in the data dir. */
+export async function writeJsonl(dataDir, name, rows) {
+  const { appendFile, mkdir } = await import('node:fs/promises');
+  await mkdir(dataDir, { recursive: true });
+  await appendFile(join(dataDir, name), rows.map((row) => `${JSON.stringify(row)}\n`).join(''), 'utf8');
+}
+
 export const jsonHeaders = (extra = {}) => ({ 'content-type': 'application/json', ...extra });

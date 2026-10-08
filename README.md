@@ -77,9 +77,23 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 
 - JSONL 适合本地演示和单进程内测；多实例生产环境应完成 PostgreSQL 适配、双写一致性和回滚验证后再切换。
 - 未配置高德地理编码密钥时，低置信度模型坐标会保持模糊状态，不用于精确导航。
-- 公网部署必须配置独立的 `ROUTEBOOK_API_TOKEN`、`ROUTEBOOK_ADMIN_TOKEN` 和 `PROFILE_ID_SECRET`。
-- 不要在公网环境启用 `ALLOW_LOCAL_API_BYPASS` 或 `ALLOW_LOCAL_ADMIN_BYPASS`。
+- 公网部署必须配置独立的 `ROUTEBOOK_API_TOKEN`、`ROUTEBOOK_ADMIN_TOKEN` 和 `PROFILE_ID_SECRET`，并建议配置 `PUBLIC_BASE_URL`（分享页 og:image 的绝对地址）。
+- 生产模式只从 `OPENAI_*` 环境变量读取模型配置，不再读取 `~/.codex`；如确需沿用，设置 `AI_RUNTIME_FROM_CODEX=true`。开发模式默认仍读取。
+- 不要在公网环境启用 `ALLOW_LOCAL_API_BYPASS` 或 `ALLOW_LOCAL_ADMIN_BYPASS`：生产模式下若同时 `HOST` 不是回环地址，服务会拒绝启动（可用 `ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST=true` 强制）；开发模式下会打印告警。
+- 生产模式端口被占用时直接退出（开发模式仍会自动尝试下一个端口）；收到 `SIGTERM` / `SIGINT` 会停止接收新请求，等待进行中的请求完成（最长 `SHUTDOWN_GRACE_MS`）后退出。
 - 截图 OCR 与照片打卡涉及用户数据，部署前需补齐隐私告知、存储期限和删除机制。
+
+### PROFILE_ID_SECRET 迁移
+
+`PROFILE_ID_SECRET` 用于派生绑定身份的稳定 profile ID（`u_<hmac>`）、profile token 哈希、导入来源签名和 POI 提交签名。旧版本在未设置它时会**静默复用** `ROUTEBOOK_ADMIN_TOKEN`（其次 `ROUTEBOOK_API_TOKEN`），导致轮换管理员令牌会让所有已有 profile token 失效。
+
+当前版本保持同样的回退顺序（已有哈希不受影响），但启动时会打印 `DEPRECATED` 告警。迁移步骤：
+
+1. 查看当前生效的回退来源（启动日志会写明是 `ROUTEBOOK_ADMIN_TOKEN` 还是 `ROUTEBOOK_API_TOKEN`）。
+2. 设置 `PROFILE_ID_SECRET=<该令牌的当前值>` 并重启，告警消失，已有 profile ID / token 全部继续有效。
+3. 之后即可独立轮换 `ROUTEBOOK_ADMIN_TOKEN` / `ROUTEBOOK_API_TOKEN`。**不要**更换 `PROFILE_ID_SECRET` 本身，否则已有 profile token 需要用户重新绑定。
+
+全新部署直接设置一个随机的 `PROFILE_ID_SECRET` 即可。开发模式未设置任何令牌时使用公开的默认值，仅适合本机。
 
 ## 目录
 
