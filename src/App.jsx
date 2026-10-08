@@ -418,10 +418,13 @@ export default function App() {
   const activeRouteId = routebook?.publicId || routebook?.id || '';
   const routebookMatchesLocation = Boolean(routebook && sharePublicId && activeRouteId === sharePublicId);
 
+  const navHidden = PUBLIC_VIEWS.has(view) || view === VIEWS.trip;
+  const showTabBar = !navHidden && view !== VIEWS.route;
+
   return (
     <div className={`app-root view-${view}`}>
-      <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={PUBLIC_VIEWS.has(view) || view === VIEWS.trip} />
-      <main className="app-main">
+      <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={navHidden} />
+      <main className={`app-main ${showTabBar ? 'max-md:pb-[calc(56px+env(safe-area-inset-bottom))]' : ''}`}>
         {dueReminder && !PUBLIC_VIEWS.has(view) && (
           <TripReminderBanner
             reminder={dueReminder}

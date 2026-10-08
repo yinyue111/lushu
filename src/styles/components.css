@@ -4013,17 +4013,6 @@
   }
 }
 
-/* Phase 0: the route page has its own fixed action bar on phones, so the global
-   bottom tab bar is hidden there (no stacked double bars). */
-@media (max-width: 1023px) {
-  .app-root.view-route > .top-nav {
-    display: none;
-  }
-  .app-root.view-route > .app-main {
-    padding-bottom: 0;
-  }
-}
-
 /* Phase 0: wide ops tables scroll horizontally instead of overflowing the page. */
 @media (max-width: 900px) {
   .ops-data-table {
