@@ -464,7 +464,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 value={apiTokenInput}
                 onChange={(event) => setApiTokenInput(event.target.value)}
                 onBlur={() => setApiToken(apiTokenInput)}
-                placeholder="远程部署启用模型代理时填写"
+                placeholder="本地使用可留空"
               />
             </Field>
           </div>
