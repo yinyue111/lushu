@@ -70,7 +70,7 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 - 所有测试都使用隔离环境：临时数据目录、假的 `OPENAI_*`（指向关闭端口）、空的临时 `CODEX_HOME`，不会读取本机 `~/.codex` 或 shell 里的真实密钥（见 `scripts/lib/hermetic-env.mjs`）。
 - `npm run test:unit`（= `npm test`）只跑 `node:test` 测试；可传关键字过滤：`npm run test:unit -- coordinates`。
 - `test:postgres-schema` 前置条件：PATH 中有 `psql`、`createdb`、`dropdb`，并通过标准 `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` 环境变量指向一个允许建库的 PostgreSQL（≥ 14）。脚本会创建并删除一个临时库。
-- `smoke:api` 会调用真实模型；未配置模型时会立即失败并给出原因。
+- `smoke:api` 会调用真实模型；未配置模型时会立即失败并给出原因（`/api/health` 第一次返回 `ready: false` 即退出；服务启动等待上限 `SMOKE_STARTUP_TIMEOUT_MS`，默认 30 秒；如需继续轮询可设置 `SMOKE_NOT_READY_GRACE_MS`）。
 - CI：`.github/workflows/ci.yml` 在 push / PR 时运行 `npm ci`、`npm run verify`、PostgreSQL schema 回归和 `npm audit --omit=dev`。
 
 ## 生产边界

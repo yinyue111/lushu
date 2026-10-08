@@ -11,6 +11,11 @@ const FETCH_TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS ?? 180000);
 const SMOKE_PORT = Number(process.env.SMOKE_PORT ?? 5299);
 const HEALTH_PROBE_TIMEOUT_MS = Number(process.env.SMOKE_HEALTH_PROBE_TIMEOUT_MS ?? 2000);
 const HEALTH_POLL_INTERVAL_MS = Number(process.env.SMOKE_HEALTH_POLL_INTERVAL_MS ?? 300);
+// M7: how long to wait for the server to accept connections, and how long to keep
+// polling once it reports `ready: false` (model config does not change at runtime,
+// so the default is to fail on the first not-ready answer).
+const STARTUP_TIMEOUT_MS = Number(process.env.SMOKE_STARTUP_TIMEOUT_MS ?? 30000);
+const NOT_READY_GRACE_MS = Number(process.env.SMOKE_NOT_READY_GRACE_MS ?? 0);
 const SMOKE_PROFILE_ID = 'smoke-profile';
 const SMOKE_ADMIN_TOKEN = 'smoke-admin-token';
 
@@ -38,33 +43,46 @@ async function fetchJson(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   }
 }
 
-async function discoverBaseUrl(baseUrl) {
+async function discoverBaseUrl(baseUrl, { child = null, childOutput = [], headers = {} } = {}) {
   if (!baseUrl) {
     throw new Error('No smoke base URL resolved');
   }
 
   const started = Date.now();
+  let firstNotReadyAt = null;
   let lastError = null;
-  while (Date.now() - started < FETCH_TIMEOUT_MS) {
+  while (Date.now() - started < STARTUP_TIMEOUT_MS) {
+    if (child && child.exitCode !== null) {
+      throw new Error(`Smoke server exited early with code ${child.exitCode}:\n${childOutput.join('').slice(-4000)}`);
+    }
     try {
-      const { response, data } = await fetchJson(`${baseUrl}/api/health?smoke=1`, {}, HEALTH_PROBE_TIMEOUT_MS);
+      const { response, data } = await fetchJson(`${baseUrl}/api/health?smoke=1`, { headers }, HEALTH_PROBE_TIMEOUT_MS);
       if (!response.ok) {
         lastError = new Error(`Health failed: ${JSON.stringify(data)}`);
       } else if (data?.appId !== APP_ID) {
         throw new Error(`Health appId mismatch: ${JSON.stringify(data)}`);
       } else if (!data?.ready) {
+        firstNotReadyAt ??= Date.now();
+        if (Date.now() - firstNotReadyAt >= NOT_READY_GRACE_MS) {
+          throw new Error(
+            `Model runtime is not ready: ${data.reason || 'no reason given'}. ` +
+            'smoke:api calls a real model; configure OPENAI_BASE_URL / OPENAI_API_KEY (or AI_RUNTIME_FROM_CODEX in development). ' +
+            'Set SMOKE_NOT_READY_GRACE_MS to keep polling.'
+          );
+        }
         lastError = new Error(`API not ready: ${JSON.stringify(data)}`);
       } else {
         return { baseUrl, health: data };
       }
     } catch (error) {
+      if (error.message?.startsWith('Model runtime is not ready') || error.message?.startsWith('Health appId mismatch')) throw error;
       lastError = error.name === 'AbortError'
         ? new Error(`Health probe timed out after ${HEALTH_PROBE_TIMEOUT_MS}ms`)
         : error;
     }
     await sleep(HEALTH_POLL_INTERVAL_MS);
   }
-  throw new Error(`Health did not become ready after ${FETCH_TIMEOUT_MS}ms: ${lastError?.message ?? 'unknown error'}`);
+  throw new Error(`Health did not become ready after ${STARTUP_TIMEOUT_MS}ms: ${lastError?.message ?? 'unknown error'}`);
 }
 
 async function main() {
@@ -92,6 +110,7 @@ async function main() {
         ROUTEBOOK_DATA_DIR: dataDir,
         REQUIRE_LOCAL_ADMIN_TOKEN: 'true',
         ROUTEBOOK_ADMIN_TOKEN: SMOKE_ADMIN_TOKEN,
+        PROFILE_ID_SECRET: process.env.PROFILE_ID_SECRET ?? 'smoke-profile-id-secret',
         VITE_HMR_PORT: String(hmrPort)
       },
       stdio: ['ignore', 'pipe', 'pipe']
@@ -101,7 +120,11 @@ async function main() {
     process.env.SMOKE_BASE_URL = activeBaseUrl;
   }
   try {
-  const { baseUrl, health } = await discoverBaseUrl(activeBaseUrl);
+  const { baseUrl, health } = await discoverBaseUrl(activeBaseUrl, {
+    child,
+    childOutput,
+    headers: child ? { 'x-routebook-admin-token': SMOKE_ADMIN_TOKEN } : {}
+  });
   const { response: originalProductsResponse, data: originalProductsData } = await fetchJson(`${baseUrl}/api/products`);
   if (!originalProductsResponse.ok) {
     throw new Error(`Product config preflight failed: ${JSON.stringify(originalProductsData)}`);
