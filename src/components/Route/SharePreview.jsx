@@ -9,8 +9,8 @@ import { Sheet } from '../ui/sheet';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { TrustChip } from '../cards/TrustChip';
-import { CITY_ILLUSTRATION, cityCover, dayTheme, smallImage } from '../visual/theme';
-import { Illustration } from '../visual/Illustration';
+import { CITY_SCENE, cityCover, dayTheme, smallImage } from '../visual/theme';
+import { SceneBadge, SceneImage } from '../visual/SceneImage';
 
 /** @param {Record<string, any>} props */
 export default function SharePreview({ routebook, onClose, onShared, onConflictDraftSaved }) {
@@ -148,7 +148,12 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           {cover ? (
             <img src={smallImage(cover)} alt="" className="absolute inset-0 -z-20 size-full object-cover" />
           ) : (
-            <Illustration src={CITY_ILLUSTRATION} sizes="720px" className="absolute inset-0 -z-20 size-full object-cover" />
+            <SceneImage
+              src={CITY_SCENE}
+              sizes="720px"
+              className="absolute inset-0 -z-20 size-full object-cover"
+              badge={<SceneBadge className="right-3 bottom-3">示意图</SceneBadge>}
+            />
           )}
           <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2),rgba(10,12,16,.78))]" aria-hidden="true" />
           <TrustChip routebook={routebook} curated={isCuratedRoute} className="bg-white/95" />

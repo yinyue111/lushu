@@ -64,13 +64,13 @@ export function hasCityPhotos(city) {
 
 export const GENERIC_COVER = defaultCityImage;
 
-// Generated illustrations (see docs/assets.md). They stand for a *kind* of place and
-// are never shown as a photo of a specific stop.
-const illustration = (name) => `/assets/illus-${name}.webp`;
-export const CITY_ILLUSTRATION = illustration('city-generic');
-export const EMPTY_ILLUSTRATION = illustration('empty-state');
+// AI-generated generic scene photos (see docs/assets.md). They stand for a *kind* of
+// place, are labelled 「示意图」 in the UI and are never shown as a photo of a specific stop.
+const scene = (name) => `/assets/scene-${name}.webp`;
+export const CITY_SCENE = scene('city-generic');
+export const EMPTY_SCENE = scene('empty-state');
 
-// Category inference for stops without photos: category illustration, with a
+// Category inference for stops without photos: category scene image (「示意图」), with a
 // gradient tile + lucide icon underneath as the last resort.
 const CATEGORIES = [
   { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市/, icon: Moon, from: '#2b3a67', to: '#7c5cdb' },
@@ -81,9 +81,9 @@ const CATEGORIES = [
     icon: Palette,
     from: '#7c5cdb',
     to: '#c07cf0',
-    illustration: illustration('cat-museum')
+    scene: scene('cat-museum')
   },
-  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', illustration: illustration('cat-tea') },
+  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', scene: scene('cat-tea') },
   {
     id: 'food',
     label: '吃喝',
@@ -91,9 +91,9 @@ const CATEGORIES = [
     icon: Utensils,
     from: '#e8553d',
     to: '#ffb04a',
-    illustration: illustration('cat-food')
+    scene: scene('cat-food')
   },
-  { id: 'temple', label: '寺庙', test: /寺|庙|塔|教堂|道观|祠/, icon: Landmark, from: '#c7432d', to: '#ffc93c', illustration: illustration('cat-temple') },
+  { id: 'temple', label: '寺庙', test: /寺|庙|塔|教堂|道观|祠|庵|禅院|文殊院/, icon: Landmark, from: '#c7432d', to: '#ffc93c', scene: scene('cat-temple') },
   {
     id: 'water',
     label: '湖河',
@@ -101,10 +101,10 @@ const CATEGORIES = [
     icon: Waves,
     from: '#1f7ae0',
     to: '#3fc1f0',
-    illustration: illustration('cat-water')
+    scene: scene('cat-water')
   },
-  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', illustration: illustration('cat-mountain') },
-  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', illustration: illustration('cat-garden') },
+  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', scene: scene('cat-mountain') },
+  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', scene: scene('cat-garden') },
   { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c' },
   {
     id: 'street',
@@ -113,7 +113,7 @@ const CATEGORIES = [
     icon: Building2,
     from: '#5c6370',
     to: '#a3a9b5',
-    illustration: illustration('cat-street')
+    scene: scene('cat-street')
   }
 ];
 const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0' };

@@ -4,12 +4,12 @@ import { Chip } from '../ui/chip';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/menu';
 import { cn } from '../ui/cn';
 import { publishStatusLabel } from '../ui/labels';
-import { CITY_ILLUSTRATION, cityCover, heroImageProps } from '../visual/theme';
-import { Illustration } from '../visual/Illustration';
+import { CITY_SCENE, cityCover, heroImageProps } from '../visual/theme';
+import { SceneBadge, SceneImage } from '../visual/SceneImage';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
- * generic city illustration (never a borrowed photo of a different place).
+ * generic AI-generated city scene labelled 「城市示意图」 (never a borrowed photo of a different place).
  */
 export default function RouteHero({
   routebook,
@@ -44,7 +44,13 @@ export default function RouteHero({
       ) : (
         <div className="absolute inset-0 -z-20 bg-[radial-gradient(120%_90%_at_10%_0%,#ff9a3c_0%,#e8553d_38%,#7c3aed_100%)]" aria-hidden="true">
           <MapPin className="absolute top-8 right-[8%] size-56 text-white/10" strokeWidth={1} />
-          <Illustration src={CITY_ILLUSTRATION} loading="eager" fetchPriority="high" className="absolute inset-0 size-full object-cover object-[center_40%]" />
+          <SceneImage
+            src={CITY_SCENE}
+            loading="eager"
+            fetchPriority="high"
+            className="absolute inset-0 size-full object-cover object-[center_40%]"
+            badge={<SceneBadge className="top-16 right-3 lg:top-auto lg:right-5 lg:bottom-5">城市示意图 · AI 生成</SceneBadge>}
+          />
           <span className="absolute right-[6%] bottom-6 text-[120px] leading-none font-black tracking-tight text-white/10 select-none">{routebook.city}</span>
         </div>
       )}
