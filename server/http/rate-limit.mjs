@@ -4,12 +4,12 @@ import { requestClientKey } from '../auth/request-access.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { requestIdHeaders, securityHeaders } from './response.mjs';
 
-export const rateLimitBuckets = new Map();
+const rateLimitBuckets = new Map();
 
 // rank9：写限流分桶。埋点（exposures/clicks）超限静默 204；AI 类沿用原低配额；
 // 核心写（checkins/favorites/reviews/routebooks 及其子路由）独立配额；
 // 其余写与未标注类别的调用沿用默认配额。桶按「客户端 key + 类别」隔离。
-export function rateLimitQuotaForCategory(category) {
+function rateLimitQuotaForCategory(category) {
   switch (category) {
     case 'telemetry': return RATE_LIMIT_TELEMETRY_MAX;
     case 'core-write': return RATE_LIMIT_CORE_WRITE_MAX;
@@ -21,7 +21,7 @@ export function rateLimitQuotaForCategory(category) {
   }
 }
 
-export function sweepExpiredRateLimitBuckets(now) {
+function sweepExpiredRateLimitBuckets(now) {
   for (const [key, bucket] of rateLimitBuckets) {
     if (now > bucket.resetAt) rateLimitBuckets.delete(key);
   }

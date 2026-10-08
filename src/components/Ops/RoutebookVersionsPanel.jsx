@@ -109,7 +109,7 @@ export default function RoutebookVersionsPanel() {
                     </tr>
                     {(state.status === 'error' || state.message) && (
                       <tr className="ops-table-message-row">
-                        <td colSpan="6" role="status" aria-live="polite">
+                        <td colSpan={6} role="status" aria-live="polite">
                           {state.status === 'error' && <span className="ops-error-text">{state.message || `状态更新失败：${formatApiError(state.error)}`}</span>}
                           {state.status === 'ready' && state.message}
                         </td>

@@ -54,40 +54,40 @@ export async function buildProductAnalytics(limit = 500, profileId = '') {
   };
 }
 
-export function journeyKey(row = {}) {
+function journeyKey(row = {}) {
   const profileId = normalizeProfileId(row?.profileId);
   const routeId = sanitizePublicId(row?.routeId || row?.publicId || row?.itemId);
   if (!routeId || !profileId || profileId === 'anonymous') return '';
   return `${profileId}::${routeId}`;
 }
 
-export function journeyRouteId(key) {
+function journeyRouteId(key) {
   return String(key ?? '').split('::')[1] || '';
 }
 
-export function journeyDateKey(row = {}) {
+function journeyDateKey(row = {}) {
   const baseKey = journeyKey(row);
   const travelDate = normalizeTravelDate(row?.travelDate);
   return baseKey && travelDate ? `${baseKey}::${travelDate}` : '';
 }
 
-export function journeyBaseKeyFromDateKey(key) {
+function journeyBaseKeyFromDateKey(key) {
   return String(key ?? '').split('::').slice(0, 2).join('::');
 }
 
-export function journeyTravelDateFromKey(key) {
+function journeyTravelDateFromKey(key) {
   return normalizeTravelDate(String(key ?? '').split('::')[2]);
 }
 
-export function distinctJourneyKeys(rows) {
+function distinctJourneyKeys(rows) {
   return new Set((rows ?? []).map(journeyKey).filter(Boolean));
 }
 
-export function distinctJourneyDateKeys(rows) {
+function distinctJourneyDateKeys(rows) {
   return new Set((rows ?? []).map(journeyDateKey).filter(Boolean));
 }
 
-export function indexJourneyDatesByBase(dateKeys) {
+function indexJourneyDatesByBase(dateKeys) {
   const datesByBase = new Map();
   for (const dateKey of dateKeys ?? []) {
     const baseKey = journeyBaseKeyFromDateKey(dateKey);
@@ -238,7 +238,7 @@ export async function buildPlatformDashboard(limit = 1000) {
   };
 }
 
-export function aggregateRoutebooksByCity(routebooks, checkins) {
+function aggregateRoutebooksByCity(routebooks, checkins) {
   const checkinsByCity = countBy(checkins, (item) => item.city);
   const map = new Map();
   for (const routebook of routebooks) {
@@ -255,7 +255,7 @@ export function aggregateRoutebooksByCity(routebooks, checkins) {
   })).sort((a, b) => b.routebookCount - a.routebookCount).slice(0, 12);
 }
 
-export function aggregateCreators(routebooks, checkins = [], favorites = [], clicks = [], exposures = []) {
+function aggregateCreators(routebooks, checkins = [], favorites = [], clicks = [], exposures = []) {
   const validCheckinsByRoute = countBy(checkins.filter((item) => item.arrival?.valid), (item) => item.routeId || item.routeTitle);
   const favoritesByRoute = countBy(favorites, (item) => item.routeId || item.routeTitle);
   const clicksByCreator = countBy(clicks, (item) => item.creatorId);
@@ -284,7 +284,7 @@ export function aggregateCreators(routebooks, checkins = [], favorites = [], cli
   })).sort((a, b) => (b.copyCount + b.validCheckins + b.favoriteCount + b.clickCount) - (a.copyCount + a.validCheckins + a.favoriteCount + a.clickCount)).slice(0, 12);
 }
 
-export function buildRecentActivity(groups) {
+function buildRecentActivity(groups) {
   const rows = [
     ...groups.aiLogs.map((item) => ({ type: 'AI 生成', title: item.outputTitle || item.city, detail: item.status, createdAt: item.createdAt })),
     ...groups.routebooks.map((item) => ({ type: '路书', title: item.title, detail: `${item.city} · ${item.publishStatus || 'draft'}`, createdAt: item.updatedAt })),

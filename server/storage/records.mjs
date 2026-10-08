@@ -5,15 +5,15 @@ import { ROUTEBOOK_LOG_PATH, PROFILE_LOG_PATH, REVIEW_LOG_PATH, POI_CORRECTION_L
 import { normalizeProfileId } from '../auth/tokens.mjs';
 
 // H5: id → latest-row indexes for the unbounded "latest snapshot by id" lookups.
-export const routebookIndex = createJsonlKeyIndex({ filePath: ROUTEBOOK_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
-export const profileIndex = createJsonlKeyIndex({
+const routebookIndex = createJsonlKeyIndex({ filePath: ROUTEBOOK_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
+const profileIndex = createJsonlKeyIndex({
   filePath: PROFILE_LOG_PATH,
   keyFn: (row) => {
     const id = normalizeProfileId(row?.id || row?.profileId);
     return id === 'anonymous' ? '' : id;
   }
 });
-export const reviewIndex = createJsonlKeyIndex({ filePath: REVIEW_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
+const reviewIndex = createJsonlKeyIndex({ filePath: REVIEW_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
 export const poiCorrectionIndex = createJsonlKeyIndex({ filePath: POI_CORRECTION_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id) });
 
 export async function getSavedRoutebook(publicId) {

@@ -107,6 +107,7 @@ export default function App() {
     flushQueues();
     window.addEventListener('online', flushQueues);
     return () => window.removeEventListener('online', flushQueues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- register the online listener once; profile changes are read through profileRef.
   }, []);
 
   useEffect(() => {

@@ -16,12 +16,12 @@ export function normalizeCheckinPhotoId(value) {
   return CHECKIN_PHOTO_ID_PATTERN.test(id) ? id : '';
 }
 
-export function createCheckinPhotoId() {
+function createCheckinPhotoId() {
   // 24 个 base64url 字符（randomBytes(18)），天然满足 [A-Za-z0-9_-]{1,64}。
   return randomBytes(18).toString('base64url');
 }
 
-export async function findRouteStopForPhoto(routeId, stopId) {
+async function findRouteStopForPhoto(routeId, stopId) {
   if (!routeId) return null;
   const routebook = await getResolvableRoutebook(routeId).catch(() => null);
   if (!routebook?.stops?.length) return null;
@@ -35,7 +35,7 @@ export async function findRouteStopForPhoto(routeId, stopId) {
 }
 
 // 照片 EXIF GPS 与站点坐标比对；无可比数据返回 null。
-export async function checkinPhotoExifMatchesStop(exif, routeId, stopId) {
+async function checkinPhotoExifMatchesStop(exif, routeId, stopId) {
   if (!exif || !isValidCoordinate(Number(exif.lat), Number(exif.lng))) return null;
   const stop = await findRouteStopForPhoto(routeId, stopId).catch(() => null);
   const distance = stop && isValidCoordinate(Number(stop.lat), Number(stop.lng))
@@ -44,7 +44,7 @@ export async function checkinPhotoExifMatchesStop(exif, routeId, stopId) {
   return Number.isFinite(distance) ? distance <= CHECKIN_PHOTO_GPS_MATCH_METERS : null;
 }
 
-export async function checkinPhotoResponse(row, deduplicated) {
+async function checkinPhotoResponse(row, deduplicated) {
   const exif = row?.exif && typeof row.exif === 'object' ? row.exif : null;
   return {
     photo: {

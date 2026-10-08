@@ -14,22 +14,22 @@ import { normalizeCmsConfig, normalizeProductConfig, readCmsConfig, readProductC
 import { buildReadinessSnapshot } from '../http/health.mjs';
 
 export const systemRoutes = [
-  route('GET', '/api/map-tiles/*', async ({ req, res, url, params }) => {
+  route('GET', '/api/map-tiles/*', async ({ req, res, url }) => {
       enforceRateLimit(req, 'map-tile');
       return await handleMapTile(req, res, url);
     }),
-  route('GET', '/api/live', async ({ req, res, url, params }) => {
+  route('GET', '/api/live', async ({ res }) => {
       return sendJson(res, 200, {
         ok: true,
         appId: APP_ID,
         live: true
       });
     }),
-  route('GET', '/api/ready', async ({ req, res, url, params }) => {
+  route('GET', '/api/ready', async ({ res }) => {
       const readiness = await buildReadinessSnapshot();
       return sendJson(res, readiness.ready ? 200 : 503, readiness);
     }),
-  route('GET', '/api/health', async ({ req, res, url, params }) => {
+  route('GET', '/api/health', async ({ req, res }) => {
       const runtime = await loadCodexRuntime();
       // L5: provider/model/base URL and the precise not-ready reason describe the
       // deployment's configuration; in production only operators get them.
@@ -54,7 +54,7 @@ export const systemRoutes = [
         geocoder: AMAP_GEOCODE_KEY ? 'amap' : 'disabled'
       });
     }),
-  route('GET', '/api/cities', async ({ req, res, url, params }) => {
+  route('GET', '/api/cities', async ({ req, res, url }) => {
       enforceRateLimit(req, 'public-config');
       const rawQuery = String(url.searchParams.get('q') ?? '').trim();
       const query = rawQuery ? normalizeCityName(rawQuery) : '';
@@ -70,14 +70,14 @@ export const systemRoutes = [
         region: getRegionForCity(query)
       });
     }),
-  route('GET', '/api/cms', async ({ req, res, url, params }) => {
+  route('GET', '/api/cms', async ({ req, res }) => {
       enforceRateLimit(req, 'public-config');
       return sendJson(res, 200, {
         ok: true,
         config: await readCmsConfig()
       });
     }),
-  route('POST', '/api/cms', async ({ req, res, url, params }) => {
+  route('POST', '/api/cms', async ({ req, res }) => {
       enforceRateLimit(req);
       verifyAdminAccess(req);
       const config = normalizeCmsConfig(await readJsonBody(req));
@@ -85,7 +85,7 @@ export const systemRoutes = [
       await writeFile(CMS_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
       return sendJson(res, 200, { ok: true, config });
     }),
-  route('GET', '/api/products', async ({ req, res, url, params }) => {
+  route('GET', '/api/products', async ({ req, res }) => {
       enforceRateLimit(req, 'public-config');
       const config = await readProductConfig();
       return sendJson(res, 200, {
@@ -94,7 +94,7 @@ export const systemRoutes = [
         updatedAt: config.updatedAt
       });
     }),
-  route('POST', '/api/products', async ({ req, res, url, params }) => {
+  route('POST', '/api/products', async ({ req, res }) => {
       enforceRateLimit(req);
       verifyAdminAccess(req);
       const config = normalizeProductConfig(await readJsonBody(req), { strictUrl: true });

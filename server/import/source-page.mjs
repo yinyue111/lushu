@@ -4,7 +4,7 @@ import { MAX_IMPORT_URLS, MAX_IMPORT_PAGE_BYTES, IMPORT_TIMEOUT_MS } from '../co
 import { clampNumber, createHttpError } from '../lib/util.mjs';
 import { assertPublicHttpResponseUrl, fetchPublicPageResponse, getResponseHeader, assertPublicHttpUrl } from './ssrf.mjs';
 
-export const SOURCE_PLATFORMS = [
+const SOURCE_PLATFORMS = [
   {
     id: 'xiaohongshu',
     name: '小红书',
@@ -55,25 +55,25 @@ export function detectPlatform(url) {
   };
 }
 
-export function extractMeta(html, property) {
+function extractMeta(html, property) {
   const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>|<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`, 'i');
   const match = html.match(pattern);
   return decodeHtmlEntities(match?.[1] ?? match?.[2] ?? '').trim();
 }
 
-export function extractTitle(html) {
+function extractTitle(html) {
   return extractMeta(html, 'og:title') ||
     decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
 }
 
-export function extractDescription(html) {
+function extractDescription(html) {
   return extractMeta(html, 'description') ||
     extractMeta(html, 'og:description') ||
     extractMeta(html, 'twitter:description');
 }
 
-export function stripHtmlToText(html) {
+function stripHtmlToText(html) {
   return decodeHtmlEntities(
     String(html ?? '')
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -83,7 +83,7 @@ export function stripHtmlToText(html) {
   ).trim();
 }
 
-export function scoreImportedSource({ platform, status, title, description, text, fetchedBytes }) {
+function scoreImportedSource({ platform, status, title, description, text, fetchedBytes }) {
   let score = platform.baseScore;
   const signals = [];
   const warnings = [];
@@ -129,7 +129,7 @@ export function scoreImportedSource({ platform, status, title, description, text
   };
 }
 
-export async function fetchPublicPage(url, signal) {
+async function fetchPublicPage(url, signal) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPORT_TIMEOUT_MS);
   const abortFromCaller = () => controller.abort();

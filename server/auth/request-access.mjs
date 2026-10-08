@@ -4,20 +4,20 @@ import { createHttpError } from '../lib/util.mjs';
 import { safeTokenEqual, hashSecretToken, normalizeProfileId, sanitizeEditToken } from './tokens.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
 
-export function isLocalAddress(address) {
+function isLocalAddress(address) {
   const normalized = normalizeRemoteAddress(address);
   if (!normalized) return false;
   return normalized === '::1' || normalized === '127.0.0.1' || normalized.startsWith('127.');
 }
 
-export function normalizeRemoteAddress(address) {
+function normalizeRemoteAddress(address) {
   const value = String(address ?? '').trim();
   if (!value) return '';
   if (value.startsWith('::ffff:')) return value.slice('::ffff:'.length);
   return value;
 }
 
-export function ipv4ToNumber(address) {
+function ipv4ToNumber(address) {
   const parts = String(address ?? '').split('.');
   if (parts.length !== 4) return null;
   let result = 0;
@@ -30,7 +30,7 @@ export function ipv4ToNumber(address) {
   return result >>> 0;
 }
 
-export function ipv4MatchesCidr(address, cidr) {
+function ipv4MatchesCidr(address, cidr) {
   const [range, prefixText = '32'] = String(cidr ?? '').split('/');
   const addressNumber = ipv4ToNumber(address);
   const rangeNumber = ipv4ToNumber(range);
@@ -42,7 +42,7 @@ export function ipv4MatchesCidr(address, cidr) {
   return (addressNumber & mask) === (rangeNumber & mask);
 }
 
-export function isTrustedProxyAddress(address) {
+function isTrustedProxyAddress(address) {
   const normalized = normalizeRemoteAddress(address);
   if (!normalized) return false;
   return TRUSTED_PROXY_CIDRS.some((entry) => {
@@ -53,7 +53,7 @@ export function isTrustedProxyAddress(address) {
 
 // Proxies append to X-Forwarded-For, so the leftmost hop is attacker-controlled.
 // Walk from the right and stop at the first address that is not a known proxy.
-export function forwardedClientAddress(req) {
+function forwardedClientAddress(req) {
   const chain = String(req.headers['x-forwarded-for'] ?? '')
     .split(',')
     .map((item) => item.trim())
@@ -64,7 +64,7 @@ export function forwardedClientAddress(req) {
   return '';
 }
 
-export function hasForwardedChain(req) {
+function hasForwardedChain(req) {
   return Boolean(String(req.headers['x-forwarded-for'] ?? '').trim());
 }
 

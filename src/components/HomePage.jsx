@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Bell, Camera, Clock3, Compass, Link2, MapPin, Plus, Route, Shield, Sparkles } from 'lucide-react';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, trustedCities } from '../lib/content';
 import { getCmsConfig } from '../lib/api';
@@ -93,7 +93,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
   return (
     <div className="home-page page-enter">
       <link rel="preload" as="image" href={story.image} />
-      <section className="home-hero" style={{ '--hero-image': `url(${story.image})` }}>
+      <section className="home-hero" style={/** @type {import('react').CSSProperties} */ ({ '--hero-image': `url(${story.image})` })}>
         <div className="home-hero-shade" />
         <div className="home-hero-content">
           <div className="home-hero-copy">

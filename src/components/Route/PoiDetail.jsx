@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, MapPin, Clock, DollarSign, Users, AlertTriangle, Shield, ExternalLink, Ticket, Flag, FileSearch } from 'lucide-react';
 import { createPoiCorrection, getPoiKnowledge, recordClick, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';

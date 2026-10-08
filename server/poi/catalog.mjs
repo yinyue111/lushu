@@ -7,15 +7,15 @@ import { PROFILE_ID_SECRET, POI_LOG_PATH } from '../config/index.mjs';
 import { safeTokenEqual } from '../auth/tokens.mjs';
 import { readJsonLines, appendJsonLine, onJsonlAppend, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
 
-export const poiCatalogMutationLocks = new Map();
+const poiCatalogMutationLocks = new Map();
 
 // openHours is only filled where the pattern is structural and stable (always-open
 // streets and stations, museum rest days). Anything time-sensitive stays absent so the
 // validator reports "无营业时间数据" instead of inventing a schedule; ops fills the rest
 // through the POI fact pipeline, where each entry carries evidence and a review date.
 // closedWeekdays uses 0=周日 .. 6=周六.
-export const ALWAYS_OPEN_HOURS = { alwaysOpen: true, closedWeekdays: [] };
-export const TRUSTED_POI_CATALOG = [
+const ALWAYS_OPEN_HOURS = { alwaysOpen: true, closedWeekdays: [] };
+const TRUSTED_POI_CATALOG = [
   { poiId: 'poi-hz-hangzhou-east', city: '杭州', name: '杭州东站', aliases: [], lat: 30.2936, lng: 120.2154, openHours: ALWAYS_OPEN_HOURS },
   { poiId: 'poi-hz-liulang-wenying', city: '杭州', name: '柳浪闻莺', aliases: ['柳浪闻莺公园'], lat: 30.242, lng: 120.1617, openHours: ALWAYS_OPEN_HOURS },
   { poiId: 'poi-hz-southern-song-street', city: '杭州', name: '南宋御街', aliases: [], lat: 30.2432, lng: 120.1696, openHours: ALWAYS_OPEN_HOURS },
@@ -34,26 +34,26 @@ export const TRUSTED_POI_CATALOG = [
   { poiId: 'poi-sz-shantang-street', city: '苏州', name: '山塘街', aliases: ['七里山塘'], lat: 31.3267, lng: 120.6004, openHours: ALWAYS_OPEN_HOURS }
 ];
 
-export const OPERATIONAL_POI_CITIES = ['杭州', '上海', '苏州'];
+const OPERATIONAL_POI_CITIES = ['杭州', '上海', '苏州'];
 export const OPERATIONAL_POI_CITY_SET = new Set(OPERATIONAL_POI_CITIES);
 export const POI_REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected']);
-export const POI_SOURCE_TYPES = new Set(['official', 'first-party', 'editorial', 'field-check', 'user-report', 'derived', 'ai', 'fallback']);
-export const POI_EVIDENCE_TYPES = new Set(['web', 'document', 'photo', 'receipt', 'field-note', 'api', 'other']);
-export const POI_FACT_EXPIRING_SOON_DAYS = 30;
+const POI_SOURCE_TYPES = new Set(['official', 'first-party', 'editorial', 'field-check', 'user-report', 'derived', 'ai', 'fallback']);
+const POI_EVIDENCE_TYPES = new Set(['web', 'document', 'photo', 'receipt', 'field-note', 'api', 'other']);
+const POI_FACT_EXPIRING_SOON_DAYS = 30;
 
-export function fullContentHash(value) {
+function fullContentHash(value) {
   return createHash('sha256').update(String(value ?? '')).digest('hex');
 }
 
-export function stablePoiChildId(prefix, poiId, value) {
+function stablePoiChildId(prefix, poiId, value) {
   return `${prefix}-${fullContentHash(`${poiId}:${stableJsonStringify(value)}`).slice(0, 20)}`;
 }
 
-export function poiValidationIssue(code, path, message) {
+function poiValidationIssue(code, path, message) {
   return { code, path, message };
 }
 
-export function normalizePoiDateValue(value) {
+function normalizePoiDateValue(value) {
   const text = truncateString(value, 60);
   if (!text) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
@@ -64,7 +64,7 @@ export function normalizePoiDateValue(value) {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
 }
 
-export function parsePoiBatchRows(input = {}) {
+function parsePoiBatchRows(input = {}) {
   if (Object.prototype.hasOwnProperty.call(input, 'rows')) {
     if (!Array.isArray(input.rows)) {
       return {
@@ -111,7 +111,7 @@ export function parsePoiBatchRows(input = {}) {
   }
 }
 
-export function normalizePoiEvidence(raw, poiId, index, errors) {
+function normalizePoiEvidence(raw, poiId, index, errors) {
   const path = `evidence[${index}]`;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     errors.push(poiValidationIssue('EVIDENCE_NOT_OBJECT', path, '证据必须是对象'));
@@ -162,7 +162,7 @@ export function normalizePoiEvidence(raw, poiId, index, errors) {
   };
 }
 
-export function normalizePoiFact(raw, poiId, index, errors) {
+function normalizePoiFact(raw, poiId, index, errors) {
   const path = `facts[${index}]`;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     errors.push(poiValidationIssue('FACT_NOT_OBJECT', path, '事实必须是对象'));
@@ -209,7 +209,7 @@ export function normalizePoiFact(raw, poiId, index, errors) {
   };
 }
 
-export function normalizePoiAudit(raw, poiId, index, errors) {
+function normalizePoiAudit(raw, poiId, index, errors) {
   const path = `audits[${index}]`;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     errors.push(poiValidationIssue('AUDIT_NOT_OBJECT', path, '审核记录必须是对象'));
@@ -235,7 +235,7 @@ export function normalizePoiAudit(raw, poiId, index, errors) {
   };
 }
 
-export function validateUniquePoiChildren(items, kind, errors) {
+function validateUniquePoiChildren(items, kind, errors) {
   const seen = new Set();
   items.forEach((item, index) => {
     if (!item?.id) return;
@@ -246,7 +246,7 @@ export function validateUniquePoiChildren(items, kind, errors) {
   });
 }
 
-export function normalizeOperationalPoiRow(raw, line = 1) {
+function normalizeOperationalPoiRow(raw, line = 1) {
   const errors = [];
   const warnings = [];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -344,7 +344,7 @@ export function normalizeOperationalPoiRow(raw, line = 1) {
   };
 }
 
-export function latestItemsById(existingItems = [], incomingItems = []) {
+function latestItemsById(existingItems = [], incomingItems = []) {
   const map = new Map();
   for (const item of [...existingItems, ...incomingItems]) {
     const id = sanitizePublicId(item?.id);
@@ -353,7 +353,7 @@ export function latestItemsById(existingItems = [], incomingItems = []) {
   return [...map.values()];
 }
 
-export function mergeOperationalPoiSnapshot(existing, incoming) {
+function mergeOperationalPoiSnapshot(existing, incoming) {
   if (!existing) return incoming;
   return {
     ...existing,
@@ -365,7 +365,7 @@ export function mergeOperationalPoiSnapshot(existing, incoming) {
   };
 }
 
-export function comparablePoiSnapshot(row) {
+function comparablePoiSnapshot(row) {
   if (!row) return null;
   const audits = (row.audits ?? []).filter((audit) => audit?.source !== 'batch-commit');
   return canonicalizeJsonValue({
@@ -386,7 +386,7 @@ export function comparablePoiSnapshot(row) {
   });
 }
 
-export function poiBatchPayloadHash(rows) {
+function poiBatchPayloadHash(rows) {
   return fullContentHash(stableJsonStringify(rows.map((row) => ({
     normalized: row.normalized,
     errors: row.errors
@@ -395,11 +395,11 @@ export function poiBatchPayloadHash(rows) {
   }))));
 }
 
-export function poiBatchTargetHash(value) {
+function poiBatchTargetHash(value) {
   return fullContentHash(stableJsonStringify(value)).slice(0, 32);
 }
 
-export function poiBatchScalarValues(row) {
+function poiBatchScalarValues(row) {
   return {
     schemaVersion: positiveInteger(row?.schemaVersion, 1),
     city: row?.city ?? '',
@@ -413,7 +413,7 @@ export function poiBatchScalarValues(row) {
   };
 }
 
-export function poiBatchChildScope(existingItems, incomingItems) {
+function poiBatchChildScope(existingItems, incomingItems) {
   const existingById = new Map((existingItems ?? []).map((item) => [sanitizePublicId(item?.id), item]));
   return (incomingItems ?? [])
     .map((item) => sanitizePublicId(item?.id))
@@ -422,7 +422,7 @@ export function poiBatchChildScope(existingItems, incomingItems) {
     .map((id) => [id, poiBatchTargetHash(existingById.has(id) ? existingById.get(id) : null)]);
 }
 
-export function poiBatchScopedBaseline(rows, existingById) {
+function poiBatchScopedBaseline(rows, existingById) {
   return rows.map((row, index) => {
     const incoming = row.normalized;
     if (!incoming) return { index, poiId: '', scalars: [], facts: [], evidence: [], audits: [] };
@@ -440,7 +440,7 @@ export function poiBatchScopedBaseline(rows, existingById) {
   });
 }
 
-export function poiBatchIncomingScope(rows) {
+function poiBatchIncomingScope(rows) {
   const incomingById = new Map(rows
     .map((row) => row.normalized)
     .filter(Boolean)
@@ -448,7 +448,7 @@ export function poiBatchIncomingScope(rows) {
   return poiBatchScopedBaseline(rows, incomingById);
 }
 
-export function flattenPoiBatchScope(scope) {
+function flattenPoiBatchScope(scope) {
   const targets = new Map();
   for (const row of scope ?? []) {
     const prefix = `${row.index}:${row.poiId}`;
@@ -460,7 +460,7 @@ export function flattenPoiBatchScope(scope) {
   return targets;
 }
 
-export function poiBatchBaselineIsStale(baselineScope, currentScope, incomingScope) {
+function poiBatchBaselineIsStale(baselineScope, currentScope, incomingScope) {
   const baseline = flattenPoiBatchScope(baselineScope);
   const current = flattenPoiBatchScope(currentScope);
   const incoming = flattenPoiBatchScope(incomingScope);
@@ -471,17 +471,17 @@ export function poiBatchBaselineIsStale(baselineScope, currentScope, incomingSco
   return false;
 }
 
-export function buildPoiBatchId(payloadHash, baselineHash) {
+function buildPoiBatchId(payloadHash, baselineHash) {
   return `poi-batch-v2-${payloadHash.slice(0, 16)}-${baselineHash.slice(0, 16)}`;
 }
 
-export function buildPoiCommitToken(payloadHash, baselineHash, baselineScope) {
+function buildPoiCommitToken(payloadHash, baselineHash, baselineScope) {
   const encoded = Buffer.from(JSON.stringify({ v: 2, p: payloadHash, h: baselineHash, b: baselineScope })).toString('base64url');
   const signature = createHmac('sha256', PROFILE_ID_SECRET).update(`poi-commit-v2:${encoded}`).digest('hex');
   return `poi-commit-v2.${encoded}.${signature}`;
 }
 
-export function parsePoiCommitToken(commitToken) {
+function parsePoiCommitToken(commitToken) {
   const match = /^poi-commit-v2\.([A-Za-z0-9_-]+)\.([a-f0-9]{64})$/.exec(String(commitToken ?? ''));
   if (!match) return null;
   const expectedSignature = createHmac('sha256', PROFILE_ID_SECRET).update(`poi-commit-v2:${match[1]}`).digest('hex');
@@ -496,11 +496,11 @@ export function parsePoiCommitToken(commitToken) {
   }
 }
 
-export async function listPoiBatchEnvelopes(limit = 50000) {
+async function listPoiBatchEnvelopes(limit = 50000) {
   return (await readJsonLines(POI_LOG_PATH, limit)).filter((row) => row?.kind === 'poi-batch' && Array.isArray(row.rows));
 }
 
-export async function listOperationalPoiSnapshots() {
+async function listOperationalPoiSnapshots() {
   const envelopes = (await listPoiBatchEnvelopes()).reverse();
   const latestById = new Map();
   for (const envelope of envelopes) {
@@ -512,7 +512,7 @@ export async function listOperationalPoiSnapshots() {
   return [...latestById.values()];
 }
 
-export function seedPoiSnapshot(seed) {
+function seedPoiSnapshot(seed) {
   return {
     schemaVersion: 1,
     poiId: seed.poiId,
@@ -537,10 +537,10 @@ export function seedPoiSnapshot(seed) {
 // 指纹失效；本进程 appendJsonLine 落 POI 批次时主动失效，外部直写靠指纹兜底。
 // 同步加载（readFileSync）是为了让 findTrustedPoi/resolvePoiId 等同步调用链
 // 也能读到运营 POI；文件仅在批次提交时增长，重建频率低。
-export const mergedPoiCache = { fingerprint: null, pois: null, trustedLookup: null, checkedAtMs: 0 };
-export const MERGED_POI_FINGERPRINT_TTL_MS = 2000;
+const mergedPoiCache = { fingerprint: null, pois: null, trustedLookup: null, checkedAtMs: 0 };
+const MERGED_POI_FINGERPRINT_TTL_MS = 2000;
 
-export function invalidateMergedPoiCache() {
+function invalidateMergedPoiCache() {
   mergedPoiCache.fingerprint = null;
   mergedPoiCache.pois = null;
   mergedPoiCache.trustedLookup = null;
@@ -549,7 +549,7 @@ export function invalidateMergedPoiCache() {
 
 onJsonlAppend(POI_LOG_PATH, () => invalidateMergedPoiCache());
 
-export function poiLogFingerprintSync() {
+function poiLogFingerprintSync() {
   try {
     const stats = statSync(POI_LOG_PATH);
     return `${stats.mtimeMs}:${stats.size}`;
@@ -601,7 +601,7 @@ export async function listMergedPois() {
 // rank12①：把「运营已审核 POI」映射为 findTrustedPoi 可用的可信条目：
 // location 事实映射为坐标，营业时间事实映射为 openHours。种子目录先建索引，
 // 同名（同城规范化名称）时运营 approved 数据覆盖种子。
-export function buildTrustedPoiLookup(pois) {
+function buildTrustedPoiLookup(pois) {
   const lookup = new Map();
   const seedsById = new Map(TRUSTED_POI_CATALOG.map((seed) => [seed.poiId, seed]));
   const register = (entry) => {
@@ -641,11 +641,11 @@ export function buildTrustedPoiLookup(pois) {
   return lookup;
 }
 
-export const POI_WEEKDAY_CHAR_MAP = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+const POI_WEEKDAY_CHAR_MAP = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
 
 // 只有能确定闭馆日（或明确全天开放）时才产出 openHours；无法判定时返回 undefined，
 // 让营业时间校验如实报告「无数据」而不是虚构班表。
-export function operationalOpenHoursFromFacts(poi) {
+function operationalOpenHoursFromFacts(poi) {
   const facts = Array.isArray(poi?.facts) ? poi.facts : [];
   const fact = facts.find((item) =>
     item?.reviewStatus === 'approved' &&
@@ -675,7 +675,7 @@ export function operationalOpenHoursFromFacts(poi) {
   return { closedWeekdays: [...closedWeekdays].sort(), note: truncateString(value, 60) };
 }
 
-export function summarizePoiValidationRows(rows) {
+function summarizePoiValidationRows(rows) {
   const summary = { total: rows.length, new: 0, update: 0, unchanged: 0, conflict: 0, error: 0 };
   for (const row of rows) summary[row.status] = (summary[row.status] ?? 0) + 1;
   return summary;
@@ -741,18 +741,18 @@ export async function validatePoiBatch(input = {}, { includeBaselineScope = fals
   };
 }
 
-export function dateValueEndTimestamp(value) {
+function dateValueEndTimestamp(value) {
   if (!value) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return Date.parse(`${value}T15:59:59.999Z`);
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-export function isDerivedPoiSource(sourceType) {
+function isDerivedPoiSource(sourceType) {
   return ['derived', 'ai', 'fallback'].includes(sourceType);
 }
 
-export function approvedEvidenceForFact(fact, evidenceById) {
+function approvedEvidenceForFact(fact, evidenceById) {
   if (isDerivedPoiSource(fact?.sourceType)) return [];
   return (fact?.evidenceIds ?? [])
     .map((id) => evidenceById.get(id))
@@ -762,7 +762,7 @@ export function approvedEvidenceForFact(fact, evidenceById) {
       Number.isFinite(Date.parse(evidence?.capturedAt ?? '')));
 }
 
-export function poiFactFreshnessState(fact, evidenceById, nowMs = Date.now()) {
+function poiFactFreshnessState(fact, evidenceById, nowMs = Date.now()) {
   if (fact?.reviewStatus !== 'approved') return fact?.reviewStatus === 'rejected' ? 'rejected' : 'pending';
   if (!approvedEvidenceForFact(fact, evidenceById).length) return 'pending';
   const expiry = dateValueEndTimestamp(fact.validUntil);
@@ -772,7 +772,7 @@ export function poiFactFreshnessState(fact, evidenceById, nowMs = Date.now()) {
   return 'fresh';
 }
 
-export function derivePoiOperationalState(poi, nowMs = Date.now()) {
+function derivePoiOperationalState(poi, nowMs = Date.now()) {
   const evidenceById = new Map((poi.evidence ?? []).map((evidence) => [evidence.id, evidence]));
   const factStates = (poi.facts ?? []).map((fact) => ({
     fact,
@@ -817,7 +817,7 @@ export function publicOperationalPoiView(poi, nowMs = Date.now()) {
   };
 }
 
-export function summarizePoiCoverage(pois, city) {
+function summarizePoiCoverage(pois, city) {
   const totalPois = pois.length;
   const approvedPois = pois.filter((poi) => poi.reviewStatus === 'approved').length;
   const evidenceBackedPois = pois.filter((poi) => poi.reviewStatus === 'approved' && poi.evidenceBacked).length;
@@ -870,7 +870,7 @@ export async function buildPoiCoverageSnapshot() {
 }
 
 // rank27⑥：锁外/锁内两处「同 batchId 重放」分支完全同构，抽出共用构造器。
-export function buildPoiBatchReplayResponse(envelope, submittedBatchId, validation, validationView) {
+function buildPoiBatchReplayResponse(envelope, submittedBatchId, validation, validationView) {
   const storedPayloadHash = envelope.payloadHash || envelope.contentHash;
   if (storedPayloadHash !== validation.payloadHash) {
     return { statusCode: 409, error: 'batchId 与提交内容不匹配', code: 'BATCH_ID_MISMATCH', ...validationView };
@@ -999,7 +999,7 @@ export async function commitPoiBatch(input) {
 export function normalizePoiName(value) {
   return String(value ?? '')
     .normalize('NFKC')
-    .replace(/[\s·•，。、“”‘’'"()（）\[\]【】_-]+/g, '')
+    .replace(/[\s·•，。、“”‘’'"()（）[\]【】_-]+/g, '')
     .replace(/景区|风景区$/g, '')
     .toLowerCase();
 }

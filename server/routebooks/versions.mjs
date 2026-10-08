@@ -8,9 +8,9 @@ import { cryptoRandomId } from '../auth/tokens.mjs';
 // rank23③：路书 id -> 当前最大版本号 的惰性内存 Map。首次访问全量扫描一次，
 // 之后 appendJsonLine 落 routebooks.jsonl 时增量更新，替代每次保存的全窗口扫描。
 // 指纹不匹配（外部进程直写 JSONL）时重建，保持与 listRoutebookVersionRows 同口径。
-export const routebookVersionCache = { byId: null, fingerprint: '' };
+const routebookVersionCache = { byId: null, fingerprint: '' };
 
-export function applyRoutebookVersionRow(byId, row) {
+function applyRoutebookVersionRow(byId, row) {
   const id = sanitizePublicId(row?.id || row?.publicId);
   if (!id) return;
   const currentVersion = byId.get(id) ?? 0;
@@ -18,7 +18,7 @@ export function applyRoutebookVersionRow(byId, row) {
   byId.set(id, Math.max(currentVersion, explicitVersion ?? (currentVersion + 1)));
 }
 
-export async function noteRoutebookVersionAppend(payload) {
+async function noteRoutebookVersionAppend(payload) {
   if (!routebookVersionCache.byId) return;
   applyRoutebookVersionRow(routebookVersionCache.byId, payload);
   // 不回写指纹：并发/外部写入落盘后再 stat 会拿到「新于 byId 已消化行」的
@@ -85,7 +85,7 @@ export async function currentRoutebookVersion(publicId) {
   return routebookVersionCache.byId.get(id) ?? 0;
 }
 
-export function expectedVersionWasProvided(input) {
+function expectedVersionWasProvided(input) {
   return input != null && Object.prototype.hasOwnProperty.call(input, 'expectedVersion') && input.expectedVersion !== '' && input.expectedVersion != null;
 }
 
@@ -126,7 +126,7 @@ export async function routebookMutationMetadata(existingRoutebook, input, { chan
   };
 }
 
-export function buildRoutebookAudit(routebook, event, details = {}) {
+function buildRoutebookAudit(routebook, event, details = {}) {
   const routebookId = sanitizePublicId(routebook?.publicId || routebook?.id);
   if (!routebookId) return null;
   return {

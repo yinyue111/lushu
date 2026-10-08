@@ -29,7 +29,7 @@ async function findAvailablePort(startPort = 5399) {
   return new Promise((resolve, reject) => {
     const server = createNetServer();
     server.unref();
-    server.once('error', (error) => {
+    server.once('error', (/** @type {NodeJS.ErrnoException} */ error) => {
       if (error.code === 'EADDRINUSE') {
         resolve(findAvailablePort(startPort + 1));
         return;
@@ -37,7 +37,7 @@ async function findAvailablePort(startPort = 5399) {
       reject(error);
     });
     server.listen(startPort, '127.0.0.1', () => {
-      const address = server.address();
+      const address = /** @type {import('node:net').AddressInfo} */ (server.address());
       server.close(() => resolve(address.port));
     });
   });
@@ -610,10 +610,10 @@ async function main() {
 
     const routeLog = await readFile(join(dataDir, 'routebooks.jsonl'), 'utf8');
     for (const curatedId of CURATED_IDS) {
-      assert.equal(routeLog.includes(`\"publicId\":\"${curatedId}\"`), false, `curated route ${curatedId} must not be persisted as a user draft`);
+      assert.equal(routeLog.includes(`"publicId":"${curatedId}"`), false, `curated route ${curatedId} must not be persisted as a user draft`);
     }
     const exposureLog = await readFile(join(dataDir, 'exposures.jsonl'), 'utf8');
-    assert.ok(exposureLog.includes(`\"routeId\":\"${CURATED_IDS[0]}\"`), 'curated copy should record an exposure event');
+    assert.ok(exposureLog.includes(`"routeId":"${CURATED_IDS[0]}"`), 'curated copy should record an exposure event');
     const journeyRows = exposureLog.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)).filter((row) => row.itemType === 'journey-event');
     assert.equal(journeyRows.filter((row) => row.id !== 'p0-legacy-journey-without-date').every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.travelDate)), true, 'new journey events must persist a travel-date snapshot');
 

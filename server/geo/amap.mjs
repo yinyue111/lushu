@@ -3,7 +3,7 @@ import { isValidCoordinate, truncateString } from '../lib/util.mjs';
 import { AMAP_GEOCODE_KEY, GEOCODE_TIMEOUT_MS } from '../config/index.mjs';
 import { coordinateDistanceWarning, gcj02ToWgs84 } from './coordinates.mjs';
 
-export const geocodeCache = new Map();
+const geocodeCache = new Map();
 
 export async function geocodePoiWithAmap(city, name, signal) {
   const cacheKey = `${city}:${name}`;

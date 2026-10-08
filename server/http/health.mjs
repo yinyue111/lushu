@@ -4,7 +4,7 @@ import { constants as fsConstants } from 'node:fs';
 import { DATA_DIR, APP_ID } from '../config/index.mjs';
 import { loadCodexRuntime } from '../ai/generate.mjs';
 
-export async function checkStorageReadiness() {
+async function checkStorageReadiness() {
   try {
     await mkdir(DATA_DIR, { recursive: true });
     await access(DATA_DIR, fsConstants.R_OK | fsConstants.W_OK);

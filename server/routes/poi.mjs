@@ -10,7 +10,7 @@ import { route } from '../http/router.mjs';
 import { OPERATIONAL_POI_CITY_SET, POI_REVIEW_STATUSES, buildPoiCoverageSnapshot, commitPoiBatch, findTrustedPoi, listMergedPois, publicOperationalPoiView, validatePoiBatch } from '../poi/catalog.mjs';
 import { coordinateForName } from '../geo/normalize-coordinate.mjs';
 
-export async function updatePoiCorrectionRoute({ req, res, url, params }) {
+async function updatePoiCorrectionRoute({ req, res, params }) {
       enforceRateLimit(req);
       verifyAdminAccess(req);
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
@@ -19,13 +19,13 @@ export async function updatePoiCorrectionRoute({ req, res, url, params }) {
     }
 
 export const poiRoutes = [
-  route('POST', '/api/pois/validate', async ({ req, res, url, params }) => {
+  route('POST', '/api/pois/validate', async ({ req, res }) => {
       enforceRateLimit(req);
       verifyAdminAccess(req);
       const validation = await validatePoiBatch(await readJsonBody(req));
       return sendJson(res, 200, { ok: true, ...validation });
     }),
-  route('POST', '/api/pois/upsert', async ({ req, res, url, params }) => {
+  route('POST', '/api/pois/upsert', async ({ req, res }) => {
       enforceRateLimit(req);
       verifyAdminAccess(req);
       const result = await commitPoiBatch(await readJsonBody(req));
@@ -35,7 +35,7 @@ export const poiRoutes = [
   // 跨区契约：站点改名重校验的服务端解析端点。与 hardenDraftStops 同一
   // 合并目录（seed TRUSTED_POI_CATALOG + 运营 approved POI，normalizeCityName/
   // normalizePoiName 精确匹配）；public-read 限流、无需鉴权。
-  route('GET', '/api/pois/resolve', async ({ req, res, url, params }) => {
+  route('GET', '/api/pois/resolve', async ({ req, res, url }) => {
       enforceRateLimit(req, 'public-read');
       const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
       const name = truncateString(url.searchParams.get('name'), 80);
@@ -56,7 +56,7 @@ export const poiRoutes = [
         }
       });
     }),
-  route('GET', '/api/pois', async ({ req, res, url, params }) => {
+  route('GET', '/api/pois', async ({ req, res, url }) => {
       verifyAdminAccess(req);
       const city = truncateString(url.searchParams.get('city'), 40).replace(/市$/u, '');
       const reviewStatus = truncateString(url.searchParams.get('reviewStatus'), 24);
@@ -86,17 +86,17 @@ export const poiRoutes = [
         pois
       });
     }),
-  route('GET', '/api/poi-coverage', async ({ req, res, url, params }) => {
+  route('GET', '/api/poi-coverage', async ({ req, res }) => {
       verifyAdminAccess(req);
       return sendJson(res, 200, { ok: true, ...(await buildPoiCoverageSnapshot()) });
     }),
-  route('POST', '/api/poi-corrections', async ({ req, res, url, params }) => {
+  route('POST', '/api/poi-corrections', async ({ req, res }) => {
       enforceRateLimit(req);
       const correction = normalizePoiCorrection(await readJsonBody(req));
       await appendJsonLine(POI_CORRECTION_LOG_PATH, correction);
       return sendJson(res, 200, { ok: true, correction });
     }),
-  route('GET', '/api/poi-corrections', async ({ req, res, url, params }) => {
+  route('GET', '/api/poi-corrections', async ({ req, res, url }) => {
       verifySensitiveReadAccess(req);
       return sendJson(res, 200, {
         ok: true,
@@ -105,7 +105,7 @@ export const poiRoutes = [
         })
       });
     }),
-  route('GET', '/api/poi-knowledge', async ({ req, res, url, params }) => {
+  route('GET', '/api/poi-knowledge', async ({ req, res, url }) => {
       enforceRateLimit(req, 'public-read');
       const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
       const stopName = truncateString(url.searchParams.get('stopName'), 80);

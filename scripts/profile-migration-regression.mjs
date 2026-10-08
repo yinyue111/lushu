@@ -26,7 +26,7 @@ class MemoryStorage {
   }
 }
 
-globalThis.localStorage = new MemoryStorage();
+globalThis.localStorage = /** @type {any} */ (new MemoryStorage());
 
 const previousId = 'p_local_previous';
 const nextId = 'p_server_stable';

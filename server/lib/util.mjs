@@ -92,8 +92,14 @@ export function nullablePercent(numerator, denominator) {
   return denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null;
 }
 
+/**
+ * @param {string} message
+ * @param {number} statusCode
+ * @param {string} [code]
+ * @returns {Error & Record<string, any>}
+ */
 export function createHttpError(message, statusCode, code) {
-  const error = new Error(message);
+  const error = /** @type {Error & Record<string, any>} */ (new Error(message));
   error.statusCode = statusCode;
   error.code = code;
   return error;

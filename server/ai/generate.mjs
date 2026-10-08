@@ -42,7 +42,7 @@ export function normalizeOcrImage(image, index) {
   };
 }
 
-export function normalizeOcrResult(result, images, runtime) {
+function normalizeOcrResult(result, images, runtime) {
   const places = Array.isArray(result?.places) ? result.places : [];
   const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
   return {
@@ -66,7 +66,7 @@ export function normalizeOcrResult(result, images, runtime) {
   };
 }
 
-export const RESPONSE_SCHEMA = {
+const RESPONSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['title', 'summary', 'trustScore', 'days', 'stops', 'assets', 'validations', 'metrics', 'logs'],
@@ -164,7 +164,7 @@ export const RESPONSE_SCHEMA = {
   }
 };
 
-export function openAiEndpoint(baseUrl, wireApi) {
+function openAiEndpoint(baseUrl, wireApi) {
   let trimmed = '';
   try {
     trimmed = new URL(baseUrl).toString().replace(/\/+$/, '');
@@ -175,7 +175,7 @@ export function openAiEndpoint(baseUrl, wireApi) {
   return trimmed.endsWith('/v1') ? `${trimmed}/${path}` : `${trimmed}/v1/${path}`;
 }
 
-export function systemPrompt() {
+function systemPrompt() {
   return [
     '你是 AI 可信路书平台的路线编排引擎。',
     '目标不是写泛攻略，而是把用户输入的分散攻略/需求变成可执行、可编辑、可验证的地图路书。',
@@ -196,16 +196,16 @@ export function systemPrompt() {
 
 // rank12③：按目标城市注入 top-N 已审核运营 POI 候选（紧凑单行格式），
 // 让生成结果优先复用运营核验过的坐标/营业时间/停留建议。
-export const MAX_PROMPT_POI_CANDIDATES = 40;
+const MAX_PROMPT_POI_CANDIDATES = 40;
 
-export function approvedFactValue(poi, fieldPattern) {
+function approvedFactValue(poi, fieldPattern) {
   const fact = (Array.isArray(poi?.facts) ? poi.facts : []).find((item) =>
     item?.reviewStatus === 'approved' && fieldPattern.test(String(item?.field ?? '')) && String(item?.value ?? '').trim()
   );
   return fact ? truncateString(fact.value, 60) : '';
 }
 
-export function buildApprovedPoiPromptCandidates(city) {
+function buildApprovedPoiPromptCandidates(city) {
   const normalizedCity = normalizeCityName(city);
   const candidates = [];
   for (const poi of refreshMergedPoiCatalog().pois) {
@@ -258,7 +258,7 @@ export function sanitizePayload(payload) {
   };
 }
 
-export function userPrompt(payload) {
+function userPrompt(payload) {
   const constraints = payload.constraints ?? {};
   return JSON.stringify(
     {
@@ -295,7 +295,7 @@ export function userPrompt(payload) {
   );
 }
 
-export function extractTextFromResponse(data) {
+function extractTextFromResponse(data) {
   if (typeof data.output_text === 'string') return data.output_text;
   const chunks = [];
   for (const item of data.output ?? []) {
@@ -313,7 +313,7 @@ export function extractTextFromResponse(data) {
   return chunks.join('\n');
 }
 
-export function parseJsonFromText(text) {
+function parseJsonFromText(text) {
   if (!text) throw new Error('模型没有返回文本');
   try {
     return JSON.parse(text);
@@ -324,7 +324,7 @@ export function parseJsonFromText(text) {
   }
 }
 
-export function normalizeRoutebook(routebook, payload, runtime) {
+function normalizeRoutebook(routebook, payload, runtime) {
   const now = new Date();
   const rawDays = Array.isArray(routebook.days) && routebook.days.length ? routebook.days : [];
   const inferredDayCount = inferDayCount(routebook, payload, rawDays);
@@ -413,7 +413,7 @@ export function normalizeRoutebook(routebook, payload, runtime) {
   };
 }
 
-export async function geocodeGeneratedRoutebook(routebook, signal) {
+async function geocodeGeneratedRoutebook(routebook, signal) {
   if (!AMAP_GEOCODE_KEY || !routebook?.stops?.length) return routebook;
   const stops = await mapWithConcurrency(routebook.stops, 4, async (stop) => {
     if (stop.coordinateSource === 'known-poi') return stop;
@@ -433,9 +433,9 @@ export async function geocodeGeneratedRoutebook(routebook, signal) {
   };
 }
 
-export const MAX_GENERATED_ROUTE_DAYS = 10;
+const MAX_GENERATED_ROUTE_DAYS = 10;
 
-export function inferDayCount(routebook, payload, rawDays, maxDays = MAX_GENERATED_ROUTE_DAYS) {
+function inferDayCount(routebook, payload, rawDays, maxDays = MAX_GENERATED_ROUTE_DAYS) {
   const duration = String(payload?.constraints?.duration ?? '');
   const durationMatch = duration.match(/(\d+)\s*天|(\d+)\s*日/);
   const durationCount = Number(durationMatch?.[1] ?? durationMatch?.[2]);
@@ -446,21 +446,21 @@ export function inferDayCount(routebook, payload, rawDays, maxDays = MAX_GENERAT
   return Math.min(maxDays, Math.max(1, durationCount || rawDays.length || maxStopDay || 2));
 }
 
-export function extractDayNumber(value) {
+function extractDayNumber(value) {
   const text = String(value ?? '');
   const match = text.match(/Day\s*(\d+)|第\s*(\d+)\s*天|D\s*(\d+)/i);
   const number = Number(match?.[1] ?? match?.[2] ?? match?.[3]);
   return Number.isFinite(number) ? number : null;
 }
 
-export function normalizeDayLabel(value, index, days) {
+function normalizeDayLabel(value, index, days) {
   const dayNumber = extractDayNumber(value);
   if (dayNumber && days[dayNumber - 1]) return days[dayNumber - 1];
   const stopCountPerDay = Math.max(3, Math.ceil(9 / days.length));
   return days[Math.min(Math.floor(index / stopCountPerDay), days.length - 1)] ?? 'Day 1';
 }
 
-export function normalizeArray(items, type) {
+function normalizeArray(items, type) {
   const source = Array.isArray(items) ? items : [];
   if (type === 'assets') {
     const fallback = [
@@ -503,12 +503,17 @@ export function normalizeArray(items, type) {
   return [...normalized, ...fallback].slice(0, Math.max(4, normalized.length));
 }
 
-export function isStructuredOutputUnsupported(error) {
+function isStructuredOutputUnsupported(error) {
   const detail = `${error.upstreamCode ?? ''} ${error.upstreamDetail ?? ''}`;
   return error.statusCode === 400 && /json_schema|schema|structured|response_format|text\.format/i.test(detail);
 }
 
-export async function callOpenAiApi(
+/**
+ * @param {any} payload
+ * @param {any} runtime
+ * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number }} [options]
+ */
+async function callOpenAiApi(
   payload,
   runtime,
   { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS } = {}

@@ -105,7 +105,7 @@ export function coordinateForName(name, city = '') {
   return { lat: entry.lat, lng: entry.lng };
 }
 
-export function fallbackCoordinate(city, index) {
+export function fallbackCoordinate(city, _index) {
   const region = getRegionForCity(city);
   const center = cityCenters[city] ?? regionCenters[region] ?? chinaCenter;
   return {

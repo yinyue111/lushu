@@ -4,12 +4,12 @@ import { appendFile, mkdir, stat, open } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { DATA_DIR } from '../config/index.mjs';
 
-export const JSONL_SCAN_CHUNK_BYTES = 256 * 1024;
-export const JSONL_NEWLINE_BYTE = 0x0a;
-export const JSONL_EMPTY_BUFFER = Buffer.alloc(0);
+const JSONL_SCAN_CHUNK_BYTES = 256 * 1024;
+const JSONL_NEWLINE_BYTE = 0x0a;
+const JSONL_EMPTY_BUFFER = Buffer.alloc(0);
 
 // Per-file hooks run after a successful append (derived caches, version maps).
-export const jsonlAppendHooks = new Map();
+const jsonlAppendHooks = new Map();
 
 export function onJsonlAppend(filePath, hook) {
   if (!jsonlAppendHooks.has(filePath)) jsonlAppendHooks.set(filePath, []);
@@ -29,18 +29,18 @@ export async function appendJsonLine(filePath, payload) {
 // appendJsonLine 落盘后主动失效；外部写入靠指纹变化兜底失效。
 // 除条目数外还按估算字符总量（原始 JSONL 行长求和）设约 6400 万字符的
 // 内存上限，超出按 LRU 逐出，防止大 JSONL 常驻缓存拖向 OOM。
-export const JSONL_ROWS_CACHE_MAX_ENTRIES = 32;
-export const JSONL_ROWS_CACHE_MAX_TOTAL_CHARS = 64_000_000;
-export const jsonlRowsCache = new Map();
+const JSONL_ROWS_CACHE_MAX_ENTRIES = 32;
+const JSONL_ROWS_CACHE_MAX_TOTAL_CHARS = 64_000_000;
+const jsonlRowsCache = new Map();
 // H5: a single scan larger than this share of the budget is returned but not
 // cached, so one oversized file cannot evict every other entry and stay resident.
-export const JSONL_ROWS_CACHE_MAX_ENTRY_CHARS = Math.floor(JSONL_ROWS_CACHE_MAX_TOTAL_CHARS / 2);
+const JSONL_ROWS_CACHE_MAX_ENTRY_CHARS = Math.floor(JSONL_ROWS_CACHE_MAX_TOTAL_CHARS / 2);
 
-export function jsonlRowsCacheKey(filePath, projection) {
+function jsonlRowsCacheKey(filePath, projection) {
   return projection ? `${filePath}#${projection.name}` : filePath;
 }
 
-export function evictJsonlRowsCacheOverBudget() {
+function evictJsonlRowsCacheOverBudget() {
   while (jsonlRowsCache.size > JSONL_ROWS_CACHE_MAX_ENTRIES) {
     jsonlRowsCache.delete(jsonlRowsCache.keys().next().value);
   }
@@ -53,7 +53,7 @@ export function evictJsonlRowsCacheOverBudget() {
   }
 }
 
-export function invalidateJsonlRowsCache(filePath) {
+function invalidateJsonlRowsCache(filePath) {
   for (const key of [...jsonlRowsCache.keys()]) {
     if (key === filePath || key.startsWith(`${filePath}#`)) jsonlRowsCache.delete(key);
   }
@@ -68,7 +68,7 @@ export async function jsonlFileFingerprint(filePath) {
   }
 }
 
-export async function scanRecentJsonlRows(filePath, maxRows, projection = null) {
+async function scanRecentJsonlRows(filePath, maxRows, projection = null) {
   const project = projection?.project ?? null;
   const handle = await open(filePath, 'r');
   const rows = [];
@@ -150,6 +150,7 @@ export async function readRecentJsonlRows(filePath, maxRows, projection = null) 
 
 export async function withSingleProcessKeyLock(lockMap, key, operation) {
   const predecessor = lockMap.get(key);
+  /** @type {(value?: unknown) => void} */
   let release;
   const gate = new Promise((resolveGate) => {
     release = resolveGate;
@@ -174,7 +175,7 @@ export async function readJsonLines(filePath, limit = 50) {
 // Reverse scans keep the incomplete leading fragment as bytes, not as a decoded
 // string: a chunk boundary inside a multi-byte character would otherwise decode
 // to U+FFFD on both sides and silently corrupt that row's Chinese text.
-export function splitTrailingJsonlLines(buffer) {
+function splitTrailingJsonlLines(buffer) {
   const boundary = buffer.indexOf(JSONL_NEWLINE_BYTE);
   if (boundary === -1) return { head: buffer, lines: [] };
   const lines = [];

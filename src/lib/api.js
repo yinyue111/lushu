@@ -10,7 +10,7 @@ async function readApiResponse(response) {
   const requestId = data.requestId || response.headers.get('x-request-id') || '';
   if (requestId && !data.requestId) data.requestId = requestId;
   if (!response.ok) {
-    const error = new Error(data.error ?? `HTTP ${response.status}`);
+    const error = /** @type {Error & Record<string, any>} */ (new Error(data.error ?? `HTTP ${response.status}`));
     error.status = response.status;
     error.code = data.code;
     error.requestId = requestId;
@@ -181,6 +181,10 @@ export async function validatePois(content, signal) {
   return postJson('/pois/validate', { content }, signal, adminHeaders());
 }
 
+/**
+ * @param {{ content?: string, batchId?: string, commitToken?: string, rows?: any[] }} [input]
+ * @param {AbortSignal} [signal]
+ */
 export async function upsertPois({ content = '', batchId = '', commitToken = '', rows } = {}, signal) {
   const body = { content, batchId, commitToken };
   if (Array.isArray(rows)) body.rows = rows;

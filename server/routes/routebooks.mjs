@@ -16,7 +16,7 @@ import { copyRoutebook, ensureDraftEditToken, publishOwnRoutebook, routebookMuta
 import { buildCreatorProfile, buildPlatformDashboard } from '../analytics/dashboard.mjs';
 
 export const routebookRoutes = [
-  route('GET', '/api/routebooks', async ({ req, res, url, params }) => {
+  route('GET', '/api/routebooks', async ({ req, res, url }) => {
       enforceRateLimit(req, 'public-read');
       const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
@@ -46,14 +46,14 @@ export const routebookRoutes = [
         routebooks: publicList ? enrichedRoutebooks.map(publicRoutebookView) : enrichedRoutebooks
       });
     }),
-  route('GET', '/api/dashboard', async ({ req, res, url, params }) => {
+  route('GET', '/api/dashboard', async ({ req, res, url }) => {
       verifySensitiveReadAccess(req);
       return sendJson(res, 200, {
         ok: true,
         dashboard: await buildPlatformDashboard(clampNumber(url.searchParams.get('limit'), 100, 2000, 1000))
       });
     }),
-  route('GET', '/api/creators/:id', async ({ req, res, url, params }) => {
+  route('GET', '/api/creators/:id', async ({ req, res, params }) => {
       enforceRateLimit(req, 'public-read');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       if (!id) throw createHttpError('达人 ID 不合法', 400, 'CREATOR_ID_REQUIRED');
@@ -62,7 +62,7 @@ export const routebookRoutes = [
         profile: await buildCreatorProfile(id)
       });
     }),
-  route('POST', '/api/routebooks/:id/status', async ({ req, res, url, params }) => {
+  route('POST', '/api/routebooks/:id/status', async ({ req, res, params }) => {
       enforceRateLimit(req, 'core-write');
       verifyAdminAccess(req);
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
@@ -73,7 +73,7 @@ export const routebookRoutes = [
         routebook: await enrichRoutebook(routebook)
       });
     }),
-  route('POST', '/api/routebooks/:id/publish', async ({ req, res, url, params }) => {
+  route('POST', '/api/routebooks/:id/publish', async ({ req, res, params }) => {
       enforceRateLimit(req, 'core-write');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       const body = await readJsonBody(req);
@@ -84,7 +84,7 @@ export const routebookRoutes = [
         shareUrl: `/share/${routebook.publicId}`
       });
     }),
-  route('POST', '/api/routebooks/:id/copy', async ({ req, res, url, params }) => {
+  route('POST', '/api/routebooks/:id/copy', async ({ req, res, params }) => {
       enforceRateLimit(req, 'core-write');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       const body = await readJsonBody(req);
@@ -97,7 +97,7 @@ export const routebookRoutes = [
         copyCount: enriched.copyCount ?? 0
       });
     }),
-  route('GET', '/api/routebooks/:id/versions', async ({ req, res, url, params }) => {
+  route('GET', '/api/routebooks/:id/versions', async ({ req, res, params }) => {
       verifyAdminAccess(req);
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       let versions = await listRoutebookVersionRows(id);
@@ -131,7 +131,7 @@ export const routebookRoutes = [
         audits
       });
     }),
-  route('GET', '/api/routebooks/:id', async ({ req, res, url, params }) => {
+  route('GET', '/api/routebooks/:id', async ({ req, res, params }) => {
       // 单路书详情要做全文件反扫 + enrich，读放大明显，挂公共读桶防刷。
       enforceRateLimit(req, 'public-read');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
@@ -157,7 +157,7 @@ export const routebookRoutes = [
       const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
       return sendJson(res, 200, { ok: true, routebook: privateRead ? routebook : publicRoutebookView(routebook) });
     }),
-  route('POST', '/api/routebooks/:id/variants', async ({ req, res, url, params }) => {
+  route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
       enforceRateLimit(req, 'core-write');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       const body = await readJsonBody(req);
@@ -168,11 +168,11 @@ export const routebookRoutes = [
         variant: result.variant
       });
     }),
-  route('POST', '/api/routebooks', async ({ req, res, url, params }) => {
+  route('POST', '/api/routebooks', async ({ req, res }) => {
       enforceRateLimit(req, 'core-write');
       const body = await readJsonBody(req);
       const actor = await resolveWriteProfile(req, body?.profileId);
-      const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${req.requestId}`;
+      const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${/** @type {any} */ (req).requestId}`;
       const { routebook, enriched } = await withSingleProcessKeyLock(routebookMutationLocks, lockKey, async () => {
         const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId });
         await appendVersionedRoutebook(savedRoutebook, savedRoutebook.parentVersion ? 'draft-saved' : 'created');
@@ -184,7 +184,7 @@ export const routebookRoutes = [
         shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
       });
     }),
-  route('GET', '/api/share/:id', async ({ req, res, url, params }) => {
+  route('GET', '/api/share/:id', async ({ req, res, params }) => {
       enforceRateLimit(req, 'public-read');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       const routebook = await enrichRoutebook(await getResolvableRoutebook(id));
@@ -204,7 +204,7 @@ export const routebookRoutes = [
         }
       });
     }),
-  route('POST', '/api/favorites', async ({ req, res, url, params }) => {
+  route('POST', '/api/favorites', async ({ req, res }) => {
       enforceRateLimit(req, 'core-write');
       const body = await readJsonBody(req);
       const actor = await resolveWriteProfile(req, body?.profileId);
@@ -221,7 +221,7 @@ export const routebookRoutes = [
       await appendJsonLine(FAVORITE_LOG_PATH, row);
       return sendJson(res, 200, { ok: true, favorite: row });
     }),
-  route('GET', '/api/favorites', async ({ req, res, url, params }) => {
+  route('GET', '/api/favorites', async ({ req, res, url }) => {
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
       await verifySensitiveOrProfileReadAccess(req, profileId);
       const favoriteLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 80);

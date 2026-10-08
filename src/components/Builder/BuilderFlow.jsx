@@ -27,6 +27,7 @@ const builderStepLabels = ['选择目的地', '导入攻略与收藏', '设置�
 const BUILDER_DRAFT_PREFIX = 'trusted-routebook:builder-draft:v1';
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 
+/** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onBack?: Function }} props */
 export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onBack }) {
   const [profile, setProfile] = useState(() => getProfile());
   const [initialDraft] = useState(() => hasBuilderDefaults(defaults) ? null : readBuilderDraft(profile.id));
@@ -141,6 +142,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       void handleImportLinks({ silentWhenComplete: true });
     }, 0);
     return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-import must fire once per step change, not whenever the URL list or handler identity changes.
   }, [defaults.autoImport, step]);
 
   async function handleImportLinks({ retryFailed = false, silentWhenComplete = false } = {}) {

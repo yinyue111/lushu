@@ -1,4 +1,3 @@
-import React from 'react';
 import { CalendarCheck, Copy, FileText, Link2, MousePointerClick, Navigation, TrendingUp } from 'lucide-react';
 import { getDashboard, getProductAnalytics } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, numberValue, useOpsResource } from './OpsShared';

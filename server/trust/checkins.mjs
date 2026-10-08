@@ -16,7 +16,7 @@ export function localDateForTimestamp(value) {
   return normalizeTravelDate(`${parts.year}-${parts.month}-${parts.day}`);
 }
 
-export function travelDateOrdinal(value) {
+function travelDateOrdinal(value) {
   const date = normalizeTravelDate(value);
   if (!date) return null;
   const epoch = Date.parse(`${date}T00:00:00.000Z`);
@@ -34,7 +34,7 @@ export function isTravelDateEvent(travelDate, event) {
 // 打卡行事件时间口径：用户补记的 observedAt 为合法日期且与 createdAt 相差
 // ≤ 30 天时采用（离线补传/当晚补录仍归入实际到达日），否则回退提交时间，
 // 防止伪造远古/远期时间搅乱行程日与时间吻合统计。
-export const CHECKIN_OBSERVED_AT_MAX_DRIFT_MS = 30 * 24 * 60 * 60 * 1000;
+const CHECKIN_OBSERVED_AT_MAX_DRIFT_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function checkinEventTime(item = {}) {
   const fallback = item?.createdAt ?? item?.time;

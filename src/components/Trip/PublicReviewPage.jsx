@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, Camera, CheckCircle, Clock, MapPin, Shield } from 'lucide-react';
 import { checkinPhotoUrl, getReviewShare } from '../../lib/api';
 import { decodeTripExecution, normalizeTripStops } from '../../lib/tripSession';

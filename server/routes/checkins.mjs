@@ -15,11 +15,11 @@ import { INTERNAL_EXPOSURE_ITEM_TYPES, PUBLIC_EXPOSURE_ITEM_TYPES, normalizeExpo
 import { buildProductAnalytics } from '../analytics/dashboard.mjs';
 import { resolveProductAttribution } from '../content/cms.mjs';
 
-export const checkinIdempotencyLocks = new Map();
+const checkinIdempotencyLocks = new Map();
 
 export const checkinRoutes = [
   // rank13①：照片打卡上传，鉴权与 POST /api/checkins 同级（rate limit + owner headers）。
-  route('POST', '/api/checkin-photos', async ({ req, res, url, params }) => {
+  route('POST', '/api/checkin-photos', async ({ req, res }) => {
       enforceRateLimit(req, 'core-write');
       const body = await readJsonBody(req, MAX_CHECKIN_PHOTO_REQUEST_BYTES);
       // 照片必须归属已注册身份：resolveWriteProfile 对缺失/anonymous profileId
@@ -41,7 +41,7 @@ export const checkinRoutes = [
       return sendJson(res, 200, { ok: true, ...result });
     }),
   // rank13②：照片读取，强缓存（内容不可变）。
-  route('GET', '/api/checkin-photos/:id', async ({ req, res, url, params }) => {
+  route('GET', '/api/checkin-photos/:id', async ({ req, res, params }) => {
       enforceRateLimit(req, 'public-read');
       const photoId = safeDecodePathSegment(params.id);
       if (!CHECKIN_PHOTO_ID_PATTERN.test(photoId)) {
@@ -50,7 +50,7 @@ export const checkinRoutes = [
       if (await sendCheckinPhotoFile(res, photoId)) return;
       throw createHttpError('照片不存在或已清理', 404, 'PHOTO_NOT_FOUND');
     }),
-  route('POST', '/api/checkins', async ({ req, res, url, params }) => {
+  route('POST', '/api/checkins', async ({ req, res }) => {
 	      enforceRateLimit(req, 'core-write');
 	      const body = await readJsonBody(req);
 	      const actor = await resolveWriteProfile(req, body?.profileId, { requireRegistered: true });
@@ -158,7 +158,7 @@ export const checkinRoutes = [
 	        : await persistCheckin();
 	      return sendJson(res, 200, { ok: true, ...result });
     }),
-  route('GET', '/api/checkins', async ({ req, res, url, params }) => {
+  route('GET', '/api/checkins', async ({ req, res, url }) => {
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
       await verifySensitiveOrProfileReadAccess(req, profileId);
       const checkinLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 50);
@@ -169,7 +169,7 @@ export const checkinRoutes = [
         : await readJsonLines(CHECKIN_LOG_PATH, checkinLimit);
       return sendJson(res, 200, { ok: true, checkins });
     }),
-  route('POST', '/api/clicks', async ({ req, res, url, params }) => {
+  route('POST', '/api/clicks', async ({ req, res }) => {
       // rank9：埋点类超限静默 204，不写库也不报错，避免客户端重试风暴。
       if (!consumeRateLimit(req, 'telemetry')) return sendTelemetryThrottled(req, res);
       const body = await readJsonBody(req);
@@ -199,7 +199,7 @@ export const checkinRoutes = [
       await appendJsonLine(CLICK_LOG_PATH, row);
       return sendJson(res, 200, { ok: true, click: row });
     }),
-  route('POST', '/api/exposures', async ({ req, res, url, params }) => {
+  route('POST', '/api/exposures', async ({ req, res }) => {
       // rank9：埋点类超限静默 204，不写库也不报错。
       if (!consumeRateLimit(req, 'telemetry')) return sendTelemetryThrottled(req, res);
       const body = await readJsonBody(req);
@@ -220,7 +220,7 @@ export const checkinRoutes = [
       await appendJsonLine(EXPOSURE_LOG_PATH, row);
       return sendJson(res, 200, { ok: true, exposure: row });
     }),
-  route('GET', '/api/clicks', async ({ req, res, url, params }) => {
+  route('GET', '/api/clicks', async ({ req, res, url }) => {
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
       await verifySensitiveOrProfileReadAccess(req, profileId);
       const clickLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 50);
@@ -229,7 +229,7 @@ export const checkinRoutes = [
         : await readJsonLines(CLICK_LOG_PATH, clickLimit);
       return sendJson(res, 200, { ok: true, clicks });
     }),
-  route('GET', '/api/product-analytics', async ({ req, res, url, params }) => {
+  route('GET', '/api/product-analytics', async ({ req, res, url }) => {
       const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
       await verifySensitiveOrProfileReadAccess(req, profileId);
       return sendJson(res, 200, {

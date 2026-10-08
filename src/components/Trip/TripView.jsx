@@ -1,5 +1,5 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Navigation, Camera, Map as MapIcon, Check, ChevronRight, LocateFixed, SkipForward, CloudRain, Footprints, BookOpen, RefreshCw } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Camera, Map as MapIcon, Check, ChevronRight, LocateFixed, SkipForward, CloudRain, Footprints, BookOpen, RefreshCw } from 'lucide-react';
 import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
@@ -92,6 +92,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     if (tripOpenRef.current === key) return;
     tripOpenRef.current = key;
     recordJourneyEvent('trip-open', routebook, profile.id).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- record trip-open once per profile/route; the listed fields are what the event reports.
   }, [profile.id, routeId, routebook.city, routebook.creator?.id, routebook.title]);
 
   useEffect(() => {
@@ -135,6 +136,7 @@ export default function TripView({ routebook, onBack, onReview }) {
       })
       .catch(() => {});
     return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the identity or route changes; commitCheckins is recreated every render.
   }, [profile.id, profile.profileAccessToken, routeId]);
 
   // 平台 POI 库（运营审核过的修正知识）作为行中替代候选来源；失败回退路书内候选。
@@ -174,6 +176,7 @@ export default function TripView({ routebook, onBack, onReview }) {
       window.removeEventListener('online', handleOnline);
       window.clearInterval(retryTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- listeners/timers are scoped to the storage key; syncQueuedCheckins reads state through refs.
   }, [storageKey]);
 
   function submitCheckin(data) {
@@ -195,7 +198,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     queueAndApplyLocalAction(row);
   }
 
-  function useAlternative(alternative) {
+  function applyAlternative(alternative) {
     if (!current || currentProcessed || currentSyncPending) return;
     const alternativeStop = buildAlternativeStop(current, alternative);
     const row = buildPendingCheckin(routebook, current, profile, {
@@ -444,7 +447,7 @@ export default function TripView({ routebook, onBack, onReview }) {
           </summary>
           <div className="trip-alternative-list">
             {alternatives.map((item) => (
-              <button key={item.stop.id} className="trip-alt-card" onClick={() => useAlternative(item)} disabled={currentProcessed || currentSyncPending || isFinished}>
+              <button key={item.stop.id} className="trip-alt-card" onClick={() => applyAlternative(item)} disabled={currentProcessed || currentSyncPending || isFinished}>
                 <strong>{item.name}</strong>
                 <span>{item.type} · {item.reason}</span>
               </button>

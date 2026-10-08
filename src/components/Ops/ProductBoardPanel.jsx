@@ -1,4 +1,3 @@
-import React from 'react';
 import { MousePointerClick, RefreshCw, Ticket } from 'lucide-react';
 import { getProductAnalytics } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, numberValue, textValue, useOpsResource } from './OpsShared';

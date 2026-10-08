@@ -18,7 +18,7 @@ export function useDialogFocus(open, onClose) {
     if (!open) return undefined;
     const dialog = dialogRef.current;
     if (!dialog) return undefined;
-    const previousFocus = document.activeElement;
+    const previousFocus = /** @type {HTMLElement | null} */ (document.activeElement);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 

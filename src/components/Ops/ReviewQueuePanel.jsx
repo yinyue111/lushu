@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, Filter, MessageSquareText, RotateCcw, X } from 'lucide-react';
 import { getPoiCorrections, updatePoiCorrectionStatus } from '../../lib/api';
 import { EmptyState, ResourceNotice, formatApiError, formatOpsDate, textValue, useOpsResource } from './OpsShared';

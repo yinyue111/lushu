@@ -19,7 +19,7 @@ export function normalizeCreator(input = {}) {
   };
 }
 
-export function importedSourceProofPayload(source = {}) {
+function importedSourceProofPayload(source = {}) {
   return [
     safeSourceUrl(source?.url),
     safeSourceUrl(source?.finalUrl),
@@ -40,7 +40,7 @@ export function signImportedSource(source = {}) {
   return createHmac('sha256', PROFILE_ID_SECRET).update(importedSourceProofPayload(source)).digest('hex');
 }
 
-export function hasValidImportedSourceProof(source = {}) {
+function hasValidImportedSourceProof(source = {}) {
   return safeEqualHex(String(source?.proof ?? ''), signImportedSource(source));
 }
 
@@ -83,11 +83,11 @@ export function buildSourceSummary(sources = []) {
   };
 }
 
-export function normalizeSourceSummary(summary, sources = []) {
+function normalizeSourceSummary(summary, sources = []) {
   return buildSourceSummary(sources);
 }
 
-export function mergeSourceMetrics(metrics, sourceSummary) {
+function mergeSourceMetrics(metrics, sourceSummary) {
   if (!sourceSummary?.sourceCount) return metrics;
   const sourceMetrics = [
     { label: '导入来源', value: `${sourceSummary.sourceCount} 条` },
@@ -96,7 +96,7 @@ export function mergeSourceMetrics(metrics, sourceSummary) {
   return [...sourceMetrics, ...metrics.filter((item) => !sourceMetrics.some((next) => next.label === item.label))].slice(0, 6);
 }
 
-export function mergeSourceValidations(validations, sourceSummary) {
+function mergeSourceValidations(validations, sourceSummary) {
   if (!sourceSummary?.sourceCount) return validations;
   const state = sourceSummary.averageTrust >= 70 ? '可参考' : sourceSummary.averageTrust >= 45 ? '需复核' : '低可信';
   const detail = [
@@ -133,7 +133,7 @@ export function hasPreciseCoordinate(stop) {
     !['city-center', 'region-center', 'country-center'].includes(String(stop?.coordinateSource ?? ''));
 }
 
-export function routeLegStats(stops) {
+function routeLegStats(stops) {
   let longestMeters = 0;
   let totalMeters = 0;
   let measuredLegs = 0;
@@ -168,7 +168,7 @@ export function routeLegStats(stops) {
 
 // Day labels are relative ("Day 2"), so a closure check needs the travel date to know
 // which weekday each stop actually lands on.
-export function weekdayForDayLabel(travelDate, dayLabel) {
+function weekdayForDayLabel(travelDate, dayLabel) {
   if (!travelDate) return null;
   const offset = Math.max(0, (Number(String(dayLabel ?? '').match(/\d+/)?.[0]) || 1) - 1);
   const timestamp = Date.parse(`${travelDate}T00:00:00.000Z`);
@@ -176,16 +176,16 @@ export function weekdayForDayLabel(travelDate, dayLabel) {
   return new Date(timestamp + offset * 86400000).getUTCDay();
 }
 
-export const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-export function poiOpenHours(stop, city) {
+function poiOpenHours(stop, city) {
   const trusted = findTrustedPoi(stop, city);
   const hours = trusted?.openHours;
   if (!hours || !Array.isArray(hours.closedWeekdays)) return null;
   return hours;
 }
 
-export function openingHoursConflicts(stops, city, travelDate) {
+function openingHoursConflicts(stops, city, travelDate) {
   const closures = [];
   let checkedStops = 0;
   let unknownStops = 0;
@@ -208,7 +208,7 @@ export function openingHoursConflicts(stops, city, travelDate) {
   return { closures, checkedStops, unknownStops };
 }
 
-export function buildOpeningHoursValidation(stops, city, travelDate) {
+function buildOpeningHoursValidation(stops, city, travelDate) {
   const { closures, checkedStops, unknownStops } = openingHoursConflicts(stops, city, travelDate);
   if (closures.length) {
     const first = closures[0];
@@ -247,14 +247,14 @@ export function buildOpeningHoursValidation(stops, city, travelDate) {
 
 // Budget is only meaningful against what the user asked for: "人均 300" and "人均 3000"
 // cannot share one threshold.
-export function budgetThresholdFromConstraints(constraints, stops) {
+function budgetThresholdFromConstraints(constraints, stops) {
   const perPerson = parseMoney(constraints?.budget);
   if (!perPerson) return { threshold: 0, perPerson: 0 };
   const dayCount = Math.max(1, new Set(stops.map((stop) => stop.day || 'Day 1')).size);
   return { threshold: perPerson * dayCount, perPerson };
 }
 
-export function buildBudgetValidation(budget, constraints, stops) {
+function buildBudgetValidation(budget, constraints, stops) {
   if (!budget) {
     return { id: 'edit-budget', label: '预算风险', state: '待补充', detail: '费用信息不足，建议补充门票/餐饮价格。' };
   }
@@ -325,7 +325,7 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
   return merged.slice(0, 8);
 }
 
-export function normalizeRoutebookStop(stop, index, city) {
+function normalizeRoutebookStop(stop, index, city) {
   const coordinate = normalizeCoordinate(stop, city, index);
   const name = truncateString(stop?.name, 48) || `站点 ${index + 1}`;
   const poiId = resolvePoiId({ ...stop, name }, city);
@@ -436,7 +436,7 @@ export function normalizeRouteVariants(variants, city, fallbackStops = [], conte
   return [...latestByKey.values()].slice(0, 8);
 }
 
-export function routebookVersionMetadata(input, now, publishStatus) {
+function routebookVersionMetadata(input, now, publishStatus) {
   const version = positiveInteger(input?.version, 1);
   const parentVersion = positiveInteger(input?.parentVersion);
   const createdAt = truncateString(input?.createdAt, 60) || now.toISOString();
@@ -519,7 +519,11 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
   };
 }
 
-export function normalizeStoredProvider(provider = {}, extra = {}) {
+/**
+ * @param {any} [provider]
+ * @param {Record<string, any>} [extra]
+ */
+function normalizeStoredProvider(provider = {}, extra = {}) {
   const source = provider && typeof provider === 'object' ? provider : {};
   const normalized = {
     name: truncateString(source.name, 40),

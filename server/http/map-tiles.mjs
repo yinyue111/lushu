@@ -4,9 +4,9 @@ import { MAP_TILE_CACHE_MAX_ENTRIES, MAP_TILE_MAX_BYTES, MAP_TILE_UPSTREAM_TIMEO
 import { requestIdHeaders, securityHeaders } from './response.mjs';
 import { createHttpError } from '../lib/util.mjs';
 
-export const mapTileCache = new Map();
+const mapTileCache = new Map();
 
-export function parseMapTilePath(pathname) {
+function parseMapTilePath(pathname) {
   const match = String(pathname ?? '').match(/^\/api\/map-tiles\/(\d{1,2})\/(\d{1,10})\/(\d{1,10})\.png$/);
   if (!match) return null;
   const [, zText, xText, yText] = match;
@@ -19,7 +19,7 @@ export function parseMapTilePath(pathname) {
   return { z, x, y, key: `${z}/${x}/${y}` };
 }
 
-export function readCachedMapTile(key) {
+function readCachedMapTile(key) {
   const cached = mapTileCache.get(key);
   if (!cached) return null;
   mapTileCache.delete(key);
@@ -27,7 +27,7 @@ export function readCachedMapTile(key) {
   return cached;
 }
 
-export function cacheMapTile(key, tile) {
+function cacheMapTile(key, tile) {
   mapTileCache.delete(key);
   mapTileCache.set(key, tile);
   while (mapTileCache.size > MAP_TILE_CACHE_MAX_ENTRIES) {
@@ -35,7 +35,7 @@ export function cacheMapTile(key, tile) {
   }
 }
 
-export function sendMapTile(res, tile, cacheState) {
+function sendMapTile(res, tile, cacheState) {
   res.writeHead(200, {
     ...securityHeaders(),
     ...requestIdHeaders(res),
@@ -48,7 +48,7 @@ export function sendMapTile(res, tile, cacheState) {
   res.end(tile.body);
 }
 
-export function requestMapTileUpstream(upstream, tileRequest, signal) {
+function requestMapTileUpstream(upstream, tileRequest, signal) {
   return new Promise((resolvePromise, rejectPromise) => {
     const chunks = [];
     let total = 0;

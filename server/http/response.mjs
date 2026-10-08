@@ -3,13 +3,13 @@ import { IS_PRODUCTION, MAX_JSON_BODY_BYTES } from '../config/index.mjs';
 import { cryptoRandomId } from '../auth/tokens.mjs';
 import { createHttpError } from '../lib/util.mjs';
 
-export const SECURITY_HEADERS = {
+const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), payment=()'
 };
-export const STATIC_CONNECT_SOURCES = [
+const STATIC_CONNECT_SOURCES = [
   "'self'",
   ...(!IS_PRODUCTION ? ["http://127.0.0.1:*", "ws://127.0.0.1:*"] : [])
 ];

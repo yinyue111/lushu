@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Camera, MapPin, Plus, Route, Shield, Sparkles } from 'lucide-react';
 import { getCityPhotos, getCityRoutes, getCityStory, curatedRouteToRoutebook, trustedCities } from '../../lib/content';
 import { getRoutebooksByCity } from '../../lib/api';
@@ -33,7 +33,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
 
   return (
     <div className="destination-page page-enter">
-      <section className="destination-hero" style={{ '--hero-image': `url(${story.image})` }}>
+      <section className="destination-hero" style={/** @type {import('react').CSSProperties} */ ({ '--hero-image': `url(${story.image})` })}>
         <div className="home-hero-shade" />
         <div className="destination-hero-content">
           <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={16} /> 返回首页</button>

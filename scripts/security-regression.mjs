@@ -1222,7 +1222,7 @@ function assertPublicReviewWhitelist(review, label) {
   ], `${label} stats`);
   const serialized = JSON.stringify(review);
   for (const field of ['photoName', 'distanceMeters', 'accuracy', 'createdAt', 'updatedAt', 'profileId', 'editToken', 'provider', 'gps']) {
-    if (serialized.includes(`\"${field}\"`)) {
+    if (serialized.includes(`"${field}"`)) {
       throw new Error(`${label} should not expose ${field}: ${serialized}`);
     }
   }

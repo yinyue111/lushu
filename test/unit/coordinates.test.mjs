@@ -49,13 +49,13 @@ test('fallbackCoordinate degrades from city to region to country and is never na
 });
 
 test('normalizeCoordinate: low-confidence input is kept but not navigable', () => {
-  const low = normalizeCoordinate({ lat: 30.1, lng: 120.1, geoConfidence: 40 }, '杭州', 0);
+  const low = /** @type {any} */ (normalizeCoordinate({ lat: 30.1, lng: 120.1, geoConfidence: 40 }, '杭州', 0));
   assert.equal(low.fallback, true);
   assert.equal(low.navigationDisabled, true);
-  const exact = normalizeCoordinate({ lat: 30.1, lng: 120.1, geoConfidence: 90 }, '杭州', 0);
+  const exact = /** @type {any} */ (normalizeCoordinate({ lat: 30.1, lng: 120.1, geoConfidence: 90 }, '杭州', 0));
   assert.equal(exact.fallback, false);
   assert.equal(exact.confidence, 90);
-  const missing = normalizeCoordinate({ name: '' }, '杭州', 0);
+  const missing = /** @type {any} */ (normalizeCoordinate({ name: '' }, '杭州', 0));
   assert.equal(missing.source, 'city-center', 'empty names fall back to the city centre, not a random POI');
 });
 

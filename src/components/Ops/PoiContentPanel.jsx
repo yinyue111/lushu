@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle2, Database, FileCheck2, FileUp, Filter, Pencil, RefreshCw } from 'lucide-react';
 import { getPoiCoverage, getPois, upsertPois, validatePois } from '../../lib/api';
 import PoiEditorDrawer from './PoiEditorDrawer';

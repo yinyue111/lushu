@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, MapPin, FileText, DollarSign, Clock, AlertTriangle, Share2, Shield, CheckCircle, XCircle } from 'lucide-react';
 import { checkinPhotoUrl, createReviewShare, getMyCheckins } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
@@ -18,6 +18,7 @@ export default function ReviewPage({ routebook, onBack }) {
   const localCheckins = useMemo(
     () => safeReadCheckins(storageKey).filter((item) => sameRoute(item, routeId)),
     // localTick 变化时重读本地存储（补传完成后刷新）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- localTick is a cache-busting tick.
     [routeId, storageKey, localTick]
   );
   const checkins = useMemo(
@@ -53,6 +54,7 @@ export default function ReviewPage({ routebook, onBack }) {
       cancelled = true;
     };
     // 仅在打开时执行一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on open.
   }, []);
 
   useEffect(() => {

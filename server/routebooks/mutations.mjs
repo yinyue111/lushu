@@ -80,7 +80,7 @@ export async function copyRoutebook(publicId, input = {}) {
   return { ...routebook, copyCount: countedActors.size };
 }
 
-export function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
+function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
   const profileId = normalizeProfileId(input?.profileId || existingRoutebook?.profileId);
   const hardenedInput = hardenDraftCoordinateProvenance(input, existingRoutebook);
   return normalizeRoutebookForStorage({
@@ -94,7 +94,12 @@ export function normalizeRoutebookDraftForStorage(input, existingRoutebook = nul
   }, existingRoutebook ? (existingRoutebook.publicId || existingRoutebook.id) : '');
 }
 
-export function hardenDraftCoordinateProvenance(input = {}, existingRoutebook = null) {
+/**
+ * @param {Record<string, any>} [input]
+ * @param {Record<string, any> | null} [existingRoutebook]
+ * @returns {Record<string, any>}
+ */
+function hardenDraftCoordinateProvenance(input = {}, existingRoutebook = null) {
   const city = normalizeCityName(input?.city || existingRoutebook?.city);
   const existingStops = Array.isArray(existingRoutebook?.stops) ? existingRoutebook.stops : [];
   const variantsById = new Map((existingRoutebook?.variants ?? []).map((variant) => [String(variant?.id || variant?.mode || ''), variant]));
@@ -113,7 +118,7 @@ export function hardenDraftCoordinateProvenance(input = {}, existingRoutebook = 
   };
 }
 
-export function hardenDraftStops(stops, existingStops, city) {
+function hardenDraftStops(stops, existingStops, city) {
   if (!Array.isArray(stops)) return stops;
   const existingById = new Map((existingStops ?? []).map((stop) => [String(stop?.id ?? ''), stop]).filter(([key]) => key));
   const existingByName = new Map((existingStops ?? []).map((stop) => [String(stop?.name ?? '').trim(), stop]).filter(([key]) => key));
@@ -161,7 +166,7 @@ export function hardenDraftStops(stops, existingStops, city) {
   });
 }
 
-export function coordinatesMatch(left, right) {
+function coordinatesMatch(left, right) {
   const leftLat = Number(left?.lat);
   const leftLng = Number(left?.lng);
   const rightLat = Number(right?.lat);
@@ -183,7 +188,7 @@ export function normalizeUserRouteCreator(input = {}, profileId = '') {
   };
 }
 
-export function canOverwriteRoutebook(existingRoutebook, input) {
+function canOverwriteRoutebook(existingRoutebook, input) {
   if (!existingRoutebook) return true;
   const existingToken = sanitizeEditToken(existingRoutebook.editToken);
   if (existingToken) return safeTokenEqual(sanitizeEditToken(input?.editToken), existingToken);

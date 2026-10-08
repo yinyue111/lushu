@@ -14,7 +14,7 @@ async function findAvailablePort(startPort = 5699) {
   return new Promise((resolve, reject) => {
     const server = createNetServer();
     server.unref();
-    server.once('error', (error) => {
+    server.once('error', (/** @type {NodeJS.ErrnoException} */ error) => {
       if (error.code === 'EADDRINUSE') {
         resolve(findAvailablePort(startPort + 1));
         return;
@@ -22,7 +22,7 @@ async function findAvailablePort(startPort = 5699) {
       reject(error);
     });
     server.listen(startPort, '127.0.0.1', () => {
-      const address = server.address();
+      const address = /** @type {import('node:net').AddressInfo} */ (server.address());
       server.close(() => resolve(address.port));
     });
   });

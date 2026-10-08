@@ -8,17 +8,17 @@ export function isPublicRoutebook(routebook) {
   return PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft');
 }
 
-export function hasPublicTrustSamples(sampleCount) {
+function hasPublicTrustSamples(sampleCount) {
   return clampNumber(sampleCount, 0, 1000000, 0) >= PUBLIC_TRUST_SAMPLE_THRESHOLD;
 }
 
-export function hasPublicRouteTrustScore(meta = {}) {
+function hasPublicRouteTrustScore(meta = {}) {
   return hasPublicTrustSamples(meta?.sampleCount) &&
     meta?.source === 'verified-feedback' &&
     isValidTrustDisplayScore(meta?.displayScore);
 }
 
-export function isValidTrustDisplayScore(value) {
+function isValidTrustDisplayScore(value) {
   const present = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
   if (!present) return false;
   const score = Number(value);
@@ -122,7 +122,7 @@ export function publicRoutebookStop(stop = {}) {
   };
 }
 
-export function publicRouteVariant(variant = {}) {
+function publicRouteVariant(variant = {}) {
   return {
     id: sanitizePublicId(variant.id),
     mode: truncateString(variant.mode, 24),
@@ -146,7 +146,7 @@ export function publicRouteVariant(variant = {}) {
   };
 }
 
-export function publicCreatorView(creator = {}) {
+function publicCreatorView(creator = {}) {
   const normalized = normalizeCreator(creator);
   return {
     id: normalized.id,
@@ -157,7 +157,8 @@ export function publicCreatorView(creator = {}) {
   };
 }
 
-export function publicTrustMeta(meta = {}) {
+/** @param {any} [meta] */
+function publicTrustMeta(meta = {}) {
   if (!meta || typeof meta !== 'object') return null;
   const scoreVisible = hasPublicRouteTrustScore(meta);
   return {
@@ -173,7 +174,8 @@ export function publicTrustMeta(meta = {}) {
   };
 }
 
-export function publicFeedbackSummary(summary = {}) {
+/** @param {any} [summary] */
+function publicFeedbackSummary(summary = {}) {
   if (!summary || typeof summary !== 'object') return null;
   return {
     sampleCount: clampNumber(summary.sampleCount, 0, 1000000, 0),
@@ -192,7 +194,8 @@ export function publicFeedbackSummary(summary = {}) {
   };
 }
 
-export function publicPoiTrust(poiTrust = {}) {
+/** @param {any} [poiTrust] */
+function publicPoiTrust(poiTrust = {}) {
   if (!poiTrust || typeof poiTrust !== 'object') return null;
   const scoreVisible = hasPublicTrustSamples(poiTrust.sampleCount) &&
     poiTrust.score != null &&
@@ -246,7 +249,7 @@ export function publicReviewView(review) {
   };
 }
 
-export function publicReviewRoutebookView(routebook = {}) {
+function publicReviewRoutebookView(routebook = {}) {
   return {
     id: sanitizePublicId(routebook.id || routebook.publicId),
     publicId: sanitizePublicId(routebook.publicId || routebook.id),
@@ -258,7 +261,7 @@ export function publicReviewRoutebookView(routebook = {}) {
   };
 }
 
-export function publicReviewRouteStop(stop = {}) {
+function publicReviewRouteStop(stop = {}) {
   return {
     id: typeof stop.id === 'number' ? stop.id : sanitizePublicId(stop.id),
     day: truncateString(stop.day, 24),
@@ -267,7 +270,7 @@ export function publicReviewRouteStop(stop = {}) {
   };
 }
 
-export function publicReviewExecutionStop(stop = {}) {
+function publicReviewExecutionStop(stop = {}) {
   return {
     ...publicReviewRouteStop(stop),
     tripReplacementFor: truncateString(stop.tripReplacementFor, 80),
@@ -277,7 +280,7 @@ export function publicReviewExecutionStop(stop = {}) {
   };
 }
 
-export function publicReviewStats(stats = {}) {
+function publicReviewStats(stats = {}) {
   return {
     completionRate: clampNumber(stats.completionRate, 0, 100, 0),
     checkinCount: clampNumber(stats.checkinCount, 0, MAX_ROUTEBOOK_STOPS, 0),

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Database, Plus, RotateCcw, Save, Shield, Ticket, Trash2 } from 'lucide-react';
 import { getAdminToken, getCmsConfig, getProducts, saveCmsConfig, saveProducts, setAdminToken } from '../../lib/api';
 import { ResourceNotice, formatApiError, useOpsResource } from './OpsShared';
 
 const EMPTY_CMS = { defaultCity: '', heroTitle: '', featuredCities: [], announcements: [] };
 
+/** @param {{ onTokenChanged?: Function }} props */
 export default function OpsConfigPanel({ onTokenChanged }) {
   const cmsResource = useOpsResource((signal) => getCmsConfig(signal));
   const productsResource = useOpsResource((signal) => getProducts(signal));

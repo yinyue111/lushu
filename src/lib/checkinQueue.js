@@ -174,6 +174,7 @@ export function isCheckinFlushInFlight() {
 // 扫描 localStorage 里所有打卡队列 key，对 queued/到期 failed 行执行上传。
 // 含身份注册前置（未注册 profile 先注册再上传，避免服务端落 anonymous 行）
 // 与照片补传（先传照片拿 photoId，再传打卡行）。离线时直接返回。
+/** @param {{ profile?: any, signal?: AbortSignal }} [options] */
 export async function flushAllCheckinQueues({ profile, signal } = {}) {
   const result = { attempted: 0, synced: 0, failed: 0 };
   if (flushAllInFlight) return result;

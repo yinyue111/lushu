@@ -40,7 +40,7 @@ export function normalizeProfile(input = {}) {
   };
 }
 
-export function normalizeProfileIdentity(input = {}) {
+function normalizeProfileIdentity(input = {}) {
   const identity = verifiedProfileIdentity(input);
   if (identity?.type === 'wechat-openid') {
     return {
@@ -69,15 +69,15 @@ export function normalizeProfileIdentity(input = {}) {
   };
 }
 
-export function hasProfileIdentityCandidate(input = {}) {
+function hasProfileIdentityCandidate(input = {}) {
   const phone = String(input?.phone ?? input?.mobile ?? input?.subject ?? '').replace(/\D/g, '');
   const wechatOpenId = sanitizePublicId(input?.wechatOpenId || input?.openid || input?.openId || input?.subject);
   return /^1\d{10}$/.test(phone) || Boolean(wechatOpenId && String(input?.type ?? input?.provider ?? '').includes('wechat'));
 }
 
-export const IDENTITY_ASSERTION_MAX_SKEW_MS = 10 * 60 * 1000;
+const IDENTITY_ASSERTION_MAX_SKEW_MS = 10 * 60 * 1000;
 
-export function verifiedProfileIdentity(input = {}) {
+function verifiedProfileIdentity(input = {}) {
   const proof = input?.proof && typeof input.proof === 'object' ? input.proof : input;
   const phone = String(input?.phone ?? input?.mobile ?? proof?.phone ?? proof?.subject ?? '').replace(/\D/g, '');
   const wechatOpenId = sanitizePublicId(input?.wechatOpenId || input?.openid || input?.openId || proof?.wechatOpenId || proof?.openid || proof?.openId || proof?.subject);
@@ -107,13 +107,13 @@ export function verifiedProfileIdentity(input = {}) {
   };
 }
 
-export const identityNonceStore = createNonceStore({
+const identityNonceStore = createNonceStore({
   load: async () => readJsonLines(IDENTITY_NONCE_LOG_PATH, 100000),
   persist: async (record) => appendJsonLine(IDENTITY_NONCE_LOG_PATH, { ...record, createdAt: new Date().toISOString() })
 });
 
 // M1: a verified identity assertion may bind/recover a profile only once.
-export async function consumeIdentityAssertion(input = {}) {
+async function consumeIdentityAssertion(input = {}) {
   const assertion = verifiedProfileIdentity(input?.identity ?? input);
   if (!assertion) return;
   if (!(await identityNonceStore.consume(assertion.nonceKey, assertion.expiresAt))) {

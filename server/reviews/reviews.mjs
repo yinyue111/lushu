@@ -57,14 +57,24 @@ export async function normalizeReviewShare(input, canonicalRoutebook = null, opt
   };
 }
 
-export function normalizeReviewExecutionStops(input, routebook) {
+// Later entries win, matching the previous `new Map(entries)` semantics; blank keys are skipped.
+function mapByTrimmedKey(items, keyOf) {
+  const map = new Map();
+  for (const item of items) {
+    const key = String(keyOf(item) ?? '').trim();
+    if (key) map.set(key, item);
+  }
+  return map;
+}
+
+function normalizeReviewExecutionStops(input, routebook) {
   if (!Array.isArray(input) || !input.length) return [];
   const allowedStops = [
     ...(routebook?.stops ?? []),
     ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])
   ];
-  const byId = new Map(allowedStops.map((stop) => [String(stop?.id ?? '').trim(), stop]).filter(([key]) => key));
-  const byName = new Map(allowedStops.map((stop) => [String(stop?.name ?? '').trim(), stop]).filter(([key]) => key));
+  const byId = mapByTrimmedKey(allowedStops, (stop) => stop?.id);
+  const byName = mapByTrimmedKey(allowedStops, (stop) => stop?.name);
   const seen = new Set();
   const output = [];
   for (const candidate of input.slice(0, MAX_ROUTEBOOK_STOPS)) {

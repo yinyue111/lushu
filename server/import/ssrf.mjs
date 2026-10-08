@@ -91,11 +91,11 @@ export async function assertPublicHttpUrl(rawUrl) {
   return url;
 }
 
-export function hostnameForLookup(hostname) {
+function hostnameForLookup(hostname) {
   return String(hostname ?? '').replace(/^\[|\]$/g, '');
 }
 
-export async function resolvePublicHttpEndpoint(url) {
+async function resolvePublicHttpEndpoint(url) {
   const hostname = hostnameForLookup(url.hostname);
   const literalIpVersion = isIP(hostname);
   const records = literalIpVersion
@@ -120,7 +120,7 @@ export function getResponseHeader(headers, name) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function requestPinnedPublicUrl(url, endpoint, signal) {
+function requestPinnedPublicUrl(url, endpoint, signal) {
   return new Promise((resolvePromise, rejectPromise) => {
     const requester = url.protocol === 'https:' ? httpsRequest : httpRequest;
     const isHttps = url.protocol === 'https:';

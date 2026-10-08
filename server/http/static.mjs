@@ -183,7 +183,7 @@ export function matchShareLandingPath(req) {
 }
 
 // 注入值统一做 HTML 实体转义，防止路书标题/摘要携带的 <script> 等内容注入页面。
-export function escapeHtmlText(value) {
+function escapeHtmlText(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -193,7 +193,7 @@ export function escapeHtmlText(value) {
     .replaceAll('`', '&#96;');
 }
 
-export async function buildShareLandingMeta(target) {
+async function buildShareLandingMeta(target) {
   try {
     if (target.kind === 'share') {
       const routebook = await getResolvableRoutebook(target.id);
@@ -224,7 +224,7 @@ export async function buildShareLandingMeta(target) {
   }
 }
 
-export function injectShareLandingMeta(html, meta) {
+function injectShareLandingMeta(html, meta) {
   const safeTitle = escapeHtmlText(meta.title);
   const safeDescription = escapeHtmlText(meta.description);
   const safeImage = escapeHtmlText(meta.image ?? '');
@@ -254,9 +254,9 @@ export function injectShareLandingMeta(html, meta) {
 // L4: prefer the configured PUBLIC_BASE_URL. Otherwise only trust X-Forwarded-Proto
 // from a trusted proxy and only accept a syntactically valid Host header, so a
 // spoofed Host cannot inject arbitrary origins into og:image.
-export const VALID_HOST_HEADER = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
+const VALID_HOST_HEADER = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
 
-export function shareLandingOrigin(req) {
+function shareLandingOrigin(req) {
   if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
   const host = String(req.headers.host ?? '').trim();
   if (!host || host.length > 255 || !VALID_HOST_HEADER.test(host)) return '';

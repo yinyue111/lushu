@@ -42,7 +42,7 @@ test('wildcard captures the remainder', () => {
 test('method matching is case-insensitive and first match wins', () => {
   const ordered = createRouter([route('GET', '/a/:x', () => 1), route('GET', '/a/:y', () => 2)]);
   const match = ordered.match('get', '/a/1');
-  assert.equal(match.route.handler(), 1);
+  assert.equal(match.route.handler(/** @type {any} */ ({})), 1);
 });
 
 test('invalid patterns are rejected', () => {

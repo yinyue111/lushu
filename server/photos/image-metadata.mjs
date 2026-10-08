@@ -63,7 +63,7 @@ export function extractJpegExif(buffer) {
   return null;
 }
 
-export function parseExifTiff(tiff) {
+function parseExifTiff(tiff) {
   if (tiff.length < 8) return null;
   const endianTag = tiff.toString('latin1', 0, 2);
   const littleEndian = endianTag === 'II';
@@ -144,7 +144,7 @@ export function parseExifTiff(tiff) {
 // rank13①：剥离 JPEG 的 APP1-APP15 元数据段与 COM 注释段（保留 APP0/JFIF），
 // 从 SOS 起原样保留。结构异常一律返回 null（fail-closed），由调用方拒收：
 // 返回原图的旧兜底会把未知结构的元数据原样落盘。
-export function stripJpegMetadata(buffer) {
+function stripJpegMetadata(buffer) {
   try {
     const parts = [buffer.subarray(0, 2)];
     let offset = 2;
@@ -179,9 +179,9 @@ export function stripJpegMetadata(buffer) {
 // rank13①-A：PNG 按 chunk 流重组，丢弃 eXIf/tEXt/zTXt/iTXt 元数据 chunk，
 // 其余原样保留；IEND 之后的尾部字节（常见 polyglot 藏匿点）一并丢弃。
 // 任何结构异常返回 null（fail-closed）。
-export const PNG_METADATA_CHUNK_TYPES = new Set(['eXIf', 'tEXt', 'zTXt', 'iTXt']);
+const PNG_METADATA_CHUNK_TYPES = new Set(['eXIf', 'tEXt', 'zTXt', 'iTXt']);
 
-export function stripPngMetadata(buffer) {
+function stripPngMetadata(buffer) {
   try {
     if (buffer.length < 8 + 12) return null;
     const parts = [buffer.subarray(0, 8)];
@@ -213,7 +213,7 @@ export function stripPngMetadata(buffer) {
 
 // rank13①-A：WebP 按 RIFF chunk 重组，丢弃 EXIF/XMP chunk、清 VP8X 头对应
 // 标志位（E=0x08 / X=0x04）并修正 RIFF size。任何结构异常返回 null（fail-closed）。
-export function stripWebpMetadata(buffer) {
+function stripWebpMetadata(buffer) {
   try {
     if (buffer.length < 12 + 8) return null;
     if (buffer.toString('latin1', 0, 4) !== 'RIFF' || buffer.toString('latin1', 8, 12) !== 'WEBP') return null;

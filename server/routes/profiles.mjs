@@ -14,7 +14,7 @@ import { isPublicRoutebook, publicReviewView } from '../routebooks/views.mjs';
 import { normalizeReviewShare, reviewIsStillPublic } from '../reviews/reviews.mjs';
 
 export const profileRoutes = [
-  route('POST', '/api/profile', async ({ req, res, url, params }) => {
+  route('POST', '/api/profile', async ({ req, res }) => {
 	      enforceRateLimit(req);
 	      const body = await readJsonBody(req);
 	      // 同一 profile 的「读旧行-合并-追加」需要互斥，否则并发更新会彼此覆盖。
@@ -26,7 +26,7 @@ export const profileRoutes = [
 	      });
 	      return sendJson(res, 200, { ok: true, profile: publicProfile });
 	    }),
-  route('POST', '/api/reviews', async ({ req, res, url, params }) => {
+  route('POST', '/api/reviews', async ({ req, res }) => {
       enforceRateLimit(req, 'core-write');
       const body = await readJsonBody(req);
       const routeId = sanitizePublicId(body?.routebookId || body?.routeId || body?.publicId || body?.routebook?.publicId || body?.routebook?.id);
@@ -45,7 +45,7 @@ export const profileRoutes = [
       await appendJsonLine(REVIEW_LOG_PATH, review);
       return sendJson(res, 200, { ok: true, review: publicReviewView(review), shareUrl: `/review/${review.publicId}` });
     }),
-  route('GET', '/api/reviews/:id', async ({ req, res, url, params }) => {
+  route('GET', '/api/reviews/:id', async ({ req, res, params }) => {
       enforceRateLimit(req, 'public-read');
       const id = sanitizePublicId(safeDecodePathSegment(params.id));
       const review = await getSavedReview(id);

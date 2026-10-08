@@ -12,6 +12,8 @@
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server.mjs --production",
     "check:syntax": "node scripts/check-syntax.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
     "smoke:api": "node --env-file-if-exists=.env scripts/smoke-api.mjs",
     "test": "npm run test:unit",
     "test:unit": "node scripts/run-unit-tests.mjs",
@@ -21,7 +23,7 @@
     "test:p0": "node scripts/p0-regression.mjs",
     "test:w3-w5": "node scripts/w3-w5-regression.mjs",
     "test:postgres-schema": "node scripts/postgres-schema-regression.mjs",
-    "verify": "npm run check:syntax && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5",
+    "verify": "npm run check:syntax && npm run lint && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5",
     "verify:full": "npm run verify && npm run smoke:api",
     "preview": "npm run build && npm run start"
   },
@@ -32,7 +34,17 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.3",
     "vite": "^7.3.7"
   }
 }

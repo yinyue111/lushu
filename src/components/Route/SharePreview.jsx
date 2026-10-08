@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Shield, X, ExternalLink, Link2 } from 'lucide-react';
 import { getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, saveRoutebookRemote } from '../../lib/api';
 import { curatedRoutes } from '../../lib/content';

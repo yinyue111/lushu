@@ -12,8 +12,8 @@ import { resolvePoiId, normalizePoiName } from '../poi/catalog.mjs';
 
 // rank23①：GET /api/routebooks 列表等批量路径可先 buildRouteFeedbackContext() 一次性
 // 读齐 5 份 JSONL，再把同一份行数组传给每次 buildFeedbackSummary 复用，避免逐路书重扫。
-export const FEEDBACK_SCAN_MATCH_LIMIT = 5000;
-export const FEEDBACK_SCAN_WINDOW = 100000;
+const FEEDBACK_SCAN_MATCH_LIMIT = 5000;
+const FEEDBACK_SCAN_WINDOW = 100000;
 
 export async function buildRouteFeedbackContext() {
   const [checkins, corrections, reviews, routebookHistory, exposures] = await Promise.all([
@@ -26,7 +26,7 @@ export async function buildRouteFeedbackContext() {
   return { checkins, corrections, reviews, routebookHistory, exposures };
 }
 
-export async function buildFeedbackSummary(routebook, feedbackContext = null) {
+async function buildFeedbackSummary(routebook, feedbackContext = null) {
   const routeTitle = String(routebook?.title ?? '');
   const city = String(routebook?.city ?? '');
   const routeId = sanitizePublicId(routebook?.publicId || routebook?.id);
@@ -265,7 +265,7 @@ export async function enrichRoutebook(routebook, feedbackContext = null) {
   };
 }
 
-export function calculateFeedbackTrustScore(summary) {
+function calculateFeedbackTrustScore(summary) {
   const completion = clampNumber(summary.completionRate, 0, 100, 0);
   const satisfaction = clampNumber(summary.positiveRate, 0, 100, 50);
   const lowEdit = 100 - clampNumber(summary.editRate, 0, 100, 0);
@@ -293,19 +293,19 @@ export function calculateFeedbackTrustScore(summary) {
 }
 
 // rank20②：营业时间/关闭类字段的已审核纠错，用于 POI 降权标记。
-export function isHoursOrClosureCorrection(correction) {
+function isHoursOrClosureCorrection(correction) {
   const field = String(correction?.field ?? '');
   return /营业|开放|闭馆|闭园|闭店|关闭|停业|歇业|休息|暂停/.test(field);
 }
 
-export const TIME_OF_DAY_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+const TIME_OF_DAY_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: TRAVEL_DAY_TIME_ZONE,
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23'
 });
 
-export function minutesOfDayInTravelTimezone(value) {
+function minutesOfDayInTravelTimezone(value) {
   const timestamp = Date.parse(value ?? '');
   if (!Number.isFinite(timestamp)) return null;
   const match = TIME_OF_DAY_FORMATTER.format(new Date(timestamp)).match(/^(\d{2}):(\d{2})$/);
@@ -313,7 +313,7 @@ export function minutesOfDayInTravelTimezone(value) {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-export function parseStayMinutes(value) {
+function parseStayMinutes(value) {
   const text = String(value ?? '');
   const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:小时|h)/i);
   const minuteMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:分钟|分|min)/i);
@@ -321,7 +321,7 @@ export function parseStayMinutes(value) {
   return Math.round((hourMatch ? Number(hourMatch[1]) * 60 : 0) + (minuteMatch ? Number(minuteMatch[1]) : 0));
 }
 
-export function stopPlannedTimeWindow(stop) {
+function stopPlannedTimeWindow(stop) {
   const timeMatch = String(stop?.time ?? '').match(/(\d{1,2}):(\d{2})/);
   if (!timeMatch) return null;
   const start = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
@@ -332,7 +332,7 @@ export function stopPlannedTimeWindow(stop) {
 
 // rank20③：粗粒度时间吻合率——打卡时刻（Asia/Shanghai）落在
 // [计划到达-60min, 计划离开+60min] 记为吻合；无可比样本时返回 null。
-export function calculateTimeMatchRate(routeStops, checkins) {
+function calculateTimeMatchRate(routeStops, checkins) {
   const samples = [];
   for (const item of checkins ?? []) {
     const checkinMinutes = minutesOfDayInTravelTimezone(checkinEventTime(item));
@@ -346,14 +346,14 @@ export function calculateTimeMatchRate(routeStops, checkins) {
   return Math.round((samples.filter(Boolean).length / samples.length) * 100);
 }
 
-export function parseQueueMinutes(value) {
+function parseQueueMinutes(value) {
   const text = String(value ?? '').trim();
   if (!text) return null;
   if (/无需|不用|免排|没排|无排队|不排队/.test(text)) return 0;
   return parseStayMinutes(text);
 }
 
-export function parseCostYuan(value) {
+function parseCostYuan(value) {
   const text = String(value ?? '').trim();
   if (!text) return null;
   if (/免费|免票/.test(text)) return 0;
@@ -361,7 +361,7 @@ export function parseCostYuan(value) {
   return match ? Number(match[0]) : null;
 }
 
-export function medianOf(values) {
+function medianOf(values) {
   const sorted = (values ?? []).filter((value) => Number.isFinite(value)).sort((left, right) => left - right);
   if (!sorted.length) return null;
   const middle = Math.floor(sorted.length / 2);
@@ -369,7 +369,7 @@ export function medianOf(values) {
   return Math.round(median * 10) / 10;
 }
 
-export function modeOf(values) {
+function modeOf(values) {
   const counts = new Map();
   for (const value of values ?? []) {
     const text = String(value ?? '').trim();
@@ -389,7 +389,7 @@ export function modeOf(values) {
 
 // "待真实验证" reads as broken to users and hides progress from ops; show how far the
 // route is from the sample threshold instead.
-export function trustProgressLabel(feedbackSummary) {
+function trustProgressLabel(feedbackSummary) {
   if (feedbackSummary.trustScoreSource === 'verified-feedback') {
     const attested = clampNumber(feedbackSummary.attestedProfileCount, 0, 1000000, 0);
     return attested ? '真实打卡验证可信分' : '独立身份打卡验证可信分';
@@ -400,7 +400,7 @@ export function trustProgressLabel(feedbackSummary) {
     : '预测可信度 · 待首份真实打卡';
 }
 
-export function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCount) {
+function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCount) {
   const samples = clampNumber(sampleCount, 0, 100000, 0);
   const coverage = Math.min(1, samples / Math.max(1, TRUST_FEEDBACK_SAMPLE_TARGET));
   const feedbackWeight = Math.round((coverage * 0.75) * 100) / 100;
@@ -416,7 +416,7 @@ export function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCou
   };
 }
 
-export function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHourCorrections = []) {
+function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHourCorrections = []) {
   // 键改用 resolvePoiId：stop.id（如 stop-1）会在主线与变体之间撞库，把别的
   // POI 的可信分挂错；同时覆盖变体站点，让变体也能继承跨路线 POI 反馈。
   const stops = [
@@ -509,11 +509,11 @@ export function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHo
   return Object.fromEntries(map);
 }
 
-export function stopTrustKey(stop) {
+function stopTrustKey(stop) {
   return String(stop?.id || stop?.name || '').trim();
 }
 
-export function isSameCheckinStop(stop, checkin) {
+function isSameCheckinStop(stop, checkin) {
   const stopPoiId = sanitizePublicId(stop?.poiId);
   const checkinPoiId = sanitizePublicId(checkin?.poiId);
   const stopId = String(stop?.id ?? '');
@@ -530,7 +530,7 @@ export function isSameCheckinStop(stop, checkin) {
   );
 }
 
-export function daysAgoLabel(isoValue) {
+function daysAgoLabel(isoValue) {
   const timestamp = Date.parse(isoValue ?? '');
   if (!Number.isFinite(timestamp)) return '近期';
   const days = Math.max(0, Math.floor((Date.now() - timestamp) / (24 * 60 * 60 * 1000)));
@@ -539,7 +539,7 @@ export function daysAgoLabel(isoValue) {
   return `${days} 天前`;
 }
 
-export function enrichStopsWithEvidence(routebook, stops, poiKnowledge, feedbackSummary = null) {
+function enrichStopsWithEvidence(routebook, stops, poiKnowledge, feedbackSummary = null) {
   return stops.map((stop) => {
     const corrections = poiKnowledge
       .filter((item) => isSamePoi(stop, item))
@@ -577,7 +577,7 @@ export function enrichStopsWithEvidence(routebook, stops, poiKnowledge, feedback
   });
 }
 
-export function buildStopFacts(routebook, stop, corrections, evidence) {
+function buildStopFacts(routebook, stop, corrections, evidence) {
   const sourceFacts = buildFactsFromSources(routebook, stop, evidence);
   const correctionFacts = corrections.map((item) => ({
     id: `correction-${item.correctionId || item.id}`,
@@ -604,7 +604,7 @@ export function buildStopFacts(routebook, stop, corrections, evidence) {
   return [...latestByField.values()].slice(0, 8);
 }
 
-export function buildFactsFromSources(routebook, stop, evidence = []) {
+function buildFactsFromSources(routebook, stop, evidence = []) {
   const stopName = String(stop?.name ?? '');
   const relevant = evidence.filter((item) => item.type === 'matched-source' || String(item.detail ?? '').includes(stopName));
   return relevant.slice(0, 3).flatMap((item) => {
@@ -636,7 +636,7 @@ export function buildFactsFromSources(routebook, stop, evidence = []) {
 
 // 判同收紧为 resolvePoiId 相等或规范化名称完全相等；子串包含（如「柳浪闻莺」
 // 与「柳浪闻莺东门」）只能作为低置信提示，不再直接判定为同一 POI。
-export function isSamePoi(stop, item) {
+function isSamePoi(stop, item) {
   const stopName = String(stop?.name ?? '');
   const itemName = String(item?.stopName ?? '');
   if (!stopName || !itemName) return false;
@@ -647,15 +647,7 @@ export function isSamePoi(stop, item) {
   return Boolean(normalizedStopName) && normalizedStopName === normalizedItemName;
 }
 
-// 子串包含降级为提示信号，供需要「疑似同一 POI」场景使用。
-export function isLowConfidenceSamePoiHint(stop, item) {
-  const stopName = normalizePoiName(String(stop?.name ?? ''));
-  const itemName = normalizePoiName(String(item?.stopName ?? ''));
-  if (!stopName || !itemName || stopName === itemName) return false;
-  return stopName.includes(itemName) || itemName.includes(stopName);
-}
-
-export function buildSourceEvidenceForStop(routebook, stop) {
+function buildSourceEvidenceForStop(routebook, stop) {
   const sources = normalizeImportedSources(routebook?.importedSources);
   if (!sources.length) return [];
   const stopName = String(stop?.name ?? '');
@@ -679,7 +671,7 @@ export function buildSourceEvidenceForStop(routebook, stop) {
   }));
 }
 
-export function mergeFeedbackMetrics(metrics, feedbackSummary) {
+function mergeFeedbackMetrics(metrics, feedbackSummary) {
   const trustedFeedbackCount = feedbackSummary.attestedCheckinCount ?? 0;
   const feedbackMetrics = [
     { label: '认证打卡', value: trustedFeedbackCount ? `${trustedFeedbackCount} 次` : '待验证' },

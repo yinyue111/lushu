@@ -189,8 +189,7 @@ const inconsistentArrival = markCheckinSynced(queueCheckin([], {
 });
 assert.equal(checkinEvidenceState(inconsistentArrival[0]).countsTowardPublicTrust, false, 'explicit server arrival.valid=false must override a conflicting confidence label');
 
-const permanentError = new Error('invalid check-in payload');
-permanentError.status = 400;
+const permanentError = Object.assign(new Error('invalid check-in payload'), { status: 400 });
 let isolatedQueue = queueCheckin([], {
   ...localRow,
   clientLocalId: 'permanent-first',
@@ -214,8 +213,7 @@ assert.equal(isolatedQueue[1].clientSyncStatus, 'synced', 'the second row can fi
 isolatedQueue = requeueCheckin(isolatedQueue, 'permanent-first');
 assert.equal(isolatedQueue[0].clientSyncStatus, 'queued', 'manual retry explicitly requeues a terminal row');
 
-const serviceUnavailable = new Error('service unavailable');
-serviceUnavailable.status = 503;
+const serviceUnavailable = Object.assign(new Error('service unavailable'), { status: 503 });
 const retryable503 = markCheckinFailed(markCheckinSyncing(queueCheckin([], {
   ...localRow,
   clientLocalId: 'retryable-503',
@@ -251,9 +249,7 @@ const anonymousEcho = markCheckinSynced(queueCheckin([], {
 assert.equal(anonymousEcho[0].profileId, 'p_local_owner', 'a server anonymous echo must not overwrite local ownership');
 
 // rank2：身份类错误（未注册 / 缺 token）归类为可修复错误，保持可重试并给出引导文案。
-const profileNotRegistered = new Error('该身份尚未在服务端注册');
-profileNotRegistered.status = 403;
-profileNotRegistered.code = 'PROFILE_NOT_REGISTERED';
+const profileNotRegistered = Object.assign(new Error('该身份尚未在服务端注册'), { status: 403, code: 'PROFILE_NOT_REGISTERED' });
 for (const code of ['PROFILE_NOT_REGISTERED', 'PROFILE_TOKEN_REQUIRED']) {
   const failure = classifyCheckinSyncError({ status: 403, code }, { now: RETRY_STARTED_AT });
   assert.equal(failure.retryable, true, `${code} must stay retryable instead of a dead end`);
@@ -278,13 +274,13 @@ const FLUSH_RECOVERY_KEY = 'trusted-routebook:checkins:p_flush_owner:route-flush
 const flushStorageData = new Map([[FLUSH_RECOVERY_KEY, JSON.stringify([
   { ...localRow, clientLocalId: 'stuck-syncing', clientSyncStatus: 'syncing' }
 ])]]);
-globalThis.localStorage = {
+globalThis.localStorage = /** @type {any} */ ({
   get length() { return flushStorageData.size; },
   key(index) { return [...flushStorageData.keys()][index] ?? null; },
   getItem(key) { return flushStorageData.has(key) ? flushStorageData.get(key) : null; },
   setItem(key, value) { flushStorageData.set(key, String(value)); },
   removeItem(key) { flushStorageData.delete(key); }
-};
+});
 await flushAllCheckinQueues({}).catch(() => {});
 const flushRecoveredRows = JSON.parse(flushStorageData.get(FLUSH_RECOVERY_KEY));
 assert.equal(

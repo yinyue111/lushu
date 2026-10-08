@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Filter, RefreshCw, ShieldAlert } from 'lucide-react';
 import { checkinPhotoUrl, getCheckins } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';

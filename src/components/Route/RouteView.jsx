@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { ArrowLeft, Navigation, Share2, Shield, Clock, DollarSign, AlertTriangle, Check, Copy, RefreshCw, Trash2, ArrowUp, ArrowDown, Umbrella, Footprints, Baby, WalletCards, Ticket, Info, Plus, Pencil, GripVertical, X, Star } from 'lucide-react';
 import { cityCenters, coordinateForName, coordinateReviewLabel, isNavigableCoordinate, isValidCoordinate, routeLegLabel } from '../../lib/coordinates';
@@ -35,7 +35,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   latestRoutebookRef.current = routebook;
   const productCards = useProductCards();
 
-  const stops = routebook.stops ?? [];
+  const stops = useMemo(() => routebook.stops ?? [], [routebook.stops]);
   const dayStops = useMemo(() => stops.filter(s => s.day === activeDay), [stops, activeDay]);
   const routeProducts = useMemo(() => productsForRoutebook(productCards, routebook, 4), [routebook, productCards]);
   const trustMetrics = useMemo(() => buildTrustMetrics(routebook), [routebook]);
@@ -1255,6 +1255,7 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
       mapRef.current = null;
       onTileStatus?.('');
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the Leaflet map is created per city; `compact` only affects the initial view and must not recreate the map.
   }, [city, onTileStatus]);
 
   useEffect(() => {

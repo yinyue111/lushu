@@ -34,7 +34,7 @@ export const CHECKIN_PHOTO_DIR = join(DATA_DIR, 'photos');
 export const CMS_CONFIG_PATH = join(DATA_DIR, 'cms-config.json');
 export const PRODUCT_CONFIG_PATH = join(DATA_DIR, 'product-config.json');
 export const IDENTITY_NONCE_LOG_PATH = join(DATA_DIR, 'identity-nonces.jsonl');
-export const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
+const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
 export const CODEX_CONFIG_PATH = process.env.CODEX_CONFIG_PATH ?? join(CODEX_HOME, 'config.toml');
 export const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH ?? join(CODEX_HOME, 'auth.json');
 
@@ -104,7 +104,7 @@ export const { secret: PROFILE_ID_SECRET, source: PROFILE_ID_SECRET_SOURCE } = r
   isProduction: IS_PRODUCTION
 });
 
-export const REQUIRE_LOCAL_ADMIN_TOKEN = process.env.REQUIRE_LOCAL_ADMIN_TOKEN === 'true';
+const REQUIRE_LOCAL_ADMIN_TOKEN = process.env.REQUIRE_LOCAL_ADMIN_TOKEN === 'true';
 
 export const ALLOW_LOCAL_API_BYPASS = process.env.ALLOW_LOCAL_API_BYPASS === 'true' ||
   (!IS_PRODUCTION && process.env.ALLOW_LOCAL_API_BYPASS !== 'false');
@@ -118,7 +118,7 @@ export const TRUST_PROXY_HEADERS = process.env.TRUST_PROXY_HEADERS === 'true';
 // L4: canonical public origin for absolute URLs in share-page og:image tags.
 export const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL);
 
-export function normalizePublicBaseUrl(value) {
+function normalizePublicBaseUrl(value) {
   const text = String(value ?? '').trim();
   if (!text) return '';
   try {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Circle, Link2, Route, UserRound } from 'lucide-react';
 
 const navItems = [

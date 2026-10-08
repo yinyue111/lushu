@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Camera, Copy, MapPin, Route, Shield, Star, Ticket } from 'lucide-react';
 import { getCreatorProfile } from '../../lib/api';
 import { getRouteTrustBadgeState } from '../../lib/trust';

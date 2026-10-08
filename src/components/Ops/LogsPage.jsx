@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bot, Check, AlertCircle } from 'lucide-react';
 import { getLogs } from '../../lib/api';
 
@@ -6,6 +6,7 @@ const PIPELINE_STAGES = ['意图识别', 'POI 检索', '约束过滤', '路线�
 
 // AI 生成链路日志。默认不再渲染硬编码示例数据：无真实日志时显示空态。
 // embedded 模式供运营后台「AI 日志」Tab 内嵌复用；独立 /logs 路由继续走默认整页模式。
+/** @param {{ routebook?: any, modelHealth?: any, embedded?: boolean }} props */
 export default function LogsPage({ routebook, modelHealth, embedded = false }) {
   const [serverLogs, setServerLogs] = useState([]);
   const [status, setStatus] = useState('loading');

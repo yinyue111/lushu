@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Shield, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';

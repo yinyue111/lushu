@@ -6,8 +6,8 @@
 // only re-read when the Codex files change, instead of on every request.
 import { readFile, stat } from 'node:fs/promises';
 
-export const DEFAULT_MODEL = 'gpt-5.5';
-export const SUPPORTED_WIRE_APIS = new Set(['responses', 'chat_completions']);
+const DEFAULT_MODEL = 'gpt-5.5';
+const SUPPORTED_WIRE_APIS = new Set(['responses', 'chat_completions']);
 
 /** @param {string | undefined} value */
 function stripQuotes(value) {

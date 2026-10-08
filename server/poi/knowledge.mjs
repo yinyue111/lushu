@@ -60,13 +60,13 @@ export async function updatePoiCorrectionStatus(id, input) {
   return updated;
 }
 
-export function poiKnowledgeKey(city, stopName, field = '') {
+function poiKnowledgeKey(city, stopName, field = '') {
   return [normalizeCityName(city || '未知'), truncateString(stopName, 80), truncateString(field, 40)]
     .map((item) => String(item ?? '').trim())
     .join('::');
 }
 
-export function normalizePoiKnowledgeFromCorrection(correction) {
+function normalizePoiKnowledgeFromCorrection(correction) {
   const city = correction?.city ? normalizeCityName(correction.city) : '';
   const stopName = truncateString(correction?.stopName, 80);
   return {

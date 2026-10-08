@@ -15,7 +15,7 @@ import { enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook } from '../routebooks/versions.mjs';
 import { normalizeUserRouteCreator } from '../routebooks/mutations.mjs';
 
-export function guideLogMeta(payload) {
+function guideLogMeta(payload) {
   const guide = String(payload?.guide ?? '');
   return {
     inputHash: hashText(guide),
@@ -25,7 +25,7 @@ export function guideLogMeta(payload) {
 }
 
 export const aiRoutes = [
-  route('POST', '/api/ocr-guide', async ({ req, res, url, params }) => {
+  route('POST', '/api/ocr-guide', async ({ req, res }) => {
       enforceRateLimit(req, 'ai');
       verifyApiAccess(req);
       const body = await readJsonBody(req, MAX_OCR_REQUEST_BYTES);
@@ -35,14 +35,14 @@ export const aiRoutes = [
       if (!images.length) throw createHttpError('请上传至少 1 张攻略截图', 400, 'OCR_IMAGE_REQUIRED');
       return sendJson(res, 200, await analyzeGuideImages(images, bindRequestAbortSignal(req)));
     }),
-  route('POST', '/api/generate-routebook', async ({ req, res, url, params }) => {
+  route('POST', '/api/generate-routebook', async ({ req, res }) => {
 	      enforceRateLimit(req, 'ai');
 	      verifyApiAccess(req);
 	      const sanitizedPayload = sanitizePayload(await readJsonBody(req));
         const actor = await resolveWriteProfile(req, sanitizedPayload.profileId);
         const payload = { ...sanitizedPayload, profileId: actor.profileId };
         const startedAt = Date.now();
-        const requestId = req.requestId || cryptoRandomId();
+        const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
         const inputMeta = guideLogMeta(payload);
         try {
 		        const routebook = await generateRoutebook(payload, bindRequestAbortSignal(req));
@@ -93,14 +93,14 @@ export const aiRoutes = [
           throw error;
         }
 	    }),
-  route('GET', '/api/logs', async ({ req, res, url, params }) => {
+  route('GET', '/api/logs', async ({ req, res, url }) => {
       verifySensitiveReadAccess(req);
       return sendJson(res, 200, {
         ok: true,
         logs: await readJsonLines(AI_LOG_PATH, clampNumber(url.searchParams.get('limit'), 1, 200, 50))
       });
     }),
-  route('POST', '/api/import-guide', async ({ req, res, url, params }) => {
+  route('POST', '/api/import-guide', async ({ req, res }) => {
       enforceRateLimit(req, 'ai');
       verifyApiAccess(req);
       const body = await readJsonBody(req);
@@ -170,7 +170,7 @@ export const aiRoutes = [
         ].filter(Boolean).join('\n')).join('\n\n')
       });
     }),
-  route('GET', '/api/imports', async ({ req, res, url, params }) => {
+  route('GET', '/api/imports', async ({ req, res, url }) => {
 	      verifySensitiveReadAccess(req);
 	      return sendJson(res, 200, {
 	        ok: true,

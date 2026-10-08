@@ -26,7 +26,7 @@ test('isPrivateIp allows public IPv4/IPv6 (including mapped / NAT64 / 6to4 forms
 
 test('assertPublicHttpUrl rejects unsupported schemes, credentials and private literals without DNS', async () => {
   const rejects = async (url, code) => {
-    await assert.rejects(assertPublicHttpUrl(url), (error) => error.code === code, url);
+    await assert.rejects(assertPublicHttpUrl(url), (/** @type {any} */ error) => error.code === code, url);
   };
   await rejects('not a url', 'BAD_SOURCE_URL');
   await rejects('file:///etc/passwd', 'UNSUPPORTED_URL_PROTOCOL');

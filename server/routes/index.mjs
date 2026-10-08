@@ -9,7 +9,7 @@ import { createRouter } from '../http/router.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { sendJson } from '../http/response.mjs';
 
-export const apiRoutes = [
+const apiRoutes = [
   ...systemRoutes,
   ...poiRoutes,
   ...routebookRoutes,
@@ -18,7 +18,7 @@ export const apiRoutes = [
   ...checkinRoutes
 ];
 
-export const apiRouter = createRouter(apiRoutes);
+const apiRouter = createRouter(apiRoutes);
 
 export async function handleApi(req, res) {
   try {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, KeyRound, MapPin, Plus, RotateCcw, Route, Save, Share2, Shield, Ticket, Trash2, UserRound } from 'lucide-react';
 import { getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
 import { flushAllCheckinQueues } from '../../lib/checkinQueue';
@@ -19,10 +19,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [localDataVersion, setLocalDataVersion] = useState(0);
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');
+  /* eslint-disable react-hooks/exhaustive-deps -- localDataVersion is a cache-busting tick: bumping it re-reads localStorage. */
   const localBooks = useMemo(() => getStoredRoutebooks(profile.id), [profile.id, localDataVersion]);
   const localCheckins = useMemo(() => listStoredCheckins().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
   const localClicks = useMemo(() => getStoredClicks().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
   const localFavorites = useMemo(() => getStoredFavorites(profile.id).filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -44,8 +46,8 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         favorites: favoriteResult.status === 'fulfilled' ? (favoriteResult.value.favorites ?? []) : []
       });
       // 401/403 视为未授权静默降级，仅 5xx 才展示错误横幅。
-      const failures = [bookResult, checkinResult, clickResult, favoriteResult]
-        .filter((item) => item.status === 'rejected' && Number(item.reason?.status) >= 500);
+      const failures = /** @type {PromiseRejectedResult[]} */ ([bookResult, checkinResult, clickResult, favoriteResult]
+        .filter((item) => item.status === 'rejected' && Number(item.reason?.status) >= 500));
       setError(failures.length ? failures.map((item) => item.reason?.message).filter(Boolean).join('；') || '服务端暂时不可用' : '');
     });
     return () => ctrl.abort();
@@ -454,6 +456,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   );
 }
 
+/** @param {{ id: string, activeTab: string, onSelect: Function, icon: any, label: string, count?: number }} props */
 function MyTab({ id, activeTab, onSelect, icon: Icon, label, count }) {
   const active = activeTab === id;
   return (

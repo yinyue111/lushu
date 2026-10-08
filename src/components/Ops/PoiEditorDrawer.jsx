@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle2, FileCheck2, X } from 'lucide-react';
 import { upsertPois, validatePois } from '../../lib/api';
 import { useDialogFocus } from '../../lib/useDialogFocus';

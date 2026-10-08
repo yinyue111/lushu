@@ -44,7 +44,7 @@ export function normalizeCmsConfig(input) {
   };
 }
 
-export function normalizeProductCard(input = {}, index = 0, options = {}) {
+function normalizeProductCard(input = {}, index = 0, options = {}) {
   const now = options.now ?? new Date().toISOString();
   const preserveTimestamps = options.preserveTimestamps === true;
   const strictUrl = options.strictUrl === true;
@@ -90,7 +90,7 @@ export function normalizeProductConfig(input = {}, options = {}) {
   };
 }
 
-export function seedProductConfig() {
+function seedProductConfig() {
   return normalizeProductConfig({ products: seedProductCards }, { preserveTimestamps: true });
 }
 
@@ -109,7 +109,7 @@ export async function readProductConfig() {
 // rank-seed：种子/兜底商品卡（linkType:'seed-search'，或带 seed 标记但不在运营
 // 配置里）不再 400 UNKNOWN_PRODUCT，而是以 provider:'seed' 规范化落库并单独归组
 // （analyticsSource:'seed-fallback'），保证兜底外链点击也能进归因漏斗。
-export function hasSeedProductMarker(input = {}) {
+function hasSeedProductMarker(input = {}) {
   if (truncateString(input?.linkType, 40) === 'seed-search') return true;
   if (truncateString(input?.analyticsStatus, 40) === 'not_collected') return true;
   return /^seed-/.test(String(input?.productId ?? input?.id ?? ''));

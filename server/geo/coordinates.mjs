@@ -2,7 +2,7 @@
 import { getRegionForCity, regionCenters } from '../../src/lib/chinaCities.js';
 import { distanceMeters, isValidCoordinate } from '../lib/util.mjs';
 
-export const CITY_CENTERS = {
+const CITY_CENTERS = {
   北京: { lat: 39.9042, lng: 116.4074 },
   上海: { lat: 31.2304, lng: 121.4737 },
   广州: { lat: 23.1291, lng: 113.2644 },
@@ -53,9 +53,9 @@ export const CITY_CENTERS = {
   珠海: { lat: 22.2711, lng: 113.5767 },
   佛山: { lat: 23.0215, lng: 113.1214 }
 };
-export const CHINA_CENTER = { lat: 35.8617, lng: 104.1954 };
+const CHINA_CENTER = { lat: 35.8617, lng: 104.1954 };
 
-export function fallbackCoordinate(city, index) {
+export function fallbackCoordinate(city, _index) {
   const region = getRegionForCity(city);
   const center = CITY_CENTERS[city] ?? regionCenters[region] ?? CHINA_CENTER;
   return {
@@ -70,7 +70,7 @@ export function fallbackCoordinate(city, index) {
   };
 }
 
-export function coordinateScopeForCity(city) {
+function coordinateScopeForCity(city) {
   const region = getRegionForCity(city);
   if (CITY_CENTERS[city]) {
     return { center: CITY_CENTERS[city], precision: 'city', maxDistanceMeters: 150000 };
@@ -99,7 +99,7 @@ export function gcj02ToWgs84(lat, lng) {
   return { lat: lat * 2 - transformed.lat, lng: lng * 2 - transformed.lng };
 }
 
-export function transformGcjOffset(lat, lng) {
+function transformGcjOffset(lat, lng) {
   const a = 6378245;
   const ee = 0.006693421622965943;
   let dLat = transformLatitude(lng - 105, lat - 35);
@@ -113,7 +113,7 @@ export function transformGcjOffset(lat, lng) {
   return { lat: lat + dLat, lng: lng + dLng };
 }
 
-export function transformLatitude(x, y) {
+function transformLatitude(x, y) {
   let value = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
   value += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
   value += ((20 * Math.sin(y * Math.PI) + 40 * Math.sin((y / 3) * Math.PI)) * 2) / 3;
@@ -121,7 +121,7 @@ export function transformLatitude(x, y) {
   return value;
 }
 
-export function transformLongitude(x, y) {
+function transformLongitude(x, y) {
   let value = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
   value += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
   value += ((20 * Math.sin(x * Math.PI) + 40 * Math.sin((x / 3) * Math.PI)) * 2) / 3;
@@ -129,6 +129,6 @@ export function transformLongitude(x, y) {
   return value;
 }
 
-export function outOfChina(lat, lng) {
+function outOfChina(lat, lng) {
   return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
 }
