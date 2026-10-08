@@ -14,6 +14,7 @@ import { envFlag, envNumber } from './server/config/env.mjs';
 import { evaluateStartupSafety, resolveProfileIdSecret } from './server/config/startup-checks.mjs';
 import { DEFAULT_MODEL, createModelRuntimeLoader, redactBaseUrl } from './server/ai/runtime.mjs';
 import { createNonceStore } from './server/auth/nonce-store.mjs';
+import { createJsonlKeyIndex } from './server/storage/jsonl-index.mjs';
 
 const PORT = envNumber('PORT', 5173, { min: 0, max: 65535 });
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -41,6 +42,17 @@ const CHECKIN_PHOTO_DIR = join(DATA_DIR, 'photos');
 const CMS_CONFIG_PATH = join(DATA_DIR, 'cms-config.json');
 const PRODUCT_CONFIG_PATH = join(DATA_DIR, 'product-config.json');
 const IDENTITY_NONCE_LOG_PATH = join(DATA_DIR, 'identity-nonces.jsonl');
+// H5: id → latest-row indexes for the unbounded "latest snapshot by id" lookups.
+const routebookIndex = createJsonlKeyIndex({ filePath: ROUTEBOOK_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
+const profileIndex = createJsonlKeyIndex({
+  filePath: PROFILE_LOG_PATH,
+  keyFn: (row) => {
+    const id = normalizeProfileId(row?.id || row?.profileId);
+    return id === 'anonymous' ? '' : id;
+  }
+});
+const reviewIndex = createJsonlKeyIndex({ filePath: REVIEW_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
+const poiCorrectionIndex = createJsonlKeyIndex({ filePath: POI_CORRECTION_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id) });
 const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
 const CODEX_CONFIG_PATH = process.env.CODEX_CONFIG_PATH ?? join(CODEX_HOME, 'config.toml');
 const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH ?? join(CODEX_HOME, 'auth.json');
@@ -253,6 +265,36 @@ async function appendJsonLine(filePath, payload) {
 const JSONL_ROWS_CACHE_MAX_ENTRIES = 32;
 const JSONL_ROWS_CACHE_MAX_TOTAL_CHARS = 64_000_000;
 const jsonlRowsCache = new Map();
+// H5: a single scan larger than this share of the budget is returned but not
+// cached, so one oversized file cannot evict every other entry and stay resident.
+const JSONL_ROWS_CACHE_MAX_ENTRY_CHARS = Math.floor(JSONL_ROWS_CACHE_MAX_TOTAL_CHARS / 2);
+
+// H5: projections let hot paths that only need a few fields (version chains,
+// audits, feedback history) cache slim rows instead of full routebook snapshots.
+// Projected rows live under their own cache key, so full-row readers are unaffected.
+const ROUTEBOOK_HISTORY_FIELDS = [
+  'id', 'publicId', 'title', 'city', 'version', 'parentVersion', 'schemaVersion', 'publishStatus',
+  'changeReason', 'editReason', 'actorType', 'profileId', 'createdAt', 'updatedAt', 'publishedAt',
+  'archivedAt', 'versionAudit', 'activeVariantId'
+];
+const ROUTEBOOK_HISTORY_PROJECTION = {
+  name: 'routebook-history',
+  project(row) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+    const projected = {};
+    for (const key of ROUTEBOOK_HISTORY_FIELDS) {
+      if (row[key] !== undefined) projected[key] = row[key];
+    }
+    if (row.provider && typeof row.provider === 'object' && row.provider.editedAt !== undefined) {
+      projected.provider = { editedAt: row.provider.editedAt };
+    }
+    return projected;
+  }
+};
+
+function jsonlRowsCacheKey(filePath, projection) {
+  return projection ? `${filePath}#${projection.name}` : filePath;
+}
 
 function evictJsonlRowsCacheOverBudget() {
   while (jsonlRowsCache.size > JSONL_ROWS_CACHE_MAX_ENTRIES) {
@@ -268,7 +310,9 @@ function evictJsonlRowsCacheOverBudget() {
 }
 
 function invalidateJsonlRowsCache(filePath) {
-  jsonlRowsCache.delete(filePath);
+  for (const key of [...jsonlRowsCache.keys()]) {
+    if (key === filePath || key.startsWith(`${filePath}#`)) jsonlRowsCache.delete(key);
+  }
 }
 
 async function jsonlFileFingerprint(filePath) {
@@ -280,7 +324,8 @@ async function jsonlFileFingerprint(filePath) {
   }
 }
 
-async function scanRecentJsonlRows(filePath, maxRows) {
+async function scanRecentJsonlRows(filePath, maxRows, projection = null) {
+  const project = projection?.project ?? null;
   const handle = await open(filePath, 'r');
   const rows = [];
   let pending = JSONL_EMPTY_BUFFER;
@@ -304,8 +349,15 @@ async function scanRecentJsonlRows(filePath, maxRows) {
         const line = lines[index].trim();
         if (!line) continue;
         try {
-          rows.push(JSON.parse(line));
-          approxChars += line.length;
+          const parsed = JSON.parse(line);
+          if (project) {
+            const projected = project(parsed);
+            rows.push(projected);
+            approxChars += projected && typeof projected === 'object' ? JSON.stringify(projected).length : line.length;
+          } else {
+            rows.push(parsed);
+            approxChars += line.length;
+          }
         } catch {
           // Skip corrupted historical JSONL rows.
         }
@@ -315,8 +367,10 @@ async function scanRecentJsonlRows(filePath, maxRows) {
       const firstLine = pending.toString('utf8').trim();
       if (firstLine) {
         try {
-          rows.push(JSON.parse(firstLine));
-          approxChars += firstLine.length;
+          const parsed = JSON.parse(firstLine);
+          const projected = project ? project(parsed) : parsed;
+          rows.push(projected);
+          approxChars += project && projected && typeof projected === 'object' ? JSON.stringify(projected).length : firstLine.length;
         } catch {
           // Skip corrupted historical JSONL rows.
         }
@@ -329,21 +383,24 @@ async function scanRecentJsonlRows(filePath, maxRows) {
   }
 }
 
-async function readRecentJsonlRows(filePath, maxRows) {
+async function readRecentJsonlRows(filePath, maxRows, projection = null) {
   if (!existsSync(filePath)) return [];
   const safeMaxRows = Number.isFinite(maxRows) && maxRows > 0 ? Math.floor(maxRows) : Number.MAX_SAFE_INTEGER;
+  const cacheKey = jsonlRowsCacheKey(filePath, projection);
   const fingerprint = await jsonlFileFingerprint(filePath);
-  const cached = jsonlRowsCache.get(filePath);
+  const cached = jsonlRowsCache.get(cacheKey);
   if (cached && cached.fingerprint === fingerprint && (cached.complete || cached.rows.length >= safeMaxRows)) {
     // LRU touch。
-    jsonlRowsCache.delete(filePath);
-    jsonlRowsCache.set(filePath, cached);
+    jsonlRowsCache.delete(cacheKey);
+    jsonlRowsCache.set(cacheKey, cached);
     return cached.rows;
   }
-  const { rows, complete, approxChars } = await scanRecentJsonlRows(filePath, safeMaxRows);
-  jsonlRowsCache.delete(filePath);
-  jsonlRowsCache.set(filePath, { fingerprint, rows, complete, approxChars });
-  evictJsonlRowsCacheOverBudget();
+  const { rows, complete, approxChars } = await scanRecentJsonlRows(filePath, safeMaxRows, projection);
+  jsonlRowsCache.delete(cacheKey);
+  if (approxChars <= JSONL_ROWS_CACHE_MAX_ENTRY_CHARS) {
+    jsonlRowsCache.set(cacheKey, { fingerprint, rows, complete, approxChars });
+    evictJsonlRowsCacheOverBudget();
+  }
   return rows;
 }
 
@@ -519,11 +576,11 @@ async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit
 // 谓词过滤凑满 limit 条。窗口远大于旧「全局尾窗 + filter」路径，避免热门
 // 租户把其他 profile/route 的历史行挤出统计；返回顺序与 readJsonLines 一致
 // （最新在前），保证各处「首个命中即最新」的去重语义不变。
-async function readMatchingJsonLines(filePath, predicate, limit = 50, scanLimit = 50000) {
+async function readMatchingJsonLines(filePath, predicate, limit = 50, scanLimit = 50000, projection = null) {
   if (!existsSync(filePath)) return [];
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
   const safeScanLimit = Number.isFinite(scanLimit) && scanLimit > 0 ? Math.floor(scanLimit) : 50000;
-  const rows = await readRecentJsonlRows(filePath, safeScanLimit);
+  const rows = await readRecentJsonlRows(filePath, safeScanLimit, projection);
   return collectMatchingRows(rows, predicate, safeLimit, safeScanLimit);
 }
 
@@ -1478,17 +1535,15 @@ async function getSavedRoutebook(publicId) {
   if (!id) return null;
   // 按 id 查最新快照必须允许扫到文件头：旧路书被全局尾窗挤出后返回 404，
   // 客户端会用同一 ID 重建草稿并把历史版本链打断。反向分块读取内存仍有界。
-  return findLatestJsonLine(
-    ROUTEBOOK_LOG_PATH,
-    (row) => sanitizePublicId(row?.id || row?.publicId) === id,
-    Number.POSITIVE_INFINITY
-  );
+  // H5：用 id → 最新行字节偏移的内存索引代替每次全文件倒扫。
+  return routebookIndex.get(id);
 }
 
 async function listRoutebookVersionRows(publicId) {
   const id = sanitizePublicId(publicId);
   if (!id) return [];
-  const rows = (await readJsonLines(ROUTEBOOK_LOG_PATH, 50000))
+  const rows = (await readRecentJsonlRows(ROUTEBOOK_LOG_PATH, 50000, ROUTEBOOK_HISTORY_PROJECTION))
+    .slice(0, 50000)
     .filter((row) => sanitizePublicId(row?.id || row?.publicId) === id)
     .reverse();
   let currentVersion = 0;
@@ -1533,7 +1588,7 @@ async function currentRoutebookVersion(publicId) {
     const byId = new Map();
     // 全量重建不设行数上限：与 getSavedRoutebook 的全文件口径一致，否则超限后
     // 旧路书能查到快照却拿到 version 0，触发误判的版本冲突/覆盖。
-    const chronologicalRows = (await readRecentJsonlRows(ROUTEBOOK_LOG_PATH, Number.POSITIVE_INFINITY)).slice().reverse();
+    const chronologicalRows = (await readRecentJsonlRows(ROUTEBOOK_LOG_PATH, Number.POSITIVE_INFINITY, ROUTEBOOK_HISTORY_PROJECTION)).slice().reverse();
     for (const row of chronologicalRows) applyRoutebookVersionRow(byId, row);
     routebookVersionCache.byId = byId;
     routebookVersionCache.fingerprint = fingerprint;
@@ -1607,7 +1662,7 @@ async function appendVersionedRoutebook(routebook, event, details = {}) {
 async function listRoutebookAudits(publicId) {
   const routebookId = sanitizePublicId(publicId);
   if (!routebookId) return [];
-  const snapshots = await readJsonLines(ROUTEBOOK_LOG_PATH, 50000);
+  const snapshots = (await readRecentJsonlRows(ROUTEBOOK_LOG_PATH, 50000, ROUTEBOOK_HISTORY_PROJECTION)).slice(0, 50000);
   let legacyAudits = [];
   try {
     legacyAudits = await readJsonLines(ROUTEBOOK_AUDIT_LOG_PATH, 50000);
@@ -1684,11 +1739,7 @@ async function getSavedProfile(profileId) {
   const id = normalizeProfileId(profileId);
   if (!id || id === 'anonymous') return null;
   // 同 getSavedRoutebook：老 profile 被尾窗挤出会被误判为未注册，扫到文件头。
-  return findLatestJsonLine(
-    PROFILE_LOG_PATH,
-    (row) => normalizeProfileId(row?.id || row?.profileId) === id,
-    Number.POSITIVE_INFINITY
-  );
+  return profileIndex.get(id);
 }
 
 async function updateRoutebookStatus(publicId, input) {
@@ -2268,11 +2319,7 @@ function poiCheckinKey(item = {}) {
 async function getSavedReview(publicId) {
   const id = sanitizePublicId(publicId);
   if (!id) return null;
-  return findLatestJsonLine(
-    REVIEW_LOG_PATH,
-    (row) => sanitizePublicId(row?.id || row?.publicId) === id,
-    Number.POSITIVE_INFINITY
-  );
+  return reviewIndex.get(id);
 }
 
 async function reviewIsStillPublic(review) {
@@ -2511,11 +2558,7 @@ async function updatePoiCorrectionStatus(id, input) {
   }
   if (!correctionId) throw createHttpError('纠错记录不存在', 404, 'CORRECTION_NOT_FOUND');
   // 按 id 全文件倒扫最新一行，避免旧纠错被尾窗挤出后无法审核。
-  const existing = await findLatestJsonLine(
-    POI_CORRECTION_LOG_PATH,
-    (row) => sanitizePublicId(row?.id) === correctionId,
-    Number.POSITIVE_INFINITY
-  );
+  const existing = await poiCorrectionIndex.get(correctionId);
   if (!existing) throw createHttpError('纠错记录不存在', 404, 'CORRECTION_NOT_FOUND');
   const updated = {
     ...existing,
@@ -2633,7 +2676,7 @@ async function buildRouteFeedbackContext() {
     readRecentJsonlRows(CHECKIN_LOG_PATH, FEEDBACK_SCAN_WINDOW),
     readRecentJsonlRows(POI_CORRECTION_LOG_PATH, FEEDBACK_SCAN_WINDOW),
     readRecentJsonlRows(REVIEW_LOG_PATH, FEEDBACK_SCAN_WINDOW),
-    readRecentJsonlRows(ROUTEBOOK_LOG_PATH, FEEDBACK_SCAN_WINDOW),
+    readRecentJsonlRows(ROUTEBOOK_LOG_PATH, FEEDBACK_SCAN_WINDOW, ROUTEBOOK_HISTORY_PROJECTION),
     readRecentJsonlRows(EXPOSURE_LOG_PATH, FEEDBACK_SCAN_WINDOW)
   ]);
   return { checkins, corrections, reviews, routebookHistory, exposures };
@@ -2673,7 +2716,7 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
         readMatchingJsonLines(CHECKIN_LOG_PATH, globalEligiblePredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW),
         readMatchingJsonLines(POI_CORRECTION_LOG_PATH, correctionPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW),
         readMatchingJsonLines(REVIEW_LOG_PATH, reviewPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW),
-        readMatchingJsonLines(ROUTEBOOK_LOG_PATH, historyPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW),
+        readMatchingJsonLines(ROUTEBOOK_LOG_PATH, historyPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW, ROUTEBOOK_HISTORY_PROJECTION),
         readMatchingJsonLines(EXPOSURE_LOG_PATH, exposurePredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW)
       ]);
   const trustedRouteStops = [
