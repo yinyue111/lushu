@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { productCards } from './content';
-import { getProducts } from './api';
+import { productCards } from './content.js';
+import { getProducts } from './api.js';
 
 export function useProductCards() {
   const [remoteState, setRemoteState] = useState({ status: 'loading', products: [] });

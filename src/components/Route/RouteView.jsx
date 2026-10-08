@@ -413,7 +413,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       ...(renamed ? { geoConfidence: 30 } : {})
     };
     if (renamed) {
-      setShareState(coordinateForName(prepared.name)
+      setShareState(coordinateForName(prepared.name, routebook.city)
         ? `「${prepared.name}」坐标待确认，导航已暂停；本地目录有参考坐标，正在向服务端确认`
         : `「${prepared.name}」坐标待确认，导航已暂停，正在向服务端匹配可信坐标`);
     }

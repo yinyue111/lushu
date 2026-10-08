@@ -917,7 +917,7 @@ function buildPlatformAlternatives(current, routebook, latestByStop, poiKnowledg
     const name = String(row?.stopName ?? '').trim();
     if (!name || name === String(current?.name ?? '').trim() || seen.has(name)) continue;
     seen.add(name);
-    const coordinate = coordinateForName(name);
+    const coordinate = coordinateForName(name, routebook?.city);
     const stop = {
       id: `poi-knowledge-${String(row?.id ?? name)}`,
       name,

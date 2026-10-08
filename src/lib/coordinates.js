@@ -1,4 +1,4 @@
-import { cities, getRegionForCity, regionCenters, regionCityGroups } from './chinaCities';
+import { cities, getRegionForCity, regionCenters, regionCityGroups } from './chinaCities.js';
 
 export const chinaCenter = { lat: 35.8617, lng: 104.1954, zoom: 4 };
 export { cities, regionCityGroups };
@@ -55,35 +55,54 @@ export const cityCenters = {
   佛山: { lat: 23.0215, lng: 113.1214, zoom: 11 }
 };
 
+// Seed POI reference coordinates, keyed by exact name. `city` scopes each entry so a
+// same-named place in another city never inherits these coordinates (M4).
 export const knownPoiCoordinates = {
-  杭州东站: { lat: 30.2936, lng: 120.2154 },
-  柳浪闻莺: { lat: 30.242, lng: 120.1617 },
-  南宋御街: { lat: 30.2432, lng: 120.1696 },
-  北山街: { lat: 30.2596, lng: 120.1472 },
-  北山街日落线: { lat: 30.2596, lng: 120.1472 },
-  法喜寺: { lat: 30.2366, lng: 120.0954 },
-  龙井茶园: { lat: 30.2248, lng: 120.1032 },
-  茅家埠: { lat: 30.2468, lng: 120.1139 },
-  茅家埠茶歇线: { lat: 30.2468, lng: 120.1139 },
-  浙江美术馆: { lat: 30.2443, lng: 120.1591 },
-  孤山路: { lat: 30.2548, lng: 120.1485 },
-  青芝坞: { lat: 30.2662, lng: 120.1282 },
-  中国美院象山: { lat: 30.1679, lng: 120.078 },
-  武康路: { lat: 31.2123, lng: 121.4382 },
-  安福路: { lat: 31.217, lng: 121.4431 },
-  湖滨银泰: { lat: 30.2583, lng: 120.1641 },
-  平江路: { lat: 31.3156, lng: 120.6314 }
+  杭州东站: { lat: 30.2936, lng: 120.2154, city: '杭州' },
+  柳浪闻莺: { lat: 30.242, lng: 120.1617, city: '杭州' },
+  南宋御街: { lat: 30.2432, lng: 120.1696, city: '杭州' },
+  北山街: { lat: 30.2596, lng: 120.1472, city: '杭州' },
+  北山街日落线: { lat: 30.2596, lng: 120.1472, city: '杭州' },
+  法喜寺: { lat: 30.2366, lng: 120.0954, city: '杭州' },
+  龙井茶园: { lat: 30.2248, lng: 120.1032, city: '杭州' },
+  茅家埠: { lat: 30.2468, lng: 120.1139, city: '杭州' },
+  茅家埠茶歇线: { lat: 30.2468, lng: 120.1139, city: '杭州' },
+  浙江美术馆: { lat: 30.2443, lng: 120.1591, city: '杭州' },
+  孤山路: { lat: 30.2548, lng: 120.1485, city: '杭州' },
+  青芝坞: { lat: 30.2662, lng: 120.1282, city: '杭州' },
+  中国美院象山: { lat: 30.1679, lng: 120.078, city: '杭州' },
+  武康路: { lat: 31.2123, lng: 121.4382, city: '上海' },
+  安福路: { lat: 31.217, lng: 121.4431, city: '上海' },
+  湖滨银泰: { lat: 30.2583, lng: 120.1641, city: '杭州' },
+  平江路: { lat: 31.3156, lng: 120.6314, city: '苏州' }
 };
 
 export function isValidCoordinate(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
 
-export function coordinateForName(name) {
-  const text = String(name ?? '');
-  if (knownPoiCoordinates[text]) return knownPoiCoordinates[text];
-  const matchedKey = Object.keys(knownPoiCoordinates).find((key) => text.includes(key) || key.includes(text));
-  return matchedKey ? knownPoiCoordinates[matchedKey] : null;
+function normalizeCityLabel(city) {
+  return String(city ?? '').trim().replace(/市$/u, '');
+}
+
+/**
+ * Looks up a seed reference coordinate for a stop name.
+ *
+ * M4: exact (trimmed) name match only, optionally scoped to `city`. The previous
+ * bidirectional substring match returned the first POI for an empty name
+ * (`key.includes('')` is always true) and let unrelated stops inherit
+ * "navigable" coordinates from a different place or city.
+ * @param {string} name
+ * @param {string} [city] when given, the POI must belong to this city
+ * @returns {{ lat: number, lng: number } | null}
+ */
+export function coordinateForName(name, city = '') {
+  const text = String(name ?? '').trim();
+  if (!text || !Object.prototype.hasOwnProperty.call(knownPoiCoordinates, text)) return null;
+  const entry = knownPoiCoordinates[text];
+  const wantedCity = normalizeCityLabel(city);
+  if (wantedCity && entry.city && entry.city !== wantedCity) return null;
+  return { lat: entry.lat, lng: entry.lng };
 }
 
 export function fallbackCoordinate(city, index) {

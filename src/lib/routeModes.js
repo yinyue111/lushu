@@ -1,4 +1,4 @@
-import { distanceKm } from './coordinates';
+import { distanceKm } from './coordinates.js';
 
 // 「一键重排」与路线变体共享的模式重排逻辑。RouteView（行前编辑）与
 // TripView（行中剩余站点重排）都从这里取同一套权重，避免两份实现漂移。
