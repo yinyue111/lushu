@@ -1,4 +1,5 @@
 // SSRF-safe outbound fetching: private address checks, DNS pinning, size limits.
+import { decodeHtmlBody } from './html-text.mjs';
 import { isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
@@ -123,7 +124,8 @@ export function requestPinnedPublicUrl(url, endpoint, signal) {
         ok: (responseMeta.statusCode ?? 0) >= 200 && (responseMeta.statusCode ?? 0) < 300,
         headers: responseMeta.headers ?? {},
         url: url.toString(),
-        html: Buffer.concat(chunks).toString('utf8'),
+        // L7: honour the page charset (GBK/GB2312/Big5 pages were decoded as UTF-8).
+        html: decodeHtmlBody(Buffer.concat(chunks), String(responseMeta.headers?.['content-type'] ?? '')),
         fetchedBytes: total
       });
     };

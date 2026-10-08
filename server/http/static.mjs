@@ -1,6 +1,7 @@
 // Static file serving (dist/) and share/review landing pages with og meta.
-import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
+import { promisify } from 'node:util';
+import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
 import { extname, join, resolve, sep } from 'node:path';
 import { DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT } from '../config/index.mjs';
 import { STATIC_SECURITY_HEADERS, sendJson, securityHeaders } from './response.mjs';
@@ -12,8 +13,94 @@ import { isPublicRoutebook } from '../routebooks/views.mjs';
 import { reviewIsStillPublic } from '../reviews/reviews.mjs';
 import { shouldTrustProxyHeaders } from '../auth/request-access.mjs';
 
+const brotliCompressAsync = promisify(brotliCompress);
+const gzipAsync = promisify(gzip);
+
+// L8: static files are served from an in-memory cache (validated by mtime/size via
+// async stat) with lazily computed brotli/gzip variants, ETags and 304s.
+// Only content-hashed build assets are cached as immutable.
+const STATIC_CACHE_MAX_FILE_BYTES = 2 * 1024 * 1024;
+const STATIC_CACHE_MAX_TOTAL_BYTES = 48 * 1024 * 1024;
+const STATIC_COMPRESS_MIN_BYTES = 1024;
+const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.txt', '.xml', '.webmanifest', '.map']);
+const HASHED_ASSET_PATTERN = /-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/; // Vite content hash
+const staticFileCache = new Map();
+let staticCacheBytes = 0;
+
+function staticCacheControl(filePath) {
+  if (filePath.endsWith('index.html')) return 'no-cache';
+  return HASHED_ASSET_PATTERN.test(filePath) ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
+}
+
+function preferredEncoding(req, ext, size) {
+  if (!COMPRESSIBLE_EXTENSIONS.has(ext) || size < STATIC_COMPRESS_MIN_BYTES) return null;
+  const accepted = String(req.headers['accept-encoding'] ?? '').toLowerCase();
+  const allows = (name) => accepted.split(',').some((part) => {
+    const [token, ...params] = part.trim().split(';');
+    if (token.trim() !== name) return false;
+    const q = params.map((param) => param.trim()).find((param) => param.startsWith('q='));
+    return !q || Number(q.slice(2)) > 0;
+  });
+  if (allows('br')) return 'br';
+  if (allows('gzip')) return 'gzip';
+  return null;
+}
+
+function rememberStaticFile(filePath, entry) {
+  const previous = staticFileCache.get(filePath);
+  if (previous) staticCacheBytes -= previous.bytes;
+  staticFileCache.delete(filePath);
+  if (entry.bytes > STATIC_CACHE_MAX_FILE_BYTES) return;
+  staticFileCache.set(filePath, entry);
+  staticCacheBytes += entry.bytes;
+  while (staticCacheBytes > STATIC_CACHE_MAX_TOTAL_BYTES && staticFileCache.size > 0) {
+    const [oldestPath, oldest] = staticFileCache.entries().next().value;
+    staticFileCache.delete(oldestPath);
+    staticCacheBytes -= oldest.bytes;
+  }
+}
+
+async function loadStaticFile(filePath, stats) {
+  const cached = staticFileCache.get(filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) return cached;
+  const body = await readFile(filePath);
+  const entry = {
+    mtimeMs: stats.mtimeMs,
+    size: stats.size,
+    body,
+    etag: `W/"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`,
+    variants: new Map(),
+    bytes: body.byteLength
+  };
+  rememberStaticFile(filePath, entry);
+  return entry;
+}
+
+async function encodedBody(entry, filePath, encoding) {
+  if (!encoding) return entry.body;
+  const existing = entry.variants.get(encoding);
+  if (existing) return existing;
+  const compressed = encoding === 'br'
+    ? await brotliCompressAsync(entry.body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 9 } })
+    : await gzipAsync(entry.body, { level: 9 });
+  entry.variants.set(encoding, compressed);
+  if (staticFileCache.get(filePath) === entry) {
+    entry.bytes += compressed.byteLength;
+    staticCacheBytes += compressed.byteLength;
+  }
+  return compressed;
+}
+
+async function statOrNull(path) {
+  try {
+    return await stat(path);
+  } catch {
+    return null;
+  }
+}
+
 export async function sendStatic(req, res) {
-  if (!existsSync(DIST_DIR)) {
+  if (!(await statOrNull(DIST_DIR))) {
     return sendJson(res, 503, {
       error: 'dist 不存在，请先运行 npm run build',
       code: 'DIST_MISSING'
@@ -34,21 +121,40 @@ export async function sendStatic(req, res) {
   if (!isInsideDist) {
     return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   }
-  const missingAsset = !existsSync(requestedPath) && extname(normalizedPath) !== '';
-  if (missingAsset) {
+  const requestedStats = await statOrNull(requestedPath);
+  if (!requestedStats && extname(normalizedPath) !== '') {
     return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   }
-  const filePath = existsSync(requestedPath) ? requestedPath : join(DIST_DIR, 'index.html');
+  const filePath = requestedStats ? requestedPath : join(DIST_DIR, 'index.html');
+  const fileStats = requestedStats ?? await statOrNull(filePath);
+  if (!fileStats?.isFile()) {
+    return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
+  }
   const ext = extname(filePath);
 
   try {
-    const body = await readFile(filePath);
-    res.writeHead(200, {
+    const entry = await loadStaticFile(filePath, fileStats);
+    const encoding = preferredEncoding(req, ext, entry.size);
+    const headers = {
       ...STATIC_SECURITY_HEADERS,
       'content-type': MIME_TYPES[ext] ?? 'application/octet-stream',
-      'cache-control': filePath.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable'
+      'cache-control': staticCacheControl(filePath),
+      etag: entry.etag,
+      ...(COMPRESSIBLE_EXTENSIONS.has(ext) ? { vary: 'accept-encoding' } : {})
+    };
+    const ifNoneMatch = String(req.headers['if-none-match'] ?? '');
+    if (ifNoneMatch && ifNoneMatch.split(',').map((tag) => tag.trim()).includes(entry.etag)) {
+      res.writeHead(304, headers);
+      res.end();
+      return;
+    }
+    const body = await encodedBody(entry, filePath, encoding);
+    res.writeHead(200, {
+      ...headers,
+      ...(encoding ? { 'content-encoding': encoding } : {}),
+      'content-length': body.byteLength
     });
-    res.end(body);
+    res.end(req.method === 'HEAD' ? undefined : body);
   } catch {
     sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   }

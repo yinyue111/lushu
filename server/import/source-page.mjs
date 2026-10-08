@@ -1,4 +1,5 @@
 // Imported guide pages: platform detection, HTML metadata/text extraction, scoring.
+import { decodeHtmlEntities } from './html-text.mjs';
 import { MAX_IMPORT_URLS, MAX_IMPORT_PAGE_BYTES, IMPORT_TIMEOUT_MS } from '../config/index.mjs';
 import { clampNumber, createHttpError } from '../lib/util.mjs';
 import { assertPublicHttpResponseUrl, fetchPublicPageResponse, getResponseHeader, assertPublicHttpUrl } from './ssrf.mjs';
@@ -52,16 +53,6 @@ export function detectPlatform(url) {
     baseScore: 58,
     note: '普通公开网页，可信度取决于页面可访问性、发布时间和内容完整度。'
   };
-}
-
-export function decodeHtmlEntities(text) {
-  return String(text ?? '')
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
 export function extractMeta(html, property) {

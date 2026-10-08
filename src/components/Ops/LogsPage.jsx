@@ -98,7 +98,7 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
         {modelHealth && (
           <div className={`card-flat ${modelHealth?.ready ? '' : 'model-offline'}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px' }}>
             <Bot size={16} style={{ color: modelHealth?.ready ? 'var(--green)' : 'var(--muted)' }} />
-            <span className="text-caption">{modelHealth?.ready ? `${modelHealth.provider} · ${modelHealth.model}` : '未就绪'}</span>
+            <span className="text-caption">{modelHealth?.ready ? ([modelHealth.provider, modelHealth.model].filter(Boolean).join(' · ') || '已就绪') : '未就绪'}</span>
           </div>
         )}
       </div>

@@ -81,6 +81,8 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 - 生产模式只从 `OPENAI_*` 环境变量读取模型配置，不再读取 `~/.codex`；如确需沿用，设置 `AI_RUNTIME_FROM_CODEX=true`。开发模式默认仍读取。
 - 不要在公网环境启用 `ALLOW_LOCAL_API_BYPASS` 或 `ALLOW_LOCAL_ADMIN_BYPASS`：生产模式下若同时 `HOST` 不是回环地址，服务会拒绝启动（可用 `ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST=true` 强制）；开发模式下会打印告警。
 - 生产模式端口被占用时直接退出（开发模式仍会自动尝试下一个端口）；收到 `SIGTERM` / `SIGINT` 会停止接收新请求，等待进行中的请求完成（最长 `SHUTDOWN_GRACE_MS`）后退出。
+- 生产模式下 `/api/health` 对匿名请求只返回 `ready` 和通用提示；provider / model / baseUrl 等细节需带 `x-routebook-admin-token`（运营后台会自动带上）。
+- 生产静态托管：`dist/` 文件按 mtime/size 缓存在内存，按 `Accept-Encoding` 返回 br / gzip，支持 ETag / 304；只有带 Vite 内容哈希的资源设为一年 immutable，其余静态文件缓存 1 小时，`index.html` 为 `no-cache`。前面有 CDN / 反代时仍建议由其负责压缩与缓存。
 - 截图 OCR 与照片打卡涉及用户数据，部署前需补齐隐私告知、存储期限和删除机制。
 
 ### PROFILE_ID_SECRET 迁移

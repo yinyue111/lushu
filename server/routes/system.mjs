@@ -1,10 +1,10 @@
 // System/config API routes.
+import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, DATA_DIR, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
+import { hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { cities as supportedCities, getRegionForCity, isSupportedCity, regionCityGroups } from '../../src/lib/chinaCities.js';
 import { redactBaseUrl } from '../ai/runtime.mjs';
 import { normalizeCityName } from '../lib/util.mjs';
-import { AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, DATA_DIR, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
-import { verifyAdminAccess } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -31,6 +31,17 @@ export const systemRoutes = [
     }),
   route('GET', '/api/health', async ({ req, res, url, params }) => {
       const runtime = await loadCodexRuntime();
+      // L5: provider/model/base URL and the precise not-ready reason describe the
+      // deployment's configuration; in production only operators get them.
+      const detailed = !IS_PRODUCTION || (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
+      if (!detailed) {
+        return sendJson(res, 200, {
+          ok: true,
+          appId: APP_ID,
+          ready: runtime.ready,
+          reason: runtime.ready ? '' : '模型服务暂未就绪，请稍后再试或联系运营人员'
+        });
+      }
       return sendJson(res, 200, {
         ok: true,
         appId: APP_ID,

@@ -38,7 +38,8 @@ export async function getJson(path, signal, extraHeaders = {}) {
 }
 
 export async function checkHealth(signal) {
-  return getJson('/health', signal);
+  // L5: production only returns provider/model details to operators.
+  return getJson('/health', signal, adminHeaders());
 }
 
 export async function generateRoutebook({ city, guide, constraints, importedSources, profileId, editToken }, signal) {
