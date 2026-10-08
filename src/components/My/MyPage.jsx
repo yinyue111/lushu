@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Camera, Copy, ExternalLink, Heart, KeyRound, MapPin, Plus, RotateCcw, Route, Save, Share2, Shield, Ticket, Trash2, UserRound } from 'lucide-react';
+import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
+import { Tabs } from 'radix-ui';
 import { getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
 import { flushAllCheckinQueues } from '../../lib/checkinQueue';
 import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
@@ -7,7 +8,11 @@ import { createProfileSyncCode, getProfile, parseProfileSyncCode, updateProfile 
 import { adoptServerProfile } from '../../lib/profileSync';
 import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
+import { Button } from '../ui/button';
+import { RouteCard } from '../cards/RouteCard';
+import { MyAccountPanel } from './MyAccountPanel';
 
+/** @param {Record<string, any>} props */
 export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfileChanged, onLocalBooksChanged }) {
   const [serverData, setServerData] = useState({ routebooks: [], checkins: [], clicks: [], favorites: [] });
   const [profile, setProfile] = useState(() => getProfile());
@@ -185,426 +190,320 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     }
   }
 
+  const tabs = [
+    { id: 'routebooks', icon: Route, label: '路书', count: books.length },
+    { id: 'favorites', icon: Heart, label: '收藏', count: favorites.length },
+    { id: 'checkins', icon: Camera, label: '打卡', count: checkins.length },
+    { id: 'account', icon: UserRound, label: '账户' }
+  ];
+  const displayName = profile.creatorName || '旅行者';
+
   return (
-    <div className="container my-page page-enter">
-      <div className="my-hero">
-        <div>
-          <span className="section-kicker">我的资产</span>
-          <h1>路书、打卡和分享</h1>
-          <p className="text-body">本机资产与服务端记录统一展示；恢复码可在另一设备继续同一段旅行。</p>
+    <div className="page-enter mx-auto max-w-[1200px] px-4 pt-6 pb-16 lg:px-8 lg:pt-10">
+      <header className="flex flex-wrap items-center gap-4">
+        <span
+          className="grid size-16 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#e8553d,#ffc93c)] text-2xl font-black text-white shadow-cta"
+          aria-hidden="true"
+        >
+          {displayName.slice(0, 1)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="text-xs font-extrabold tracking-[0.08em] text-primary-strong">我的</span>
+          <h1 className="text-xl font-black tracking-tight sm:text-2xl lg:text-3xl">{displayName} 的路书、打卡和分享</h1>
+          <p className="mt-0.5 text-sm text-muted max-sm:hidden">本机和服务器上的记录合在一起显示；用恢复码可以在另一台设备上接着用。</p>
         </div>
-        <button className="btn btn-primary" onClick={() => onNewBook({})}>
-          <Plus size={16} /> 新建路书
-        </button>
-      </div>
+        <Button variant="primary" className="max-sm:w-full" onClick={() => onNewBook({})}>
+          <Plus /> 新建路书
+        </Button>
+      </header>
       {error && (
-        <p className="text-caption" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 12, color: 'var(--orange)' }}>
-          服务端资产暂不可用，已显示本地数据：{error}
+        <p className="mt-4 rounded-tile bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink" role="status" aria-live="polite" aria-atomic="true">
+          服务器上的记录暂时读不到，先显示本机数据。（{error}）
         </p>
       )}
 
-      <div className="stats-grid" style={{ marginTop: 28 }}>
-        <Stat icon={Route} label="我的路书" value={books.length} />
-        <Stat icon={Camera} label="我的打卡" value={checkins.length} />
-        <Stat icon={Share2} label="我的分享" value={sharedBooks.length} />
-        <Stat icon={Ticket} label="商品点击" value={clicks.length} />
-      </div>
+      <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat icon={Route} tone="bg-primary-soft text-primary-strong" label="我的路书" value={books.length} />
+        <Stat icon={Camera} tone="bg-success-soft text-success-ink" label="我的打卡" value={checkins.length} />
+        <Stat icon={Share2} tone="bg-sky-soft text-sky-ink" label="我的分享" value={sharedBooks.length} />
+        <Stat icon={Ticket} tone="bg-lemon-soft text-lemon-ink" label="商品点击" value={clicks.length} />
+      </dl>
 
-      <div className="my-tabs" role="tablist" aria-label="我的资产分类">
-        <MyTab id="routebooks" activeTab={activeTab} onSelect={setActiveTab} icon={Route} label="路书" count={books.length} />
-        <MyTab id="favorites" activeTab={activeTab} onSelect={setActiveTab} icon={Heart} label="收藏" count={favorites.length} />
-        <MyTab id="checkins" activeTab={activeTab} onSelect={setActiveTab} icon={Camera} label="打卡" count={checkins.length} />
-        <MyTab id="account" activeTab={activeTab} onSelect={setActiveTab} icon={UserRound} label="账户" />
-      </div>
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mt-8">
+        <Tabs.List aria-label="我的资产分类" className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
+          {tabs.map(({ id, icon: Icon, label, count }) => (
+            <Tabs.Trigger
+              key={id}
+              value={id}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-full whitespace-nowrap border border-line bg-white px-2 text-sm sm:gap-1.5 sm:px-4 font-bold text-ink-2 transition-colors hover:border-line-strong data-[state=active]:border-ink data-[state=active]:bg-ink data-[state=active]:text-white"
+            >
+              <Icon className="size-4 max-sm:hidden" aria-hidden="true" />
+              {label}
+              {Number.isFinite(count) && <span className="num rounded-full bg-black/10 px-1.5 text-xs">{count}</span>}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
-      {activeTab === 'routebooks' && (
-        <div className="my-section-grid" role="tabpanel" aria-label="路书">
-          <section className="ops-panel my-section-primary">
-            <div className="ops-panel-head">
-              <h2>我的路书</h2>
-              <span className="badge badge-blue">
-                <Shield size={11} /> {books.length} 条
-              </span>
-            </div>
+        <Tabs.Content value="routebooks" className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section aria-labelledby="my-books">
+            <h2 id="my-books" className="mb-3 text-lg font-extrabold">
+              我的路书 <span className="num text-muted">{books.length}</span>
+            </h2>
             {books.length ? (
               <>
-                <div className="book-grid compact">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {books.slice(0, 8).map((book) => {
-                    const trustState = getRouteTrustBadgeState(book);
                     const bookKey = book.publicId ?? book.id ?? `${book.city}-${book.title}`;
                     return (
-                      <div key={bookKey} style={{ position: 'relative' }}>
-                        <button className="book-card compact-book" style={{ width: '100%', height: '100%' }} onClick={() => onOpenBook(book)}>
-                          <span className={`badge ${trustState.badgeClass}`}>
-                            <Shield size={12} /> {trustState.compactText}
-                          </span>
-                          <h3>{book.title || '未命名路书'}</h3>
-                          <p>{book.summary?.slice(0, 70) || '暂无路线摘要'}</p>
-                          <span>
-                            <MapPin size={12} /> {book.city || '城市待补充'} · {book.stops?.length ?? 0} 站
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          style={{ position: 'absolute', top: 10, right: 10 }}
-                          aria-label={`删除路书 ${book.title || book.city || ''}`}
-                          title="删除本机存档"
-                          onClick={() => handleDeleteBook(book)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <RouteCard
+                        key={bookKey}
+                        routebook={book}
+                        meta={`${book.city || '城市待补充'} · ${book.stops?.length ?? 0} 站 · ${publishStatusLabel(book.publishStatus)}`}
+                        onOpen={() => onOpenBook(book)}
+                        actions={
+                          <>
+                            <Button size="sm" variant="dark" onClick={() => onOpenBook(book)}>
+                              <Route /> 打开
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-muted hover:text-danger"
+                              aria-label={`删除路书 ${book.title || book.city || ''}`}
+                              title="删除本机存档"
+                              onClick={() => handleDeleteBook(book)}
+                            >
+                              <Trash2 /> 删除
+                            </Button>
+                          </>
+                        }
+                      />
                     );
                   })}
                 </div>
-                {books.length > 8 && (
-                  <p className="text-caption" style={{ marginTop: 10 }}>
-                    仅显示最近 8 条，共 {books.length} 条
-                  </p>
-                )}
+                {books.length > 8 && <p className="mt-3 text-sm text-muted">只显示最近 8 条，共 {books.length} 条</p>}
               </>
             ) : (
-              <Empty text="还没有路书，先粘贴攻略链接生成一条。" />
+              <Empty
+                icon={Route}
+                text="还没有路书。粘贴一条攻略链接，先生成第一条吧。"
+                action={
+                  <Button variant="primary" size="sm" onClick={() => onNewBook({})}>
+                    <Plus /> 新建路书
+                  </Button>
+                }
+              />
             )}
           </section>
 
-          <div className="my-section-stack">
-            <section className="ops-panel">
-              <div className="ops-panel-head">
-                <h2>我的公开路线</h2>
-                <span className="badge badge-blue">
-                  <UserRound size={11} /> {creatorBooks.length} 条
-                </span>
-              </div>
+          <div className="grid content-start gap-4">
+            <SidePanel title="我的公开路线" count={creatorBooks.length}>
               {creatorBooks.length ? (
-                <div className="ops-list">
+                <ul className="divide-y divide-line">
                   {creatorBooks.slice(0, 8).map((book) => (
-                    <div key={`creator-${book.publicId || book.title}`} className="checkin-review-row">
-                      <strong>{book.title || '未命名路书'}</strong>
-                      <span>
+                    <li key={`creator-${book.publicId || book.title}`} className="py-2.5">
+                      <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
+                      <p className="mt-0.5 text-xs text-muted">
                         {book.city || '城市待补充'} · {publishStatusLabel(book.publishStatus)} · {getRouteTrustBadgeState(book).compactText}
-                      </span>
-                      <p>
-                        <Copy size={12} /> 复制 {book.copyCount ?? 0} 次 ·{' '}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                        <Copy className="size-3" aria-hidden="true" /> 被复制 {book.copyCount ?? 0} 次 ·{' '}
                         {sourceAuthorizationLabel(book.creator?.sourceAuthorization || book.sourceAuthorization)}
                       </p>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : (
-                <Empty text="保存路书后会自动带上你的达人身份，可在运营台发布。" />
+                <p className="text-sm text-muted">保存的路书会自动带上你的达人身份，发布后出现在这里。</p>
               )}
-            </section>
-
-            <section className="ops-panel">
-              <div className="ops-panel-head">
-                <h2>我的分享</h2>
-                <span className="badge badge-blue">
-                  <Share2 size={11} /> {sharedBooks.length} 条
-                </span>
-              </div>
+            </SidePanel>
+            <SidePanel title="我的分享" count={sharedBooks.length}>
               {sharedBooks.length ? (
-                <div className="ops-list">
+                <ul className="divide-y divide-line">
                   {sharedBooks.slice(0, 8).map((book) => {
                     const url = book.shareUrl || `/share/${book.publicId}`;
                     return (
-                      <div key={`${book.publicId}-${book.title}`} className="checkin-review-row">
-                        <strong>{book.title || '未命名路书'}</strong>
-                        <span>
-                          {book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}
+                      <li key={`${book.publicId}-${book.title}`} className="flex items-center justify-between gap-2 py-2.5">
+                        <span className="min-w-0">
+                          <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
+                          <span className="text-xs text-muted">
+                            {book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}
+                          </span>
                         </span>
-                        <a href={url} target="_blank" rel="noreferrer">
-                          <ExternalLink size={12} /> 打开分享页
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-sky-ink hover:bg-sky-soft"
+                        >
+                          <ExternalLink className="size-3.5" aria-hidden="true" /> 打开
                         </a>
-                      </div>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               ) : (
-                <Empty text="发布或精选后的路书会出现在这里。" />
+                <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>
               )}
-            </section>
+            </SidePanel>
           </div>
-        </div>
-      )}
+        </Tabs.Content>
 
-      {activeTab === 'favorites' && (
-        <section className="ops-panel my-tab-panel" role="tabpanel" aria-label="收藏">
-          <div className="ops-panel-head">
-            <h2>我的收藏</h2>
-            <span className="badge badge-blue">
-              <Heart size={11} /> {favorites.length} 条
-            </span>
-          </div>
-          {favoriteNotice && (
-            <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">
-              {favoriteNotice}
-            </p>
-          )}
+        <Tabs.Content value="favorites" className="mt-5">
+          <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mb-3">
+            {favoriteNotice}
+          </p>
           {favorites.length ? (
             <>
-              <div className="ops-list my-asset-list">
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {favorites.slice(0, 12).map((item) => (
-                  <div key={item.id ?? favoriteKeyOf(item)} className="checkin-review-row">
-                    <strong>{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
-                    <span>
-                      {item.city || '城市待补充'} · {formatHistoryDate(item.createdAt)}
+                  <li key={item.id ?? favoriteKeyOf(item)} className="flex flex-col gap-2 rounded-card border border-line bg-white p-4 shadow-card">
+                    <span className="flex items-start gap-2">
+                      <Heart className="mt-0.5 size-4 shrink-0 fill-primary text-primary" aria-hidden="true" />
+                      <strong className="line-clamp-2 text-[15px] font-extrabold">{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
                     </span>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
+                    <span className="text-xs text-muted">
+                      {item.city || '城市待补充'} · 收藏于 {formatHistoryDate(item.createdAt)}
+                    </span>
+                    <div className="mt-auto flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="dark"
                         disabled={!item.routeId}
                         onClick={() =>
                           onOpenBook(books.find((book) => (book.publicId || book.id) === item.routeId) || { id: item.routeId, publicId: item.routeId })
                         }
                       >
                         打开路线
-                      </button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleRemoveFavorite(item)}>
-                        <Trash2 size={13} /> 取消收藏
-                      </button>
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-muted" onClick={() => handleRemoveFavorite(item)}>
+                        <Trash2 /> 取消收藏
+                      </Button>
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
-              {favorites.length > 12 && (
-                <p className="text-caption" style={{ marginTop: 10 }}>
-                  仅显示最近 12 条，共 {favorites.length} 条
-                </p>
-              )}
+              </ul>
+              {favorites.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {favorites.length} 条</p>}
             </>
           ) : (
-            <Empty text="在路线详情页点收藏后会沉淀到这里。" />
+            <Empty icon={Heart} text="在路书页点“收藏”，喜欢的路线就会出现在这里。" />
           )}
-        </section>
-      )}
+        </Tabs.Content>
 
-      {activeTab === 'checkins' && (
-        <div className="my-section-grid balanced" role="tabpanel" aria-label="打卡">
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h2>我的打卡</h2>
-              <span className="badge badge-green">
-                <Camera size={11} /> {checkins.length} 条
-              </span>
-            </div>
+        <Tabs.Content value="checkins" className="mt-5 grid gap-6 lg:grid-cols-2">
+          <section aria-labelledby="my-checkins">
+            <h2 id="my-checkins" className="mb-3 text-lg font-extrabold">
+              我的打卡 <span className="num text-muted">{checkins.length}</span>
+            </h2>
             {checkins.length ? (
               <>
-                <div className="ops-list">
+                <ul className="grid gap-2.5">
                   {checkins.slice(0, 12).map((item, index) => (
-                    <div key={`${item.id ?? item.stopName}-${index}`} className="checkin-review-row">
-                      <strong>{item.stopName || '未命名地点'}</strong>
-                      <span>
-                        {item.city || '城市待补充'} · {item.worth || '体验待补充'} · 排队 {item.queue ?? '待补充'}
+                    <li key={`${item.id ?? item.stopName}-${index}`} className="flex gap-3 rounded-card border border-line bg-white p-3.5">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-success-ink">
+                        <MapPin className="size-4" aria-hidden="true" />
                       </span>
-                      <p>{item.comment || item.pitfall || '无补充'}</p>
-                    </div>
+                      <span className="min-w-0">
+                        <strong className="text-sm font-bold">{item.stopName || '未命名地点'}</strong>
+                        <span className="block text-xs text-muted">
+                          {[item.city || '城市待补充', item.worth || '体验未填', item.queue ? `排队 ${item.queue}` : ''].filter(Boolean).join(' · ')}
+                        </span>
+                        {(item.comment || item.pitfall) && <span className="mt-1 block text-sm text-ink-2">{item.comment || item.pitfall}</span>}
+                      </span>
+                    </li>
                   ))}
-                </div>
-                {checkins.length > 12 && (
-                  <p className="text-caption" style={{ marginTop: 10 }}>
-                    仅显示最近 12 条，共 {checkins.length} 条
-                  </p>
-                )}
+                </ul>
+                {checkins.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {checkins.length} 条</p>}
               </>
             ) : (
-              <Empty text="进入行中模式后，GPS 和体验反馈会沉淀到这里。" />
+              <Empty icon={Camera} text="出行时在路书里点“我到了”，GPS 和体验反馈会记在这里。" />
             )}
           </section>
-
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h2>最近商品点击</h2>
-              <span className="badge badge-orange">
-                <Ticket size={11} /> {clicks.length} 条
-              </span>
-            </div>
+          <section aria-labelledby="my-clicks">
+            <h2 id="my-clicks" className="mb-3 text-lg font-extrabold">
+              最近看过的门票/商品 <span className="num text-muted">{clicks.length}</span>
+            </h2>
             {clicks.length ? (
               <>
-                <div className="product-ops-list">
+                <ul className="grid gap-2.5">
                   {clicks.slice(0, 12).map((item, index) => (
-                    <div key={`${item.productTitle ?? item.title}-${index}`} className="product-ops-row">
-                      <span className="badge badge-blue">{item.type || '商品'}</span>
-                      <div>
-                        <strong>{item.productTitle || item.title || '未命名商品'}</strong>
-                        <p>
+                    <li key={`${item.productTitle ?? item.title}-${index}`} className="flex items-start gap-3 rounded-card border border-line bg-white p-3.5">
+                      <span className="shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{item.type || '商品'}</span>
+                      <span className="min-w-0">
+                        <strong className="text-sm font-bold">{item.productTitle || item.title || '未命名商品'}</strong>
+                        <span className="block text-xs text-muted">
                           {item.poi || '关联地点待补充'} · {item.provider || '本地记录'}
-                        </p>
-                      </div>
-                    </div>
+                        </span>
+                      </span>
+                    </li>
                   ))}
-                </div>
-                {clicks.length > 12 && (
-                  <p className="text-caption" style={{ marginTop: 10 }}>
-                    仅显示最近 12 条，共 {clicks.length} 条
-                  </p>
-                )}
+                </ul>
+                {clicks.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {clicks.length} 条</p>}
               </>
             ) : (
-              <Empty text="点击路线里的商品卡后会记录在这里。" />
+              <Empty icon={Ticket} text="在路书里点过的门票或商品会记在这里。" />
             )}
           </section>
-        </div>
-      )}
+        </Tabs.Content>
 
-      {activeTab === 'account' && (
-        <section className="ops-panel my-account-panel" role="tabpanel" aria-label="账户">
-          <div className="ops-panel-head">
-            <h2>账户与旅行偏好</h2>
-            <span className="badge badge-blue">
-              <UserRound size={11} /> {profile.id}
-            </span>
-          </div>
-          <form className="profile-form" onSubmit={handleProfileSave}>
-            <div className="card-flat profile-bind-card">
-              <div>
-                <span className="input-label">正式账号</span>
-                <p className="text-caption">
-                  {profile.identityBound
-                    ? `当前资料保留已有身份记录：${profile.identity?.label || '已绑定身份'}；新的短信或微信绑定暂未开放。`
-                    : '短信验证码和微信授权尚未接入，当前不收集手机号或微信 OpenID。可继续使用本地资料，并通过下方恢复码跨设备恢复。'}
-                </p>
-              </div>
-              <span className="badge badge-blue">{profile.identityBound ? '已有记录' : '待接入'}</span>
-            </div>
-            <div className="profile-sync-section">
-              <div className="profile-sync-heading">
-                <div>
-                  <span className="input-label">
-                    <KeyRound size={13} /> 跨设备恢复
-                  </span>
-                  <p className="text-caption">恢复码等同账号访问权限，请勿发到群聊、评论区或公开笔记。</p>
-                </div>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={syncBusy} onClick={() => prepareSyncCode({ copy: Boolean(syncCode) })}>
-                  <Copy size={14} /> {syncCode ? '复制恢复码' : '生成恢复码'}
-                </button>
-              </div>
-              {syncCode && <textarea className="input-field profile-sync-code" value={syncCode} readOnly aria-label="当前账号恢复码" />}
-              <div className="profile-recovery-row">
-                <textarea
-                  className="input-field profile-sync-code"
-                  value={recoveryCode}
-                  onChange={(event) => setRecoveryCode(event.target.value)}
-                  placeholder="粘贴另一设备生成的恢复码"
-                  aria-label="粘贴账号恢复码"
-                />
-                <button className="btn btn-secondary btn-sm" type="button" disabled={syncBusy || !recoveryCode.trim()} onClick={recoverProfile}>
-                  <RotateCcw size={14} /> 恢复账号
-                </button>
-              </div>
-            </div>
-            <label>
-              <span className="input-label">常住/出发城市</span>
-              <input
-                className="input-field"
-                value={profile.homeCity ?? ''}
-                onChange={(event) => setProfile((prev) => ({ ...prev, homeCity: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span className="input-label">常去城市</span>
-              <input
-                className="input-field"
-                value={(profile.preferredCities ?? []).join('、')}
-                onChange={(event) => setProfile((prev) => ({ ...prev, preferredCities: event.target.value.split(/[、,\s]+/).filter(Boolean) }))}
-              />
-            </label>
-            <label>
-              <span className="input-label">预算</span>
-              <input
-                className="input-field"
-                value={profile.budget ?? ''}
-                onChange={(event) => setProfile((prev) => ({ ...prev, budget: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span className="input-label">同行 / 节奏</span>
-              <div className="profile-inline-fields">
-                <input
-                  className="input-field"
-                  value={profile.companion ?? ''}
-                  onChange={(event) => setProfile((prev) => ({ ...prev, companion: event.target.value }))}
-                />
-                <input
-                  className="input-field"
-                  value={profile.tempo ?? ''}
-                  onChange={(event) => setProfile((prev) => ({ ...prev, tempo: event.target.value }))}
-                />
-              </div>
-            </label>
-            <label>
-              <span className="input-label">主题偏好</span>
-              <input
-                className="input-field"
-                value={(profile.themes ?? []).join('、')}
-                onChange={(event) => setProfile((prev) => ({ ...prev, themes: event.target.value.split(/[、,\s]+/).filter(Boolean) }))}
-              />
-            </label>
-            <label>
-              <span className="input-label">达人名称</span>
-              <input
-                className="input-field"
-                value={profile.creatorName ?? ''}
-                onChange={(event) => setProfile((prev) => ({ ...prev, creatorName: event.target.value }))}
-                placeholder="用于公开路线作者展示"
-              />
-            </label>
-            <label>
-              <span className="input-label">达人简介</span>
-              <textarea
-                className="input-field"
-                value={profile.creatorBio ?? ''}
-                onChange={(event) => setProfile((prev) => ({ ...prev, creatorBio: event.target.value }))}
-                placeholder="例如：周末短途路线整理者，偏好少绕路和真实打卡反馈"
-              />
-            </label>
-            <div className="profile-inline-actions">
-              <button className="btn btn-primary btn-sm" type="submit">
-                <Save size={14} /> 保存偏好
-              </button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpenCreator?.(profile.id)}>
-                <UserRound size={14} /> 达人主页
-              </button>
-            </div>
-            {profileMessage && (
-              <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">
-                {profileMessage}
-              </p>
-            )}
-          </form>
-        </section>
-      )}
+        <Tabs.Content value="account" className="mt-5">
+          <MyAccountPanel
+            profile={profile}
+            setProfile={setProfile}
+            syncCode={syncCode}
+            recoveryCode={recoveryCode}
+            setRecoveryCode={setRecoveryCode}
+            syncBusy={syncBusy}
+            profileMessage={profileMessage}
+            onSave={handleProfileSave}
+            onPrepareSyncCode={prepareSyncCode}
+            onRecover={recoverProfile}
+            onOpenCreator={onOpenCreator}
+          />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }
 
-/** @param {{ id: string, activeTab: string, onSelect: Function, icon: any, label: string, count?: number }} props */
-function MyTab({ id, activeTab, onSelect, icon: Icon, label, count }) {
-  const active = activeTab === id;
+/** @param {Record<string, any>} props */
+function Stat({ icon: Icon, tone, label, value }) {
   return (
-    <button type="button" role="tab" aria-selected={active} className={`my-tab ${active ? 'active' : ''}`} onClick={() => onSelect(id)}>
-      <Icon size={16} />
-      <span>{label}</span>
-      {Number.isFinite(count) && <b>{count}</b>}
-    </button>
-  );
-}
-
-function Stat({ icon: Icon, label, value }) {
-  return (
-    <div className="stat-card ops-stat">
-      <Icon size={20} />
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>本地 + 服务端</small>
+    <div className="flex items-center gap-3 rounded-card border border-line bg-white p-3 shadow-card sm:p-4">
+      <span className={`grid size-10 shrink-0 place-items-center rounded-full ${tone}`}>
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      <div>
+        <dt className="text-xs font-semibold text-muted">{label}</dt>
+        <dd className="num text-2xl leading-tight font-black">{value}</dd>
+      </div>
     </div>
   );
 }
 
-function Empty({ text }) {
-  return <p className="text-caption">{text}</p>;
+/** @param {Record<string, any>} props */
+function SidePanel({ title, count, children }) {
+  return (
+    <section className="rounded-panel border border-line bg-white p-4">
+      <h2 className="mb-1 flex items-center justify-between text-[15px] font-extrabold">
+        {title} <span className="num rounded-full bg-canvas px-2 text-xs text-muted">{count}</span>
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function Empty({ icon: Icon, text, action }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-panel border border-dashed border-line-strong bg-white p-8 text-center">
+      <span className="grid size-12 place-items-center rounded-full bg-canvas text-muted">
+        <Icon className="size-6" aria-hidden="true" />
+      </span>
+      <p className="max-w-sm text-sm text-muted">{text}</p>
+      {action}
+    </div>
+  );
 }
 
 function formatHistoryDate(value) {
