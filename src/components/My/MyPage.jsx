@@ -6,6 +6,7 @@ import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRouteboo
 import { createProfileSyncCode, getProfile, parseProfileSyncCode, updateProfile } from '../../lib/profile';
 import { adoptServerProfile } from '../../lib/profileSync';
 import { getRouteTrustBadgeState } from '../../lib/trust';
+import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 
 export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfileChanged, onLocalBooksChanged }) {
   const [serverData, setServerData] = useState({ routebooks: [], checkins: [], clicks: [], favorites: [] });
@@ -282,10 +283,11 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     <div key={`creator-${book.publicId || book.title}`} className="checkin-review-row">
                       <strong>{book.title || '未命名路书'}</strong>
                       <span>
-                        {book.city || '城市待补充'} · {book.publishStatus || 'draft'} · {getRouteTrustBadgeState(book).compactText}
+                        {book.city || '城市待补充'} · {publishStatusLabel(book.publishStatus)} · {getRouteTrustBadgeState(book).compactText}
                       </span>
                       <p>
-                        <Copy size={12} /> 复制 {book.copyCount ?? 0} 次 · {book.creator?.sourceAuthorization || book.sourceAuthorization || 'user-generated'}
+                        <Copy size={12} /> 复制 {book.copyCount ?? 0} 次 ·{' '}
+                        {sourceAuthorizationLabel(book.creator?.sourceAuthorization || book.sourceAuthorization)}
                       </p>
                     </div>
                   ))}

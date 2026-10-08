@@ -1,36 +1,51 @@
 :root {
   color-scheme: light;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  /* 方向 B「城市漫游 · 明快」：全部无衬线，系统字体优先，不加载阻塞渲染的 webfont。 */
+  font-family:
+    'HarmonyOS Sans SC',
+    'MiSans',
+    'PingFang SC',
+    'Noto Sans SC',
+    'Noto Sans CJK SC',
+    'Microsoft YaHei',
+    system-ui,
+    -apple-system,
+    sans-serif;
   --font-body: inherit;
-  --font-mono: 'SF Mono', 'Fira Code', monospace;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Colors */
-  --bg: #f5f6f7;
+  /* Colors — B tokens (contrast ≥ 4.5:1 for text roles) */
+  --bg: #f7f7f5;
   --bg-card: #ffffff;
-  --bg-elevated: rgba(255, 255, 255, 0.88);
-  --ink: #181b1d;
-  --ink-2: #343a3d;
-  --muted: #70787d;
-  --muted-2: #a1a8ac;
-  --line: rgba(24, 27, 29, 0.08);
-  --line-strong: rgba(24, 27, 29, 0.15);
+  --bg-elevated: rgba(255, 255, 255, 0.92);
+  --ink: #16181d;
+  --ink-2: #2e3138;
+  --muted: #5c6370;
+  --muted-2: #686e7a;
+  --line: #ecebe6;
+  --line-strong: #dcdad3;
 
-  /* Accent */
-  --blue: #315f72;
-  --blue-bg: rgba(49, 95, 114, 0.1);
-  --green: #1d7a5f;
-  --green-light: #34c759;
-  --green-bg: rgba(29, 122, 95, 0.08);
-  --orange: #ff9500;
-  --orange-bg: rgba(255, 149, 0, 0.08);
-  --red: #ff3b30;
-  --red-bg: rgba(255, 59, 48, 0.08);
+  /* Accent: --blue / --green / --orange / --red keep their names for the legacy
+     stylesheet but now resolve to B's palette. */
+  --primary: #e8553d;
+  --primary-strong: #c7432d;
+  --primary-ink: #b23a26;
+  --primary-bg: #fdede9;
+  --blue: #1666c1;
+  --blue-bg: #e8f1fc;
+  --green: #157a51;
+  --green-light: #1e9e6a;
+  --green-bg: #e4f6ee;
+  --orange: #a15c07;
+  --orange-bg: #fff6d6;
+  --red: #b42318;
+  --red-bg: #fdede9;
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(31, 46, 51, 0.05), 0 1px 2px rgba(31, 46, 51, 0.03);
-  --shadow-md: 0 5px 16px rgba(31, 46, 51, 0.07), 0 1px 3px rgba(31, 46, 51, 0.04);
-  --shadow-lg: 0 10px 28px rgba(31, 46, 51, 0.09), 0 2px 8px rgba(31, 46, 51, 0.04);
-  --shadow-xl: 0 18px 48px rgba(31, 46, 51, 0.12), 0 4px 12px rgba(31, 46, 51, 0.05);
+  --shadow-sm: 0 1px 3px rgba(22, 24, 29, 0.05), 0 1px 2px rgba(22, 24, 29, 0.03);
+  --shadow-md: 0 5px 16px rgba(22, 24, 29, 0.07), 0 1px 3px rgba(22, 24, 29, 0.04);
+  --shadow-lg: 0 10px 28px rgba(22, 24, 29, 0.09), 0 2px 8px rgba(22, 24, 29, 0.04);
+  --shadow-xl: 0 18px 48px rgba(22, 24, 29, 0.12), 0 4px 12px rgba(22, 24, 29, 0.05);
 
   /* Radius */
   --radius-sm: 6px;
@@ -122,7 +137,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgba(49, 95, 114, 0.35);
+  outline: 3px solid rgba(232, 85, 61, 0.35);
   outline-offset: 3px;
 }
 
@@ -238,19 +253,15 @@ a {
   transform: scale(0.97);
 }
 
-.btn-primary {
-  background: var(--blue);
-  color: white;
-  box-shadow: 0 4px 12px rgba(49, 95, 114, 0.2);
-}
-.btn-primary:hover {
-  box-shadow: 0 6px 20px rgba(49, 95, 114, 0.28);
-}
-
+.btn-primary,
 .btn-green {
-  background: var(--green);
+  background: var(--primary-strong);
   color: white;
-  box-shadow: 0 4px 12px rgba(29, 122, 95, 0.2);
+  box-shadow: 0 6px 16px rgba(232, 85, 61, 0.28);
+}
+.btn-primary:hover,
+.btn-green:hover {
+  box-shadow: 0 8px 22px rgba(232, 85, 61, 0.36);
 }
 
 .btn-secondary {
@@ -374,7 +385,7 @@ a {
 
 .input-field:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(31, 122, 224, 0.12);
 }
 
 textarea.input-field {
@@ -496,6 +507,8 @@ textarea.input-field {
   bottom: 0;
   left: 0;
   right: 0;
+  margin-inline: auto;
+  width: min(560px, 100%);
   z-index: 200;
   background: var(--bg-card);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
@@ -681,12 +694,23 @@ textarea.input-field {
   width: 24px;
   height: 24px;
   border-radius: 8px;
-  background: var(--blue);
+  background: var(--primary-strong);
   color: white;
   display: grid;
   place-items: center;
   font-size: 12px;
   font-weight: 700;
+}
+
+.map-pin.approximate {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px dashed #a15c07;
+  box-shadow: var(--shadow-sm);
+}
+
+.map-pin.approximate .pin-num {
+  background: #fff6d6;
+  color: #7a5600;
 }
 
 .map-pin .pin-name {
@@ -698,8 +722,8 @@ textarea.input-field {
 }
 
 .map-pin.active {
-  border-color: var(--blue);
-  box-shadow: 0 8px 24px rgba(0, 122, 255, 0.2);
+  border-color: var(--primary);
+  box-shadow: 0 8px 24px rgba(232, 85, 61, 0.24);
   transform: translateY(-2px) scale(1.05);
 }
 

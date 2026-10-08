@@ -40,7 +40,7 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
         <span className={`status-dot ${modelHealth?.ready ? 'ready' : ''}`}>
           <Circle size={8} fill="currentColor" />
         </span>
-        <span className="text-caption">{modelHealth?.ready ? modelHealth.provider || '模型已就绪' : '模型未就绪'}</span>
+        <span className="text-caption">{modelHealth?.ready ? 'AI 已就绪' : 'AI 暂不可用'}</span>
       </div>
     </header>
   );

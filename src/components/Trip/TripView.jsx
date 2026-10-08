@@ -443,14 +443,15 @@ export default function TripView({ routebook, onBack, onReview }) {
           {statusCheckin && (
             <div className="trip-sync-state" role="status" aria-live="polite">
               <span>
-                <strong>本地：{statusEvidence.localCompleted ? '操作已完成' : '待处理'}</strong>
-                {' · '}服务端：{syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
+                <strong>{statusEvidence.localCompleted ? '已记录' : '还没记录'}</strong>
+                {' · '}
+                {syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
                 <br />
                 <small>{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</small>
                 {pendingSyncCount > 1 && (
                   <>
                     <br />
-                    <small>另有 {pendingSyncCount - 1} 条本地记录尚未同步；自动队列会继续处理可重试记录。</small>
+                    <small>另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</small>
                   </>
                 )}
                 {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
@@ -961,10 +962,10 @@ function checkinForStatusDisplay(checkins) {
 }
 
 function syncStatusLabel(status, row) {
-  if (status === 'syncing') return '同步中';
-  if (status === 'synced') return '已同步';
-  if (status === 'failed') return row?.clientSyncRetryable === false ? '同步失败，需手动重试' : '同步失败，15 秒后自动重试';
-  return '已排队，等待同步';
+  if (status === 'syncing') return '正在上传';
+  if (status === 'synced') return '已保存到云端';
+  if (status === 'failed') return row?.clientSyncRetryable === false ? '上传失败，请手动重试' : '上传失败，稍后自动重试';
+  return '联网后自动上传';
 }
 
 function publicTrustEvidenceLabel(row, evidence) {
@@ -972,7 +973,7 @@ function publicTrustEvidenceLabel(row, evidence) {
     return '公开可信：行程跳过或替换记录不作为到达样本。';
   }
   if (evidence.syncStatus !== 'synced') {
-    return '公开可信：尚未经过服务端校验，当前不计入样本。';
+    return '上传并校验通过后，才会计入路线可信度。';
   }
   if (evidence.countsTowardPublicTrust) {
     return '公开可信：实名身份与有效 GPS 到达均已通过，已计入样本。';

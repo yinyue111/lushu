@@ -47,6 +47,7 @@ import { useDialogFocus } from '../../lib/useDialogFocus';
 import { trustedCities } from '../../lib/content';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { modeSlug, orderedDays, reorderStopsByMode, variantSummary } from '../../lib/routeModes';
+import { addBasemap, currentBasemapConfig, escapeHtml, toMapLatLng } from '../map/basemap';
 import SharePreview from './SharePreview';
 import PoiDetail from './PoiDetail';
 
@@ -1414,6 +1415,7 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
   const stopLayersRef = useRef(new Map());
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches);
   const [interactive, setInteractive] = useState(false);
+  const [basemap, setBasemap] = useState(currentBasemapConfig);
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 900px)');
@@ -1439,27 +1441,13 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
       boxZoom: !compact,
       keyboard: !compact
     }).setView([center.lat, center.lng], center.zoom);
-    let hadTileError = false;
-    const primaryLayer = L.tileLayer('/api/map-tiles/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      errorTileUrl: '',
-      updateWhenIdle: true,
-      keepBuffer: 2,
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-    });
-    primaryLayer.on('loading', () => onTileStatus?.('地图底图加载中...'));
-    primaryLayer.on('load', () => onTileStatus?.(hadTileError ? '部分地图瓦片加载失败，可继续查看站点和使用导航。' : ''));
-    primaryLayer.on('tileerror', () => {
-      hadTileError = true;
-      onTileStatus?.('地图底图暂时不可用，可继续查看站点列表和使用导航。');
-    });
-    primaryLayer.addTo(map);
+    const removeBasemap = addBasemap(map, { onStatus: onTileStatus, onConfig: setBasemap });
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapRef.current = map;
     return () => {
+      removeBasemap();
       map.remove();
       mapRef.current = null;
-      onTileStatus?.('');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the Leaflet map is created per city; `compact` only affects the initial view and must not recreate the map.
   }, [city, onTileStatus]);
@@ -1479,52 +1467,36 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
     if (!map) return;
     // Clear existing
     map.eachLayer((l) => {
-      if (l instanceof L.Marker || l instanceof L.Polyline || l instanceof L.Circle) map.removeLayer(l);
+      if (l instanceof L.Marker || l instanceof L.Polyline) map.removeLayer(l);
     });
     stopLayersRef.current = new Map();
 
-    const allLatLngs = stops.map((s) => [Number(s.lat), Number(s.lng)]).filter(([a, b]) => isValidCoordinate(a, b));
-    const navigableLatLngs = stops.filter(isNavigableCoordinate).map((s) => [Number(s.lat), Number(s.lng)]);
-    if (navigableLatLngs.length > 1) {
-      L.polyline(navigableLatLngs, { color: '#007AFF', weight: 3, opacity: 0.6, dashArray: '6 4' }).addTo(map);
+    const toLatLng = (stop) => toMapLatLng(Number(stop.lat), Number(stop.lng), basemap);
+    const located = stops.filter((s) => isValidCoordinate(Number(s.lat), Number(s.lng)));
+    const navigable = located.filter(isNavigableCoordinate);
+    if (navigable.length > 1) {
+      L.polyline(navigable.map(toLatLng), { color: '#E8553D', weight: 5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     }
 
     stops.forEach((stop, i) => {
-      const lat = Number(stop.lat),
-        lng = Number(stop.lng);
-      if (!isValidCoordinate(lat, lng)) return;
-      if (!isNavigableCoordinate(stop)) {
-        const circle = L.circle([lat, lng], {
-          radius: Number(stop.coordinateRadiusMeters) || 1500,
-          color: '#D97706',
-          fillColor: '#F59E0B',
-          fillOpacity: 0.1,
-          weight: 1,
-          dashArray: '4 4'
-        });
-        circle.on('click', () => onSelect(stop.id));
-        circle.addTo(map);
-        stopLayersRef.current.set(stopKey(stop.id), { type: 'circle', layer: circle });
-        return;
-      }
-      const marker = L.marker([lat, lng], { icon: buildStopPinIcon(stop, i, false) });
+      if (!isValidCoordinate(Number(stop.lat), Number(stop.lng))) return;
+      // 坐标不精确的站点只画一个虚线描边的小标记，不再画 1.5 km 实心圆。
+      const approximate = !isNavigableCoordinate(stop);
+      const marker = L.marker(toLatLng(stop), { icon: buildStopPinIcon(stop, i, false, approximate), title: stop.name });
       marker.on('click', () => onSelect(stop.id));
       marker.addTo(map);
-      stopLayersRef.current.set(stopKey(stop.id), { type: 'marker', layer: marker, stop, index: i });
+      stopLayersRef.current.set(stopKey(stop.id), { type: 'marker', layer: marker, stop, index: i, approximate });
     });
 
-    if (allLatLngs.length) map.fitBounds(L.latLngBounds(allLatLngs).pad(0.15), { animate: true, maxZoom: 15 });
-  }, [stops, onSelect]);
+    // 只用精确坐标决定视野；全部都不精确时才退回用近似坐标，并限制缩放级别。
+    const focus = navigable.length ? navigable : located;
+    if (focus.length) map.fitBounds(L.latLngBounds(focus.map(toLatLng)).pad(0.15), { animate: true, maxZoom: navigable.length ? 15 : 13 });
+  }, [stops, onSelect, basemap]);
 
   // selectedId 变化仅更新 marker/圈层样式。
   useEffect(() => {
     stopLayersRef.current.forEach((entry, key) => {
-      const isActive = key === stopKey(selectedId);
-      if (entry.type === 'circle') {
-        entry.layer.setStyle({ fillOpacity: isActive ? 0.18 : 0.1, weight: isActive ? 2 : 1 });
-      } else {
-        entry.layer.setIcon(buildStopPinIcon(entry.stop, entry.index, isActive));
-      }
+      entry.layer.setIcon(buildStopPinIcon(entry.stop, entry.index, key === stopKey(selectedId), entry.approximate));
     });
   }, [selectedId, stops]);
 
@@ -1540,19 +1512,10 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
   );
 }
 
-function buildStopPinIcon(stop, index, isActive) {
+function buildStopPinIcon(stop, index, isActive, approximate = false) {
   return L.divIcon({
     className: '',
     iconSize: [0, 0],
-    html: `<div class="map-pin ${isActive ? 'active' : ''}"><span class="pin-num">${index + 1}</span><span class="pin-name">${escapeHtml(stop.name)}</span></div>`
+    html: `<div class="map-pin ${isActive ? 'active' : ''} ${approximate ? 'approximate' : ''}"><span class="pin-num">${index + 1}</span><span class="pin-name">${escapeHtml(stop.name)}${approximate ? ' · 位置待确认' : ''}</span></div>`
   });
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }

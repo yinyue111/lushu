@@ -419,7 +419,7 @@ export default function App() {
   const routebookMatchesLocation = Boolean(routebook && sharePublicId && activeRouteId === sharePublicId);
 
   return (
-    <div className="app-root">
+    <div className={`app-root view-${view}`}>
       <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={PUBLIC_VIEWS.has(view) || view === VIEWS.trip} />
       <main className="app-main">
         {dueReminder && !PUBLIC_VIEWS.has(view) && (

@@ -604,7 +604,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           )}
           {importState.error && (
             <div className="card-flat" role="alert" style={{ marginTop: 12, background: 'var(--orange-bg)' }}>
-              <p className="text-caption" style={{ color: '#8A5200' }}>
+              <p className="text-caption" style={{ color: 'var(--orange)' }}>
                 <AlertCircle size={13} /> {importState.error}
               </p>
             </div>
@@ -879,11 +879,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {/* Step 3: Generating */}
       {step === 3 && (
         <div className="builder-step" style={{ textAlign: 'center', paddingTop: 60 }}>
-          <div className="gen-animation">
-            <Sparkles size={40} style={{ color: 'var(--blue)' }} />
+          <div className={`gen-animation ${error ? 'is-error' : ''}`}>
+            {error ? <AlertCircle size={40} style={{ color: 'var(--red)' }} /> : <Sparkles size={40} style={{ color: 'var(--primary)' }} />}
           </div>
           <h2 className="text-title" style={{ marginTop: 24 }}>
-            正在生成路书
+            {error ? '这次没能生成路书' : loading ? '正在生成路书' : '路书生成完成'}
           </h2>
           <p className="text-caption" style={{ marginTop: 8 }}>
             {city} · {constraints.duration}
@@ -955,7 +955,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       )}
       {step === 2 && !modelHealth?.ready && (
         <div className="card-flat" role="alert" style={{ marginTop: 14, background: 'var(--orange-bg)' }}>
-          <p className="text-caption" style={{ color: '#8A5200' }}>
+          <p className="text-caption" style={{ color: 'var(--orange)' }}>
             模型暂未就绪：{modelHealth?.reason || '请确认 Codex yinyue 的 base url 和 API key 可用'}。当前表单内容会保留在页面中，模型恢复后可直接生成。
           </p>
         </div>

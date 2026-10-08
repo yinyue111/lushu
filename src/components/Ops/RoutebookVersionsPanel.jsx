@@ -3,6 +3,7 @@ import { BookOpenCheck, Code2, History, RefreshCw } from 'lucide-react';
 import { curatedRoutes } from '../../lib/content';
 import { getRoutebookVersions, getRoutebooks, updateRoutebookStatus } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatApiError, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
+import { sourceAuthorizationLabel } from '../ui/labels';
 
 const ROUTE_STATUSES = [
   ['draft', '草稿'],
@@ -104,7 +105,7 @@ export default function RoutebookVersionsPanel() {
                       <td>
                         <strong>{textValue(routebook.title)}</strong>
                         <small>
-                          {routebook.creator?.name || '用户路书'} · {routebook.sourceAuthorization || 'user-generated'}
+                          {routebook.creator?.name || '用户路书'} · {sourceAuthorizationLabel(routebook.sourceAuthorization)}
                         </small>
                       </td>
                       <td>{formatVersion(routebook, selectedId === id ? versionsResource.data?.currentVersion : null)}</td>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Camera, Copy, MapPin, Route, Shield, Star, Ticket } from 'lucide-react';
 import { getCreatorProfile } from '../../lib/api';
 import { getRouteTrustBadgeState } from '../../lib/trust';
+import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 
 export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize }) {
   const [state, setState] = useState({ loading: true, error: '', data: null });
@@ -63,7 +64,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
           {creator.name?.slice(0, 1) || '路'}
         </div>
         <div className="creator-title">
-          <span className="badge badge-blue">{creator.sourceAuthorization === 'user-generated' ? '用户发布' : '授权内容'}</span>
+          <span className="badge badge-blue">{sourceAuthorizationLabel(creator.sourceAuthorization)}</span>
           <h1>{creator.name || creator.id}</h1>
           <p>{creator.bio || '路线合集由真实保存、复制和打卡反馈持续校准。'}</p>
         </div>
@@ -104,7 +105,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
                       <Copy size={13} /> {book.copyCount ?? 0}
                     </span>
                     <span>
-                      <Star size={13} /> {book.publishStatus || 'draft'}
+                      <Star size={13} /> {publishStatusLabel(book.publishStatus)}
                     </span>
                   </div>
                   <div className="creator-route-actions">
