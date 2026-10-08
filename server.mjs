@@ -457,13 +457,25 @@ async function findLatestJsonLine(filePath, predicate, scanLimit = 50000) {
   }
 }
 
-async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit = 50000) {
+// Reverse-scans for the latest row per key. H4: `predicate` is evaluated on the
+// latest row of each key *during* the scan, so filtered lists return up to `limit`
+// matches instead of filtering an already-truncated global window (which made
+// older routebooks of a city/profile disappear). A key whose latest row does not
+// match is excluded even if an older version would have matched.
+async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit = 50000, predicate = null) {
   if (!existsSync(filePath)) return [];
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 100);
   const handle = await open(filePath, 'r');
   const latestByKey = new Map();
+  const seenKeys = new Set();
   let pending = JSONL_EMPTY_BUFFER;
   let scanned = 0;
+  const consider = (row) => {
+    const key = keyFn(row);
+    if (!key || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    if (!predicate || predicate(row)) latestByKey.set(key, row);
+  };
   try {
     const { size } = await handle.stat();
     if (!size) return [];
@@ -482,9 +494,7 @@ async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit
         if (!line) continue;
         scanned += 1;
         try {
-          const row = JSON.parse(line);
-          const key = keyFn(row);
-          if (key && !latestByKey.has(key)) latestByKey.set(key, row);
+          consider(JSON.parse(line));
         } catch {
           // Skip corrupted historical JSONL rows.
         }
@@ -494,9 +504,7 @@ async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit
     const firstLine = pending.toString('utf8').trim();
     if (firstLine && scanned < scanLimit && latestByKey.size < safeLimit) {
       try {
-        const row = JSON.parse(firstLine);
-        const key = keyFn(row);
-        if (key && !latestByKey.has(key)) latestByKey.set(key, row);
+        consider(JSON.parse(firstLine));
       } catch {
         // Skip corrupted historical JSONL rows.
       }
@@ -1454,11 +1462,14 @@ function isTravelDateCheckin(travelDate, checkin) {
   return Math.abs(eventOrdinal - plannedOrdinal) <= TRAVEL_DAY_WINDOW_DAYS;
 }
 
-async function listSavedRoutebooks(limit = 100) {
+// `predicate` filters on the latest snapshot of each routebook while scanning (H4).
+async function listSavedRoutebooks(limit = 100, predicate = null) {
   return readLatestUniqueJsonLines(
     ROUTEBOOK_LOG_PATH,
     (row) => sanitizePublicId(row?.id || row?.publicId),
-    limit
+    limit,
+    50000,
+    predicate
   );
 }
 
@@ -2482,15 +2493,14 @@ async function publishOwnRoutebook(publicId, input = {}) {
 async function listPoiCorrections(limit = 50, { status = '' } = {}) {
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
   const statusFilter = truncateString(status, 24);
-  // 按 id 去重取最新一行；带状态过滤时放宽去重窗口，再按最新状态筛选。
-  const rows = await readLatestUniqueJsonLines(
+  // 按 id 去重取最新一行，并在扫描时按最新状态筛选（H4：不再先截断窗口再过滤）。
+  return readLatestUniqueJsonLines(
     POI_CORRECTION_LOG_PATH,
     (row) => sanitizePublicId(row?.id),
-    statusFilter ? Math.max(safeLimit * 4, 200) : safeLimit,
-    100000
+    safeLimit,
+    100000,
+    statusFilter ? (row) => String(row?.status ?? '') === statusFilter : null
   );
-  const filtered = statusFilter ? rows.filter((row) => String(row?.status ?? '') === statusFilter) : rows;
-  return filtered.slice(0, safeLimit);
 }
 
 async function updatePoiCorrectionStatus(id, input) {
@@ -2546,18 +2556,21 @@ function normalizePoiKnowledgeFromCorrection(correction) {
 }
 
 async function listPoiKnowledge({ city = '', stopName = '', limit = 80 } = {}) {
-  const rows = await readJsonLines(POI_KNOWLEDGE_LOG_PATH, Math.max(limit * 4, 200));
-  const latestByKey = new Map();
-  for (const row of rows) {
-    const rowCity = row?.city ? normalizeCityName(row.city) : '';
-    const rowStopName = String(row?.stopName ?? '');
-    const cityMatched = !city || rowCity === city;
-    const stopMatched = !stopName || rowStopName === stopName || rowStopName.includes(stopName) || stopName.includes(rowStopName);
-    if (!cityMatched || !stopMatched) continue;
-    const key = poiKnowledgeKey(rowCity, rowStopName, row?.field);
-    if (key && !latestByKey.has(key)) latestByKey.set(key, row);
-  }
-  return [...latestByKey.values()].slice(0, limit);
+  // H4: the key embeds city + stop name, so filtering each key's latest row during the
+  // scan is equivalent to the old filter-then-dedupe, without the truncated window.
+  const rowCity = (row) => (row?.city ? normalizeCityName(row.city) : '');
+  return readLatestUniqueJsonLines(
+    POI_KNOWLEDGE_LOG_PATH,
+    (row) => poiKnowledgeKey(rowCity(row), String(row?.stopName ?? ''), row?.field),
+    limit,
+    100000,
+    (row) => {
+      const rowStopName = String(row?.stopName ?? '');
+      const cityMatched = !city || rowCity(row) === city;
+      const stopMatched = !stopName || rowStopName === stopName || rowStopName.includes(stopName) || stopName.includes(rowStopName);
+      return cityMatched && stopMatched;
+    }
+  );
 }
 
 async function saveRoutebookVariant(publicId, input) {
@@ -3240,12 +3253,12 @@ async function findStopForCheckin(body) {
   const city = body?.city ? normalizeCityName(body.city) : '';
   let routebook = routeId ? await getResolvableRoutebook(routeId) : null;
   if (!routebook) {
-    const routebooks = await listSavedRoutebooks(500);
-    routebook = routebooks.find((item) => {
+    const [matched] = await listSavedRoutebooks(1, (item) => {
       const titleMatched = !routeTitle || item.title === routeTitle;
       const cityMatched = !city || item.city === city;
       return titleMatched && cityMatched;
-    }) ?? null;
+    });
+    routebook = matched ?? null;
   }
   const target = body?.target && typeof body.target === 'object' ? body.target : null;
   const fallbackTarget = isValidCoordinate(Number(target?.lat), Number(target?.lng))
@@ -3721,16 +3734,15 @@ function buildRecentActivity(groups) {
 async function buildCreatorProfile(creatorId) {
   const id = sanitizePublicId(creatorId);
   const [routebooks, checkins, favorites, clicks, exposures] = await Promise.all([
-    listSavedRoutebooks(500),
+    listSavedRoutebooks(500, (routebook) =>
+      normalizeCreator(routebook.creator).id === id &&
+      PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus || 'draft')),
     readJsonLines(CHECKIN_LOG_PATH, 1000),
     readJsonLines(FAVORITE_LOG_PATH, 1000),
     readJsonLines(CLICK_LOG_PATH, 1000),
     readJsonLines(EXPOSURE_LOG_PATH, 50000)
   ]);
-  const owned = routebooks.filter((routebook) =>
-    normalizeCreator(routebook.creator).id === id &&
-    PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus || 'draft')
-  );
+  const owned = routebooks; // filtered to this creator's public routebooks during the scan
   const creator = owned[0]?.creator ? normalizeCreator(owned[0].creator) : normalizeCreator({ id, name: id });
   const stats = aggregateCreators(owned, checkins, favorites, clicks, exposures)[0] ?? {
     creator,
@@ -7616,8 +7628,8 @@ async function handleApi(req, res) {
 	      } else if (!privilegedRead && !allRequestedStatusesPublic) {
 	        verifyAdminAccess(req);
 	      }
-      const routebooks = await listSavedRoutebooks(clampNumber(url.searchParams.get('limit'), 1, 200, 100));
-      const filtered = routebooks.filter((routebook) =>
+      // H4: filter while scanning so `limit` counts matching routebooks, not the global window.
+      const filtered = await listSavedRoutebooks(clampNumber(url.searchParams.get('limit'), 1, 200, 100), (routebook) =>
         (!city || routebook.city === city) &&
         (!profileId || normalizeProfileId(routebook.profileId) === profileId) &&
         (!statuses.length || statuses.includes(routebook.publishStatus || 'draft'))
