@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Shield, Sparkles, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
+import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
+import { TrustChip } from '../cards/TrustChip';
+import { CityBackdrop } from '../visual/CityBackdrop';
+import { StopThumb } from '../visual/StopThumb';
+import { dayTheme } from '../visual/theme';
 
+/** @param {Record<string, any>} props */
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
   const [state, setState] = useState({ loading: true, error: '', routebook: null });
   const [actionState, setActionState] = useState({ pending: '', message: '', isError: false, savedDraft: null, synced: false });
@@ -43,10 +50,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
 
   if (state.loading) {
     return (
-      <div className="share-page-shell">
-        <div className="share-page-loading">
-          <Sparkles size={28} />
-          <p>正在读取分享路书...</p>
+      <div className="grid min-h-[60vh] place-items-center px-4" role="status">
+        <div className="flex flex-col items-center gap-3 text-muted">
+          <Sparkles className="size-7 animate-pulse text-primary" aria-hidden="true" />
+          <p className="text-sm font-semibold">正在读取分享的路书...</p>
         </div>
       </div>
     );
@@ -54,14 +61,16 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
 
   if (state.error || !state.routebook) {
     return (
-      <div className="share-page-shell">
-        <div className="share-page-error">
-          <AlertCircle size={28} />
-          <h1>分享路书暂不可用</h1>
-          <p>{state.error || '链接不存在或已失效'}</p>
-          <button className="btn btn-secondary" onClick={onBack}>
-            <ArrowLeft size={16} /> 返回首页
-          </button>
+      <div className="grid min-h-[60vh] place-items-center px-4">
+        <div className="max-w-sm rounded-panel border border-line bg-white p-6 text-center shadow-card">
+          <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
+            <AlertCircle className="size-6" aria-hidden="true" />
+          </span>
+          <h1 className="mt-3 text-xl font-extrabold">这条分享暂时打不开</h1>
+          <p className="mt-1 text-sm text-muted">{state.error || '链接不存在或已失效'}</p>
+          <Button variant="outline" className="mt-4" onClick={onBack}>
+            <ArrowLeft /> 返回首页
+          </Button>
         </div>
       </div>
     );
@@ -71,7 +80,6 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   const stops = routebook.stops ?? [];
   const days = routebook.days ?? ['Day 1'];
   const trustState = getRouteTrustBadgeState(routebook);
-  const TrustStateIcon = trustState.tone === 'trial' ? AlertCircle : Shield;
   const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 6);
 
   async function copyShareText() {
@@ -125,117 +133,180 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
     }
   }
 
-  return (
-    <div className="share-page-shell page-enter">
-      <div className="share-page-hero">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}>
-          <ArrowLeft size={16} /> 返回平台
-        </button>
-        <div className="share-page-title">
-          <span className={`badge ${trustState.badgeClass}`}>
-            <TrustStateIcon size={12} /> {trustState.compactText}
-          </span>
-          <h1>{routebook.title}</h1>
-          <p>{routebook.summary}</p>
-          {routebook.creator?.id && (
-            <button className="share-creator-link" onClick={() => onOpenCreator?.(routebook.creator.id)}>
-              <UserRound size={14} />
-              <span>{routebook.creator.name}</span>
-              <b>{routebook.copyCount ?? 0} 次复制</b>
-            </button>
-          )}
-        </div>
-        <div className="share-page-actions">
-          <button className="btn btn-green btn-lg share-page-primary-action" disabled={Boolean(actionState.pending)} onClick={useRoutebookNow}>
-            <Play size={18} />{' '}
-            {actionState.pending === 'use' ? '正在保存私有副本...' : actionState.savedDraft ? '使用已保存副本开始行程' : '保存私有副本并开始行程'}
-          </button>
-          <div className="share-page-secondary-actions">
-            <button className="btn btn-secondary" disabled={Boolean(actionState.pending || actionState.savedDraft)} onClick={saveToMyRoutebooks}>
-              <BookmarkPlus size={16} /> {actionState.savedDraft ? '已保存私有副本' : actionState.pending === 'save' ? '正在保存...' : '仅保存私有副本'}
-            </button>
-            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={() => onCustomize(routebook, { surface: 'public-share' })}>
-              <RefreshCw size={16} /> 定制路线
-            </button>
-            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={copyShareText}>
-              <Copy size={16} /> 复制摘要
-            </button>
-          </div>
-          <p
-            className="share-action-feedback text-caption"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ color: actionState.isError ? 'var(--red)' : 'var(--muted)' }}
-          >
-            {actionState.message}
-          </p>
-        </div>
-      </div>
+  const busy = Boolean(actionState.pending);
 
-      <div className="share-page-grid">
-        <section className="share-page-panel">
-          <h2>路线结构</h2>
-          <div className="share-page-days">
-            {days.map((day) => (
-              <div key={day} className="share-page-day">
-                <span className="badge badge-blue">{day}</span>
-                {stops
-                  .filter((stop) => stop.day === day)
-                  .map((stop, index) => {
+  return (
+    <div className="page-enter pb-44 lg:pb-16">
+      <section className="relative isolate overflow-hidden text-white">
+        <CityBackdrop city={routebook.city} />
+        <div
+          className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.35)_0%,rgba(10,12,16,.1)_40%,rgba(10,12,16,.82)_100%)]"
+          aria-hidden="true"
+        />
+        <div className="mx-auto flex min-h-[340px] max-w-[1200px] flex-col justify-between gap-6 px-4 pt-5 pb-8 lg:min-h-[400px] lg:px-8 lg:pb-10">
+          <Button variant="glass" size="sm" className="self-start" onClick={onBack}>
+            <ArrowLeft /> 返回平台
+          </Button>
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <TrustChip routebook={routebook} className="bg-white/95" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold backdrop-blur">
+                <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
+              </span>
+            </div>
+            <h1 className="mt-3 text-3xl leading-tight font-black tracking-tight lg:text-5xl">{routebook.title}</h1>
+            {routebook.summary && <p className="mt-2 max-w-2xl text-[15px] text-white/90">{routebook.summary}</p>}
+            {routebook.creator?.id && (
+              <button
+                type="button"
+                className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 py-1 pr-3 pl-1 text-sm font-semibold backdrop-blur hover:bg-white/25"
+                onClick={() => onOpenCreator?.(routebook.creator.id)}
+              >
+                <span className="grid size-7 place-items-center rounded-full bg-lemon text-ink">
+                  <UserRound className="size-4" aria-hidden="true" />
+                </span>
+                {routebook.creator.name}
+                <span className="text-white/80">· {routebook.copyCount ?? 0} 次复制</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto grid max-w-[1200px] gap-6 px-4 pt-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8">
+        <section aria-labelledby="share-structure">
+          <h2 id="share-structure" className="text-xl font-extrabold">
+            路线安排
+          </h2>
+          {days.map((day, dayIndex) => {
+            const theme = dayTheme(dayIndex);
+            const dayStops = stops.filter((stop) => stop.day === day);
+            if (!dayStops.length) return null;
+            return (
+              <div key={day} className="mt-4">
+                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-extrabold text-white" style={{ background: theme.ink }}>
+                  {day}
+                </span>
+                <ol className="mt-2.5 grid gap-2.5">
+                  {dayStops.map((stop, index) => {
                     const stopTrust = getStopTrustState(stop, trustState.tone);
                     return (
-                      <div key={stop.id ?? `${day}-${index}`} className="share-page-stop">
-                        <span>{index + 1}</span>
-                        <div>
-                          <strong>{stop.name}</strong>
-                          <small>
-                            {stop.time} · {stop.stay} · {stop.cost}
-                          </small>
-                          <p>{stop.verify}</p>
+                      <li key={stop.id ?? `${day}-${index}`} className="flex gap-3 rounded-card border border-line bg-white p-3 shadow-card">
+                        <StopThumb stop={stop} number={index + 1} color={theme.ink} compact className="size-16 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <strong className="text-[15px] font-extrabold">{stop.name}</strong>
+                            <span
+                              className={cn(
+                                'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
+                                stopTrust.tone === 'verified'
+                                  ? 'bg-success-soft text-success-ink'
+                                  : stopTrust.tone === 'trial'
+                                    ? 'bg-lemon-soft text-lemon-ink'
+                                    : 'bg-sky-soft text-sky-ink'
+                              )}
+                            >
+                              {stopTrust.value}
+                            </span>
+                          </div>
+                          <p className="num mt-0.5 text-xs font-semibold text-muted">{[stop.time, stop.stay, stop.cost].filter(Boolean).join(' · ')}</p>
+                          {stop.verify && <p className="mt-1 text-[13px] text-ink-2">{stop.verify}</p>}
                         </div>
-                        <b className={`trust-${stopTrust.tone}`}>{stopTrust.value}</b>
-                      </div>
+                      </li>
                     );
                   })}
+                </ol>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </section>
 
-        <aside className="share-page-side">
-          <section className="share-page-panel compact">
-            <h2>可信依据</h2>
-            <div className="share-page-metrics">
-              {visibleMetrics.map((metric) => (
-                <div key={metric.label}>
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="share-page-panel compact">
-            <h2>可执行校验</h2>
-            <div className="share-page-validations">
-              {(routebook.validations ?? []).slice(0, 6).map((item) => (
-                <div key={item.id}>
-                  <span className="badge badge-orange">{item.state}</span>
-                  <strong>{item.label}</strong>
-                  <p>{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="share-page-panel compact">
-            <h2>分享说明</h2>
-            <p className="text-caption">公开页只展示结构化路线、站点可信度和校验结果；不搬运第三方攻略原文。真实打卡会继续校准路线质量。</p>
-            <p className="text-caption" style={{ marginTop: 10 }}>
-              <MapPin size={12} /> {routebook.city} · {stops.length} 站
-            </p>
-          </section>
+        <aside className="grid content-start gap-4">
+          <div className="hidden rounded-panel border border-line bg-white p-4 shadow-card lg:block">
+            <ShareActions
+              actionState={actionState}
+              busy={busy}
+              onUse={useRoutebookNow}
+              onSave={saveToMyRoutebooks}
+              onCustomize={() => onCustomize(routebook, { surface: 'public-share' })}
+              onCopy={copyShareText}
+            />
+          </div>
+          {visibleMetrics.length > 0 && (
+            <section className="rounded-panel border border-line bg-white p-4">
+              <h2 className="text-[15px] font-extrabold">可信依据</h2>
+              <dl className="mt-3 grid grid-cols-2 gap-2">
+                {visibleMetrics.map((metric) => (
+                  <div key={metric.label} className="rounded-tile bg-canvas p-2.5">
+                    <dt className="text-xs text-muted">{metric.label}</dt>
+                    <dd className="num text-base font-extrabold">{metric.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+          {(routebook.validations ?? []).length > 0 && (
+            <section className="rounded-panel border border-line bg-white p-4">
+              <h2 className="text-[15px] font-extrabold">出发前检查</h2>
+              <ul className="mt-2 grid gap-2.5">
+                {(routebook.validations ?? []).slice(0, 6).map((item) => (
+                  <li key={item.id} className="text-sm">
+                    <span className="mr-1.5 rounded-full bg-lemon-soft px-2 py-0.5 text-xs font-bold text-lemon-ink">{item.state}</span>
+                    <strong className="font-bold">{item.label}</strong>
+                    {item.detail && <p className="mt-0.5 text-[13px] text-muted">{item.detail}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <p className="px-1 text-xs leading-relaxed text-muted">
+            公开页只展示路线结构、站点可信度和校验结果，不搬运第三方攻略原文。真实打卡会继续校准路线质量。
+          </p>
         </aside>
       </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+        <ShareActions
+          compact
+          actionState={actionState}
+          busy={busy}
+          onUse={useRoutebookNow}
+          onSave={saveToMyRoutebooks}
+          onCustomize={() => onCustomize(routebook, { surface: 'public-share' })}
+          onCopy={copyShareText}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function ShareActions({ actionState, busy, onUse, onSave, onCustomize, onCopy, compact = false }) {
+  const useLabel = actionState.pending === 'use' ? '正在保存副本...' : actionState.savedDraft ? '用已保存的副本出发' : '保存副本并出发';
+  return (
+    <div className="grid gap-2">
+      <Button variant="primary" size={compact ? 'md' : 'lg'} className="w-full" disabled={busy} onClick={onUse}>
+        <Play /> {useLabel}
+      </Button>
+      <div className={cn('grid gap-2', compact ? 'grid-cols-3' : 'grid-cols-1')}>
+        <Button variant="outline" size="sm" disabled={Boolean(busy || actionState.savedDraft)} onClick={onSave}>
+          <BookmarkPlus /> {actionState.savedDraft ? '已保存' : actionState.pending === 'save' ? '保存中...' : compact ? '只保存' : '只保存一份副本'}
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={onCustomize}>
+          <RefreshCw /> {compact ? '定制' : '按我的喜好定制'}
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={onCopy}>
+          <Copy /> {compact ? '复制' : '复制文字摘要'}
+        </Button>
+      </div>
+      <p
+        className={cn('text-sm font-semibold [&:not(:empty)]:mt-1', actionState.isError ? 'text-danger' : 'text-ink-2')}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {actionState.message}
+      </p>
     </div>
   );
 }
