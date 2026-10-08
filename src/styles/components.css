@@ -4015,7 +4015,7 @@
 
 /* Phase 0: the route page has its own fixed action bar on phones, so the global
    bottom tab bar is hidden there (no stacked double bars). */
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .app-root.view-route > .top-nav {
     display: none;
   }

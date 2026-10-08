@@ -1,0 +1,181 @@
+import {
+  Baby,
+  CalendarClock,
+  Compass,
+  FileSearch,
+  MapPinned,
+  MessageSquareText,
+  Plus,
+  Repeat2,
+  Route as RouteIcon,
+  ShieldCheck,
+  Ticket,
+  Umbrella,
+  Wallet,
+  WalletCards,
+  Footprints
+} from 'lucide-react';
+import { Button } from '../ui/button';
+import { Chip } from '../ui/chip';
+import { cn } from '../ui/cn';
+import { predictionAverage, productLinkLabel } from './routebookModel';
+
+const OK_STATES = /通过|可执行|已更新|已应用|充足|正常|低/;
+const WARN_STATES = /复核|偏紧|缓冲|无数据|偏远|待|超|风险|高/;
+
+function stateTone(state) {
+  const text = String(state ?? '');
+  if (OK_STATES.test(text)) return 'ok';
+  if (WARN_STATES.test(text)) return 'warn';
+  return 'sky';
+}
+
+function checkIcon(label) {
+  const text = String(label ?? '');
+  if (/节奏|密度/.test(text)) return Compass;
+  if (/预算|费用/.test(text)) return Wallet;
+  if (/绕路|动线|转场/.test(text)) return Repeat2;
+  if (/营业|时间/.test(text)) return CalendarClock;
+  if (/定位|坐标/.test(text)) return MapPinned;
+  if (/AI|校验/.test(text)) return ShieldCheck;
+  return RouteIcon;
+}
+
+/** "出发前看一眼" — validations, source analysis and feedback, as friendly tiles. */
+export function RoutePreflight({ routebook }) {
+  const checks = (routebook.validations ?? []).slice(0, 6);
+  const source = routebook.sourceSummary?.sourceCount > 0 ? routebook.sourceSummary : null;
+  const feedback = routebook.feedbackSummary;
+  if (!checks.length && !source && !feedback) return null;
+  return (
+    <section aria-labelledby="preflight-title">
+      <h2 id="preflight-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:mb-3.5 lg:text-2xl">
+        出发前看一眼
+      </h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {checks.map((check) => {
+          const Icon = checkIcon(check.label);
+          return (
+            <CheckTile key={check.id || check.label} icon={Icon} title={check.label} chip={check.state} tone={stateTone(check.state)}>
+              {check.detail}
+            </CheckTile>
+          );
+        })}
+        {source && (
+          <CheckTile icon={FileSearch} title="攻略来源" chip={`${source.sourceCount} 条`} tone="sky">
+            来源预测均分 {predictionAverage(source)}，只用来帮忙解析，不代表有人真的去过。
+            {Array.isArray(source.platforms) && source.platforms.filter(Boolean).length ? ` 来自：${source.platforms.filter(Boolean).join('、')}。` : ''}
+          </CheckTile>
+        )}
+        {feedback && (
+          <CheckTile icon={MessageSquareText} title="走过的人怎么说" chip={`${feedback.attestedCheckinCount || 0} 次打卡`} tone="ok">
+            到达率 {feedback.completionRate || 0}% · 踩坑率 {feedback.pitfallRate || 0}% · 纠错 {feedback.correctionCount || 0} 条。
+          </CheckTile>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** @param {Record<string, any>} props */
+function CheckTile({ icon: Icon, title, chip, tone, children }) {
+  return (
+    <div className="grid grid-cols-[44px_1fr] items-start gap-3 rounded-card bg-canvas p-3.5">
+      <span className="grid size-11 place-items-center rounded-tile bg-white text-ink-2">
+        <Icon className="size-[22px]" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <b className="flex items-center justify-between gap-2 text-base">
+          <span className="min-w-0">{title}</span>
+          {chip && (
+            <Chip size="sm" tone={tone} className="h-6 text-[13px]">
+              {chip}
+            </Chip>
+          )}
+        </b>
+        <p className="mt-0.5 text-sm text-muted">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+const MODES = [
+  { mode: '少走路', icon: Footprints },
+  { mode: '雨天', icon: Umbrella },
+  { mode: '低预算', icon: WalletCards },
+  { mode: '亲子', icon: Baby }
+];
+
+/** Owner-only editing strip: one-tap re-plan modes, variants and "add stop". */
+export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop, onApplyVariant }) {
+  const variants = (routebook.variants ?? []).slice(0, 4);
+  return (
+    <section aria-label="调整路线" className="mt-6 rounded-card border border-dashed border-line-strong bg-white p-3.5 lg:mt-7">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-sm font-bold text-ink-2">一键调整</span>
+        {MODES.map(({ mode, icon: Icon }) => (
+          <Button key={mode} size="sm" onClick={() => onMode(mode)} disabled={saving}>
+            <Icon /> {mode}
+          </Button>
+        ))}
+        <Button size="sm" variant="dark" className="ml-auto" onClick={onAddStop}>
+          <Plus /> 加一站
+        </Button>
+      </div>
+      {(variants.length > 0 || variantState) && (
+        <div className="mt-3">
+          {variantState && (
+            <p className="mb-2 text-[13px] text-muted" role="status">
+              {variantState}
+            </p>
+          )}
+          <div className="no-scrollbar flex gap-2 overflow-x-auto">
+            {variants.map((variant) => (
+              <button
+                type="button"
+                key={variant.id}
+                onClick={() => onApplyVariant(variant)}
+                className={cn(
+                  'w-52 shrink-0 rounded-tile border border-line bg-canvas p-3 text-left',
+                  routebook.activeVariantId === variant.id && 'border-transparent bg-primary-soft shadow-[0_0_0_2px_var(--color-primary)]'
+                )}
+              >
+                <b className="block text-[15px]">{variant.label}</b>
+                <span className="line-clamp-2 block text-[13px] text-muted">{variant.summary}</span>
+                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站 · 还没人走过</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** "顺路可订" — product cards (analytics preserved via onClick). */
+export function RouteProducts({ products, onClick }) {
+  if (!products.length) return null;
+  return (
+    <section aria-labelledby="products-title">
+      <h2 id="products-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:text-2xl">
+        顺路可订
+      </h2>
+      <div className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:px-0">
+        {products.map((item, index) => (
+          <button
+            key={item.id || item.url || `${item.provider}-${item.title}-${index}`}
+            type="button"
+            onClick={() => onClick(item)}
+            className="w-64 shrink-0 rounded-card border border-line bg-white p-3.5 text-left shadow-card transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-0.5 sm:w-auto"
+          >
+            <Chip size="sm" tone="sky">
+              <Ticket /> {item.type}
+            </Chip>
+            <b className="mt-2 line-clamp-2 block text-[15px] leading-snug">{item.title}</b>
+            <small className="mt-1 block text-[13px] text-muted">{[item.poi, item.price, productLinkLabel(item)].filter(Boolean).join(' · ')}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
