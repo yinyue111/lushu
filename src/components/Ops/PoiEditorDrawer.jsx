@@ -10,7 +10,7 @@ const REVIEW_STATUS_OPTIONS = [
   { value: 'approved', label: '已通过' },
   { value: 'rejected', label: '已驳回' }
 ];
-// 与 server.mjs POI_SOURCE_TYPES 保持一致。
+// 与 server/poi/catalog.mjs POI_SOURCE_TYPES 保持一致。
 const SOURCE_TYPE_OPTIONS = [
   { value: 'official', label: '官方来源' },
   { value: 'first-party', label: '一方实拍' },
@@ -21,7 +21,7 @@ const SOURCE_TYPE_OPTIONS = [
   { value: 'ai', label: 'AI 生成' },
   { value: 'fallback', label: '种子兜底' }
 ];
-// openHours/stay/audience 不是运营 POI 的顶层字段（见 server.mjs normalizeOperationalPoiRow），
+// openHours/stay/audience 不是运营 POI 的顶层字段（见 server/poi/catalog.mjs normalizeOperationalPoiRow），
 // 在结构化内容库中作为「事实」(field/value) 存储，这里提供快捷编辑入口。
 const QUICK_FACT_FIELDS = [
   { field: 'openHours', label: '开放时间' },
@@ -30,7 +30,7 @@ const QUICK_FACT_FIELDS = [
 ];
 
 // POI 单条查看/编辑抽屉：保存流程与批量导入一致——先 dry-run 校验拿 batchId/commitToken，
-// 确认后用同一份 content 幂等提交（见 server.mjs validatePoiBatch/commitPoiBatch）。
+// 确认后用同一份 content 幂等提交（见 server/poi/catalog.mjs validatePoiBatch/commitPoiBatch）。
 export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
   const dialogRef = useDialogFocus(Boolean(poi), onClose);
   const [form, setForm] = useState(() => buildInitialForm(poi));

@@ -4,7 +4,7 @@ import { getProductAnalytics } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, numberValue, textValue, useOpsResource } from './OpsShared';
 
 // OTA 商品点击看板：只读渲染 /api/product-analytics 聚合结果。
-// 服务端字段见 server.mjs buildProductAnalytics：ctrByProduct/byRoute/byProvider/byType/recentClicks。
+// 服务端字段见 server/analytics/dashboard.mjs buildProductAnalytics：ctrByProduct/byRoute/byProvider/byType/recentClicks。
 export default function ProductBoardPanel() {
   const analyticsResource = useOpsResource((signal) => getProductAnalytics(500, signal));
   const analytics = analyticsResource.data?.analytics ?? null;

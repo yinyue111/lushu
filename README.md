@@ -101,7 +101,23 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 
 ```text
 src/            React 前端与浏览器端业务逻辑
-server.mjs      服务入口（API、模型调用、可信分与本地存储）
+server.mjs      服务入口（启动检查、HTTP 监听、开发模式 Vite、优雅退出）
+server/         服务端模块
+  config/       环境变量与启动安全检查
+  lib/          纯工具函数
+  storage/      JSONL 存储（追加、反扫、行缓存、id 索引、投影）——将来接数据库的接口层
+  auth/         令牌、请求鉴权、画像与身份断言
+  http/         响应/安全头、限流、路由器、静态与分享落地页、地图瓦片
+  routes/       API 路由表（按领域拆分）
+  routebooks/   路书规范化、版本、写操作、公开视图
+  trust/        打卡规则、反馈聚合与可信分
+  poi/          可信 POI 目录、纠错与知识
+  geo/          坐标与地理编码
+  import/       攻略导入与 SSRF 防护
+  photos/       打卡照片（元数据剥离、EXIF 匹配）
+  ai/           模型运行时与生成 / OCR
+  analytics/    曝光、看板
+  content/      CMS 与商品配置
 scripts/        回归、冒烟和结构检查（scripts/lib 为测试共用工具）
 test/           node:test 单元 / 集成测试
 migrations/     PostgreSQL 基础迁移（尚未接入运行时）
@@ -111,7 +127,7 @@ public/assets/  本地演示素材
 ## 架构概览
 
 - **前端**：React 19 单页应用，`src/App.jsx` 负责视图切换；`src/lib/` 为浏览器端业务逻辑（离线打卡队列、本地存储、可信度展示、坐标工具）。
-- **服务端**：单进程 Node HTTP 服务，无框架。`/api/*` 由 API 路由处理；`/share/:id`、`/review/:id` 注入 og meta；其余请求在开发模式交给 Vite 中间件，生产模式托管 `dist/`。
+- **服务端**：单进程 Node HTTP 服务，无框架。`/api/*` 由 `server/routes/` 的路由表处理（按路径段精确匹配，`:id` 不跨 `/`）；`/share/:id`、`/review/:id` 注入 og meta；其余请求在开发模式交给 Vite 中间件，生产模式托管 `dist/`。
 - **存储**：`ROUTEBOOK_DATA_DIR` 下的追加式 JSONL（路书版本、打卡、点击、曝光、画像、纠错、回顾等），配置类为 JSON 文件，打卡照片存 `photos/`。多实例部署前需要接入 PostgreSQL。
 - **鉴权**：公开读 / profile token（`x-routebook-profile-id` + `x-routebook-profile-token`）/ 路书编辑令牌（`x-routebook-edit-token` 或请求体 `editToken`）/ 模型代理令牌（`x-routebook-token`）/ 运营管理员令牌（`x-routebook-admin-token`）。
 

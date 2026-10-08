@@ -23,7 +23,7 @@ export default function OpsOverview() {
     {
       label: '明确保存率',
       icon: FileText,
-      // saveRate 口径 = 已保存的生成路书 / 生成路书（见 server.mjs funnel.saveRate）。
+      // saveRate 口径 = 已保存的生成路书 / 生成路书（见 server/analytics/dashboard.mjs funnel.saveRate）。
       // 分子字段（savedGeneratedRoutebooks）落库前不展示分数，避免与百分比口径矛盾。
       value: rateValue(dashboardKnown, funnel?.saveRate),
       detail: dashboardKnown && hasValue(funnel?.savedGeneratedRoutebooks)

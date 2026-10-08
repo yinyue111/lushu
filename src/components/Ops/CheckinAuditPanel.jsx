@@ -3,7 +3,7 @@ import { Filter, RefreshCw, ShieldAlert } from 'lucide-react';
 import { checkinPhotoUrl, getCheckins } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
 
-// 与 server.mjs CHECKIN_MAX_REPORTED_ACCURACY_METERS 默认值保持一致；
+// 与 server/config/index.mjs CHECKIN_MAX_REPORTED_ACCURACY_METERS 默认值保持一致；
 // 仅用于列表侧的异常提示，不参与服务端判定。
 const ACCURACY_LIMIT_METERS = 500;
 
