@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { ErrorBoundary, PageLoadingFallback, RouteLoadFallback, StorageNoticeBanner, TripReminderBanner } from './components/Layout/AppFallbacks';
 import TopNav from './components/Layout/TopNav';
 import HomePage from './components/HomePage';
 import { checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
@@ -443,19 +444,7 @@ export default function App() {
             }}
           />
         )}
-        {storageNotice && !PUBLIC_VIEWS.has(view) && (
-          <div className="trip-reminder-banner" role="alert">
-            <div>
-              <strong>本地存储已满</strong>
-              <span>{storageNotice}</span>
-            </div>
-            <div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setStorageNotice('')}>
-                知道了
-              </button>
-            </div>
-          </div>
-        )}
+        {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
         <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
           <Suspense fallback={<PageLoadingFallback />}>
             {view === VIEWS.home && (
@@ -720,115 +709,4 @@ function routeLoadErrorMessage(error) {
   if (status === 403) return '没有权限查看这份路书，可能作者尚未公开。';
   if (status) return `路书加载失败（HTTP ${status}）：${error?.message || '服务端暂时不可用'}`;
   return '网络连接失败，请检查网络后重试。';
-}
-
-function RouteLoadFallback({ state, onBack, onRetry }) {
-  if (state.loading) {
-    return (
-      <div className="container page-enter" style={{ paddingTop: 24 }} aria-busy="true" aria-label="路书加载中">
-        <div className="skeleton-route-layout">
-          <div className="skeleton skeleton-map" />
-          <div className="skeleton-route-panel">
-            <div className="skeleton skeleton-line-lg" />
-            <div className="skeleton skeleton-line" />
-            <div className="skeleton skeleton-card" />
-            <div className="skeleton skeleton-card" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
-      <p className="text-body" style={{ color: 'var(--muted)' }}>
-        {state.error || '路书不存在或尚未保存'}
-      </p>
-      <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-        {onRetry && (
-          <button className="btn btn-primary" onClick={onRetry}>
-            重试
-          </button>
-        )}
-        <button className="btn btn-secondary" onClick={onBack}>
-          返回首页
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PageLoadingFallback() {
-  return (
-    <div className="container page-enter" style={{ paddingTop: 24 }} aria-busy="true" aria-label="页面加载中">
-      <div className="skeleton skeleton-hero" />
-      <div className="skeleton-card-grid">
-        <div className="skeleton skeleton-card" />
-        <div className="skeleton skeleton-card" />
-        <div className="skeleton skeleton-card" />
-      </div>
-    </div>
-  );
-}
-
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { error };
-  }
-
-  componentDidCatch(error, info) {
-    console.error('[routebook] render error', error, info);
-  }
-
-  render() {
-    if (!this.state.error) return this.props.children;
-    return (
-      <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
-        <p className="text-title">页面出现异常</p>
-        <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
-          本地数据未受影响，你可以刷新重试或返回首页。
-        </p>
-        <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>
-            刷新重试
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => {
-              this.setState({ error: null });
-              this.props.onReset?.();
-            }}
-          >
-            返回首页
-          </button>
-        </div>
-      </div>
-    );
-  }
-}
-
-function TripReminderBanner({ reminder, onOpen, onDismiss }) {
-  return (
-    <div className="trip-reminder-banner" role="status">
-      <div>
-        <strong>
-          {reminder.city || ''}
-          {reminder.title || '路书'} 今天出行
-        </strong>
-        <span>进入行中模式，按站点导航并完成有效打卡。</span>
-      </div>
-      <div>
-        <button className="btn btn-primary btn-sm" onClick={onOpen}>
-          进入行中
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={onDismiss}>
-          稍后
-        </button>
-      </div>
-    </div>
-  );
 }
