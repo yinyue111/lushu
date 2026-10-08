@@ -4,7 +4,7 @@ import { Chip } from '../ui/chip';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/menu';
 import { cn } from '../ui/cn';
 import { publishStatusLabel } from '../ui/labels';
-import { cityCover } from '../visual/theme';
+import { cityCover, heroImageProps } from '../visual/theme';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -34,7 +34,12 @@ export default function RouteHero({
   return (
     <section className="relative isolate overflow-hidden text-white">
       {cover ? (
-        <img src={cover} alt="" className="absolute inset-0 -z-20 size-full scale-[1.04] object-cover object-[center_62%]" fetchPriority="high" />
+        <img
+          {...heroImageProps(cover)}
+          alt=""
+          className="absolute inset-0 -z-20 size-full scale-[1.04] object-cover object-[center_62%]"
+          fetchPriority="high"
+        />
       ) : (
         <div className="absolute inset-0 -z-20 bg-[radial-gradient(120%_90%_at_10%_0%,#ff9a3c_0%,#e8553d_38%,#7c3aed_100%)]" aria-hidden="true">
           <MapPin className="absolute top-8 right-[8%] size-56 text-white/10" strokeWidth={1} />

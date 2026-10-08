@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Check, Heart, List, Map as MapIcon, Navigation } from 'lucide-react';
 import { recordExposure } from '../../lib/api';
 import { isNavigableCoordinate } from '../../lib/coordinates';
@@ -12,9 +12,6 @@ import { cn } from '../ui/cn';
 import { Toast } from '../ui/toast';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { dayNumber, dayTheme } from '../visual/theme';
-import SharePreview from './SharePreview';
-import PoiDetail from './PoiDetail';
-import StopEditor from './StopEditor';
 import RouteMap, { dayDistanceKm } from './RouteMap';
 import RouteHero, { MoreMenu } from './RouteHero';
 import RouteStats from './RouteStats';
@@ -23,6 +20,11 @@ import StopList, { MiniStopCard } from './StopList';
 import { EditToolbar, RoutePreflight, RouteProducts } from './RoutePreflight';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
+
+// Overlays only load on demand so they stay off the route page's critical path.
+const SharePreview = lazy(() => import('./SharePreview'));
+const PoiDetail = lazy(() => import('./PoiDetail'));
+const StopEditor = lazy(() => import('./StopEditor'));
 
 export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onStartTrip, onBack }) {
   const profile = useMemo(() => getProfile(), []);
@@ -383,19 +385,21 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
       <Toast message={shareState} onDismiss={dismissToast} className="bottom-[calc(150px+env(safe-area-inset-bottom))] lg:bottom-8" />
 
-      {showShare && (
-        <SharePreview routebook={routebook} onClose={() => setShowShare(false)} onShared={actions.handleShared} onConflictDraftSaved={() => onSaved?.()} />
-      )}
-      {poiDetailStop && <PoiDetail stop={poiDetailStop} routebook={routebook} onClose={() => setPoiDetailStop(null)} />}
-      {editingStop && (
-        <StopEditor
-          stop={editingStop.stop}
-          isNew={Boolean(editingStop.isNew)}
-          routebook={routebook}
-          onClose={() => setEditingStop(null)}
-          onSave={actions.upsertStop}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showShare && (
+          <SharePreview routebook={routebook} onClose={() => setShowShare(false)} onShared={actions.handleShared} onConflictDraftSaved={() => onSaved?.()} />
+        )}
+        {poiDetailStop && <PoiDetail stop={poiDetailStop} routebook={routebook} onClose={() => setPoiDetailStop(null)} />}
+        {editingStop && (
+          <StopEditor
+            stop={editingStop.stop}
+            isNew={Boolean(editingStop.isNew)}
+            routebook={routebook}
+            onClose={() => setEditingStop(null)}
+            onSave={actions.upsertStop}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

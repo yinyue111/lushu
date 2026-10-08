@@ -29,6 +29,22 @@ const CITY_GALLERY = {
   苏州: ['/assets/suzhou-garden.webp', '/assets/suzhou-water-town.webp', '/assets/old-street.webp', '/assets/local-food.webp']
 };
 
+const ASSET_RE = /^\/assets\/([\w-]+\.webp)(\?.*)?$/;
+
+/** 640px variant of a bundled photo (cards, thumbnails); passthrough for anything else. */
+export function smallImage(url) {
+  const m = ASSET_RE.exec(url || '');
+  return m ? `/assets/sm/${m[1]}${m[2] || ''}` : url;
+}
+
+/** Responsive <img> props for a full-bleed bundled photo (640 / 1024 / original). */
+export function heroImageProps(url) {
+  const m = ASSET_RE.exec(url || '');
+  if (!m) return { src: url };
+  const q = m[2] || '';
+  return { src: url, srcSet: `/assets/sm/${m[1]}${q} 640w, /assets/md/${m[1]}${q} 1024w, ${url} 1400w`, sizes: '100vw' };
+}
+
 export function cityCover(city) {
   const story = cityStories[city];
   if (story?.image) return story.image;

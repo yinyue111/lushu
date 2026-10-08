@@ -7,7 +7,7 @@ import { inputClass } from './ui/field';
 import { RouteCard } from './cards/RouteCard';
 import { SectionHeading } from './ui/section-heading';
 import { CityBackdrop } from './visual/CityBackdrop';
-import { hasCityPhotos } from './visual/theme';
+import { hasCityPhotos, smallImage } from './visual/theme';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, trustedCities } from '../lib/content';
 import { getCmsConfig } from '../lib/api';
 import { getProfile } from '../lib/profile';
@@ -329,7 +329,12 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 key={`${photo.city}-${photo.poi}-${photo.title}`}
                 className="relative isolate aspect-[4/5] w-56 shrink-0 snap-start overflow-hidden rounded-card lg:aspect-[4/3] lg:w-auto"
               >
-                <img src={photo.image} alt={`${photo.poi} ${photo.title}`} loading="lazy" className="absolute inset-0 -z-10 size-full object-cover" />
+                <img
+                  src={smallImage(photo.image)}
+                  alt={`${photo.poi} ${photo.title}`}
+                  loading="lazy"
+                  className="absolute inset-0 -z-10 size-full object-cover"
+                />
                 <figcaption className="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,.7))] p-3 pt-10">
                   <strong className="block text-base">{photo.title}</strong>
                   <span className="flex items-center gap-1 text-xs text-white/85">

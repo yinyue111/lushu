@@ -1,6 +1,6 @@
 import { MapPin, Route as RouteIcon } from 'lucide-react';
 import { cn } from '../ui/cn';
-import { cityCover, dayTheme } from '../visual/theme';
+import { cityCover, dayTheme, smallImage } from '../visual/theme';
 import { TrustChip } from './TrustChip';
 
 /**
@@ -29,7 +29,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
       >
         {cover ? (
           <img
-            src={cover}
+            src={smallImage(cover)}
             alt=""
             loading="lazy"
             className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"

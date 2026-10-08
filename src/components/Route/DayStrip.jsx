@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { ChevronLeft, ChevronRight, Route as RouteIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
-import { dayCover } from '../visual/theme';
+import { dayCover, smallImage } from '../visual/theme';
 
 /** "每天怎么玩" — horizontally scrolling day cards acting as day tabs. */
 export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
@@ -49,7 +49,7 @@ export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
               style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${entry.theme.from}, ${entry.theme.to})` }}
             >
               {cover ? (
-                <img src={cover} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />
+                <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />
               ) : (
                 <RouteIcon className="absolute -top-2 -right-3 -z-10 size-28 text-white/15" strokeWidth={1.5} aria-hidden="true" />
               )}

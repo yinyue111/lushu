@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import { SectionHeading } from '../ui/section-heading';
 import { RouteCard } from '../cards/RouteCard';
 import { CityBackdrop } from '../visual/CityBackdrop';
-import { hasCityPhotos } from '../visual/theme';
+import { hasCityPhotos, smallImage } from '../visual/theme';
 
 /** @param {Record<string, any>} props */
 export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, onOpenDestination }) {
@@ -160,7 +160,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               {photos.map((photo) => (
                 <figure key={`${photo.poi}-${photo.title}`} className="group relative isolate aspect-[4/3] overflow-hidden rounded-card bg-canvas">
                   <img
-                    src={photo.image}
+                    src={smallImage(photo.image)}
                     alt={`${photo.poi} ${photo.title}`}
                     loading="lazy"
                     className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
