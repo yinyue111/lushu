@@ -318,7 +318,12 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               <MapPin /> 打开{city}专题
             </Button>
           </div>
-          <div className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 lg:mx-0 lg:grid lg:grid-cols-2 lg:px-0" aria-label={`${city} 美图灵感`}>
+          <div
+            tabIndex={0}
+            role="region"
+            className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 lg:mx-0 lg:grid lg:grid-cols-2 lg:px-0"
+            aria-label={`${city} 美图灵感`}
+          >
             {(hasCityPhotos(city) ? cityPhotos : []).slice(0, 4).map((photo) => (
               <figure
                 key={`${photo.city}-${photo.poi}-${photo.title}`}

@@ -109,7 +109,7 @@ export default function OpsOverview() {
         {dashboardResource.status === 'loading' ? (
           <p className="text-caption">正在读取活动记录...</p>
         ) : dashboard?.recentActivity?.length ? (
-          <div className="ops-table-scroll">
+          <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
             <table className="ops-data-table">
               <thead>
                 <tr>

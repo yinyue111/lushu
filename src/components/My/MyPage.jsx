@@ -222,12 +222,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         </p>
       )}
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={Route} tone="bg-primary-soft text-primary-strong" label="我的路书" value={books.length} />
         <Stat icon={Camera} tone="bg-success-soft text-success-ink" label="我的打卡" value={checkins.length} />
         <Stat icon={Share2} tone="bg-sky-soft text-sky-ink" label="我的分享" value={sharedBooks.length} />
         <Stat icon={Ticket} tone="bg-lemon-soft text-lemon-ink" label="商品点击" value={clicks.length} />
-      </dl>
+      </div>
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mt-8">
         <Tabs.List aria-label="我的资产分类" className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
@@ -474,8 +474,8 @@ function Stat({ icon: Icon, tone, label, value }) {
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <div>
-        <dt className="text-xs font-semibold text-muted">{label}</dt>
-        <dd className="num text-2xl leading-tight font-black">{value}</dd>
+        <p className="text-xs font-semibold text-muted">{label}</p>
+        <p className="num text-2xl leading-tight font-black">{value}</p>
       </div>
     </div>
   );

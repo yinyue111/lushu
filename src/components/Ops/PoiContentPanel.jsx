@@ -128,7 +128,7 @@ export default function PoiContentPanel() {
           />
         </div>
         {coverage.cities.length ? (
-          <div className="ops-table-scroll">
+          <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
             <table className="ops-data-table ops-coverage-table">
               <thead>
                 <tr>
@@ -230,7 +230,7 @@ export default function PoiContentPanel() {
         </div>
         <ResourceNotice resource={poisResource} label="POI 库存" />
         {pois.length ? (
-          <div className="ops-table-scroll">
+          <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
             <table className="ops-data-table">
               <thead>
                 <tr>
@@ -451,7 +451,7 @@ function ImportSummary({ summary }) {
 
 function ValidationPreview({ rows }) {
   return (
-    <div className="ops-table-scroll">
+    <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
       <table className="ops-data-table">
         <thead>
           <tr>

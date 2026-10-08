@@ -15,9 +15,10 @@ export default function RouteStats({ routebook, trust, trustState }) {
 
   return (
     <div
+      tabIndex={0}
       className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-[1.25fr_1fr_1fr_1fr] sm:gap-3 sm:overflow-visible sm:px-0"
       aria-label="路线可信度"
-      role="group"
+      role="region"
     >
       <Tile className="min-w-[176px] bg-primary-soft text-primary-strong" icon={ShieldCheck}>
         {trustState.tone === 'verified' ? (

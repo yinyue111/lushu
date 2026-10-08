@@ -82,7 +82,7 @@ export default function RoutebookVersionsPanel() {
           </button>
         </div>
         <ResourceNotice resource={routebooksResource} label="持久化路书" />
-        <div className="ops-table-scroll">
+        <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
           <table className="ops-data-table ops-route-table">
             <thead>
               <tr>

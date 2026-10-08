@@ -153,7 +153,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         {!canNavigate && <Pill tone="warn">定位待复核</Pill>}
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-2.5">
+      <div className="mt-4 grid grid-cols-2 gap-2.5">
         <InfoTile icon={Clock} iconClass="text-sky-ink bg-sky-soft" label="建议停留" value={stop.stay || '—'} />
         <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="预计费用" value={stop.cost || '—'} />
         <InfoTile
@@ -164,7 +164,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
           hint={!canNavigate ? '仅展示模糊范围，不建议直接导航' : ''}
         />
         <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待真实验证'} />
-      </dl>
+      </div>
 
       <Section title="真实人群与排队">
         {realFeedback.hasData ? (
@@ -382,9 +382,9 @@ function InfoTile({ icon: Icon, iconClass, label, value, hint }) {
         <Icon className="size-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <dt className="text-xs font-semibold text-muted">{label}</dt>
-        <dd className="num text-sm font-extrabold break-words">{value}</dd>
-        {hint && <dd className="mt-0.5 text-xs text-muted">{hint}</dd>}
+        <p className="text-xs font-semibold text-muted">{label}</p>
+        <p className="num text-sm font-extrabold break-words">{value}</p>
+        {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
       </div>
     </div>
   );

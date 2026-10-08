@@ -256,7 +256,7 @@ export function StepGuide(props) {
                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"
-                    className="size-5 shrink-0 accent-[#c7432d]"
+                    className="size-5 shrink-0 accent-[#bd3f2a]"
                     checked={place.included}
                     onChange={(event) => updateCandidate(index, { included: event.target.checked })}
                   />

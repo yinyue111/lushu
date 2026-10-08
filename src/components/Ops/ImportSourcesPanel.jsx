@@ -50,7 +50,7 @@ export default function ImportSourcesPanel() {
         </div>
         <ResourceNotice resource={importsResource} label="导入分析记录" />
         {visibleRows.length ? (
-          <div className="ops-table-scroll">
+          <div className="ops-table-scroll" tabIndex={0} role="region" aria-label="可横向滚动的数据表">
             <table className="ops-data-table">
               <thead>
                 <tr>

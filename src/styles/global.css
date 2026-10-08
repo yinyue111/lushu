@@ -28,7 +28,7 @@
   /* Accent: --blue / --green / --orange / --red keep their names for the legacy
      stylesheet but now resolve to B's palette. */
   --primary: #e8553d;
-  --primary-strong: #c7432d;
+  --primary-strong: #bd3f2a;
   --primary-ink: #b23a26;
   --primary-bg: #fdede9;
   --blue: #1666c1;
