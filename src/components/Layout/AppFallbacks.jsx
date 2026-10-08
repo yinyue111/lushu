@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, CalendarClock, HardDrive, MapPinOff, RotateCcw } from 'lucide-react';
 import { Button } from '../ui/button';
+import { EmptyArt } from '../visual/EmptyArt';
 
 /** @param {Record<string, any>} props */
 function Skeleton({ className }) {
@@ -8,13 +9,16 @@ function Skeleton({ className }) {
 }
 
 /** @param {Record<string, any>} props */
-function CenteredMessage({ icon: Icon, title, text, children }) {
+function CenteredMessage({ icon: Icon, title, text, children, art = false }) {
+  const bubble = (
+    <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
+      <Icon className="size-6" aria-hidden="true" />
+    </span>
+  );
   return (
     <div className="page-enter grid min-h-[60vh] place-items-center px-4">
       <div className="max-w-sm rounded-panel border border-line bg-white p-6 text-center shadow-card">
-        <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
-          <Icon className="size-6" aria-hidden="true" />
-        </span>
+        {art ? <EmptyArt className="w-52" fallback={bubble} /> : bubble}
         {title && <h1 className="mt-3 text-xl font-extrabold">{title}</h1>}
         <p className="mt-1 text-sm text-muted">{text}</p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">{children}</div>
@@ -43,7 +47,7 @@ export function RouteLoadFallback({ state, onBack, onRetry }) {
     );
   }
   return (
-    <CenteredMessage icon={MapPinOff} title="这份路书打不开" text={state.error || '路书不存在或还没保存'}>
+    <CenteredMessage icon={MapPinOff} art title="这份路书打不开" text={state.error || '路书不存在或还没保存'}>
       {onRetry && (
         <Button variant="primary" onClick={onRetry}>
           <RotateCcw /> 重试

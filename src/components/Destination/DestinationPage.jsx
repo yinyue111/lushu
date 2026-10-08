@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { SectionHeading } from '../ui/section-heading';
 import { RouteCard } from '../cards/RouteCard';
 import { CityBackdrop } from '../visual/CityBackdrop';
+import { EmptyArt } from '../visual/EmptyArt';
 import { hasCityPhotos, smallImage } from '../visual/theme';
 
 /** @param {Record<string, any>} props */
@@ -125,9 +126,14 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
             </div>
           ) : (
             <div className="rounded-panel border border-dashed border-line-strong bg-white p-6 text-center lg:p-10">
-              <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary-soft text-primary-strong">
-                <MapPin className="size-7" aria-hidden="true" />
-              </span>
+              <EmptyArt
+                className="w-56"
+                fallback={
+                  <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary-soft text-primary-strong">
+                    <MapPin className="size-7" aria-hidden="true" />
+                  </span>
+                }
+              />
               <h3 className="mt-4 text-xl font-extrabold">{city} 还没有公开精选路线</h3>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">
                 这里还缺真实执行数据。粘贴小红书、抖音、X 或公众号攻略链接，先生成你的个人路书；出行打卡后，它会变成更可信的路线。

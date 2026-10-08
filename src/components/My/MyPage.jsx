@@ -10,6 +10,7 @@ import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
 import { RouteCard } from '../cards/RouteCard';
+import { EmptyArt } from '../visual/EmptyArt';
 import { MyAccountPanel } from './MyAccountPanel';
 
 /** @param {Record<string, any>} props */
@@ -286,6 +287,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             ) : (
               <Empty
                 icon={Route}
+                art
                 text="还没有路书。粘贴一条攻略链接，先生成第一条吧。"
                 action={
                   <Button variant="primary" size="sm" onClick={() => onNewBook({})}>
@@ -494,12 +496,15 @@ function SidePanel({ title, count, children }) {
 }
 
 /** @param {Record<string, any>} props */
-function Empty({ icon: Icon, text, action }) {
+function Empty({ icon: Icon, text, action, art = false }) {
+  const bubble = (
+    <span className="grid size-12 place-items-center rounded-full bg-canvas text-muted">
+      <Icon className="size-6" aria-hidden="true" />
+    </span>
+  );
   return (
     <div className="flex flex-col items-center gap-3 rounded-panel border border-dashed border-line-strong bg-white p-8 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-canvas text-muted">
-        <Icon className="size-6" aria-hidden="true" />
-      </span>
+      {art ? <EmptyArt fallback={bubble} /> : bubble}
       <p className="max-w-sm text-sm text-muted">{text}</p>
       {action}
     </div>

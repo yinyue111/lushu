@@ -64,18 +64,57 @@ export function hasCityPhotos(city) {
 
 export const GENERIC_COVER = defaultCityImage;
 
-// Category inference for stops without photos: gradient tile + lucide icon.
+// Generated illustrations (see docs/assets.md). They stand for a *kind* of place and
+// are never shown as a photo of a specific stop.
+const illustration = (name) => `/assets/illus-${name}.webp`;
+export const CITY_ILLUSTRATION = illustration('city-generic');
+export const EMPTY_ILLUSTRATION = illustration('empty-state');
+
+// Category inference for stops without photos: category illustration, with a
+// gradient tile + lucide icon underneath as the last resort.
 const CATEGORIES = [
   { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市/, icon: Moon, from: '#2b3a67', to: '#7c5cdb' },
-  { id: 'museum', label: '展馆', test: /馆|展|博物|美术|书店|剧场|艺术|画廊/, icon: Palette, from: '#7c5cdb', to: '#c07cf0' },
-  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b' },
-  { id: 'food', label: '吃喝', test: /餐|饭|小吃|面|美食|食堂|酒楼|火锅|夜宵/, icon: Utensils, from: '#e8553d', to: '#ffb04a' },
-  { id: 'temple', label: '寺庙', test: /寺|庙|塔|教堂|道观|祠/, icon: Landmark, from: '#c7432d', to: '#ffc93c' },
-  { id: 'water', label: '湖河', test: /湖|江|河|溪|湿地|水|桥|堤|港|海|滩/, icon: Waves, from: '#1f7ae0', to: '#3fc1f0' },
-  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a' },
-  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d' },
+  {
+    id: 'museum',
+    label: '展馆',
+    test: /馆|展|博物|美术|书店|剧场|艺术|画廊/,
+    icon: Palette,
+    from: '#7c5cdb',
+    to: '#c07cf0',
+    illustration: illustration('cat-museum')
+  },
+  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', illustration: illustration('cat-tea') },
+  {
+    id: 'food',
+    label: '吃喝',
+    test: /餐|饭|小吃|面|美食|食堂|酒楼|火锅|夜宵/,
+    icon: Utensils,
+    from: '#e8553d',
+    to: '#ffb04a',
+    illustration: illustration('cat-food')
+  },
+  { id: 'temple', label: '寺庙', test: /寺|庙|塔|教堂|道观|祠/, icon: Landmark, from: '#c7432d', to: '#ffc93c', illustration: illustration('cat-temple') },
+  {
+    id: 'water',
+    label: '湖河',
+    test: /湖|江|河|溪|湿地|水|桥|堤|港|海|滩/,
+    icon: Waves,
+    from: '#1f7ae0',
+    to: '#3fc1f0',
+    illustration: illustration('cat-water')
+  },
+  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', illustration: illustration('cat-mountain') },
+  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', illustration: illustration('cat-garden') },
   { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c' },
-  { id: 'street', label: '街巷', test: /街|路|巷|弄|里|坊|古镇|老街/, icon: Building2, from: '#5c6370', to: '#a3a9b5' }
+  {
+    id: 'street',
+    label: '街巷',
+    test: /街|路|巷|弄|里|坊|古镇|老街/,
+    icon: Building2,
+    from: '#5c6370',
+    to: '#a3a9b5',
+    illustration: illustration('cat-street')
+  }
 ];
 const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0' };
 

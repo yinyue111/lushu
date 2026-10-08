@@ -9,7 +9,8 @@ import { Sheet } from '../ui/sheet';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { TrustChip } from '../cards/TrustChip';
-import { cityCover, dayTheme, smallImage } from '../visual/theme';
+import { CITY_ILLUSTRATION, cityCover, dayTheme, smallImage } from '../visual/theme';
+import { Illustration } from '../visual/Illustration';
 
 /** @param {Record<string, any>} props */
 export default function SharePreview({ routebook, onClose, onShared, onConflictDraftSaved }) {
@@ -144,7 +145,11 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
     <Sheet title="分享路书" description="公开页只展示路线结构与可信状态，不搬运第三方攻略原文。" onClose={onClose} wide>
       <article className="overflow-hidden rounded-card border border-line shadow-card">
         <header className="relative isolate p-5 text-white" style={cover ? undefined : { backgroundImage: 'linear-gradient(135deg,#e8553d,#7c5cdb)' }}>
-          {cover && <img src={smallImage(cover)} alt="" className="absolute inset-0 -z-20 size-full object-cover" />}
+          {cover ? (
+            <img src={smallImage(cover)} alt="" className="absolute inset-0 -z-20 size-full object-cover" />
+          ) : (
+            <Illustration src={CITY_ILLUSTRATION} sizes="720px" className="absolute inset-0 -z-20 size-full object-cover" />
+          )}
           <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2),rgba(10,12,16,.78))]" aria-hidden="true" />
           <TrustChip routebook={routebook} curated={isCuratedRoute} className="bg-white/95" />
           <h3 className="mt-3 text-2xl leading-tight font-black tracking-tight">{routebook.title}</h3>

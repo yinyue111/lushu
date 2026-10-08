@@ -1,6 +1,7 @@
 import { MapPin, Route as RouteIcon } from 'lucide-react';
 import { cn } from '../ui/cn';
-import { cityCover, dayTheme, smallImage } from '../visual/theme';
+import { CITY_ILLUSTRATION, cityCover, dayTheme, smallImage } from '../visual/theme';
+import { Illustration } from '../visual/Illustration';
 import { TrustChip } from './TrustChip';
 
 /**
@@ -35,7 +36,10 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
             className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <RouteIcon className="absolute -right-4 -bottom-4 -z-10 size-28 text-white/20" strokeWidth={1.5} aria-hidden="true" />
+          <>
+            <RouteIcon className="absolute -right-4 -bottom-4 -z-20 size-28 text-white/20" strokeWidth={1.5} aria-hidden="true" />
+            <Illustration src={CITY_ILLUSTRATION} sizes="(min-width: 1024px) 380px, 90vw" className="absolute inset-0 -z-10 size-full object-cover" />
+          </>
         )}
         {layout === 'tall' && (
           <span className="absolute top-3 left-3">

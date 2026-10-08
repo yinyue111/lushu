@@ -5,6 +5,7 @@ import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
 import { RouteCard } from '../cards/RouteCard';
+import { EmptyArt } from '../visual/EmptyArt';
 import { SectionHeading } from '../ui/section-heading';
 
 /** @param {Record<string, any>} props */
@@ -127,7 +128,10 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
             ))}
           </div>
         ) : (
-          <p className="rounded-panel border border-dashed border-line-strong bg-white p-6 text-center text-sm text-muted">这位达人还没有公开路线。</p>
+          <div className="rounded-panel border border-dashed border-line-strong bg-white p-6 text-center">
+            <EmptyArt />
+            <p className="mt-2 text-sm text-muted">这位达人还没有公开路线。</p>
+          </div>
         )}
       </main>
     </div>
