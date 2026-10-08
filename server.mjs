@@ -13,6 +13,7 @@ import { curatedRoutes, curatedRouteToRoutebook, cityStories, defaultCityImage, 
 import { envFlag, envNumber } from './server/config/env.mjs';
 import { evaluateStartupSafety, resolveProfileIdSecret } from './server/config/startup-checks.mjs';
 import { DEFAULT_MODEL, createModelRuntimeLoader, redactBaseUrl } from './server/ai/runtime.mjs';
+import { createNonceStore } from './server/auth/nonce-store.mjs';
 
 const PORT = envNumber('PORT', 5173, { min: 0, max: 65535 });
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -39,6 +40,7 @@ const CHECKIN_PHOTO_LOG_PATH = join(DATA_DIR, 'checkin-photos.jsonl');
 const CHECKIN_PHOTO_DIR = join(DATA_DIR, 'photos');
 const CMS_CONFIG_PATH = join(DATA_DIR, 'cms-config.json');
 const PRODUCT_CONFIG_PATH = join(DATA_DIR, 'product-config.json');
+const IDENTITY_NONCE_LOG_PATH = join(DATA_DIR, 'identity-nonces.jsonl');
 const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
 const CODEX_CONFIG_PATH = process.env.CODEX_CONFIG_PATH ?? join(CODEX_HOME, 'config.toml');
 const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH ?? join(CODEX_HOME, 'auth.json');
@@ -658,6 +660,8 @@ function hasProfileIdentityCandidate(input = {}) {
   return /^1\d{10}$/.test(phone) || Boolean(wechatOpenId && String(input?.type ?? input?.provider ?? '').includes('wechat'));
 }
 
+const IDENTITY_ASSERTION_MAX_SKEW_MS = 10 * 60 * 1000;
+
 function verifiedProfileIdentity(input = {}) {
   const proof = input?.proof && typeof input.proof === 'object' ? input.proof : input;
   const phone = String(input?.phone ?? input?.mobile ?? proof?.phone ?? proof?.subject ?? '').replace(/\D/g, '');
@@ -674,12 +678,32 @@ function verifiedProfileIdentity(input = {}) {
   const signature = String(proof?.signature ?? proof?.identitySignature ?? '').trim().toLowerCase();
   const issuedAtMs = Date.parse(issuedAt);
   if (!issuedAt || !nonce || !signature || !Number.isFinite(issuedAtMs)) return null;
-  if (Math.abs(Date.now() - issuedAtMs) > 10 * 60 * 1000) return null;
+  if (Math.abs(Date.now() - issuedAtMs) > IDENTITY_ASSERTION_MAX_SKEW_MS) return null;
 
   const payload = `${APP_ID}:${type}:${subject}:${issuedAt}:${nonce}`;
   const expected = createHmac('sha256', PROFILE_IDENTITY_ASSERTION_SECRET).update(payload).digest('hex');
   if (!safeEqualHex(signature, expected)) return null;
-  return { type, subject };
+  return {
+    type,
+    subject,
+    // M1: single-use key; the assertion itself expires 10 minutes after issuedAt.
+    nonceKey: createHash('sha256').update(`${type}:${subject}:${nonce}`).digest('hex'),
+    expiresAt: issuedAtMs + IDENTITY_ASSERTION_MAX_SKEW_MS
+  };
+}
+
+const identityNonceStore = createNonceStore({
+  load: async () => readJsonLines(IDENTITY_NONCE_LOG_PATH, 100000),
+  persist: async (record) => appendJsonLine(IDENTITY_NONCE_LOG_PATH, { ...record, createdAt: new Date().toISOString() })
+});
+
+// M1: a verified identity assertion may bind/recover a profile only once.
+async function consumeIdentityAssertion(input = {}) {
+  const assertion = verifiedProfileIdentity(input?.identity ?? input);
+  if (!assertion) return;
+  if (!(await identityNonceStore.consume(assertion.nonceKey, assertion.expiresAt))) {
+    throw createHttpError('身份断言已被使用，请重新登录获取新的断言', 409, 'IDENTITY_ASSERTION_REPLAYED');
+  }
 }
 
 function safeEqualHex(a, b) {
@@ -727,6 +751,7 @@ async function buildStoredProfile(input = {}) {
   const requestedToken = sanitizeEditToken(input?.profileAccessToken);
   const requestedId = normalizeProfileId(input?.id || input?.profileId);
   let normalizedProfile = normalizeProfile(input);
+  if (normalizedProfile.identityBound) await consumeIdentityAssertion(input);
   const shouldIssueServerLocalProfile = !normalizedProfile.identityBound &&
     !requestedToken &&
     (!requestedId || requestedId === 'anonymous' || !(await getSavedProfile(requestedId)));

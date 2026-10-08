@@ -93,7 +93,9 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 2. 设置 `PROFILE_ID_SECRET=<该令牌的当前值>` 并重启，告警消失，已有 profile ID / token 全部继续有效。
 3. 之后即可独立轮换 `ROUTEBOOK_ADMIN_TOKEN` / `ROUTEBOOK_API_TOKEN`。**不要**更换 `PROFILE_ID_SECRET` 本身，否则已有 profile token 需要用户重新绑定。
 
-全新部署直接设置一个随机的 `PROFILE_ID_SECRET` 即可。开发模式未设置任何令牌时使用公开的默认值，仅适合本机。
+全新部署直接设置一个随机的 `PROFILE_ID_SECRET` 即可。
+
+身份断言（`PROFILE_IDENTITY_ASSERTION_SECRET` 签名的手机号 / 微信断言）中的 `nonce` 只能使用一次：重复提交返回 `409 IDENTITY_ASSERTION_REPLAYED`，已用 nonce 记录在 `identity-nonces.jsonl`（重启后仍生效）。登录后端每次需签发新的 nonce。开发模式未设置任何令牌时使用公开的默认值，仅适合本机。
 
 ## 目录
 
