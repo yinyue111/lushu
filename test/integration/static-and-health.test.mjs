@@ -22,8 +22,12 @@ function rawGet(baseUrl, path, headers = {}, method = 'GET') {
 }
 
 let server;
-before(async () => { server = await startServer(); });
-after(async () => { await server?.stop(); });
+before(async () => {
+  server = await startServer();
+});
+after(async () => {
+  await server?.stop();
+});
 
 test('L5: production /api/health hides provider details from anonymous callers', async () => {
   const anonymous = await fetchJson(`${server.baseUrl}/api/health`);

@@ -15,7 +15,7 @@ function applyRoutebookVersionRow(byId, row) {
   if (!id) return;
   const currentVersion = byId.get(id) ?? 0;
   const explicitVersion = positiveInteger(row?.version);
-  byId.set(id, Math.max(currentVersion, explicitVersion ?? (currentVersion + 1)));
+  byId.set(id, Math.max(currentVersion, explicitVersion ?? currentVersion + 1));
 }
 
 async function noteRoutebookVersionAppend(payload) {
@@ -39,7 +39,7 @@ export async function listRoutebookVersionRows(publicId) {
   const versions = [];
   rows.forEach((row, index) => {
     const explicitVersion = positiveInteger(row?.version);
-    const version = explicitVersion ?? (currentVersion + 1);
+    const version = explicitVersion ?? currentVersion + 1;
     currentVersion = Math.max(currentVersion, version);
     const parentVersion = positiveInteger(row?.parentVersion) ?? (version > 1 ? version - 1 : null);
     const normalized = {
@@ -171,8 +171,8 @@ export async function listRoutebookAudits(publicId) {
       if (sanitizePublicId(audit?.routebookId) !== routebookId) return;
       auditsByVersionAndEvent.set(`${positiveInteger(audit?.version, 1)}:${truncateString(audit?.event, 40)}`, audit);
     });
-  return [...auditsByVersionAndEvent.values()].sort((left, right) =>
-    positiveInteger(left?.version, 1) - positiveInteger(right?.version, 1) ||
-    String(left?.createdAt ?? '').localeCompare(String(right?.createdAt ?? ''))
+  return [...auditsByVersionAndEvent.values()].sort(
+    (left, right) =>
+      positiveInteger(left?.version, 1) - positiveInteger(right?.version, 1) || String(left?.createdAt ?? '').localeCompare(String(right?.createdAt ?? ''))
   );
 }

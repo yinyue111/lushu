@@ -18,10 +18,11 @@ export default function RoutebookVersionsPanel() {
   const [selectedId, setSelectedId] = useState('');
   const [rowStates, setRowStates] = useState({});
   const selectedRoute = persistedRoutes.find((route) => routeId(route) === selectedId) ?? null;
-  const versionsResource = useOpsResource(
-    (signal) => getRoutebookVersions(selectedId, signal),
-    { enabled: Boolean(selectedId), dependencies: [selectedId], isEmpty: (data) => normalizeTimeline(data).length === 0 }
-  );
+  const versionsResource = useOpsResource((signal) => getRoutebookVersions(selectedId, signal), {
+    enabled: Boolean(selectedId),
+    dependencies: [selectedId],
+    isEmpty: (data) => normalizeTimeline(data).length === 0
+  });
   const versions = normalizeTimeline(versionsResource.data);
 
   useEffect(() => {
@@ -82,7 +83,16 @@ export default function RoutebookVersionsPanel() {
         <ResourceNotice resource={routebooksResource} label="持久化路书" />
         <div className="ops-table-scroll">
           <table className="ops-data-table ops-route-table">
-            <thead><tr><th>城市</th><th>路线</th><th>版本</th><th>状态</th><th>更新时间</th><th>审计</th></tr></thead>
+            <thead>
+              <tr>
+                <th>城市</th>
+                <th>路线</th>
+                <th>版本</th>
+                <th>状态</th>
+                <th>更新时间</th>
+                <th>审计</th>
+              </tr>
+            </thead>
             <tbody>
               {persistedRoutes.map((routebook) => {
                 const id = routeId(routebook);
@@ -91,12 +101,27 @@ export default function RoutebookVersionsPanel() {
                   <React.Fragment key={id}>
                     <tr className={selectedId === id ? 'is-selected' : ''}>
                       <td>{textValue(routebook.city)}</td>
-                      <td><strong>{textValue(routebook.title)}</strong><small>{routebook.creator?.name || '用户路书'} · {routebook.sourceAuthorization || 'user-generated'}</small></td>
+                      <td>
+                        <strong>{textValue(routebook.title)}</strong>
+                        <small>
+                          {routebook.creator?.name || '用户路书'} · {routebook.sourceAuthorization || 'user-generated'}
+                        </small>
+                      </td>
                       <td>{formatVersion(routebook, selectedId === id ? versionsResource.data?.currentVersion : null)}</td>
                       <td>
                         <label>
-                          <select aria-label={`${routebook.title} 发布状态`} className="input-field ops-status-select" value={routebook.publishStatus || 'draft'} onChange={(event) => changeStatus(routebook, event.target.value)} disabled={state.status === 'loading'}>
-                            {ROUTE_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                          <select
+                            aria-label={`${routebook.title} 发布状态`}
+                            className="input-field ops-status-select"
+                            value={routebook.publishStatus || 'draft'}
+                            onChange={(event) => changeStatus(routebook, event.target.value)}
+                            disabled={state.status === 'loading'}
+                          >
+                            {ROUTE_STATUSES.map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
                           </select>
                         </label>
                       </td>
@@ -110,7 +135,9 @@ export default function RoutebookVersionsPanel() {
                     {(state.status === 'error' || state.message) && (
                       <tr className="ops-table-message-row">
                         <td colSpan={6} role="status" aria-live="polite">
-                          {state.status === 'error' && <span className="ops-error-text">{state.message || `状态更新失败：${formatApiError(state.error)}`}</span>}
+                          {state.status === 'error' && (
+                            <span className="ops-error-text">{state.message || `状态更新失败：${formatApiError(state.error)}`}</span>
+                          )}
                           {state.status === 'ready' && state.message}
                         </td>
                       </tr>
@@ -121,11 +148,20 @@ export default function RoutebookVersionsPanel() {
               {builtInRoutes.map((routebook) => (
                 <tr key={`built-in-${routebook.id}`}>
                   <td>{routebook.city}</td>
-                  <td><strong>{routebook.title}</strong><small><Code2 size={11} /> 代码内置 · 只读</small></td>
+                  <td>
+                    <strong>{routebook.title}</strong>
+                    <small>
+                      <Code2 size={11} /> 代码内置 · 只读
+                    </small>
+                  </td>
                   <td>内置</td>
-                  <td><span className="badge badge-green">精选</span></td>
+                  <td>
+                    <span className="badge badge-green">精选</span>
+                  </td>
                   <td>—</td>
-                  <td><span className="badge badge-blue">只读</span></td>
+                  <td>
+                    <span className="badge badge-blue">只读</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -142,7 +178,11 @@ export default function RoutebookVersionsPanel() {
             <h2 id="routebook-history-title">版本与审计时间线</h2>
             <p className="text-caption">{selectedRoute ? `${selectedRoute.city} · ${selectedRoute.title}` : '选择一条持久化路线查看历史'}</p>
           </div>
-          {selectedRoute && <span className="badge badge-blue"><BookOpenCheck size={12} /> {formatVersion(selectedRoute, versionsResource.data?.currentVersion)}</span>}
+          {selectedRoute && (
+            <span className="badge badge-blue">
+              <BookOpenCheck size={12} /> {formatVersion(selectedRoute, versionsResource.data?.currentVersion)}
+            </span>
+          )}
         </div>
         {!selectedId ? (
           <EmptyState>从上方持久化路线中选择“版本”。</EmptyState>
@@ -157,15 +197,20 @@ export default function RoutebookVersionsPanel() {
                     <div>
                       <div className="ops-version-heading">
                         <strong>{versionLabel(version, versions.length - index)}</strong>
-                        <span className="badge badge-blue">{eventLabel(version.eventType || version.event || version.action || version.type || version.publishStatus)}</span>
+                        <span className="badge badge-blue">
+                          {eventLabel(version.eventType || version.event || version.action || version.type || version.publishStatus)}
+                        </span>
                       </div>
                       <p>{changeSummary(version)}</p>
-                      <small>{actorLabel(version.actor || version.createdBy || version.reviewer || version.actorType)} · {formatOpsDate(firstValue(version.eventAt, version.updatedAt, version.createdAt, version.recordedAt))}</small>
+                      <small>
+                        {actorLabel(version.actor || version.createdBy || version.reviewer || version.actorType)} ·{' '}
+                        {formatOpsDate(firstValue(version.eventAt, version.updatedAt, version.createdAt, version.recordedAt))}
+                      </small>
                     </div>
                   </li>
                 ))}
               </ol>
-            ) : (versionsResource.status === 'ready' || versionsResource.status === 'empty') ? (
+            ) : versionsResource.status === 'ready' || versionsResource.status === 'empty' ? (
               <EmptyState>这条路书暂无可展示的版本记录。</EmptyState>
             ) : null}
           </>
@@ -201,9 +246,7 @@ function normalizeTimeline(data) {
     const versionValue = firstValue(version?.version, version?.revision, version?.sequence);
     const audit = hasValue(versionValue) ? auditsByVersion.get(String(versionValue))?.at(-1) : null;
     if (audit) usedAuditIds.add(audit.id || audit);
-    return audit
-      ? { ...version, eventType: audit.event, eventAt: audit.createdAt, auditId: audit.id }
-      : version;
+    return audit ? { ...version, eventType: audit.event, eventAt: audit.createdAt, auditId: audit.id } : version;
   });
   const unmatchedAudits = audits
     .filter((audit) => !usedAuditIds.has(audit.id || audit))
@@ -218,7 +261,7 @@ function timelineTimestamp(item) {
 
 function replaceRoutebook(data, routebook) {
   if (!routebook) return data;
-  const rows = normalizeRoutebooks(data).map((item) => routeId(item) === routeId(routebook) ? routebook : item);
+  const rows = normalizeRoutebooks(data).map((item) => (routeId(item) === routeId(routebook) ? routebook : item));
   if (Array.isArray(data)) return rows;
   return { ...(data ?? {}), routebooks: rows };
 }
@@ -242,21 +285,25 @@ function statusLabel(value) {
 }
 
 function eventLabel(value) {
-  return ({
-    create: '创建',
-    created: '创建',
-    save: '保存',
-    update: '更新',
-    status: '状态变更',
-    'status-changed': '状态变更',
-    status_changed: '状态变更',
-    publish: '发布',
-    archive: '归档',
-    draft: '草稿',
-    published: '已发布',
-    featured: '精选',
-    archived: '已归档'
-  })[value] || value || '变更';
+  return (
+    {
+      create: '创建',
+      created: '创建',
+      save: '保存',
+      update: '更新',
+      status: '状态变更',
+      'status-changed': '状态变更',
+      status_changed: '状态变更',
+      publish: '发布',
+      archive: '归档',
+      draft: '草稿',
+      published: '已发布',
+      featured: '精选',
+      archived: '已归档'
+    }[value] ||
+    value ||
+    '变更'
+  );
 }
 
 function actorLabel(actor) {
@@ -267,7 +314,13 @@ function actorLabel(actor) {
 function changeSummary(version) {
   const summary = firstValue(version?.changeReason, version?.changeSummary, version?.summary, version?.reason, version?.opsNote);
   if (hasValue(summary)) return String(summary);
-  if (Array.isArray(version?.changes)) return version.changes.map((item) => typeof item === 'string' ? item : item.field || item.path).filter(Boolean).join('、') || '记录已更新';
+  if (Array.isArray(version?.changes))
+    return (
+      version.changes
+        .map((item) => (typeof item === 'string' ? item : item.field || item.path))
+        .filter(Boolean)
+        .join('、') || '记录已更新'
+    );
   if (version?.changes && typeof version.changes === 'object') return Object.keys(version.changes).join('、') || '记录已更新';
   return '记录已更新';
 }

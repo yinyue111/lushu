@@ -1,7 +1,16 @@
 // Profile normalisation, identity assertions (single-use nonces) and stored-profile building.
 import { createHash, createHmac } from 'node:crypto';
 import { normalizeCityName, truncateString, sanitizePublicId, createHttpError } from '../lib/util.mjs';
-import { hmacText, normalizeProfileId, safeEqualHex, createRouteEditToken, createServerProfileId, hashSecretToken, safeTokenEqual, sanitizeEditToken } from './tokens.mjs';
+import {
+  hmacText,
+  normalizeProfileId,
+  safeEqualHex,
+  createRouteEditToken,
+  createServerProfileId,
+  hashSecretToken,
+  safeTokenEqual,
+  sanitizeEditToken
+} from './tokens.mjs';
 import { APP_ID, PROFILE_IDENTITY_ASSERTION_SECRET, IDENTITY_NONCE_LOG_PATH } from '../config/index.mjs';
 import { createNonceStore } from './nonce-store.mjs';
 import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
@@ -29,9 +38,7 @@ export function normalizeProfile(input = {}) {
     companion: truncateString(input?.companion, 40) || '朋友',
     tempo: truncateString(input?.tempo, 40) || '松弛但不空',
     transport: truncateString(input?.transport, 60) || '步行 + 打车',
-    themes: Array.isArray(input?.themes)
-      ? [...new Set(input.themes.map((item) => truncateString(item, 40)).filter(Boolean))].slice(0, 12)
-      : [],
+    themes: Array.isArray(input?.themes) ? [...new Set(input.themes.map((item) => truncateString(item, 40)).filter(Boolean))].slice(0, 12) : [],
     creatorName: truncateString(input?.creatorName, 60),
     creatorBio: truncateString(input?.creatorBio, 140),
     accessTokenHash: '',
@@ -80,17 +87,19 @@ const IDENTITY_ASSERTION_MAX_SKEW_MS = 10 * 60 * 1000;
 function verifiedProfileIdentity(input = {}) {
   const proof = input?.proof && typeof input.proof === 'object' ? input.proof : input;
   const phone = String(input?.phone ?? input?.mobile ?? proof?.phone ?? proof?.subject ?? '').replace(/\D/g, '');
-  const wechatOpenId = sanitizePublicId(input?.wechatOpenId || input?.openid || input?.openId || proof?.wechatOpenId || proof?.openid || proof?.openId || proof?.subject);
+  const wechatOpenId = sanitizePublicId(
+    input?.wechatOpenId || input?.openid || input?.openId || proof?.wechatOpenId || proof?.openid || proof?.openId || proof?.subject
+  );
   const requestedType = String(input?.type ?? input?.provider ?? proof?.type ?? proof?.provider ?? '').toLowerCase();
-  const type = /^1\d{10}$/.test(phone)
-    ? 'phone'
-    : (wechatOpenId && requestedType.includes('wechat') ? 'wechat-openid' : '');
+  const type = /^1\d{10}$/.test(phone) ? 'phone' : wechatOpenId && requestedType.includes('wechat') ? 'wechat-openid' : '';
   const subject = type === 'phone' ? phone : wechatOpenId;
   if (!type || !subject || !PROFILE_IDENTITY_ASSERTION_SECRET) return null;
 
   const issuedAt = truncateString(proof?.issuedAt || proof?.timestamp, 60);
   const nonce = sanitizePublicId(proof?.nonce);
-  const signature = String(proof?.signature ?? proof?.identitySignature ?? '').trim().toLowerCase();
+  const signature = String(proof?.signature ?? proof?.identitySignature ?? '')
+    .trim()
+    .toLowerCase();
   const issuedAtMs = Date.parse(issuedAt);
   if (!issuedAt || !nonce || !signature || !Number.isFinite(issuedAtMs)) return null;
   if (Math.abs(Date.now() - issuedAtMs) > IDENTITY_ASSERTION_MAX_SKEW_MS) return null;
@@ -126,9 +135,8 @@ export async function buildStoredProfile(input = {}) {
   const requestedId = normalizeProfileId(input?.id || input?.profileId);
   let normalizedProfile = normalizeProfile(input);
   if (normalizedProfile.identityBound) await consumeIdentityAssertion(input);
-  const shouldIssueServerLocalProfile = !normalizedProfile.identityBound &&
-    !requestedToken &&
-    (!requestedId || requestedId === 'anonymous' || !(await getSavedProfile(requestedId)));
+  const shouldIssueServerLocalProfile =
+    !normalizedProfile.identityBound && !requestedToken && (!requestedId || requestedId === 'anonymous' || !(await getSavedProfile(requestedId)));
   if (shouldIssueServerLocalProfile) {
     normalizedProfile = {
       ...normalizedProfile,
@@ -148,9 +156,7 @@ export async function buildStoredProfile(input = {}) {
     // 时效 + nonce）后才为 true，且 normalizedProfile.id 就是该身份的 stableId，与
     // existing 按同一 id 命中；此时允许在无旧 accessToken 的情况下轮换新 token。
     // 签名与时效校验本身不放宽，未携带合法断言的请求仍必须持有当前 token。
-    const identityRecovery = !validExistingToken &&
-      normalizedProfile.identityBound &&
-      existing.identityBound === true;
+    const identityRecovery = !validExistingToken && normalizedProfile.identityBound && existing.identityBound === true;
     if (!validExistingToken && !identityRecovery) {
       throw createHttpError('更新已绑定身份需要当前 profile token，请在原设备同步或重新登录', 403, 'PROFILE_TOKEN_REQUIRED');
     }
@@ -178,10 +184,8 @@ export async function buildStoredProfile(input = {}) {
         identityBound: normalizedProfile.identityBound || Boolean(existing.identityBound),
         identityBindingRequired: normalizedProfile.identityBound
           ? false
-          : (normalizedProfile.identityBindingRequired || Boolean(existing.identityBindingRequired)),
-        identityBindingReason: normalizedProfile.identityBound
-          ? ''
-          : (normalizedProfile.identityBindingReason || existing.identityBindingReason || ''),
+          : normalizedProfile.identityBindingRequired || Boolean(existing.identityBindingRequired),
+        identityBindingReason: normalizedProfile.identityBound ? '' : normalizedProfile.identityBindingReason || existing.identityBindingReason || '',
         previousLocalId: normalizedProfile.identityBound ? normalizedProfile.previousLocalId : ''
       }
     : normalizedProfile;

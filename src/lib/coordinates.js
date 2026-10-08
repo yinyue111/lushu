@@ -82,7 +82,9 @@ export function isValidCoordinate(lat, lng) {
 }
 
 function normalizeCityLabel(city) {
-  return String(city ?? '').trim().replace(/市$/u, '');
+  return String(city ?? '')
+    .trim()
+    .replace(/市$/u, '');
 }
 
 /**
@@ -169,17 +171,17 @@ export function routeLegLabel(from, to) {
   const km = distanceKm(from, to);
   if (!Number.isFinite(km)) return '转场待校验';
   const mode = km <= 1.2 ? '步行' : '打车';
-  const minutes = mode === '步行'
-    ? Math.max(6, Math.round((km / 4.5) * 60))
-    : Math.max(12, Math.round((km / 22) * 60 + 8));
+  const minutes = mode === '步行' ? Math.max(6, Math.round((km / 4.5) * 60)) : Math.max(12, Math.round((km / 22) * 60 + 8));
   return `直线估算：${mode} ${minutes} 分钟 · ${km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`}`;
 }
 
 export function isNavigableCoordinate(stop) {
-  return isValidCoordinate(Number(stop?.lat), Number(stop?.lng)) &&
+  return (
+    isValidCoordinate(Number(stop?.lat), Number(stop?.lng)) &&
     Number(stop?.geoConfidence ?? 0) >= 60 &&
     stop?.navigationDisabled !== true &&
-    !['city-center', 'region-center', 'country-center'].includes(String(stop?.coordinateSource ?? ''));
+    !['city-center', 'region-center', 'country-center'].includes(String(stop?.coordinateSource ?? ''))
+  );
 }
 
 export function coordinateReviewLabel(stop) {

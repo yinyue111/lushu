@@ -5,11 +5,5 @@ import { readLatestUniqueJsonLines } from '../storage/jsonl.mjs';
 
 // `predicate` filters on the latest snapshot of each routebook while scanning (H4).
 export async function listSavedRoutebooks(limit = 100, predicate = null) {
-  return readLatestUniqueJsonLines(
-    ROUTEBOOK_LOG_PATH,
-    (row) => sanitizePublicId(row?.id || row?.publicId),
-    limit,
-    50000,
-    predicate
-  );
+  return readLatestUniqueJsonLines(ROUTEBOOK_LOG_PATH, (row) => sanitizePublicId(row?.id || row?.publicId), limit, 50000, predicate);
 }

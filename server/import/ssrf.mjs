@@ -10,7 +10,8 @@ import { MAX_IMPORT_PAGE_BYTES } from '../config/index.mjs';
 
 function isPrivateIpv4(value) {
   const parts = value.split('.').map(Number);
-  return parts[0] === 10 ||
+  return (
+    parts[0] === 10 ||
     parts[0] === 127 ||
     (parts[0] === 169 && parts[1] === 254) ||
     (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
@@ -19,7 +20,8 @@ function isPrivateIpv4(value) {
     (parts[0] === 192 && parts[1] === 168) ||
     (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19)) ||
     parts[0] >= 224 ||
-    parts[0] === 0;
+    parts[0] === 0
+  );
 }
 
 /**
@@ -64,11 +66,13 @@ export function isPrivateIp(address) {
     if (zeroPrefix(6)) return isPrivateIpv4(embeddedIpv4(h[6], h[7])); // ::a.b.c.d (deprecated)
     if (h[0] === 0x64 && h[1] === 0xff9b && h.slice(2, 6).every((hextet) => hextet === 0)) return isPrivateIpv4(embeddedIpv4(h[6], h[7]));
     if (h[0] === 0x2002) return isPrivateIpv4(embeddedIpv4(h[1], h[2]));
-    return (h[0] & 0xfe00) === 0xfc00 || // fc00::/7 unique local
+    return (
+      (h[0] & 0xfe00) === 0xfc00 || // fc00::/7 unique local
       (h[0] & 0xffc0) === 0xfe80 || // fe80::/10 link local
       (h[0] & 0xffc0) === 0xfec0 || // fec0::/10 site local (deprecated)
       (h[0] & 0xff00) === 0xff00 || // ff00::/8 multicast
-      (h[0] === 0x2001 && h[1] === 0x0db8); // documentation
+      (h[0] === 0x2001 && h[1] === 0x0db8)
+    ); // documentation
   }
   return true;
 }
@@ -98,9 +102,7 @@ function hostnameForLookup(hostname) {
 async function resolvePublicHttpEndpoint(url) {
   const hostname = hostnameForLookup(url.hostname);
   const literalIpVersion = isIP(hostname);
-  const records = literalIpVersion
-    ? [{ address: hostname, family: literalIpVersion }]
-    : await lookup(hostname, { all: true, verbatim: true }).catch(() => []);
+  const records = literalIpVersion ? [{ address: hostname, family: literalIpVersion }] : await lookup(hostname, { all: true, verbatim: true }).catch(() => []);
   if (!records.length || records.some((record) => isPrivateIp(record.address))) {
     throw createHttpError('链接目标不可访问或不是公网地址', 400, 'UNSAFE_SOURCE_URL');
   }

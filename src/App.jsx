@@ -8,7 +8,20 @@ import { adoptServerProfile } from './lib/profileSync';
 import { dismissTripReminder, dueTripReminders } from './lib/reminders';
 import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRoutebook } from './lib/storage';
 
-const VIEWS = { home: 'home', destination: 'destination', builder: 'builder', route: 'route', trip: 'trip', review: 'review', ops: 'ops', logs: 'logs', my: 'my', share: 'share', creator: 'creator', publicReview: 'publicReview' };
+const VIEWS = {
+  home: 'home',
+  destination: 'destination',
+  builder: 'builder',
+  route: 'route',
+  trip: 'trip',
+  review: 'review',
+  ops: 'ops',
+  logs: 'logs',
+  my: 'my',
+  share: 'share',
+  creator: 'creator',
+  publicReview: 'publicReview'
+};
 const PUBLIC_VIEWS = new Set([VIEWS.share, VIEWS.publicReview]);
 // Crowd data aggregated from other travellers' check-ins: a local snapshot is never
 // authoritative for these, so remote always wins. validations/metrics stay out of the
@@ -83,7 +96,9 @@ export default function App() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    checkHealth(ctrl.signal).then(setModelHealth).catch(() => setModelHealth({ ok: false, ready: false }));
+    checkHealth(ctrl.signal)
+      .then(setModelHealth)
+      .catch(() => setModelHealth({ ok: false, ready: false }));
     return () => ctrl.abort();
   }, []);
 
@@ -121,32 +136,33 @@ export default function App() {
     setDueReminder(due ?? null);
   }, [savedBooks, view]);
 
-  const replaceSavedBook = useCallback((book) => {
-    // rank25④：已有存档就地替换，避免每次保存都全量重读 localStorage；
-    // 新增的自有路书才触发一次全量重读，浏览他人路线不进「我的路书」。
-    if (!book?.city || !Array.isArray(book.stops) || !book.stops.length) return;
-    const bookId = book.publicId || book.id;
-    if (!bookId) return;
-    setSavedBooks((prev) => {
-      const index = prev.findIndex((item) => (item.publicId || item.id) === bookId);
-      if (index >= 0) {
-        const next = [...prev];
-        next[index] = book;
-        return next;
-      }
-      const owned = book.profileId === profile.id || book.creator?.id === profile.id;
-      return owned ? getStoredRoutebooks(profile.id) : prev;
-    });
-  }, [profile.id]);
+  const replaceSavedBook = useCallback(
+    (book) => {
+      // rank25④：已有存档就地替换，避免每次保存都全量重读 localStorage；
+      // 新增的自有路书才触发一次全量重读，浏览他人路线不进「我的路书」。
+      if (!book?.city || !Array.isArray(book.stops) || !book.stops.length) return;
+      const bookId = book.publicId || book.id;
+      if (!bookId) return;
+      setSavedBooks((prev) => {
+        const index = prev.findIndex((item) => (item.publicId || item.id) === bookId);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = book;
+          return next;
+        }
+        const owned = book.profileId === profile.id || book.creator?.id === profile.id;
+        return owned ? getStoredRoutebooks(profile.id) : prev;
+      });
+    },
+    [profile.id]
+  );
 
   useEffect(() => {
     const routeId = sharePublicId;
     if (![VIEWS.route, VIEWS.trip, VIEWS.review].includes(view) || !routeId) return undefined;
     const cached = getStoredRoutebookById(routeId);
     // rank6：浏览他人路线时不落库，路书只存在内存里；只要 id 匹配就继续展示，别清成 null。
-    const inMemory = routebookRef.current && (routebookRef.current.publicId || routebookRef.current.id) === routeId
-      ? routebookRef.current
-      : null;
+    const inMemory = routebookRef.current && (routebookRef.current.publicId || routebookRef.current.id) === routeId ? routebookRef.current : null;
     const fallbackBook = cached ?? inMemory;
     setRoutebook(fallbackBook ?? null);
     if (fallbackBook) {
@@ -173,9 +189,7 @@ export default function App() {
         if (fallbackBook) {
           setRouteLoadState({
             loading: false,
-            error: cached && [403, 404].includes(error.status)
-              ? '服务端暂无这份草稿，已保留本地版本；重新保存或发布后会同步。'
-              : ''
+            error: cached && [403, 404].includes(error.status) ? '服务端暂无这份草稿，已保留本地版本；重新保存或发布后会同步。' : ''
           });
           return;
         }
@@ -199,39 +213,51 @@ export default function App() {
     }
   }, []);
 
-  const handleGenerated = useCallback((book) => {
-    setRoutebook(book);
-    const saved = persistRoutebook(book, { claimOwnership: true });
-    setStorageNotice(saved ? '' : '本地存储已满：这份路书暂未写入本机存档，已尝试清理最旧路书仍失败，请删除不需要的路书后重新保存。');
-    setSavedBooks(getStoredRoutebooks(profile.id));
-    navigate(VIEWS.route, { routeId: book.publicId || book.id });
-  }, [navigate, profile.id]);
+  const handleGenerated = useCallback(
+    (book) => {
+      setRoutebook(book);
+      const saved = persistRoutebook(book, { claimOwnership: true });
+      setStorageNotice(saved ? '' : '本地存储已满：这份路书暂未写入本机存档，已尝试清理最旧路书仍失败，请删除不需要的路书后重新保存。');
+      setSavedBooks(getStoredRoutebooks(profile.id));
+      navigate(VIEWS.route, { routeId: book.publicId || book.id });
+    },
+    [navigate, profile.id]
+  );
 
-  const handleOpenBook = useCallback((book) => {
-    const routeId = book?.publicId || book?.id;
-    if (!routeId) return;
-    const completeBook = Array.isArray(book?.stops) && book.stops.length > 0 ? book : null;
-    setRoutebook(completeBook);
-    if (completeBook) {
-      // rank6：浏览他人路线只展示不落库，避免污染「我的路书」；本地已有同 id 存档的照旧更新。
-      const ownedByProfile = completeBook.profileId === profile.id || completeBook.creator?.id === profile.id;
-      const storedLocally = Boolean(getStoredRoutebookById(routeId));
-      if (ownedByProfile || storedLocally) {
-        persistRoutebook(completeBook);
-        replaceSavedBook(completeBook);
+  const handleOpenBook = useCallback(
+    (book) => {
+      const routeId = book?.publicId || book?.id;
+      if (!routeId) return;
+      const completeBook = Array.isArray(book?.stops) && book.stops.length > 0 ? book : null;
+      setRoutebook(completeBook);
+      if (completeBook) {
+        // rank6：浏览他人路线只展示不落库，避免污染「我的路书」；本地已有同 id 存档的照旧更新。
+        const ownedByProfile = completeBook.profileId === profile.id || completeBook.creator?.id === profile.id;
+        const storedLocally = Boolean(getStoredRoutebookById(routeId));
+        if (ownedByProfile || storedLocally) {
+          persistRoutebook(completeBook);
+          replaceSavedBook(completeBook);
+        }
       }
-    }
-    navigate(VIEWS.route, { routeId });
-  }, [navigate, profile.id, replaceSavedBook]);
+      navigate(VIEWS.route, { routeId });
+    },
+    [navigate, profile.id, replaceSavedBook]
+  );
 
-  const handleNewBook = useCallback((defaults = {}) => {
-    setBuilderDefaults(defaults);
-    navigate(VIEWS.builder);
-  }, [navigate]);
+  const handleNewBook = useCallback(
+    (defaults = {}) => {
+      setBuilderDefaults(defaults);
+      navigate(VIEWS.builder);
+    },
+    [navigate]
+  );
 
-  const handleOpenDestination = useCallback((city) => {
-    navigate(VIEWS.destination, { city: city || '杭州' });
-  }, [navigate]);
+  const handleOpenDestination = useCallback(
+    (city) => {
+      navigate(VIEWS.destination, { city: city || '杭州' });
+    },
+    [navigate]
+  );
 
   const handleProfileChanged = useCallback((nextProfile) => {
     const next = nextProfile ?? getProfile();
@@ -239,119 +265,140 @@ export default function App() {
     setSavedBooks(getStoredRoutebooks(next.id));
   }, []);
 
-  const handleLocalBooksChanged = useCallback((removedBook) => {
-    // My 页删除本机存档后就地移除该书，让 TripReminderBanner 等派生状态立即失效；
-    // 拿不到 id 时兜底全量重读。
-    const removedId = removedBook?.publicId || removedBook?.id;
-    if (!removedId) {
-      setSavedBooks(getStoredRoutebooks(profile.id));
-      return;
-    }
-    setSavedBooks((prev) => prev.filter((item) => (item.publicId || item.id) !== removedId));
-  }, [profile.id]);
+  const handleLocalBooksChanged = useCallback(
+    (removedBook) => {
+      // My 页删除本机存档后就地移除该书，让 TripReminderBanner 等派生状态立即失效；
+      // 拿不到 id 时兜底全量重读。
+      const removedId = removedBook?.publicId || removedBook?.id;
+      if (!removedId) {
+        setSavedBooks(getStoredRoutebooks(profile.id));
+        return;
+      }
+      setSavedBooks((prev) => prev.filter((item) => (item.publicId || item.id) !== removedId));
+    },
+    [profile.id]
+  );
 
-  const handleCustomize = useCallback(async (book, meta = {}) => {
-    const sourceBook = book;
-    const routeId = book?.publicId || book?.id;
-    if (routeId && meta.recordCopy !== false) {
-      try {
-        const profile = getProfile();
-        await copyRoutebookRemote(routeId, {
-          profileId: profile.id,
-          surface: meta.surface || 'customize',
-          routeTitle: book?.title,
-          city: book?.city,
-          creatorId: book?.creator?.id
-        });
-      } catch { /* customization remains available when attribution sync fails */ }
-    }
-    setBuilderDefaults({
-      city: sourceBook?.city,
-      duration: sourceBook?.days?.length ? `${sourceBook.days.length} 天` : '2 天 1 晚',
-      theme: sourceBook?.assets?.map((asset) => asset.label).slice(0, 3) ?? [],
-      guide: [
-        sourceBook?.title,
-        sourceBook?.summary,
-        ...(sourceBook?.stops ?? []).map((stop) => `${stop.time} ${stop.name} ${stop.verify ?? ''}`)
-      ].filter(Boolean).join('\n')
-    });
-    navigate(VIEWS.builder);
-  }, [navigate]);
+  const handleCustomize = useCallback(
+    async (book, meta = {}) => {
+      const sourceBook = book;
+      const routeId = book?.publicId || book?.id;
+      if (routeId && meta.recordCopy !== false) {
+        try {
+          const profile = getProfile();
+          await copyRoutebookRemote(routeId, {
+            profileId: profile.id,
+            surface: meta.surface || 'customize',
+            routeTitle: book?.title,
+            city: book?.city,
+            creatorId: book?.creator?.id
+          });
+        } catch {
+          /* customization remains available when attribution sync fails */
+        }
+      }
+      setBuilderDefaults({
+        city: sourceBook?.city,
+        duration: sourceBook?.days?.length ? `${sourceBook.days.length} 天` : '2 天 1 晚',
+        theme: sourceBook?.assets?.map((asset) => asset.label).slice(0, 3) ?? [],
+        guide: [sourceBook?.title, sourceBook?.summary, ...(sourceBook?.stops ?? []).map((stop) => `${stop.time} ${stop.name} ${stop.verify ?? ''}`)]
+          .filter(Boolean)
+          .join('\n')
+      });
+      navigate(VIEWS.builder);
+    },
+    [navigate]
+  );
 
-  const handleSaveSharedRoutebook = useCallback(async (book, meta = {}) => {
-    let activeProfile = getProfile();
-    let draft = createPrivateRoutebookDraft(book, activeProfile);
-    if (!persistRoutebook(draft, { claimOwnership: true })) {
-      throw new Error('浏览器本地存储已满或不可用，暂时无法保存这份路书');
-    }
+  const handleSaveSharedRoutebook = useCallback(
+    async (book, meta = {}) => {
+      let activeProfile = getProfile();
+      let draft = createPrivateRoutebookDraft(book, activeProfile);
+      if (!persistRoutebook(draft, { claimOwnership: true })) {
+        throw new Error('浏览器本地存储已满或不可用，暂时无法保存这份路书');
+      }
 
-    setRoutebook(draft);
-    setSavedBooks(getStoredRoutebooks(activeProfile.id));
-    if (meta.startTrip) {
-      navigate(VIEWS.trip, { routeId: draft.id });
-    }
-
-    let profileSyncError = null;
-    try {
-      const profileData = await saveProfile(activeProfile);
-      activeProfile = adoptServerProfile(profileData.profile, activeProfile).profile;
-      draft = { ...draft, ...profileRoutebookFields(activeProfile) };
-      persistRoutebook(draft, { claimOwnership: true });
-      setProfile(activeProfile);
       setRoutebook(draft);
       setSavedBooks(getStoredRoutebooks(activeProfile.id));
-    } catch (error) {
-      profileSyncError = error;
-    }
+      if (meta.startTrip) {
+        navigate(VIEWS.trip, { routeId: draft.id });
+      }
 
-    const attributionPromise = recordSharedRoutebookCopy(book, activeProfile, meta.surface)
-      .then(() => null)
-      .catch((error) => error);
-    let savedDraft = draft;
-    let syncError = null;
-    if (activeProfile.profileAccessToken || !profileSyncError) {
+      let profileSyncError = null;
       try {
-        const data = await saveRoutebookRemote(draft);
-        savedDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
-        persistRoutebook(savedDraft, { claimOwnership: true });
-        setRoutebook(savedDraft);
+        const profileData = await saveProfile(activeProfile);
+        activeProfile = adoptServerProfile(profileData.profile, activeProfile).profile;
+        draft = { ...draft, ...profileRoutebookFields(activeProfile) };
+        persistRoutebook(draft, { claimOwnership: true });
+        setProfile(activeProfile);
+        setRoutebook(draft);
         setSavedBooks(getStoredRoutebooks(activeProfile.id));
       } catch (error) {
-        syncError = error;
+        profileSyncError = error;
       }
-    } else {
-      syncError = profileSyncError;
-    }
-    const attributionError = await attributionPromise;
-    return {
-      routebook: savedDraft,
-      synced: !syncError,
-      syncError: syncError?.message || '',
-      attributionSynced: !attributionError
-    };
-  }, [navigate]);
 
-  const handleUseSharedRoutebook = useCallback((book, meta = {}) => {
-    const savedDraft = meta.savedRoutebook;
-    if (savedDraft?.id || savedDraft?.publicId) {
-      const activeProfile = getProfile();
-      setRoutebook(savedDraft);
-      persistRoutebook(savedDraft, { claimOwnership: true });
-      setSavedBooks(getStoredRoutebooks(activeProfile.id));
-      navigate(VIEWS.trip, { routeId: savedDraft.publicId || savedDraft.id });
-      return Promise.resolve({ routebook: savedDraft, synced: meta.synced !== false });
-    }
-    return handleSaveSharedRoutebook(book, { ...meta, startTrip: true });
-  }, [handleSaveSharedRoutebook, navigate]);
+      const attributionPromise = recordSharedRoutebookCopy(book, activeProfile, meta.surface)
+        .then(() => null)
+        .catch((error) => error);
+      let savedDraft = draft;
+      let syncError = null;
+      if (activeProfile.profileAccessToken || !profileSyncError) {
+        try {
+          const data = await saveRoutebookRemote(draft);
+          savedDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
+          persistRoutebook(savedDraft, { claimOwnership: true });
+          setRoutebook(savedDraft);
+          setSavedBooks(getStoredRoutebooks(activeProfile.id));
+        } catch (error) {
+          syncError = error;
+        }
+      } else {
+        syncError = profileSyncError;
+      }
+      const attributionError = await attributionPromise;
+      return {
+        routebook: savedDraft,
+        synced: !syncError,
+        syncError: syncError?.message || '',
+        attributionSynced: !attributionError
+      };
+    },
+    [navigate]
+  );
 
-  const handleRouteViewSaved = useCallback((book) => {
-    // RouteView 保存回调携带最新 book 时就地替换，仅在拿不到 book 时才全量重读。
-    if (book && (book.publicId || book.id)) replaceSavedBook(book);
-    else setSavedBooks(getStoredRoutebooks(profile.id));
-  }, [profile.id, replaceSavedBook]);
+  const handleUseSharedRoutebook = useCallback(
+    (book, meta = {}) => {
+      const savedDraft = meta.savedRoutebook;
+      if (savedDraft?.id || savedDraft?.publicId) {
+        const activeProfile = getProfile();
+        setRoutebook(savedDraft);
+        persistRoutebook(savedDraft, { claimOwnership: true });
+        setSavedBooks(getStoredRoutebooks(activeProfile.id));
+        navigate(VIEWS.trip, { routeId: savedDraft.publicId || savedDraft.id });
+        return Promise.resolve({ routebook: savedDraft, synced: meta.synced !== false });
+      }
+      return handleSaveSharedRoutebook(book, { ...meta, startTrip: true });
+    },
+    [handleSaveSharedRoutebook, navigate]
+  );
 
-  const handleStartTrip = useCallback(() => navigate(VIEWS.trip, { routeId: routebook?.publicId || routebook?.id }), [navigate, routebook?.id, routebook?.publicId]);
-  const handleShowReview = useCallback(() => navigate(VIEWS.review, { routeId: routebook?.publicId || routebook?.id }), [navigate, routebook?.id, routebook?.publicId]);
+  const handleRouteViewSaved = useCallback(
+    (book) => {
+      // RouteView 保存回调携带最新 book 时就地替换，仅在拿不到 book 时才全量重读。
+      if (book && (book.publicId || book.id)) replaceSavedBook(book);
+      else setSavedBooks(getStoredRoutebooks(profile.id));
+    },
+    [profile.id, replaceSavedBook]
+  );
+
+  const handleStartTrip = useCallback(
+    () => navigate(VIEWS.trip, { routeId: routebook?.publicId || routebook?.id }),
+    [navigate, routebook?.id, routebook?.publicId]
+  );
+  const handleShowReview = useCallback(
+    () => navigate(VIEWS.review, { routeId: routebook?.publicId || routebook?.id }),
+    [navigate, routebook?.id, routebook?.publicId]
+  );
   const handleBack = useCallback(() => {
     navigate(VIEWS.home);
   }, [navigate]);
@@ -373,15 +420,10 @@ export default function App() {
 
   return (
     <div className="app-root">
-      <TopNav
-        view={view}
-        onNavigate={navigate}
-        modelHealth={modelHealth}
-        hidden={PUBLIC_VIEWS.has(view) || view === VIEWS.trip}
-      />
+      <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={PUBLIC_VIEWS.has(view) || view === VIEWS.trip} />
       <main className="app-main">
-	        {dueReminder && !PUBLIC_VIEWS.has(view) && (
-	          <TripReminderBanner
+        {dueReminder && !PUBLIC_VIEWS.has(view) && (
+          <TripReminderBanner
             reminder={dueReminder}
             onOpen={() => {
               const book = dueReminder.routebook || getStoredRoutebookById(dueReminder.routeId);
@@ -395,122 +437,110 @@ export default function App() {
             onDismiss={() => {
               dismissTripReminder(dueReminder.routeId);
               setDueReminder(null);
-	            }}
-	          />
-	        )}
-	        {storageNotice && !PUBLIC_VIEWS.has(view) && (
-	          <div className="trip-reminder-banner" role="alert">
-	            <div>
-	              <strong>本地存储已满</strong>
-	              <span>{storageNotice}</span>
-	            </div>
-	            <div>
-	              <button className="btn btn-ghost btn-sm" onClick={() => setStorageNotice('')}>知道了</button>
-	            </div>
-	          </div>
-	        )}
-	        <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
-        <Suspense fallback={<PageLoadingFallback />}>
-	        {view === VIEWS.home && (
-	          <HomePage
-            books={savedBooks}
-            onNewBook={handleNewBook}
-            onOpenBook={handleOpenBook}
-            onOpenDestination={handleOpenDestination}
-            onRefresh={() => setSavedBooks(getStoredRoutebooks(profile.id))}
+            }}
           />
         )}
-        {view === VIEWS.destination && (
-          <DestinationPage
-            city={destinationCity}
-            onBack={handleBack}
-            onOpenBook={handleOpenBook}
-            onNewBook={handleNewBook}
-            onOpenDestination={handleOpenDestination}
-          />
+        {storageNotice && !PUBLIC_VIEWS.has(view) && (
+          <div className="trip-reminder-banner" role="alert">
+            <div>
+              <strong>本地存储已满</strong>
+              <span>{storageNotice}</span>
+            </div>
+            <div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStorageNotice('')}>
+                知道了
+              </button>
+            </div>
+          </div>
         )}
-        {view === VIEWS.builder && (
-          <BuilderFlow
-            modelHealth={modelHealth}
-            defaults={builderDefaults}
-            onGenerated={handleGenerated}
-            onProfileChanged={handleProfileChanged}
-            onBack={handleBack}
-          />
-        )}
-        {view === VIEWS.route && routebookMatchesLocation && (
-          <RouteView
-            routebook={routebook}
-            setRoutebook={setRoutebook}
-            onSaved={handleRouteViewSaved}
-            onCustomize={handleCustomize}
-            onStartTrip={handleStartTrip}
-            onBack={handleBack}
-          />
-        )}
-        {view === VIEWS.route && !routebookMatchesLocation && (
-          <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />
-        )}
-        {view === VIEWS.share && sharePublicId && (
-          <PublicSharePage
-            publicId={sharePublicId}
-            onBack={handleBack}
-            onSave={handleSaveSharedRoutebook}
-            onUse={handleUseSharedRoutebook}
-            onCustomize={handleCustomize}
-            onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
-          />
-        )}
-        {view === VIEWS.publicReview && sharePublicId && (
-          <PublicReviewPage
-            publicId={sharePublicId}
-            onBack={handleBack}
-          />
-        )}
-        {view === VIEWS.trip && routebookMatchesLocation && (
-          <TripView
-            key={activeRouteId}
-            routebook={routebook}
-            onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })}
-            onReview={handleShowReview}
-          />
-        )}
-        {view === VIEWS.trip && !routebookMatchesLocation && (
-          <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />
-        )}
-        {view === VIEWS.review && routebookMatchesLocation && (
-          <ReviewPage
-            routebook={routebook}
-            onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })}
-          />
-        )}
-        {view === VIEWS.review && !routebookMatchesLocation && (
-          <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />
-        )}
-        {view === VIEWS.ops && <OpsPage />}
-        {view === VIEWS.my && (
-          <MyPage
-            onOpenBook={handleOpenBook}
-            onNewBook={handleNewBook}
-            onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
-            onProfileChanged={handleProfileChanged}
-            onLocalBooksChanged={handleLocalBooksChanged}
-          />
-        )}
-        {view === VIEWS.creator && creatorId && (
-          <CreatorPage
-            creatorId={creatorId}
-            onBack={handleBack}
-            onOpenBook={handleOpenBook}
-            onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}
-          />
-	        )}
-	        {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
-        </Suspense>
+        <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
+          <Suspense fallback={<PageLoadingFallback />}>
+            {view === VIEWS.home && (
+              <HomePage
+                books={savedBooks}
+                onNewBook={handleNewBook}
+                onOpenBook={handleOpenBook}
+                onOpenDestination={handleOpenDestination}
+                onRefresh={() => setSavedBooks(getStoredRoutebooks(profile.id))}
+              />
+            )}
+            {view === VIEWS.destination && (
+              <DestinationPage
+                city={destinationCity}
+                onBack={handleBack}
+                onOpenBook={handleOpenBook}
+                onNewBook={handleNewBook}
+                onOpenDestination={handleOpenDestination}
+              />
+            )}
+            {view === VIEWS.builder && (
+              <BuilderFlow
+                modelHealth={modelHealth}
+                defaults={builderDefaults}
+                onGenerated={handleGenerated}
+                onProfileChanged={handleProfileChanged}
+                onBack={handleBack}
+              />
+            )}
+            {view === VIEWS.route && routebookMatchesLocation && (
+              <RouteView
+                routebook={routebook}
+                setRoutebook={setRoutebook}
+                onSaved={handleRouteViewSaved}
+                onCustomize={handleCustomize}
+                onStartTrip={handleStartTrip}
+                onBack={handleBack}
+              />
+            )}
+            {view === VIEWS.route && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+            {view === VIEWS.share && sharePublicId && (
+              <PublicSharePage
+                publicId={sharePublicId}
+                onBack={handleBack}
+                onSave={handleSaveSharedRoutebook}
+                onUse={handleUseSharedRoutebook}
+                onCustomize={handleCustomize}
+                onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
+              />
+            )}
+            {view === VIEWS.publicReview && sharePublicId && <PublicReviewPage publicId={sharePublicId} onBack={handleBack} />}
+            {view === VIEWS.trip && routebookMatchesLocation && (
+              <TripView
+                key={activeRouteId}
+                routebook={routebook}
+                onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })}
+                onReview={handleShowReview}
+              />
+            )}
+            {view === VIEWS.trip && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+            {view === VIEWS.review && routebookMatchesLocation && (
+              <ReviewPage routebook={routebook} onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })} />
+            )}
+            {view === VIEWS.review && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+            {view === VIEWS.ops && <OpsPage />}
+            {view === VIEWS.my && (
+              <MyPage
+                onOpenBook={handleOpenBook}
+                onNewBook={handleNewBook}
+                onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
+                onProfileChanged={handleProfileChanged}
+                onLocalBooksChanged={handleLocalBooksChanged}
+              />
+            )}
+            {view === VIEWS.creator && creatorId && (
+              <CreatorPage
+                creatorId={creatorId}
+                onBack={handleBack}
+                onOpenBook={handleOpenBook}
+                onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}
+              />
+            )}
+            {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
+          </Suspense>
         </ErrorBoundary>
       </main>
-	    </div>
-	  );
+    </div>
+  );
 }
 
 function mergeRemoteRoutebook(remote, local, profileId) {
@@ -522,11 +552,10 @@ function mergeRemoteRoutebook(remote, local, profileId) {
   if (remoteId !== localId || !localOwned) return remote;
   const remoteVersion = routebookVersion(remote);
   const localVersion = routebookVersion(local);
-  const localIsNewer = remoteVersion != null
-    ? localVersion != null && (localVersion > remoteVersion || (
-        localVersion === remoteVersion && routebookTimestamp(local) > routebookTimestamp(remote)
-      ))
-    : localVersion != null || routebookTimestamp(local) > routebookTimestamp(remote);
+  const localIsNewer =
+    remoteVersion != null
+      ? localVersion != null && (localVersion > remoteVersion || (localVersion === remoteVersion && routebookTimestamp(local) > routebookTimestamp(remote)))
+      : localVersion != null || routebookTimestamp(local) > routebookTimestamp(remote);
   const merged = localIsNewer ? mergeLocalRoutebookEdits(remote, local) : remote;
   return validEditToken(merged.editToken) || !localEditToken ? merged : { ...merged, editToken: localEditToken };
 }
@@ -603,9 +632,7 @@ function createPrivateRoutebookDraft(source, profile) {
     ...routebook,
     id: createPrivateRoutebookId(),
     stops: stripLivePoiTrust(routebook.stops),
-    variants: Array.isArray(routebook.variants)
-      ? routebook.variants.map((variant) => ({ ...variant, stops: stripLivePoiTrust(variant?.stops) }))
-      : [],
+    variants: Array.isArray(routebook.variants) ? routebook.variants.map((variant) => ({ ...variant, stops: stripLivePoiTrust(variant?.stops) })) : [],
     ...profileRoutebookFields(profile),
     editToken: createRouteEditToken(),
     schemaVersion: 2,
@@ -645,9 +672,7 @@ function stripLivePoiTrust(stops) {
 
 function createPrivateRoutebookId() {
   const uuid = globalThis.crypto?.randomUUID?.().replace(/-/g, '');
-  return uuid
-    ? `route_${uuid}`
-    : `route_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
+  return uuid ? `route_${uuid}` : `route_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
 }
 
 async function recordSharedRoutebookCopy(routebook, profile, surface = 'public-share-save') {
@@ -668,12 +693,7 @@ function validEditToken(value) {
 }
 
 function routebookTimestamp(book) {
-  return Math.max(0, ...[
-    book?.provider?.editedAt,
-    book?.updatedAt,
-    book?.provider?.generatedAt,
-    book?.createdAt
-  ].map((value) => Date.parse(value ?? '') || 0));
+  return Math.max(0, ...[book?.provider?.editedAt, book?.updatedAt, book?.provider?.generatedAt, book?.createdAt].map((value) => Date.parse(value ?? '') || 0));
 }
 
 function routebookVersion(book) {
@@ -717,12 +737,18 @@ function RouteLoadFallback({ state, onBack, onRetry }) {
   }
   return (
     <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
-      <p className="text-body" style={{ color: 'var(--muted)' }}>{state.error || '路书不存在或尚未保存'}</p>
+      <p className="text-body" style={{ color: 'var(--muted)' }}>
+        {state.error || '路书不存在或尚未保存'}
+      </p>
       <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
         {onRetry && (
-          <button className="btn btn-primary" onClick={onRetry}>重试</button>
+          <button className="btn btn-primary" onClick={onRetry}>
+            重试
+          </button>
         )}
-        <button className="btn btn-secondary" onClick={onBack}>返回首页</button>
+        <button className="btn btn-secondary" onClick={onBack}>
+          返回首页
+        </button>
       </div>
     </div>
   );
@@ -764,7 +790,9 @@ class ErrorBoundary extends React.Component {
           本地数据未受影响，你可以刷新重试或返回首页。
         </p>
         <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>刷新重试</button>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>
+            刷新重试
+          </button>
           <button
             className="btn btn-secondary"
             onClick={() => {
@@ -784,12 +812,19 @@ function TripReminderBanner({ reminder, onOpen, onDismiss }) {
   return (
     <div className="trip-reminder-banner" role="status">
       <div>
-        <strong>{reminder.city || ''}{reminder.title || '路书'} 今天出行</strong>
+        <strong>
+          {reminder.city || ''}
+          {reminder.title || '路书'} 今天出行
+        </strong>
         <span>进入行中模式，按站点导航并完成有效打卡。</span>
       </div>
       <div>
-        <button className="btn btn-primary btn-sm" onClick={onOpen}>进入行中</button>
-        <button className="btn btn-ghost btn-sm" onClick={onDismiss}>稍后</button>
+        <button className="btn btn-primary btn-sm" onClick={onOpen}>
+          进入行中
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={onDismiss}>
+          稍后
+        </button>
       </div>
     </div>
   );

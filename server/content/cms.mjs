@@ -34,11 +34,12 @@ export function normalizeCmsConfig(input) {
   return {
     defaultCity: normalizeCityName(input?.defaultCity ?? '杭州'),
     heroTitle: truncateString(input?.heroTitle, 80) || '把分散攻略，变成能照着走的可信路书',
-    featuredCities: Array.isArray(input?.featuredCities)
-      ? input.featuredCities.map((city) => normalizeCityName(city)).slice(0, 18)
-      : ['杭州', '上海', '苏州'],
+    featuredCities: Array.isArray(input?.featuredCities) ? input.featuredCities.map((city) => normalizeCityName(city)).slice(0, 18) : ['杭州', '上海', '苏州'],
     announcements: Array.isArray(input?.announcements)
-      ? input.announcements.map((item) => truncateString(item, 120)).filter(Boolean).slice(0, 8)
+      ? input.announcements
+          .map((item) => truncateString(item, 120))
+          .filter(Boolean)
+          .slice(0, 8)
       : [],
     updatedAt: new Date().toISOString()
   };
@@ -73,7 +74,7 @@ function normalizeProductCard(input = {}, index = 0, options = {}) {
     ...(linkType ? { linkType } : {}),
     ...(deepLinkStatus ? { deepLinkStatus } : {}),
     ...(typeof input?.analyticsReady === 'boolean' ? { analyticsReady: input.analyticsReady } : {}),
-    updatedAt: preserveTimestamps ? (truncateString(input?.updatedAt, 60) || now) : now
+    updatedAt: preserveTimestamps ? truncateString(input?.updatedAt, 60) || now : now
   };
 }
 
@@ -82,11 +83,14 @@ export function normalizeProductConfig(input = {}, options = {}) {
   const preserveTimestamps = options.preserveTimestamps === true;
   const strictUrl = options.strictUrl === true;
   const products = Array.isArray(input?.products)
-    ? input.products.map((item, index) => normalizeProductCard(item, index, { now, preserveTimestamps, strictUrl })).filter(Boolean).slice(0, 120)
+    ? input.products
+        .map((item, index) => normalizeProductCard(item, index, { now, preserveTimestamps, strictUrl }))
+        .filter(Boolean)
+        .slice(0, 120)
     : [];
   return {
     products,
-    updatedAt: preserveTimestamps ? (truncateString(input?.updatedAt, 60) || null) : now
+    updatedAt: preserveTimestamps ? truncateString(input?.updatedAt, 60) || null : now
   };
 }
 
@@ -119,9 +123,8 @@ export async function resolveProductAttribution(input = {}) {
   const config = await readProductConfig();
   const requestedId = stablePublicId(input?.productId || input?.id || input?.title, 'product');
   const requestedTitle = truncateString(input?.title || input?.productTitle || input?.product, 100);
-  const configProduct = config.products.find((item) =>
-    item.status !== 'paused' &&
-    (item.id === requestedId || (requestedTitle && item.title === requestedTitle))
+  const configProduct = config.products.find(
+    (item) => item.status !== 'paused' && (item.id === requestedId || (requestedTitle && item.title === requestedTitle))
   );
   if (!configProduct && !hasSeedProductMarker(input)) {
     throw createHttpError('商品归因不存在或已暂停', 400, 'UNKNOWN_PRODUCT');

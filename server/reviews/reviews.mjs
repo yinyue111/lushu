@@ -18,17 +18,16 @@ export async function normalizeReviewShare(input, canonicalRoutebook = null, opt
   const profileId = normalizeProfileId(options.profileId || input?.profileId || 'anonymous');
   const routeId = sanitizePublicId(routebook.publicId || routebook.id);
   // 按 profile + route 谓词精确反扫，避免全局尾窗把老用户的打卡挤出统计窗口。
-  const persistedCheckins = options.includePersistedProfileCheckins && profileId !== 'anonymous'
-    ? await readMatchingJsonLines(
-        CHECKIN_LOG_PATH,
-        (item) => sanitizePublicId(item?.routeId) === routeId && normalizeProfileId(item?.profileId) === profileId,
-        5000,
-        100000
-      )
-    : [];
-  const verifiedCheckins = persistedCheckins
-    .filter((item) => isPublicTrustEligibleCheckin(item))
-    .map(publicCheckinForReview);
+  const persistedCheckins =
+    options.includePersistedProfileCheckins && profileId !== 'anonymous'
+      ? await readMatchingJsonLines(
+          CHECKIN_LOG_PATH,
+          (item) => sanitizePublicId(item?.routeId) === routeId && normalizeProfileId(item?.profileId) === profileId,
+          5000,
+          100000
+        )
+      : [];
+  const verifiedCheckins = persistedCheckins.filter((item) => isPublicTrustEligibleCheckin(item)).map(publicCheckinForReview);
   const checkins = latestCheckinsByStop(verifiedCheckins);
   const executionStops = normalizeReviewExecutionStops(input?.executionStops, routebook);
   const feedbackCheckins = checkins.filter((item) => item.worth !== '跳过' && item.status !== 'skipped');
@@ -69,10 +68,7 @@ function mapByTrimmedKey(items, keyOf) {
 
 function normalizeReviewExecutionStops(input, routebook) {
   if (!Array.isArray(input) || !input.length) return [];
-  const allowedStops = [
-    ...(routebook?.stops ?? []),
-    ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])
-  ];
+  const allowedStops = [...(routebook?.stops ?? []), ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
   const byId = mapByTrimmedKey(allowedStops, (stop) => stop?.id);
   const byName = mapByTrimmedKey(allowedStops, (stop) => stop?.name);
   const seen = new Set();

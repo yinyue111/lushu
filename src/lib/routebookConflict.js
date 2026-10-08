@@ -64,13 +64,18 @@ export function createRoutebookConflictDraft(routebook, actionLabel = '版本冲
 }
 
 function conflictDraftId(sourceId) {
-  const source = String(sourceId || 'routebook').replace(/[^A-Za-z0-9._:-]+/g, '-').slice(0, 36) || 'routebook';
+  const source =
+    String(sourceId || 'routebook')
+      .replace(/[^A-Za-z0-9._:-]+/g, '-')
+      .slice(0, 36) || 'routebook';
   const random = globalThis.crypto?.randomUUID?.().replaceAll('-', '').slice(0, 12) || Math.random().toString(36).slice(2, 14);
   return `conflict-${source}-${Date.now().toString(36)}-${random}`;
 }
 
 function conflictDraftTitle(title) {
-  const base = String(title || '未命名路书').replace(/（冲突副本）$/u, '').slice(0, 68);
+  const base = String(title || '未命名路书')
+    .replace(/（冲突副本）$/u, '')
+    .slice(0, 68);
   return `${base}${CONFLICT_TITLE_SUFFIX}`;
 }
 

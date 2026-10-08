@@ -28,14 +28,20 @@ export default function ImportSourcesPanel() {
             <h2 id="import-sources-title">攻略来源管理</h2>
             <p className="text-caption">导入分析记录：来源抓取状态、可信分与风险提示</p>
           </div>
-          <span className="badge badge-blue"><Link2 size={12} /> {importsResource.data ? `${visibleRows.length} 个来源` : '—'}</span>
+          <span className="badge badge-blue">
+            <Link2 size={12} /> {importsResource.data ? `${visibleRows.length} 个来源` : '—'}
+          </span>
         </div>
         <div className="ops-filter-bar" aria-label="来源筛选">
           <Filter size={15} aria-hidden="true" />
           <label>
             <span>抓取状态</span>
             <select className="input-field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              {STATUS_FILTERS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              {STATUS_FILTERS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
             </select>
           </label>
           <button className="btn btn-secondary btn-sm" type="button" onClick={importsResource.retry} disabled={importsResource.status === 'loading'}>
@@ -47,7 +53,15 @@ export default function ImportSourcesPanel() {
           <div className="ops-table-scroll">
             <table className="ops-data-table">
               <thead>
-                <tr><th>时间</th><th>来源</th><th>状态</th><th>可信分</th><th>提取 POI</th><th>关联路书</th><th>风险提示</th></tr>
+                <tr>
+                  <th>时间</th>
+                  <th>来源</th>
+                  <th>状态</th>
+                  <th>可信分</th>
+                  <th>提取 POI</th>
+                  <th>关联路书</th>
+                  <th>风险提示</th>
+                </tr>
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
@@ -57,11 +71,17 @@ export default function ImportSourcesPanel() {
                       <strong>{textValue(firstValue(row.title, row.platform))}</strong>
                       {row.url ? (
                         <small>
-                          <a href={row.url} target="_blank" rel="noreferrer" className="ops-table-link">{shortenUrl(row.url)}</a>
+                          <a href={row.url} target="_blank" rel="noreferrer" className="ops-table-link">
+                            {shortenUrl(row.url)}
+                          </a>
                         </small>
-                      ) : row.platform ? <small>{row.platform}</small> : null}
+                      ) : row.platform ? (
+                        <small>{row.platform}</small>
+                      ) : null}
                     </td>
-                    <td><SourceStatusBadge value={row.status} /></td>
+                    <td>
+                      <SourceStatusBadge value={row.status} />
+                    </td>
                     <td>{numberValue(row.trustScore)}</td>
                     <td>{numberValue(row.poiCount)}</td>
                     <td>{textValue(firstValue(row.routebookTitle, row.routebookId))}</td>
@@ -72,11 +92,7 @@ export default function ImportSourcesPanel() {
             </table>
           </div>
         ) : listReady ? (
-          <EmptyState>
-            {rows.length
-              ? '当前筛选状态下没有导入来源。'
-              : '导入分析尚无记录。用户在生成页粘贴攻略链接并解析后，会在这里出现来源明细。'}
-          </EmptyState>
+          <EmptyState>{rows.length ? '当前筛选状态下没有导入来源。' : '导入分析尚无记录。用户在生成页粘贴攻略链接并解析后，会在这里出现来源明细。'}</EmptyState>
         ) : null}
         <p className="text-caption" style={{ marginTop: 10 }}>
           状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only 与 failed 计失败。
@@ -92,19 +108,21 @@ function flattenImportSources(data) {
     const recordId = record?.id || `import-${recordIndex}`;
     const sources = Array.isArray(record?.sources) ? record.sources : [];
     if (!sources.length) {
-      return [{
-        key: recordId,
-        createdAt: record?.createdAt,
-        url: '',
-        platform: '',
-        title: '导入记录（无来源明细）',
-        status: '',
-        trustScore: record?.averageTrust,
-        warnings: [],
-        poiCount: firstValue(record?.poiCount, record?.extractedPoiCount),
-        routebookId: firstValue(record?.routebookId, record?.routeId),
-        routebookTitle: firstValue(record?.routebookTitle, record?.routeTitle)
-      }];
+      return [
+        {
+          key: recordId,
+          createdAt: record?.createdAt,
+          url: '',
+          platform: '',
+          title: '导入记录（无来源明细）',
+          status: '',
+          trustScore: record?.averageTrust,
+          warnings: [],
+          poiCount: firstValue(record?.poiCount, record?.extractedPoiCount),
+          routebookId: firstValue(record?.routebookId, record?.routeId),
+          routebookTitle: firstValue(record?.routebookTitle, record?.routeTitle)
+        }
+      ];
     }
     return sources.map((source, index) => ({
       key: `${recordId}-${index}`,

@@ -36,7 +36,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
     const cityScoped = productCards.filter((item) => !item.city || item.city === routeCity);
     const merged = [...productsForStop(cityScoped, stopName), ...productsForStop(cityScoped, stopArea)];
     return merged
-      .filter((item, index) => merged.findIndex((next) => (next.id || `${next.provider}-${next.title}`) === (item.id || `${item.provider}-${item.title}`)) === index)
+      .filter(
+        (item, index) => merged.findIndex((next) => (next.id || `${next.provider}-${next.title}`) === (item.id || `${item.provider}-${item.title}`)) === index
+      )
       .sort((a, b) => Number(b.priority ?? 0) - Number(a.priority ?? 0))
       .slice(0, 2);
   }, [productCards, routeCity, stopArea, stopName]);
@@ -110,7 +112,11 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       setMessage('当前 POI 坐标待复核，暂不能直接打开地图标记');
       return;
     }
-    window.open(`https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(stop.name)}&src=trusted-routebook&coordinate=wgs84&callnative=1`, '_blank', 'noopener,noreferrer');
+    window.open(
+      `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(stop.name)}&src=trusted-routebook&coordinate=wgs84&callnative=1`,
+      '_blank',
+      'noopener,noreferrer'
+    );
   }
 
   async function submitCorrection(event) {
@@ -135,18 +141,32 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div ref={dialogRef} className="modal-content poi-detail-modal" role="dialog" aria-modal="true" aria-labelledby="poi-detail-title" tabIndex={-1} onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content poi-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="poi-detail-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="poi-detail-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span className={`badge ${poiTrustState.badgeClass}`}><PoiTrustIcon size={11} /> {poiTrustState.label}</span>
+              <span className={`badge ${poiTrustState.badgeClass}`}>
+                <PoiTrustIcon size={11} /> {poiTrustState.label}
+              </span>
               {!canNavigate && <span className="badge badge-orange">定位待复核</span>}
               <span className="text-micro">{stop.area}</span>
             </div>
-            <h2 className="text-title" id="poi-detail-title">{stop.name}</h2>
+            <h2 className="text-title" id="poi-detail-title">
+              {stop.name}
+            </h2>
           </div>
-          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭 POI 详情"><X size={18} /></button>
+          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭 POI 详情">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Info grid */}
@@ -184,7 +204,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
         {/* Real feedback（poiTrust 反哺；字段可能暂缺，防御渲染） */}
         <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>真实人群与排队数据</h3>
+          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
+            真实人群与排队数据
+          </h3>
           {realFeedback.hasData ? (
             <div className="card-flat" style={{ display: 'grid', gap: 8 }}>
               {realFeedback.audienceText && (
@@ -195,20 +217,24 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               )}
               {(realFeedback.queueMinutes != null || realFeedback.costMedian != null) && (
                 <p className="text-caption">
-                  <Clock size={12} style={{ color: 'var(--green)' }} /> {[
+                  <Clock size={12} style={{ color: 'var(--green)' }} />{' '}
+                  {[
                     realFeedback.queueMinutes != null ? `实测排队约 ${realFeedback.queueMinutes} 分钟` : '',
                     realFeedback.costMedian != null ? `人均约 ${realFeedback.costMedian} 元` : ''
-                  ].filter(Boolean).join(' / ')}
+                  ]
+                    .filter(Boolean)
+                    .join(' / ')}
                 </p>
               )}
               {realFeedback.crowdLabel && (
-                <p className="text-caption"><Users size={12} style={{ color: 'var(--orange)' }} /> 实测拥挤程度：{realFeedback.crowdLabel}</p>
+                <p className="text-caption">
+                  <Users size={12} style={{ color: 'var(--orange)' }} /> 实测拥挤程度：{realFeedback.crowdLabel}
+                </p>
               )}
               {realFeedback.latestDaysAgo != null && (
                 <p className="text-caption">
-                  <Clock size={12} style={{ color: 'var(--muted)' }} /> {realFeedback.latestDaysAgo === 0
-                    ? '今天有人反馈了该点位的真实情况'
-                    : `${realFeedback.latestDaysAgo} 天前有人反馈了该点位的真实情况`}
+                  <Clock size={12} style={{ color: 'var(--muted)' }} />{' '}
+                  {realFeedback.latestDaysAgo === 0 ? '今天有人反馈了该点位的真实情况' : `${realFeedback.latestDaysAgo} 天前有人反馈了该点位的真实情况`}
                 </p>
               )}
             </div>
@@ -224,10 +250,16 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
         {/* Verify + Risk */}
         <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>出发前复核与风险</h3>
+          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
+            出发前复核与风险
+          </h3>
           <div className="card-flat" style={{ display: 'grid', gap: 8 }}>
-            <p className="text-caption"><Shield size={12} style={{ color: 'var(--blue)' }} /> 复核建议：{stop.verify || '出发前核对开放时间与现场条件'}</p>
-            <p className="text-caption"><AlertTriangle size={12} style={{ color: 'var(--orange)' }} /> {stop.risk}</p>
+            <p className="text-caption">
+              <Shield size={12} style={{ color: 'var(--blue)' }} /> 复核建议：{stop.verify || '出发前核对开放时间与现场条件'}
+            </p>
+            <p className="text-caption">
+              <AlertTriangle size={12} style={{ color: 'var(--orange)' }} /> {stop.risk}
+            </p>
           </div>
         </div>
 
@@ -254,7 +286,10 @@ export default function PoiDetail({ stop, routebook, onClose }) {
                 <div key={item.correctionId || item.id} className="poi-evidence-card approved">
                   <span className="badge badge-green">运营已审</span>
                   <strong>{item.field || '综合信息'}</strong>
-                  <small>{item.value || item.suggestedValue}{item.reason ? `；依据：${item.reason}` : ''}</small>
+                  <small>
+                    {item.value || item.suggestedValue}
+                    {item.reason ? `；依据：${item.reason}` : ''}
+                  </small>
                 </div>
               ))}
             </div>
@@ -279,7 +314,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
                   <div>
                     <strong>{fact.field}</strong>
                     <small>{fact.value}</small>
-                    <em>{fact.status} · {fact.sourceLabel || fact.sourceType || '来源待补充'}</em>
+                    <em>
+                      {fact.status} · {fact.sourceLabel || fact.sourceType || '来源待补充'}
+                    </em>
                   </div>
                 </a>
               ))}
@@ -289,7 +326,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
         {/* Confidence */}
         <div className="poi-detail-section">
-          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>可信度指标</h3>
+          <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
+            可信度指标
+          </h3>
           <div className={`poi-evidence-card ${poiTrustState.verified ? 'approved' : ''}`} style={{ marginBottom: 10 }}>
             <span className={`badge ${poiTrustState.badgeClass}`}>{poiTrustState.verified ? '真实 POI 反馈' : poiTrustState.value}</span>
             <strong>{poiTrustState.detailLabel}</strong>
@@ -317,10 +356,16 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               <Ticket size={12} /> 相关商品
             </h3>
             {relatedProducts.map((item, index) => (
-              <button key={item.id || item.url || `${item.provider}-${item.title}-${index}`} className="poi-product-card" onClick={() => handleProductClick(item)}>
+              <button
+                key={item.id || item.url || `${item.provider}-${item.title}-${index}`}
+                className="poi-product-card"
+                onClick={() => handleProductClick(item)}
+              >
                 <div>
                   <strong>{item.title}</strong>
-                  <span className="text-micro">{item.type} · {item.price}</span>
+                  <span className="text-micro">
+                    {item.type} · {item.price}
+                  </span>
                 </div>
                 <span className="badge badge-blue">{item.deepLinkStatus === 'verified' ? '可归因深链' : '外部入口'}</span>
               </button>
@@ -342,21 +387,39 @@ export default function PoiDetail({ stop, routebook, onClose }) {
             <label>
               <span className="input-label">纠错字段</span>
               <select className="input-field" value={correction.field} onChange={(event) => setCorrection((prev) => ({ ...prev, field: event.target.value }))}>
-                {['开放时间/价格', '位置坐标', '排队/拥挤', '闭店/暂停', '适合人群', '其他'].map((item) => <option key={item}>{item}</option>)}
+                {['开放时间/价格', '位置坐标', '排队/拥挤', '闭店/暂停', '适合人群', '其他'].map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
               </select>
             </label>
             <label>
               <span className="input-label">建议修正</span>
-              <textarea className="input-field" value={correction.suggestedValue} onChange={(event) => setCorrection((prev) => ({ ...prev, suggestedValue: event.target.value }))} placeholder="例如：门票已涨到 15 元，周一闭馆..." />
+              <textarea
+                className="input-field"
+                value={correction.suggestedValue}
+                onChange={(event) => setCorrection((prev) => ({ ...prev, suggestedValue: event.target.value }))}
+                placeholder="例如：门票已涨到 15 元，周一闭馆..."
+              />
             </label>
             <label>
               <span className="input-label">依据</span>
-              <input className="input-field" value={correction.reason} onChange={(event) => setCorrection((prev) => ({ ...prev, reason: event.target.value }))} placeholder="现场打卡、官方公告、地图信息..." />
+              <input
+                className="input-field"
+                value={correction.reason}
+                onChange={(event) => setCorrection((prev) => ({ ...prev, reason: event.target.value }))}
+                placeholder="现场打卡、官方公告、地图信息..."
+              />
             </label>
-            <button className="btn btn-primary btn-sm" type="submit">提交纠错</button>
+            <button className="btn btn-primary btn-sm" type="submit">
+              提交纠错
+            </button>
           </form>
         )}
-        {message && <p className="text-caption" style={{ padding: '0 var(--space-lg) var(--space-lg)' }}>{message}</p>}
+        {message && (
+          <p className="text-caption" style={{ padding: '0 var(--space-lg) var(--space-lg)' }}>
+            {message}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -389,7 +452,7 @@ function buildEvidence(stop, routebook) {
     type: matched.length ? 'matched-source' : 'route-source',
     label: `${source.platform || '导入来源'}｜来源预测 ${sourcePredictionLabel(source)}`,
     detail: matched.length
-      ? (source.title || source.description || source.excerpt || '来源命中该站点。')
+      ? source.title || source.description || source.excerpt || '来源命中该站点。'
       : `路线级来源，未在公开摘要中逐点命中「${stopName}」。${source.title || source.description || ''}`,
     platform: source.platform,
     predictionScore: source.predictionScore ?? source.trustScore,
@@ -423,9 +486,8 @@ function buildPoiTrustState(stop, city) {
 
   if (verified) {
     const validArrivals = Math.max(0, Number(trust?.validArrivals) || 0);
-    const pitfallRate = trust?.pitfallRate == null || !Number.isFinite(Number(trust.pitfallRate))
-      ? null
-      : Math.max(0, Math.min(100, Number(trust.pitfallRate)));
+    const pitfallRate =
+      trust?.pitfallRate == null || !Number.isFinite(Number(trust.pitfallRate)) ? null : Math.max(0, Math.min(100, Number(trust.pitfallRate)));
     return {
       tone: 'verified',
       badgeClass: 'badge-green',
@@ -433,12 +495,9 @@ function buildPoiTrustState(stop, city) {
       value: String(Math.round(score)),
       label: `POI 可信 ${Math.round(score)}`,
       detailLabel: trust?.label || '独立身份打卡验证',
-      detail: [
-        trust?.freshnessLabel,
-        `独立有效样本 ${sampleCount} 个`,
-        `有效到达 ${validArrivals} 次`,
-        pitfallRate == null ? '' : `踩坑率 ${pitfallRate}%`
-      ].filter(Boolean).join(' · '),
+      detail: [trust?.freshnessLabel, `独立有效样本 ${sampleCount} 个`, `有效到达 ${validArrivals} 次`, pitfallRate == null ? '' : `踩坑率 ${pitfallRate}%`]
+        .filter(Boolean)
+        .join(' · '),
       score
     };
   }
@@ -498,9 +557,7 @@ function buildPoiRealFeedback(stop) {
   const crowdLabel = crowdRaw ? (crowdLabelMap[crowdRaw.toLowerCase()] ?? crowdRaw.slice(0, 12)) : '';
 
   const latestTimestamp = Date.parse(trust.latestFeedbackAt ?? '');
-  const latestDaysAgo = Number.isFinite(latestTimestamp)
-    ? Math.max(0, Math.floor((Date.now() - latestTimestamp) / 86400000))
-    : null;
+  const latestDaysAgo = Number.isFinite(latestTimestamp) ? Math.max(0, Math.floor((Date.now() - latestTimestamp) / 86400000)) : null;
 
   const correctionRaw = Number(trust.recentCorrectionCount);
   const correctionCount = Number.isInteger(correctionRaw) && correctionRaw > 0 ? correctionRaw : 0;

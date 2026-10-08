@@ -1,5 +1,13 @@
 // Request-level access control: client address / proxy trust, API, admin and profile checks.
-import { TRUSTED_PROXY_CIDRS, TRUST_PROXY_HEADERS, ALLOW_LOCAL_API_BYPASS, API_TOKEN, PUBLIC_MODEL_PROXY_ALLOWED, ADMIN_API_TOKEN, ALLOW_LOCAL_ADMIN_BYPASS } from '../config/index.mjs';
+import {
+  TRUSTED_PROXY_CIDRS,
+  TRUST_PROXY_HEADERS,
+  ALLOW_LOCAL_API_BYPASS,
+  API_TOKEN,
+  PUBLIC_MODEL_PROXY_ALLOWED,
+  ADMIN_API_TOKEN,
+  ALLOW_LOCAL_ADMIN_BYPASS
+} from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { safeTokenEqual, hashSecretToken, normalizeProfileId, sanitizeEditToken } from './tokens.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
@@ -153,6 +161,6 @@ export async function resolveWriteProfile(req, requestedProfileId, { requireRegi
 }
 
 export async function verifySensitiveOrProfileReadAccess(req, profileId) {
-  if (profileId && await verifyProfileReadAccess(req, profileId)) return;
+  if (profileId && (await verifyProfileReadAccess(req, profileId))) return;
   verifySensitiveReadAccess(req);
 }

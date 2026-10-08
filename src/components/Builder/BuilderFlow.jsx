@@ -30,21 +30,29 @@ const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 /** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onBack?: Function }} props */
 export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onBack }) {
   const [profile, setProfile] = useState(() => getProfile());
-  const [initialDraft] = useState(() => hasBuilderDefaults(defaults) ? null : readBuilderDraft(profile.id));
+  const [initialDraft] = useState(() => (hasBuilderDefaults(defaults) ? null : readBuilderDraft(profile.id)));
   const [apiTokenInput, setApiTokenInput] = useState(() => getApiToken());
   const [step, setStep] = useState(() => Math.min(2, Math.max(0, Number(defaults.initialStep ?? initialDraft?.step) || 0)));
-  const initialConstraints = useMemo(() => ({
-    ...defaultConstraints,
-    ...(initialDraft?.constraints ?? {}),
-    duration: defaults.duration ?? initialDraft?.constraints?.duration ?? defaultConstraints.duration,
-    budget: defaults.budget ?? initialDraft?.constraints?.budget ?? profile.budget ?? defaultConstraints.budget,
-    tempo: defaults.tempo ?? initialDraft?.constraints?.tempo ?? profile.tempo ?? defaultConstraints.tempo,
-    companion: defaults.companion ?? initialDraft?.constraints?.companion ?? profile.companion ?? defaultConstraints.companion,
-    transport: defaults.transport ?? initialDraft?.constraints?.transport ?? profile.transport ?? defaultConstraints.transport,
-    theme: Array.isArray(defaults.theme) && defaults.theme.length
-      ? defaults.theme
-      : (initialDraft?.constraints?.theme?.length ? initialDraft.constraints.theme : (profile.themes?.length ? profile.themes.slice(0, 4) : defaultConstraints.theme))
-  }), [defaults.duration, defaults.theme, defaults.budget, defaults.tempo, defaults.companion, defaults.transport, initialDraft, profile]);
+  const initialConstraints = useMemo(
+    () => ({
+      ...defaultConstraints,
+      ...(initialDraft?.constraints ?? {}),
+      duration: defaults.duration ?? initialDraft?.constraints?.duration ?? defaultConstraints.duration,
+      budget: defaults.budget ?? initialDraft?.constraints?.budget ?? profile.budget ?? defaultConstraints.budget,
+      tempo: defaults.tempo ?? initialDraft?.constraints?.tempo ?? profile.tempo ?? defaultConstraints.tempo,
+      companion: defaults.companion ?? initialDraft?.constraints?.companion ?? profile.companion ?? defaultConstraints.companion,
+      transport: defaults.transport ?? initialDraft?.constraints?.transport ?? profile.transport ?? defaultConstraints.transport,
+      theme:
+        Array.isArray(defaults.theme) && defaults.theme.length
+          ? defaults.theme
+          : initialDraft?.constraints?.theme?.length
+            ? initialDraft.constraints.theme
+            : profile.themes?.length
+              ? profile.themes.slice(0, 4)
+              : defaultConstraints.theme
+    }),
+    [defaults.duration, defaults.theme, defaults.budget, defaults.tempo, defaults.companion, defaults.transport, initialDraft, profile]
+  );
   const initialCity = defaults.city ?? initialDraft?.city ?? profile.preferredCities?.[0] ?? profile.homeCity ?? '杭州';
   const [city, setCity] = useState(initialCity);
   const [cityQuery, setCityQuery] = useState(initialDraft?.cityQuery ?? initialCity);
@@ -83,7 +91,20 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       candidatePlaces,
       manualPlace
     });
-  }, [candidatePlaces, city, cityQuery, constraints, guide, importState.sources, manualPlace, ocrState.places, ocrState.warnings, profile.id, screenshotNotes, step]);
+  }, [
+    candidatePlaces,
+    city,
+    cityQuery,
+    constraints,
+    guide,
+    importState.sources,
+    manualPlace,
+    ocrState.places,
+    ocrState.warnings,
+    profile.id,
+    screenshotNotes,
+    step
+  ]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -109,7 +130,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     constraints.base ? `住宿/出发地：${constraints.base}` : '',
     constraints.transport ? `交通偏好：${constraints.transport}` : '',
     constraints.theme?.length ? `主题偏好：${constraints.theme.join('、')}` : ''
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const hasGuideInput = guide.trim().length > 0 || candidatePlaces.length > 0 || ocrState.places.length > 0;
   const canProceed = step === 0 ? Boolean(cityQuery.trim()) : step === 1 ? hasGuideInput : step === 2;
@@ -147,10 +170,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
   async function handleImportLinks({ retryFailed = false, silentWhenComplete = false } = {}) {
     if (importPromise.current) return importPromise.current;
-    const uniqueUrls = [...new Set([
-      ...findUnimportedUrls(guide, importState.sources),
-      ...(retryFailed ? findFailedImportUrls(guide, importState.sources) : [])
-    ])];
+    const uniqueUrls = [
+      ...new Set([...findUnimportedUrls(guide, importState.sources), ...(retryFailed ? findFailedImportUrls(guide, importState.sources) : [])])
+    ];
     if (!uniqueUrls.length) {
       if (!silentWhenComplete) setImportState((prev) => ({ ...prev, error: '' }));
       return true;
@@ -163,7 +185,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       .then((data) => {
         if (!mountedRef.current || ctrl.signal.aborted) return false;
         setImportState((prev) => ({ loading: false, sources: mergeImportedSources(prev.sources, data.sources ?? []), error: '' }));
-        if (data.guideText) setGuide((prev) => prev.includes(data.guideText) ? prev : [prev.trim(), data.guideText].filter(Boolean).join('\n\n'));
+        if (data.guideText) setGuide((prev) => (prev.includes(data.guideText) ? prev : [prev.trim(), data.guideText].filter(Boolean).join('\n\n')));
         addCandidatePlaces(extractCandidatePlacesFromSources(data.sources ?? []));
         return true;
       })
@@ -192,7 +214,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     let i = 0;
     generationInterval.current = setInterval(() => {
       if (mountedRef.current && generationSequence.current === generationId && i < steps.length) {
-        setGenSteps(prev => [...prev, steps[i]]);
+        setGenSteps((prev) => [...prev, steps[i]]);
         i++;
       }
     }, 2500);
@@ -220,21 +242,24 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         if (ctrl.signal.aborted || generationSequence.current !== generationId) return;
         activeProfile = localProfile;
       }
-      const data = await generateRoutebook({
-	        city,
-	        guide: fullGuide,
-	        profileId: activeProfile.id,
-	        editToken: createRouteEditToken(),
-	        constraints: {
-          ...constraints,
-          theme: constraints.theme?.join('、')
+      const data = await generateRoutebook(
+        {
+          city,
+          guide: fullGuide,
+          profileId: activeProfile.id,
+          editToken: createRouteEditToken(),
+          constraints: {
+            ...constraints,
+            theme: constraints.theme?.join('、')
+          },
+          importedSources: importState.sources
         },
-        importedSources: importState.sources
-      }, ctrl.signal);
+        ctrl.signal
+      );
       if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
       clearInterval(generationInterval.current);
       generationInterval.current = null;
-      setGenSteps(prev => [...prev, '完成']);
+      setGenSteps((prev) => [...prev, '完成']);
       generationTimeout.current = setTimeout(() => {
         if (mountedRef.current && generationSequence.current === generationId) {
           clearBuilderDraft(activeProfile.id);
@@ -285,15 +310,19 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       setStep(2);
       return;
     }
-    if (step === 2) { setStep(3); handleGenerate(); }
-    else setStep(s => s + 1);
+    if (step === 2) {
+      setStep(3);
+      handleGenerate();
+    } else setStep((s) => s + 1);
   }
 
   const hasUrls = /https?:\/\/[^\s"'<>，。；、)）]+/i.test(guide);
   const isTrustedCity = trustedCities.includes(city);
 
   function commitCity(nextCity = cityQuery) {
-    const normalized = String(nextCity ?? '').trim().replace(/市$/, '');
+    const normalized = String(nextCity ?? '')
+      .trim()
+      .replace(/市$/, '');
     if (!normalized) {
       // 输入被清空时同步清掉已提交城市，避免带旧城市进入下一步。
       setCity('');
@@ -307,9 +336,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
   function toggleTheme(item) {
     setConstraints((prev) => {
-      const next = prev.theme.includes(item)
-        ? prev.theme.filter((theme) => theme !== item)
-        : [...prev.theme, item].slice(0, 4);
+      const next = prev.theme.includes(item) ? prev.theme.filter((theme) => theme !== item) : [...prev.theme, item].slice(0, 4);
       return { ...prev, theme: next.length ? next : [item] };
     });
   }
@@ -337,34 +364,44 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     const ctrl = new AbortController();
     ocrAbort.current = ctrl;
     try {
-      const images = await Promise.all(files.map(async (file) => ({
-        name: file.name,
-        mimeType: file.type || 'image/png',
-        data: await readFileAsDataUrl(file)
-      })));
+      const images = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          mimeType: file.type || 'image/png',
+          data: await readFileAsDataUrl(file)
+        }))
+      );
       const data = await analyzeGuideImages(images, ctrl.signal);
       if (!mountedRef.current || ctrl.signal.aborted) return;
       setOcrState({ loading: false, places: data.places ?? [], warnings: data.warnings ?? [] });
       finishNotes(`OCR 已识别 ${data.places?.length ?? 0} 个地点`);
-      addCandidatePlaces((data.places ?? []).map((place) => ({
-        name: place.name,
-        source: '截图 OCR',
-        confidence: place.confidence,
-        note: [place.time, place.price, place.note].filter(Boolean).join(' · '),
-        included: true,
-        mustGo: false
-      })));
+      addCandidatePlaces(
+        (data.places ?? []).map((place) => ({
+          name: place.name,
+          source: '截图 OCR',
+          confidence: place.confidence,
+          note: [place.time, place.price, place.note].filter(Boolean).join(' · '),
+          included: true,
+          mustGo: false
+        }))
+      );
       const lines = [
         `截图 OCR 识别：${files.map((file) => file.name).join('、')}`,
         data.guideText,
-        ...(data.places ?? []).map((place, index) => `${index + 1}. ${place.name}${place.time ? `｜${place.time}` : ''}${place.price ? `｜${place.price}` : ''}${place.note ? `｜${place.note}` : ''}`)
+        ...(data.places ?? []).map(
+          (place, index) =>
+            `${index + 1}. ${place.name}${place.time ? `｜${place.time}` : ''}${place.price ? `｜${place.price}` : ''}${place.note ? `｜${place.note}` : ''}`
+        )
       ].filter(Boolean);
       setGuide((prev) => `${prev}${prev ? '\n\n' : ''}${lines.join('\n')}`);
     } catch (e) {
       if (!mountedRef.current || ctrl.signal.aborted) return;
       setOcrState({ loading: false, places: [], warnings: [e.message] });
       finishNotes('OCR 识别失败，待手动复核');
-      setGuide((prev) => `${prev}${prev ? '\n' : ''}已上传截图：${files.map((file) => file.name).join('、')}。截图暂未识别成功，请结合文件名线索和手动补充正文生成路线，未识别内容需标记为待复核。`);
+      setGuide(
+        (prev) =>
+          `${prev}${prev ? '\n' : ''}已上传截图：${files.map((file) => file.name).join('、')}。截图暂未识别成功，请结合文件名线索和手动补充正文生成路线，未识别内容需标记为待复核。`
+      );
     } finally {
       // 批次被中断（切换新批次或离开页面）时统一收尾占位备注，
       // 避免「正在 OCR 识别」永久残留在截图备注里。
@@ -400,7 +437,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   function updateCandidate(index, patch) {
-    setCandidatePlaces((prev) => prev.map((place, currentIndex) => currentIndex === index ? { ...place, ...patch } : place));
+    setCandidatePlaces((prev) => prev.map((place, currentIndex) => (currentIndex === index ? { ...place, ...patch } : place)));
   }
 
   return (
@@ -411,7 +448,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       </button>
       <header className="builder-heading">
         <h1 className="text-title">创建我的路书</h1>
-        <p className="text-caption">第 {step + 1} 步，共 {builderStepLabels.length} 步</p>
+        <p className="text-caption">
+          第 {step + 1} 步，共 {builderStepLabels.length} 步
+        </p>
       </header>
       <details className="builder-access">
         <summary>高级设置</summary>
@@ -431,15 +470,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {/* Step indicator */}
       <div className="steps" role="list" aria-label="创建路书进度" style={{ marginBottom: 40 }}>
-        {[0,1,2,3].map(i => (
+        {[0, 1, 2, 3].map((i) => (
           <React.Fragment key={i}>
-            <div
-              className="step-item"
-              role="listitem"
-              aria-current={i === step ? 'step' : undefined}
-            >
+            <div className="step-item" role="listitem" aria-current={i === step ? 'step' : undefined}>
               <span className={`step-dot ${i === step ? 'active' : i < step ? 'done' : ''}`} aria-hidden="true" />
-              <span className="sr-only">第 {i + 1} 步：{builderStepLabels[i]}{i === step ? '，当前步骤' : i < step ? '，已完成' : '，未开始'}</span>
+              <span className="sr-only">
+                第 {i + 1} 步：{builderStepLabels[i]}
+                {i === step ? '，当前步骤' : i < step ? '，已完成' : '，未开始'}
+              </span>
             </div>
             {i < 3 && <div className="step-line" aria-hidden="true" />}
           </React.Fragment>
@@ -457,9 +495,13 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {step === 0 && (
         <div className="builder-step">
           <h2 className="text-title">选择目的地</h2>
-          <p className="text-caption" style={{ marginTop: 6 }}>首批可信城市为杭州、上海、苏州；其他城市仍可手动输入并试验生成</p>
+          <p className="text-caption" style={{ marginTop: 6 }}>
+            首批可信城市为杭州、上海、苏州；其他城市仍可手动输入并试验生成
+          </p>
           <div className="city-search-panel" style={{ marginTop: 20 }}>
-            <label className="input-label" htmlFor="builder-city">目的地城市</label>
+            <label className="input-label" htmlFor="builder-city">
+              目的地城市
+            </label>
             <input
               id="builder-city"
               className="input-field"
@@ -471,15 +513,25 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 if (citySuggestions.includes(value.trim())) commitCity(value);
               }}
               onBlur={() => commitCity()}
-              onKeyDown={(event) => { if (event.key === 'Enter') commitCity(); }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') commitCity();
+              }}
               placeholder="例如：杭州、上海、苏州，或手动输入其他城市"
             />
             <datalist id="builder-city-options">
-              {citySuggestions.map((item) => <option key={item} value={item} />)}
+              {citySuggestions.map((item) => (
+                <option key={item} value={item} />
+              ))}
             </datalist>
             <div className="city-suggestion-strip builder-city-strip" aria-label="首批可信城市">
               {trustedCities.map((item) => (
-                <button key={item} aria-pressed={item === city} className={item === city ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => commitCity(item)}>
+                <button
+                  key={item}
+                  aria-pressed={item === city}
+                  className={item === city ? 'active' : ''}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => commitCity(item)}
+                >
                   {item}
                 </button>
               ))}
@@ -498,26 +550,40 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {step === 1 && (
         <div className="builder-step">
           <h2 className="text-title">导入攻略与收藏</h2>
-          <p className="text-caption" style={{ marginTop: 6 }}>粘贴公开链接、正文摘要、收藏地点或截图线索</p>
-          <label className="sr-only" htmlFor="builder-guide">攻略链接、正文摘要或收藏地点</label>
+          <p className="text-caption" style={{ marginTop: 6 }}>
+            粘贴公开链接、正文摘要、收藏地点或截图线索
+          </p>
+          <label className="sr-only" htmlFor="builder-guide">
+            攻略链接、正文摘要或收藏地点
+          </label>
           <textarea
             id="builder-guide"
             className="input-field"
             style={{ marginTop: 20 }}
             placeholder="例如：小红书/抖音/X 链接、攻略正文、想去的地点。无法公开抓取的链接请补充正文摘要。"
             value={guide}
-            onChange={e => setGuide(e.target.value)}
+            onChange={(e) => setGuide(e.target.value)}
           />
           <div className="import-tools">
             <div className="model-privacy-note" id="builder-upload-privacy">
               <AlertCircle size={15} />
-              <p>隐私提示：截图会上传至当前配置的第三方模型服务进行 OCR 处理。请先裁剪并移除姓名、手机号、订单号、证件、精确定位等敏感信息；选择文件即表示同意该处理。</p>
+              <p>
+                隐私提示：截图会上传至当前配置的第三方模型服务进行 OCR
+                处理。请先裁剪并移除姓名、手机号、订单号、证件、精确定位等敏感信息；选择文件即表示同意该处理。
+              </p>
             </div>
             <label className="upload-tile" htmlFor="builder-screenshots">
               <ImageUp size={18} />
               <span>上传截图线索</span>
               <small>调用模型 OCR 提取地点/价格/时间</small>
-              <input id="builder-screenshots" type="file" accept="image/*" multiple aria-describedby="builder-upload-privacy" onChange={handleScreenshotFiles} />
+              <input
+                id="builder-screenshots"
+                type="file"
+                accept="image/*"
+                multiple
+                aria-describedby="builder-upload-privacy"
+                onChange={handleScreenshotFiles}
+              />
             </label>
             <div className="upload-tile muted">
               <Link size={18} />
@@ -533,16 +599,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
               disabled={importState.loading}
             >
               {importState.loading ? <Loader2 size={14} className="spinner-icon" /> : <Link size={14} />}
-              {importState.loading
-                ? '导入中...'
-                : failedImportUrls.length > 0
-                  ? '重试失败链接'
-                  : '分析新增链接'}
+              {importState.loading ? '导入中...' : failedImportUrls.length > 0 ? '重试失败链接' : '分析新增链接'}
             </button>
           )}
           {importState.error && (
             <div className="card-flat" role="alert" style={{ marginTop: 12, background: 'var(--orange-bg)' }}>
-              <p className="text-caption" style={{ color: '#8A5200' }}><AlertCircle size={13} /> {importState.error}</p>
+              <p className="text-caption" style={{ color: '#8A5200' }}>
+                <AlertCircle size={13} /> {importState.error}
+              </p>
             </div>
           )}
           {importState.sources.length > 0 && (
@@ -559,7 +623,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
               {importState.sources.map((s, i) => (
                 <div key={i} className="source-row">
                   <span className={`badge ${sourcePredictionBadgeClass(sourcePredictionValue(s))}`}>来源预测 {sourcePredictionValue(s) ?? '待计算'}</span>
-                  <span className="text-caption">{s.platform || '公开链接'} · {s.status || '状态待补充'} · {s.title?.slice(0, 30) || '标题待补充'}</span>
+                  <span className="text-caption">
+                    {s.platform || '公开链接'} · {s.status || '状态待补充'} · {s.title?.slice(0, 30) || '标题待补充'}
+                  </span>
                   {s.warnings?.[0] && <small>{s.warnings[0]}</small>}
                 </div>
               ))}
@@ -568,19 +634,30 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           <div className="candidate-poi-panel">
             <div className="source-analysis-head">
               <strong>候选地点确认</strong>
-              <span className="badge badge-blue" role="status" aria-live="polite">{candidatePlaces.filter((place) => place.included).length} 个将参与生成</span>
+              <span className="badge badge-blue" role="status" aria-live="polite">
+                {candidatePlaces.filter((place) => place.included).length} 个将参与生成
+              </span>
             </div>
             <div className="candidate-add-row">
-              <label className="sr-only" htmlFor="builder-manual-place">手动补充地点</label>
+              <label className="sr-only" htmlFor="builder-manual-place">
+                手动补充地点
+              </label>
               <input
                 id="builder-manual-place"
                 className="input-field"
                 value={manualPlace}
                 onChange={(event) => setManualPlace(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addManualPlace(); } }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addManualPlace();
+                  }
+                }}
                 placeholder="手动补充地点，例如：法喜寺、武康路"
               />
-              <button className="btn btn-secondary btn-sm" onClick={addManualPlace}><Plus size={14} /> 添加</button>
+              <button className="btn btn-secondary btn-sm" onClick={addManualPlace}>
+                <Plus size={14} /> 添加
+              </button>
             </div>
             {candidatePlaces.length ? (
               <div className="candidate-poi-list">
@@ -590,7 +667,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                       <input type="checkbox" checked={place.included} onChange={(event) => updateCandidate(index, { included: event.target.checked })} />
                       <span>
                         <strong>{place.name}</strong>
-                        <small>{place.source || '候选来源'} · 参考分 {place.confidence ?? '待计算'}{place.note ? ` · ${place.note}` : ''}</small>
+                        <small>
+                          {place.source || '候选来源'} · 参考分 {place.confidence ?? '待计算'}
+                          {place.note ? ` · ${place.note}` : ''}
+                        </small>
                       </span>
                     </label>
                     <button
@@ -599,7 +679,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                     >
                       {place.mustGo ? <Check size={13} /> : <MapPin size={13} />} 必去
                     </button>
-                    <button className="btn btn-icon btn-sm" onClick={() => setCandidatePlaces((prev) => prev.filter((_, currentIndex) => currentIndex !== index))} aria-label={`删除${place.name}`}>
+                    <button
+                      className="btn btn-icon btn-sm"
+                      onClick={() => setCandidatePlaces((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
+                      aria-label={`删除${place.name}`}
+                    >
                       <X size={14} />
                     </button>
                   </div>
@@ -615,10 +699,16 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
               {ocrState.places.slice(0, 6).map((place, i) => (
                 <div key={`${place.name}-${i}`} className="source-row">
                   <span className={`badge ${place.confidence >= 70 ? 'badge-blue' : 'badge-orange'}`}>OCR {place.confidence ?? '待计算'}</span>
-                  <span className="text-caption">{place.name} · {place.time || '时间待复核'} · {place.price || '价格待复核'}</span>
+                  <span className="text-caption">
+                    {place.name} · {place.time || '时间待复核'} · {place.price || '价格待复核'}
+                  </span>
                 </div>
               ))}
-              {ocrState.warnings.map((warning, i) => <p key={i} className="text-caption" style={{ marginTop: 6, color: 'var(--orange)' }}>{warning}</p>)}
+              {ocrState.warnings.map((warning, i) => (
+                <p key={i} className="text-caption" style={{ marginTop: 6, color: 'var(--orange)' }}>
+                  {warning}
+                </p>
+              ))}
             </div>
           )}
         </div>
@@ -628,69 +718,159 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {step === 2 && (
         <div className="builder-step">
           <h2 className="text-title">旅行偏好</h2>
-          <p className="text-caption" style={{ marginTop: 6 }}>设置约束条件，AI 会据此优化路线</p>
+          <p className="text-caption" style={{ marginTop: 6 }}>
+            设置约束条件，AI 会据此优化路线
+          </p>
 
           <div className="field-grid" style={{ marginTop: 24 }}>
             <div>
-              <label className="input-label" htmlFor="builder-date"><CalendarDays size={14} /> 出行日期</label>
-              <input id="builder-date" className="input-field" type="date" value={constraints.date} onChange={e => setConstraints(p => ({...p, date: e.target.value}))} />
+              <label className="input-label" htmlFor="builder-date">
+                <CalendarDays size={14} /> 出行日期
+              </label>
+              <input
+                id="builder-date"
+                className="input-field"
+                type="date"
+                value={constraints.date}
+                onChange={(e) => setConstraints((p) => ({ ...p, date: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="input-label" htmlFor="builder-base"><Home size={14} /> 住宿/出发地</label>
-              <input id="builder-base" className="input-field" value={constraints.base} onChange={e => setConstraints(p => ({...p, base: e.target.value}))} placeholder="湖滨银泰、杭州东站..." />
+              <label className="input-label" htmlFor="builder-base">
+                <Home size={14} /> 住宿/出发地
+              </label>
+              <input
+                id="builder-base"
+                className="input-field"
+                value={constraints.base}
+                onChange={(e) => setConstraints((p) => ({ ...p, base: e.target.value }))}
+                placeholder="湖滨银泰、杭州东站..."
+              />
             </div>
           </div>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
             <legend className="input-label">行程天数</legend>
             <div className="chip-group">
-              {durations.map(d => <button key={d} aria-pressed={constraints.duration === d} className={`chip ${constraints.duration === d ? 'active' : ''}`} onClick={() => setConstraints(p => ({...p, duration: d}))}>{d}</button>)}
+              {durations.map((d) => (
+                <button
+                  key={d}
+                  aria-pressed={constraints.duration === d}
+                  className={`chip ${constraints.duration === d ? 'active' : ''}`}
+                  onClick={() => setConstraints((p) => ({ ...p, duration: d }))}
+                >
+                  {d}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
             <legend className="input-label">预算</legend>
             <div className="chip-group">
-              {budgets.map(b => <button key={b} aria-pressed={constraints.budget === b} className={`chip ${constraints.budget === b ? 'active' : ''}`} onClick={() => setConstraints(p => ({...p, budget: b}))}>{b}</button>)}
+              {budgets.map((b) => (
+                <button
+                  key={b}
+                  aria-pressed={constraints.budget === b}
+                  className={`chip ${constraints.budget === b ? 'active' : ''}`}
+                  onClick={() => setConstraints((p) => ({ ...p, budget: b }))}
+                >
+                  {b}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
             <legend className="input-label">节奏</legend>
             <div className="chip-group">
-              {tempos.map(t => <button key={t} aria-pressed={constraints.tempo === t} className={`chip ${constraints.tempo === t ? 'active' : ''}`} onClick={() => setConstraints(p => ({...p, tempo: t}))}>{t}</button>)}
+              {tempos.map((t) => (
+                <button
+                  key={t}
+                  aria-pressed={constraints.tempo === t}
+                  className={`chip ${constraints.tempo === t ? 'active' : ''}`}
+                  onClick={() => setConstraints((p) => ({ ...p, tempo: t }))}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
             <legend className="input-label">同行</legend>
             <div className="chip-group">
-              {companions.map(c => <button key={c} aria-pressed={constraints.companion === c} className={`chip ${constraints.companion === c ? 'active' : ''}`} onClick={() => setConstraints(p => ({...p, companion: c}))}>{c}</button>)}
+              {companions.map((c) => (
+                <button
+                  key={c}
+                  aria-pressed={constraints.companion === c}
+                  className={`chip ${constraints.companion === c ? 'active' : ''}`}
+                  onClick={() => setConstraints((p) => ({ ...p, companion: c }))}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
-            <legend className="input-label"><Train size={14} /> 交通偏好</legend>
+            <legend className="input-label">
+              <Train size={14} /> 交通偏好
+            </legend>
             <div className="chip-group">
-              {transports.map(t => <button key={t} aria-pressed={constraints.transport === t} className={`chip ${constraints.transport === t ? 'active' : ''}`} onClick={() => setConstraints(p => ({...p, transport: t}))}>{t}</button>)}
+              {transports.map((t) => (
+                <button
+                  key={t}
+                  aria-pressed={constraints.transport === t}
+                  className={`chip ${constraints.transport === t ? 'active' : ''}`}
+                  onClick={() => setConstraints((p) => ({ ...p, transport: t }))}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <fieldset className="builder-fieldset" style={{ marginTop: 20 }}>
             <legend className="input-label">主题偏好</legend>
             <div className="chip-group">
-              {themes.map(t => <button key={t} aria-pressed={constraints.theme.includes(t)} className={`chip ${constraints.theme.includes(t) ? 'active' : ''}`} onClick={() => toggleTheme(t)}>{t}</button>)}
+              {themes.map((t) => (
+                <button
+                  key={t}
+                  aria-pressed={constraints.theme.includes(t)}
+                  className={`chip ${constraints.theme.includes(t) ? 'active' : ''}`}
+                  onClick={() => toggleTheme(t)}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </fieldset>
 
           <div style={{ marginTop: 20, display: 'grid', gap: 12 }}>
             <div>
-              <label className="input-label" htmlFor="builder-must-go">必去地点</label>
-              <input id="builder-must-go" className="input-field" value={constraints.mustGo} onChange={e => setConstraints(p => ({...p, mustGo: e.target.value}))} placeholder="西湖、法喜寺" />
+              <label className="input-label" htmlFor="builder-must-go">
+                必去地点
+              </label>
+              <input
+                id="builder-must-go"
+                className="input-field"
+                value={constraints.mustGo}
+                onChange={(e) => setConstraints((p) => ({ ...p, mustGo: e.target.value }))}
+                placeholder="西湖、法喜寺"
+              />
             </div>
             <div>
-              <label className="input-label" htmlFor="builder-avoid">避开</label>
-              <input id="builder-avoid" className="input-field" value={constraints.avoid} onChange={e => setConstraints(p => ({...p, avoid: e.target.value}))} placeholder="排队过久、商业街同质化" />
+              <label className="input-label" htmlFor="builder-avoid">
+                避开
+              </label>
+              <input
+                id="builder-avoid"
+                className="input-field"
+                value={constraints.avoid}
+                onChange={(e) => setConstraints((p) => ({ ...p, avoid: e.target.value }))}
+                placeholder="排队过久、商业街同质化"
+              />
             </div>
           </div>
         </div>
@@ -702,8 +882,12 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           <div className="gen-animation">
             <Sparkles size={40} style={{ color: 'var(--blue)' }} />
           </div>
-          <h2 className="text-title" style={{ marginTop: 24 }}>正在生成路书</h2>
-          <p className="text-caption" style={{ marginTop: 8 }}>{city} · {constraints.duration}</p>
+          <h2 className="text-title" style={{ marginTop: 24 }}>
+            正在生成路书
+          </h2>
+          <p className="text-caption" style={{ marginTop: 8 }}>
+            {city} · {constraints.duration}
+          </p>
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {genSteps.length ? `生成进度：${genSteps.at(-1)}` : '正在准备生成'}
           </p>
@@ -725,7 +909,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             <div className="card-flat" role="alert" style={{ marginTop: 24, background: 'var(--red-bg)', textAlign: 'left' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <AlertCircle size={16} style={{ color: 'var(--red)' }} />
-                <span className="text-caption" style={{ color: 'var(--red)' }}>{error}</span>
+                <span className="text-caption" style={{ color: 'var(--red)' }}>
+                  {error}
+                </span>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
                 <button className="btn btn-primary btn-sm" onClick={retryGenerate}>
@@ -743,16 +929,26 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {/* Navigation */}
       {step < 3 && (
         <div className="builder-nav">
-          <button className="btn btn-secondary" onClick={() => step > 0 ? setStep(s => s - 1) : leaveBuilder()}>
+          <button className="btn btn-secondary" onClick={() => (step > 0 ? setStep((s) => s - 1) : leaveBuilder())}>
             <ArrowLeft size={16} /> {step === 0 ? '取消' : '上一步'}
           </button>
-          <button className="btn btn-primary" onClick={next} disabled={!canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2)}>
+          <button
+            className="btn btn-primary"
+            onClick={next}
+            disabled={!canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2)}
+          >
             {ocrState.loading ? (
-              <><Loader2 size={16} className="spinner-icon" /> 截图识别中...</>
+              <>
+                <Loader2 size={16} className="spinner-icon" /> 截图识别中...
+              </>
             ) : step === 2 ? (
-              <><Sparkles size={16} /> 生成路书</>
+              <>
+                <Sparkles size={16} /> 生成路书
+              </>
             ) : (
-              <>下一步 <ArrowRight size={16} /></>
+              <>
+                下一步 <ArrowRight size={16} />
+              </>
             )}
           </button>
         </div>
@@ -769,7 +965,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 }
 
 function hasBuilderDefaults(defaults) {
-  return Boolean(defaults && Object.values(defaults).some((value) => Array.isArray(value) ? value.length : String(value ?? '').trim()));
+  return Boolean(defaults && Object.values(defaults).some((value) => (Array.isArray(value) ? value.length : String(value ?? '').trim())));
 }
 
 function readBuilderDraft(profileId) {
@@ -822,9 +1018,13 @@ function buildCandidateGuide(candidatePlaces) {
   const excluded = candidatePlaces.filter((place) => !place.included);
   if (!included.length && !excluded.length) return '';
   return [
-    included.length ? `用户确认进入路线的候选 POI：${included.map((place) => `${place.mustGo ? '必去-' : ''}${place.name}（${place.source || '候选来源'}，来源参考分 ${place.confidence ?? '待计算'}${place.note ? `，${place.note}` : ''}）`).join('；')}` : '',
+    included.length
+      ? `用户确认进入路线的候选 POI：${included.map((place) => `${place.mustGo ? '必去-' : ''}${place.name}（${place.source || '候选来源'}，来源参考分 ${place.confidence ?? '待计算'}${place.note ? `，${place.note}` : ''}）`).join('；')}`
+      : '',
     excluded.length ? `用户已排除的 POI：${excluded.map((place) => place.name).join('、')}` : ''
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function extractCandidatePlacesFromSources(sources) {
@@ -832,7 +1032,11 @@ function extractCandidatePlacesFromSources(sources) {
   for (const source of sources) {
     const text = `${source.title ?? ''} ${source.description ?? ''} ${source.excerpt ?? ''}`;
     const candidates = [
-      ...Array.from(text.matchAll(/[「“]?([\u4e00-\u9fa5A-Za-z0-9·]{2,18}(?:路|街|巷|寺|园|馆|湖|山|塔|桥|镇|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|咖啡|夜市))[」”]?/g)).map((match) => match[1]),
+      ...Array.from(
+        text.matchAll(
+          /[「“]?([\u4e00-\u9fa5A-Za-z0-9·]{2,18}(?:路|街|巷|寺|园|馆|湖|山|塔|桥|镇|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|咖啡|夜市))[」”]?/g
+        )
+      ).map((match) => match[1]),
       ...Array.from(text.matchAll(/(?:POI|地点|路线|打卡|必去|推荐)[:：\s]*([\u4e00-\u9fa5A-Za-z0-9·]{2,18})/gi)).map((match) => match[1])
     ];
     for (const name of candidates) {
@@ -856,9 +1060,7 @@ function extractGuideUrls(value) {
 }
 
 function sourceUrlKeys(source) {
-  return [source?.url, source?.finalUrl]
-    .map(normalizeUrlForImport)
-    .filter(Boolean);
+  return [source?.url, source?.finalUrl].map(normalizeUrlForImport).filter(Boolean);
 }
 
 function findUnimportedUrls(guide, sources = []) {
@@ -867,11 +1069,7 @@ function findUnimportedUrls(guide, sources = []) {
 }
 
 function findFailedImportUrls(guide, sources = []) {
-  const failed = new Set(
-    sources
-      .filter((source) => source?.status === 'failed')
-      .flatMap(sourceUrlKeys)
-  );
+  const failed = new Set(sources.filter((source) => source?.status === 'failed').flatMap(sourceUrlKeys));
   return extractGuideUrls(guide).filter((url) => failed.has(normalizeUrlForImport(url)));
 }
 
@@ -895,7 +1093,9 @@ function mergeImportedSources(existing = [], incoming = []) {
 }
 
 function cleanPlaceName(value) {
-  const text = String(value ?? '').replace(/[，。；、,.!?！？【】[\]()（）]/g, '').trim();
+  const text = String(value ?? '')
+    .replace(/[，。；、,.!?！？【】[\]()（）]/g, '')
+    .trim();
   if (text.length < 2 || text.length > 18) return '';
   if (/^(这个|那个|今天|明天|我们|他们|攻略|路线|推荐|打卡)$/.test(text)) return '';
   return text;

@@ -9,16 +9,16 @@ export const PUBLIC_EXPOSURE_ITEM_TYPES = new Set(['routebook', 'product', 'jour
 export const INTERNAL_EXPOSURE_ITEM_TYPES = new Set(['routebook-copy']);
 
 export function sanitizeExposureSurface(value) {
-  const surface = truncateString(value, 40).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const surface = truncateString(value, 40)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '');
   return surface || 'unknown';
 }
 
 export function normalizeExposure(input = {}, derived = {}) {
   const surface = sanitizeExposureSurface(input?.surface);
   const requestedItemType = truncateString(derived.itemType || input?.itemType || input?.type, 40) || 'routebook';
-  const itemType = PUBLIC_EXPOSURE_ITEM_TYPES.has(requestedItemType) || INTERNAL_EXPOSURE_ITEM_TYPES.has(requestedItemType)
-    ? requestedItemType
-    : 'routebook';
+  const itemType = PUBLIC_EXPOSURE_ITEM_TYPES.has(requestedItemType) || INTERNAL_EXPOSURE_ITEM_TYPES.has(requestedItemType) ? requestedItemType : 'routebook';
   const itemId = stablePublicId(derived.itemId || input?.itemId || input?.routeId || input?.productId || input?.title, itemType);
   return {
     id: cryptoRandomId(),
@@ -36,9 +36,7 @@ export function normalizeExposure(input = {}, derived = {}) {
     city: derived.city || (input?.city ? normalizeCityName(input.city) : ''),
     creatorId: sanitizePublicId(derived.creatorId || input?.creatorId),
     sourcePosition: truncateString(input?.sourcePosition, 40),
-    travelDate: itemType === 'journey-event'
-      ? resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate)
-      : '',
+    travelDate: itemType === 'journey-event' ? resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate) : '',
     createdAt: new Date().toISOString()
   };
 }

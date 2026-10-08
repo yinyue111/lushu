@@ -22,15 +22,16 @@ export default function ReviewPage({ routebook, onBack }) {
     [routeId, storageKey, localTick]
   );
   const checkins = useMemo(
-    () => mergeCheckins(localCheckins, serverCheckins.filter((item) => sameRoute(item, routeId))),
+    () =>
+      mergeCheckins(
+        localCheckins,
+        serverCheckins.filter((item) => sameRoute(item, routeId))
+      ),
     [localCheckins, routeId, serverCheckins]
   );
   const stops = tripSession?.stops?.length ? tripSession.stops : normalizeTripStops(routebook);
   const latestByStop = useMemo(() => latestCheckinsByStop(checkins), [checkins]);
-  const photoCheckins = useMemo(
-    () => [...latestByStop.values()].filter((item) => String(item?.photoId ?? '').trim()),
-    [latestByStop]
-  );
+  const photoCheckins = useMemo(() => [...latestByStop.values()].filter((item) => String(item?.photoId ?? '').trim()), [latestByStop]);
   const isPublic = ['published', 'featured'].includes(routebook.publishStatus);
   const dayCount = new Set(stops.map((stop) => stop.day || 'Day 1')).size || 1;
 
@@ -75,9 +76,15 @@ export default function ReviewPage({ routebook, onBack }) {
 
       {/* Hero */}
       <div className="card review-hero">
-        <span className="badge badge-green"><Shield size={12} /> 实际执行回顾</span>
-        <h1 className="text-title" style={{ marginTop: 12 }}>{routebook.title}</h1>
-        <p className="text-caption" style={{ marginTop: 6 }}>{routebook.city} · {dayCount} 天 · {stops.length} 站</p>
+        <span className="badge badge-green">
+          <Shield size={12} /> 实际执行回顾
+        </span>
+        <h1 className="text-title" style={{ marginTop: 12 }}>
+          {routebook.title}
+        </h1>
+        <p className="text-caption" style={{ marginTop: 6 }}>
+          {routebook.city} · {dayCount} 天 · {stops.length} 站
+        </p>
 
         <div className="review-stats-grid">
           <div className="review-stat">
@@ -109,7 +116,9 @@ export default function ReviewPage({ routebook, onBack }) {
 
       {/* Timeline */}
       <div className="review-timeline" style={{ marginTop: 24 }}>
-        <h2 className="text-subtitle" style={{ marginBottom: 16 }}>行程轨迹</h2>
+        <h2 className="text-subtitle" style={{ marginBottom: 16 }}>
+          行程轨迹
+        </h2>
         {stops.map((stop, idx) => {
           const checkin = latestByStop.get(stopKeyForStop(stop));
           const wasSkipped = stop.tripStatus === 'skipped' || checkin?.worth === '跳过' || checkin?.status === 'skipped';
@@ -133,14 +142,34 @@ export default function ReviewPage({ routebook, onBack }) {
                 {checkin && !wasSkipped && (
                   <div className="review-stop-feedback">
                     {!isServerSyncedCheckin(checkin) && <span className="badge badge-orange">待同步（本地）</span>}
-                    {checkin.worth && <span className={`badge ${checkin.worth === '值得' ? 'badge-green' : checkin.worth === '踩坑' ? 'badge-red' : 'badge-orange'}`}>{checkin.worth}</span>}
-                    {checkin.queue && <span className="text-micro"><Clock size={10} /> {checkin.queue}</span>}
-                    {checkin.cost && <span className="text-micro"><DollarSign size={10} /> {checkin.cost}</span>}
+                    {checkin.worth && (
+                      <span className={`badge ${checkin.worth === '值得' ? 'badge-green' : checkin.worth === '踩坑' ? 'badge-red' : 'badge-orange'}`}>
+                        {checkin.worth}
+                      </span>
+                    )}
+                    {checkin.queue && (
+                      <span className="text-micro">
+                        <Clock size={10} /> {checkin.queue}
+                      </span>
+                    )}
+                    {checkin.cost && (
+                      <span className="text-micro">
+                        <DollarSign size={10} /> {checkin.cost}
+                      </span>
+                    )}
                     {checkin.crowd && <span className="text-micro">拥挤: {checkin.crowd}</span>}
                   </div>
                 )}
-                {checkin?.comment && <p className="text-caption" style={{ marginTop: 4 }}>{checkin.comment}</p>}
-                {checkin?.pitfall && <p className="text-caption" style={{ marginTop: 2, color: 'var(--red)' }}>踩坑: {checkin.pitfall}</p>}
+                {checkin?.comment && (
+                  <p className="text-caption" style={{ marginTop: 4 }}>
+                    {checkin.comment}
+                  </p>
+                )}
+                {checkin?.pitfall && (
+                  <p className="text-caption" style={{ marginTop: 2, color: 'var(--red)' }}>
+                    踩坑: {checkin.pitfall}
+                  </p>
+                )}
                 {checkin?.photoId && (
                   <a href={checkinPhotoUrl(checkin.photoId)} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6 }}>
                     <img
@@ -151,9 +180,21 @@ export default function ReviewPage({ routebook, onBack }) {
                     />
                   </a>
                 )}
-                {checkin?.photoName && !checkin?.photoId && <p className="text-micro" style={{ marginTop: 4 }}><FileText size={10} /> 历史记录仅保留文件名（非照片证据）：{checkin.photoName}</p>}
-                {wasSkipped && <p className="text-caption" style={{ color: 'var(--muted)' }}>已跳过</p>}
-                {!checkin && !wasSkipped && <p className="text-caption" style={{ color: 'var(--muted-2)' }}>未打卡</p>}
+                {checkin?.photoName && !checkin?.photoId && (
+                  <p className="text-micro" style={{ marginTop: 4 }}>
+                    <FileText size={10} /> 历史记录仅保留文件名（非照片证据）：{checkin.photoName}
+                  </p>
+                )}
+                {wasSkipped && (
+                  <p className="text-caption" style={{ color: 'var(--muted)' }}>
+                    已跳过
+                  </p>
+                )}
+                {!checkin && !wasSkipped && (
+                  <p className="text-caption" style={{ color: 'var(--muted-2)' }}>
+                    未打卡
+                  </p>
+                )}
               </div>
             </div>
           );
@@ -162,16 +203,12 @@ export default function ReviewPage({ routebook, onBack }) {
 
       {photoCheckins.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h2 className="text-subtitle" style={{ marginBottom: 12 }}>打卡照片墙</h2>
+          <h2 className="text-subtitle" style={{ marginBottom: 12 }}>
+            打卡照片墙
+          </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
             {photoCheckins.map((item) => (
-              <a
-                key={item.photoId}
-                href={checkinPhotoUrl(item.photoId)}
-                target="_blank"
-                rel="noreferrer"
-                title={item.stopName || '打卡照片'}
-              >
+              <a key={item.photoId} href={checkinPhotoUrl(item.photoId)} target="_blank" rel="noreferrer" title={item.stopName || '打卡照片'}>
                 <img
                   src={checkinPhotoUrl(item.photoId)}
                   alt={`${item.stopName || '打卡'}照片`}
@@ -191,8 +228,16 @@ export default function ReviewPage({ routebook, onBack }) {
         <p className="text-caption" style={{ marginTop: 8 }}>
           {isPublic ? '分享后其他用户能看到可信分、有效 GPS 到达率和你的真实反馈' : '路书发布后才能生成公开回顾页'}
         </p>
-        {shareState.url && <p className="text-caption" style={{ marginTop: 8, wordBreak: 'break-all' }}>{shareState.url}</p>}
-        {shareState.message && <p className="text-caption" style={{ marginTop: 8 }}>{shareState.message}</p>}
+        {shareState.url && (
+          <p className="text-caption" style={{ marginTop: 8, wordBreak: 'break-all' }}>
+            {shareState.url}
+          </p>
+        )}
+        {shareState.message && (
+          <p className="text-caption" style={{ marginTop: 8 }}>
+            {shareState.message}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -211,11 +256,12 @@ export default function ReviewPage({ routebook, onBack }) {
       // 本地还有待同步行时缺口大概率是同步滞后而非身份问题，按待同步归因。
       const serverCount = Number(data?.review?.stats?.checkinCount ?? 0);
       const missingCount = Math.max(0, stats.recordCount - serverCount);
-      const missingNote = missingCount > 0
-        ? (stats.pendingCount > 0
-          ? `；${stats.pendingCount} 条记录待同步，同步完成后会进入公开回顾`
-          : `；${missingCount} 条记录因身份未验证未进入公开回顾`)
-        : '';
+      const missingNote =
+        missingCount > 0
+          ? stats.pendingCount > 0
+            ? `；${stats.pendingCount} 条记录待同步，同步完成后会进入公开回顾`
+            : `；${missingCount} 条记录因身份未验证未进入公开回顾`
+          : '';
       setShareState({ loading: false, message: `已生成实际执行路线回顾链接${missingNote}`, url });
       try {
         if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
@@ -243,8 +289,9 @@ function mergeCheckins(localRows, serverRows) {
   const map = new Map();
   for (const row of [...serverRows, ...localRows]) {
     // 优先按 clientLocalId 去重：同一条打卡的服务端行（先入 map）胜过本地待同步副本。
-    const key = String(row?.clientLocalId ?? '').trim()
-      || `${row.routeId ?? ''}:${row.localStopKey ?? row.stopId ?? ''}:${row.createdAt ?? row.time ?? ''}:${row.status ?? ''}`;
+    const key =
+      String(row?.clientLocalId ?? '').trim() ||
+      `${row.routeId ?? ''}:${row.localStopKey ?? row.stopId ?? ''}:${row.createdAt ?? row.time ?? ''}:${row.status ?? ''}`;
     if (!map.has(key)) map.set(key, row);
   }
   return [...map.values()].sort((a, b) => String(a.createdAt ?? a.time ?? '').localeCompare(String(b.createdAt ?? b.time ?? '')));
@@ -256,13 +303,11 @@ function sameRoute(item, routeId) {
 
 function computeStats(checkins, stops) {
   const stopIds = new Set((stops ?? []).map(stopKeyForStop));
-  const latestRows = [...latestCheckinsByStop(checkins).entries()]
-    .filter(([key]) => stopIds.has(key))
-    .map(([, row]) => row);
+  const latestRows = [...latestCheckinsByStop(checkins).entries()].filter(([key]) => stopIds.has(key)).map(([, row]) => row);
   // 区分已服务端校验与本地待同步：待同步行保留展示，但不计入有效到达率。
   const syncedRows = latestRows.filter(isServerSyncedCheckin);
   const pendingCount = latestRows.length - syncedRows.length;
-  const feedbackCheckins = latestRows.filter(c => c.worth !== '跳过' && c.status !== 'skipped');
+  const feedbackCheckins = latestRows.filter((c) => c.worth !== '跳过' && c.status !== 'skipped');
   const validCheckins = syncedRows.filter((c) => c.worth !== '跳过' && c.status !== 'skipped' && (c.arrival?.valid || c.arrivalConfidence === 'valid'));
   const completionRate = stops.length ? Math.min(100, Math.round((validCheckins.length / stops.length) * 100)) : 0;
 
@@ -278,9 +323,7 @@ function computeStats(checkins, stops) {
     if (c.worth === '踩坑' || c.pitfall) pitfalls++;
   }
 
-  const avgQueue = queueMinutes.length
-    ? `${Math.round(queueMinutes.reduce((a, b) => a + b, 0) / queueMinutes.length)} 分钟`
-    : '无数据';
+  const avgQueue = queueMinutes.length ? `${Math.round(queueMinutes.reduce((a, b) => a + b, 0) / queueMinutes.length)} 分钟` : '无数据';
 
   return {
     completionRate,

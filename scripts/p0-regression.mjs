@@ -13,11 +13,7 @@ const APP_ID = 'trusted-routebook';
 const ADMIN_TOKEN = 'p0-regression-admin';
 const PUBLIC_TOKEN = 'p0-regression-public';
 const IDENTITY_SECRET = 'p0-regression-identity-secret';
-const CURATED_IDS = [
-  'hangzhou-westlake-tea',
-  'shanghai-wukang-anfu',
-  'suzhou-pingjiang-garden'
-];
+const CURATED_IDS = ['hangzhou-westlake-tea', 'shanghai-wukang-anfu', 'suzhou-pingjiang-garden'];
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
@@ -107,7 +103,10 @@ function shanghaiDate(offsetDays = 0) {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).formatToParts(new Date()).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value])
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value])
   );
   const base = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
   return new Date(base + offsetDays * 86400000).toISOString().slice(0, 10);
@@ -261,10 +260,7 @@ function assertNoPrivateRouteFields(routebook, label) {
 async function stopChild(child) {
   if (child.exitCode != null || child.signalCode != null) return;
   child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((resolve) => child.once('exit', resolve)),
-    new Promise((resolve) => setTimeout(resolve, 3000))
-  ]);
+  await Promise.race([new Promise((resolve) => child.once('exit', resolve)), new Promise((resolve) => setTimeout(resolve, 3000))]);
 }
 
 async function assertNotReadyEndpoint(projectRoot, dataDir) {
@@ -370,7 +366,10 @@ async function main() {
       assert.ok(detail.data.routebook?.stops?.every((stop) => stop.poiId));
       assert.equal(detail.data.routebook?.trustScore, null, 'public routes below the sample threshold must hide route scores');
       assert.equal(detail.data.routebook?.trustMeta?.predictionScore, null, 'public routes must not leak prediction scores');
-      assert.equal(detail.data.routebook?.stops?.every((stop) => stop.score == null && stop.poiTrust?.score == null), true);
+      assert.equal(
+        detail.data.routebook?.stops?.every((stop) => stop.score == null && stop.poiTrust?.score == null),
+        true
+      );
       assertNoPrivateRouteFields(detail.data.routebook, `curated detail ${routeId}`);
 
       const share = await fetchJson(`${baseUrl}/api/share/${routeId}`);
@@ -396,45 +395,57 @@ async function main() {
     assert.equal(copiedCurated.response.status, 200, JSON.stringify(copiedCurated.data));
     assertNoPrivateRouteFields(copiedCurated.data.routebook, 'curated copy response');
 
-    const routeA = await saveRoute(baseUrl, routePayload({
-      id: 'p0-route-a',
-      city: '杭州',
-      title: 'P0 路线 A',
-      travelDate: shanghaiDate(0),
-      stops: [
-        { name: '柳浪闻莺', lat: 30.242, lng: 120.1617 },
-        { name: '茅家埠', lat: 30.2468, lng: 120.1139 }
-      ]
-    }));
-    const routeB = await saveRoute(baseUrl, routePayload({
-      id: 'p0-route-b',
-      city: '杭州',
-      title: 'P0 路线 B',
-      travelDate: shanghaiDate(10),
-      stops: [
-        { name: '柳浪闻莺', lat: 30.242, lng: 120.1617 },
-        { name: '南宋御街', lat: 30.2432, lng: 120.1696 }
-      ]
-    }));
-    const otherCityRoute = await saveRoute(baseUrl, routePayload({
-      id: 'p0-route-other-city',
-      city: '上海',
-      title: 'P0 同名跨城路线',
-      stops: [
-        { name: '柳浪闻莺', lat: 31.2304, lng: 121.4737 },
-        { name: '测试街区', lat: 31.228, lng: 121.47 }
-      ]
-    }));
-    const partialNameRoute = await saveRoute(baseUrl, routePayload({
-      id: 'p0-route-partial-name',
-      city: '杭州',
-      title: 'P0 部分名称路线',
-      travelDate: '2026-02-30',
-      stops: [
-        { name: '柳浪闻莺东门', lat: 30.241, lng: 120.163 },
-        { name: '测试路口', lat: 30.244, lng: 120.166 }
-      ]
-    }));
+    const routeA = await saveRoute(
+      baseUrl,
+      routePayload({
+        id: 'p0-route-a',
+        city: '杭州',
+        title: 'P0 路线 A',
+        travelDate: shanghaiDate(0),
+        stops: [
+          { name: '柳浪闻莺', lat: 30.242, lng: 120.1617 },
+          { name: '茅家埠', lat: 30.2468, lng: 120.1139 }
+        ]
+      })
+    );
+    const routeB = await saveRoute(
+      baseUrl,
+      routePayload({
+        id: 'p0-route-b',
+        city: '杭州',
+        title: 'P0 路线 B',
+        travelDate: shanghaiDate(10),
+        stops: [
+          { name: '柳浪闻莺', lat: 30.242, lng: 120.1617 },
+          { name: '南宋御街', lat: 30.2432, lng: 120.1696 }
+        ]
+      })
+    );
+    const otherCityRoute = await saveRoute(
+      baseUrl,
+      routePayload({
+        id: 'p0-route-other-city',
+        city: '上海',
+        title: 'P0 同名跨城路线',
+        stops: [
+          { name: '柳浪闻莺', lat: 31.2304, lng: 121.4737 },
+          { name: '测试街区', lat: 31.228, lng: 121.47 }
+        ]
+      })
+    );
+    const partialNameRoute = await saveRoute(
+      baseUrl,
+      routePayload({
+        id: 'p0-route-partial-name',
+        city: '杭州',
+        title: 'P0 部分名称路线',
+        travelDate: '2026-02-30',
+        stops: [
+          { name: '柳浪闻莺东门', lat: 30.241, lng: 120.163 },
+          { name: '测试路口', lat: 30.244, lng: 120.166 }
+        ]
+      })
+    );
     assert.equal(partialNameRoute.travelDate, '', 'impossible calendar dates must be rejected');
     assert.equal(partialNameRoute.constraints?.date, '', 'invalid constraint dates must not persist');
     assert.equal(partialNameRoute.provider?.travelDate, undefined, 'invalid provider date snapshots must not persist');
@@ -445,14 +456,7 @@ async function main() {
 
     const ownedProfile = await createProfile(baseUrl, { localId: 'p0-owned-profile' });
     assert.equal(ownedProfile.identityBound, false);
-    const ownedCheckin = await submitCheckin(
-      baseUrl,
-      ownedProfile,
-      routeA,
-      stopA,
-      'p0-owned-checkin',
-      { poiId: 'poi-client-forged' }
-    );
+    const ownedCheckin = await submitCheckin(baseUrl, ownedProfile, routeA, stopA, 'p0-owned-checkin', { poiId: 'poi-client-forged' });
     assert.equal(ownedCheckin.response.status, 200, JSON.stringify(ownedCheckin.data));
     assert.equal(ownedCheckin.data.checkin?.trustState, 'profile-owned');
     assert.equal(ownedCheckin.data.checkin?.serverResolvedStop, true);
@@ -467,27 +471,19 @@ async function main() {
       subject: '13900000001'
     });
     assert.equal(attestedProfile.identityBound, true);
-    const attestedCheckinA = await submitCheckin(
-      baseUrl,
-      attestedProfile,
-      routeA,
-      stopA,
-      'p0-attested-route-a',
-      { poiId: 'poi-client-forged-again' }
-    );
+    const attestedCheckinA = await submitCheckin(baseUrl, attestedProfile, routeA, stopA, 'p0-attested-route-a', { poiId: 'poi-client-forged-again' });
     assert.equal(attestedCheckinA.response.status, 200, JSON.stringify(attestedCheckinA.data));
     assert.equal(attestedCheckinA.data.checkin?.trustState, 'profile-attested');
     assert.equal(attestedCheckinA.data.checkin?.poiId, stopA.poiId);
 
     const concurrentClientLocalId = 'p0-concurrent-client-local-id';
-    const concurrentResults = await Promise.all(Array.from({ length: 8 }, () => submitCheckin(
-      baseUrl,
-      attestedProfile,
-      routeA,
-      stopA,
-      concurrentClientLocalId
-    )));
-    assert.equal(concurrentResults.every((result) => result.response.status === 200), true);
+    const concurrentResults = await Promise.all(
+      Array.from({ length: 8 }, () => submitCheckin(baseUrl, attestedProfile, routeA, stopA, concurrentClientLocalId))
+    );
+    assert.equal(
+      concurrentResults.every((result) => result.response.status === 200),
+      true
+    );
     assert.equal(new Set(concurrentResults.map((result) => result.data.checkin?.id)).size, 1, 'concurrent retries must return one checkin ID');
     assert.equal(concurrentResults.filter((result) => result.data.deduplicated === false).length, 1, 'only one concurrent request may persist');
     assert.equal(concurrentResults.filter((result) => result.data.deduplicated === true).length, 7, 'the remaining concurrent requests must deduplicate');
@@ -510,37 +506,35 @@ async function main() {
     const partialAfterFeedback = await getRoute(baseUrl, partialNameRoute.publicId);
     assert.equal(stopByName(partialAfterFeedback, '柳浪闻莺东门').poiTrust?.sampleCount, 0, 'partial POI names must not share feedback');
 
-    const attestedCheckinB = await submitCheckin(
-      baseUrl,
-      attestedProfile,
-      routeB,
-      stopB,
-      'p0-attested-route-b'
-    );
+    const attestedCheckinB = await submitCheckin(baseUrl, attestedProfile, routeB, stopB, 'p0-attested-route-b');
     assert.equal(attestedCheckinB.response.status, 200, JSON.stringify(attestedCheckinB.data));
 
     const historicalProfile = await createProfile(baseUrl, {
       localId: 'p0-historical-attested-profile',
       subject: '13900000002'
     });
-    await appendFile(join(dataDir, 'checkins.jsonl'), `${JSON.stringify({
-      id: 'p0-historical-eligible-checkin',
-      trustState: 'profile-attested',
-      profileId: historicalProfile.id,
-      routeId: routeA.publicId,
-      clientLocalId: 'p0-historical-client-local-id',
-      routeTitle: routeA.title,
-      city: routeA.city,
-      localStopKey: stopA.id,
-      stopId: stopA.id,
-      poiId: stopA.poiId,
-      stopName: stopA.name,
-      serverResolvedStop: true,
-      status: 'visited',
-      worth: '值得',
-      arrival: { valid: true, confidence: 'valid' },
-      createdAt: `${shanghaiDate(-45)}T04:00:00.000Z`
-    })}\n`, 'utf8');
+    await appendFile(
+      join(dataDir, 'checkins.jsonl'),
+      `${JSON.stringify({
+        id: 'p0-historical-eligible-checkin',
+        trustState: 'profile-attested',
+        profileId: historicalProfile.id,
+        routeId: routeA.publicId,
+        clientLocalId: 'p0-historical-client-local-id',
+        routeTitle: routeA.title,
+        city: routeA.city,
+        localStopKey: stopA.id,
+        stopId: stopA.id,
+        poiId: stopA.poiId,
+        stopName: stopA.name,
+        serverResolvedStop: true,
+        status: 'visited',
+        worth: '值得',
+        arrival: { valid: true, confidence: 'valid' },
+        createdAt: `${shanghaiDate(-45)}T04:00:00.000Z`
+      })}\n`,
+      'utf8'
+    );
 
     const journeyPairs = [
       [ownedProfile, routeA],
@@ -553,17 +547,21 @@ async function main() {
         await recordJourneyEvent(baseUrl, profile, routebook, surface);
       }
     }
-    await appendFile(join(dataDir, 'exposures.jsonl'), `${JSON.stringify({
-      id: 'p0-legacy-journey-without-date',
-      profileId: 'p0-legacy-profile',
-      surface: 'routebook-save',
-      itemType: 'journey-event',
-      itemId: routeA.publicId,
-      routeId: routeA.publicId,
-      routeTitle: routeA.title,
-      city: routeA.city,
-      createdAt: new Date().toISOString()
-    })}\n`, 'utf8');
+    await appendFile(
+      join(dataDir, 'exposures.jsonl'),
+      `${JSON.stringify({
+        id: 'p0-legacy-journey-without-date',
+        profileId: 'p0-legacy-profile',
+        surface: 'routebook-save',
+        itemType: 'journey-event',
+        itemId: routeA.publicId,
+        routeId: routeA.publicId,
+        routeTitle: routeA.title,
+        city: routeA.city,
+        createdAt: new Date().toISOString()
+      })}\n`,
+      'utf8'
+    );
     const editedRouteA = await saveRoute(baseUrl, {
       ...routeA,
       expectedVersion: routeA.version,
@@ -579,7 +577,10 @@ async function main() {
       })
     });
     assert.equal(importAnalysis.response.status, 200, JSON.stringify(importAnalysis.data));
-    assert.equal(importAnalysis.data.sources?.every((source) => source.status === 'failed'), true);
+    assert.equal(
+      importAnalysis.data.sources?.every((source) => source.status === 'failed'),
+      true
+    );
     const dashboard = await fetchJson(`${baseUrl}/api/dashboard`, { headers: adminHeaders() });
     assert.equal(dashboard.response.status, 200, JSON.stringify(dashboard.data));
     const funnel = dashboard.data.dashboard?.funnel;
@@ -601,11 +602,21 @@ async function main() {
     assert.equal(dashboard.data.dashboard?.metricDefinitions?.tripDayOpen?.timezone, 'Asia/Shanghai');
     assert.equal(dashboard.data.dashboard?.metricDefinitions?.tripDayOpen?.windowDaysBefore, 1);
     assert.equal(dashboard.data.dashboard?.metricDefinitions?.effectiveExecution?.timezone, 'Asia/Shanghai');
-    assert.equal(dashboard.data.dashboard?.byCity?.every((item) => Object.hasOwn(item, 'avgPredictionScore') && !Object.hasOwn(item, 'avgTrust')), true);
-    assert.equal(dashboard.data.dashboard?.topCreators?.every((item) => Object.hasOwn(item, 'avgPredictionScore') && !Object.hasOwn(item, 'avgTrust')), true);
+    assert.equal(
+      dashboard.data.dashboard?.byCity?.every((item) => Object.hasOwn(item, 'avgPredictionScore') && !Object.hasOwn(item, 'avgTrust')),
+      true
+    );
+    assert.equal(
+      dashboard.data.dashboard?.topCreators?.every((item) => Object.hasOwn(item, 'avgPredictionScore') && !Object.hasOwn(item, 'avgTrust')),
+      true
+    );
 
     routeBAfterFeedback = await getRoute(baseUrl, routeB.publicId);
-    assert.equal(stopByName(routeBAfterFeedback, '柳浪闻莺').poiTrust?.sampleCount, 2, 'one identity contributes at most one sample per POI across routes; the historical row stays outside the 30-day window');
+    assert.equal(
+      stopByName(routeBAfterFeedback, '柳浪闻莺').poiTrust?.sampleCount,
+      2,
+      'one identity contributes at most one sample per POI across routes; the historical row stays outside the 30-day window'
+    );
     assert.equal(routeBAfterFeedback.trustMeta?.sampleCount, 1, 'route B should count its own verified identity sample');
 
     const routeLog = await readFile(join(dataDir, 'routebooks.jsonl'), 'utf8');
@@ -614,20 +625,31 @@ async function main() {
     }
     const exposureLog = await readFile(join(dataDir, 'exposures.jsonl'), 'utf8');
     assert.ok(exposureLog.includes(`"routeId":"${CURATED_IDS[0]}"`), 'curated copy should record an exposure event');
-    const journeyRows = exposureLog.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)).filter((row) => row.itemType === 'journey-event');
-    assert.equal(journeyRows.filter((row) => row.id !== 'p0-legacy-journey-without-date').every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.travelDate)), true, 'new journey events must persist a travel-date snapshot');
+    const journeyRows = exposureLog
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((row) => row.itemType === 'journey-event');
+    assert.equal(
+      journeyRows.filter((row) => row.id !== 'p0-legacy-journey-without-date').every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.travelDate)),
+      true,
+      'new journey events must persist a travel-date snapshot'
+    );
 
-    console.log(JSON.stringify({
-      ok: true,
-      curatedRoutes: CURATED_IDS.length,
-      stablePoiId: stopA.poiId,
-      crossRoutePoiSamples: stopByName(routeBAfterFeedback, '柳浪闻莺').poiTrust.sampleCount,
-      routeBSamples: routeBAfterFeedback.trustMeta.sampleCount,
-      identityStates: ['profile-owned', 'profile-attested'],
-      effectiveExecutedRoutebooks: funnel.effectiveExecutedRoutebooks,
-      concurrentCheckinRows: concurrentPersistedRows.length,
-      requestIdVerified: true
-    }));
+    console.log(
+      JSON.stringify({
+        ok: true,
+        curatedRoutes: CURATED_IDS.length,
+        stablePoiId: stopA.poiId,
+        crossRoutePoiSamples: stopByName(routeBAfterFeedback, '柳浪闻莺').poiTrust.sampleCount,
+        routeBSamples: routeBAfterFeedback.trustMeta.sampleCount,
+        identityStates: ['profile-owned', 'profile-attested'],
+        effectiveExecutedRoutebooks: funnel.effectiveExecutedRoutebooks,
+        concurrentCheckinRows: concurrentPersistedRows.length,
+        requestIdVerified: true
+      })
+    );
   } catch (error) {
     if (output.length) error.message += `\nServer output:\n${output.join('')}`;
     throw error;

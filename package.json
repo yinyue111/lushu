@@ -14,6 +14,8 @@
     "check:syntax": "node scripts/check-syntax.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "smoke:api": "node --env-file-if-exists=.env scripts/smoke-api.mjs",
     "test": "npm run test:unit",
     "test:unit": "node scripts/run-unit-tests.mjs",
@@ -23,7 +25,7 @@
     "test:p0": "node scripts/p0-regression.mjs",
     "test:w3-w5": "node scripts/w3-w5-regression.mjs",
     "test:postgres-schema": "node scripts/postgres-schema-regression.mjs",
-    "verify": "npm run check:syntax && npm run lint && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5",
+    "verify": "npm run check:syntax && npm run lint && npm run format:check && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5",
     "verify:full": "npm run verify && npm run smoke:api",
     "preview": "npm run build && npm run start"
   },

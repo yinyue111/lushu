@@ -12,8 +12,12 @@ test('smoke:api fails fast when the model runtime is not configured', { timeout:
   const started = Date.now();
   const child = spawn(process.execPath, ['scripts/smoke-api.mjs'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
-  child.stdout.on('data', (chunk) => { output += chunk; });
-  child.stderr.on('data', (chunk) => { output += chunk; });
+  child.stdout.on('data', (chunk) => {
+    output += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    output += chunk;
+  });
   const code = await new Promise((resolve) => child.on('exit', resolve));
   const elapsed = Date.now() - started;
   assert.equal(code, 1, output);

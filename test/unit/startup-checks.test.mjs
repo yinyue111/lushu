@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  LEGACY_DEV_PROFILE_SECRET,
-  evaluateStartupSafety,
-  isLoopbackHost,
-  resolveProfileIdSecret
-} from '../../server/config/startup-checks.mjs';
+import { LEGACY_DEV_PROFILE_SECRET, evaluateStartupSafety, isLoopbackHost, resolveProfileIdSecret } from '../../server/config/startup-checks.mjs';
 
 test('resolveProfileIdSecret keeps the legacy fallback order (stored hashes stay valid)', () => {
-  assert.deepEqual(resolveProfileIdSecret({ profileIdSecret: 'explicit', adminToken: 'a', apiToken: 'b', isProduction: true }), { secret: 'explicit', source: 'explicit' });
+  assert.deepEqual(resolveProfileIdSecret({ profileIdSecret: 'explicit', adminToken: 'a', apiToken: 'b', isProduction: true }), {
+    secret: 'explicit',
+    source: 'explicit'
+  });
   assert.deepEqual(resolveProfileIdSecret({ adminToken: 'a', apiToken: 'b', isProduction: true }), { secret: 'a', source: 'legacy-admin-token' });
   assert.deepEqual(resolveProfileIdSecret({ apiToken: 'b', isProduction: true }), { secret: 'b', source: 'legacy-api-token' });
   assert.deepEqual(resolveProfileIdSecret({ isProduction: false }), { secret: LEGACY_DEV_PROFILE_SECRET, source: 'dev-default' });
@@ -45,7 +43,14 @@ test('evaluateStartupSafety: production bypass on a public HOST refuses to start
 });
 
 test('evaluateStartupSafety: dev bypass on a public HOST only warns', () => {
-  const result = evaluateStartupSafety({ ...base, isProduction: false, host: '0.0.0.0', allowLocalApiBypass: true, allowLocalAdminBypass: true, publicBaseUrl: '' });
+  const result = evaluateStartupSafety({
+    ...base,
+    isProduction: false,
+    host: '0.0.0.0',
+    allowLocalApiBypass: true,
+    allowLocalAdminBypass: true,
+    publicBaseUrl: ''
+  });
   assert.equal(result.errors.length, 0);
   assert.match(result.warnings.join('\n'), /ALLOW_LOCAL_API_BYPASS \+ ALLOW_LOCAL_ADMIN_BYPASS/);
 });

@@ -61,9 +61,7 @@ export async function updatePoiCorrectionStatus(id, input) {
 }
 
 function poiKnowledgeKey(city, stopName, field = '') {
-  return [normalizeCityName(city || '未知'), truncateString(stopName, 80), truncateString(field, 40)]
-    .map((item) => String(item ?? '').trim())
-    .join('::');
+  return [normalizeCityName(city || '未知'), truncateString(stopName, 80), truncateString(field, 40)].map((item) => String(item ?? '').trim()).join('::');
 }
 
 function normalizePoiKnowledgeFromCorrection(correction) {

@@ -9,10 +9,7 @@ const SECURITY_HEADERS = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), payment=()'
 };
-const STATIC_CONNECT_SOURCES = [
-  "'self'",
-  ...(!IS_PRODUCTION ? ["http://127.0.0.1:*", "ws://127.0.0.1:*"] : [])
-];
+const STATIC_CONNECT_SOURCES = ["'self'", ...(!IS_PRODUCTION ? ['http://127.0.0.1:*', 'ws://127.0.0.1:*'] : [])];
 export const STATIC_SECURITY_HEADERS = {
   ...SECURITY_HEADERS,
   'content-security-policy': [
@@ -48,9 +45,8 @@ export function requestIdHeaders(res) {
 }
 
 export function sendJson(res, statusCode, payload) {
-  const responsePayload = res.requestId && payload && typeof payload === 'object' && !Array.isArray(payload)
-    ? { ...payload, requestId: res.requestId }
-    : payload;
+  const responsePayload =
+    res.requestId && payload && typeof payload === 'object' && !Array.isArray(payload) ? { ...payload, requestId: res.requestId } : payload;
   const body = JSON.stringify(responsePayload);
   res.writeHead(statusCode, {
     ...securityHeaders(),

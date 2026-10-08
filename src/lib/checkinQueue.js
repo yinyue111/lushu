@@ -150,10 +150,7 @@ export function classifyCheckinSyncError(error, options = {}) {
       guidance: PROFILE_SYNC_GUIDANCE
     };
   }
-  const retryable = status == null
-    || RETRYABLE_HTTP_STATUSES.has(status)
-    || status >= 500
-    || (status === 409 && Boolean(options.clientLocalId));
+  const retryable = status == null || RETRYABLE_HTTP_STATUSES.has(status) || status >= 500 || (status === 409 && Boolean(options.clientLocalId));
   return {
     status,
     retryable,
@@ -233,14 +230,17 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
         if (!row) continue;
         if (row.clientPhotoData && !row.photoId) {
           try {
-            const uploaded = await api.uploadCheckinPhoto({
-              profileId: row.profileId,
-              routeId: row.routeId,
-              stopId: row.stopId,
-              clientLocalId: row.clientLocalId,
-              imageBase64: row.clientPhotoData,
-              mimeType: row.clientPhotoMimeType || 'image/jpeg'
-            }, signal);
+            const uploaded = await api.uploadCheckinPhoto(
+              {
+                profileId: row.profileId,
+                routeId: row.routeId,
+                stopId: row.stopId,
+                clientLocalId: row.clientLocalId,
+                imageBase64: row.clientPhotoData,
+                mimeType: row.clientPhotoMimeType || 'image/jpeg'
+              },
+              signal
+            );
             const photoId = String(uploaded?.photo?.id ?? '').trim();
             writeQueueRows(key, clearQueuedPhotoData(readQueueRows(key), clientLocalId, photoId));
           } catch (error) {
@@ -335,8 +335,9 @@ export function capCheckinRows(rows, limit = MAX_QUEUE_ROWS) {
 
 function checkinQueueStorageKeys() {
   try {
-    return Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-      .filter((key) => typeof key === 'string' && key.startsWith(CHECKIN_STORAGE_PREFIX));
+    return Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(
+      (key) => typeof key === 'string' && key.startsWith(CHECKIN_STORAGE_PREFIX)
+    );
   } catch {
     return [];
   }

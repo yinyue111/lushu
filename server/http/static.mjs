@@ -35,12 +35,13 @@ function staticCacheControl(filePath) {
 function preferredEncoding(req, ext, size) {
   if (!COMPRESSIBLE_EXTENSIONS.has(ext) || size < STATIC_COMPRESS_MIN_BYTES) return null;
   const accepted = String(req.headers['accept-encoding'] ?? '').toLowerCase();
-  const allows = (name) => accepted.split(',').some((part) => {
-    const [token, ...params] = part.trim().split(';');
-    if (token.trim() !== name) return false;
-    const q = params.map((param) => param.trim()).find((param) => param.startsWith('q='));
-    return !q || Number(q.slice(2)) > 0;
-  });
+  const allows = (name) =>
+    accepted.split(',').some((part) => {
+      const [token, ...params] = part.trim().split(';');
+      if (token.trim() !== name) return false;
+      const q = params.map((param) => param.trim()).find((param) => param.startsWith('q='));
+      return !q || Number(q.slice(2)) > 0;
+    });
   if (allows('br')) return 'br';
   if (allows('gzip')) return 'gzip';
   return null;
@@ -80,9 +81,10 @@ async function encodedBody(entry, filePath, encoding) {
   if (!encoding) return entry.body;
   const existing = entry.variants.get(encoding);
   if (existing) return existing;
-  const compressed = encoding === 'br'
-    ? await brotliCompressAsync(entry.body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 9 } })
-    : await gzipAsync(entry.body, { level: 9 });
+  const compressed =
+    encoding === 'br'
+      ? await brotliCompressAsync(entry.body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 9 } })
+      : await gzipAsync(entry.body, { level: 9 });
   entry.variants.set(encoding, compressed);
   if (staticFileCache.get(filePath) === entry) {
     entry.bytes += compressed.byteLength;
@@ -126,7 +128,7 @@ export async function sendStatic(req, res) {
     return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   }
   const filePath = requestedStats ? requestedPath : join(DIST_DIR, 'index.html');
-  const fileStats = requestedStats ?? await statOrNull(filePath);
+  const fileStats = requestedStats ?? (await statOrNull(filePath));
   if (!fileStats?.isFile()) {
     return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   }
@@ -143,7 +145,13 @@ export async function sendStatic(req, res) {
       ...(COMPRESSIBLE_EXTENSIONS.has(ext) ? { vary: 'accept-encoding' } : {})
     };
     const ifNoneMatch = String(req.headers['if-none-match'] ?? '');
-    if (ifNoneMatch && ifNoneMatch.split(',').map((tag) => tag.trim()).includes(entry.etag)) {
+    if (
+      ifNoneMatch &&
+      ifNoneMatch
+        .split(',')
+        .map((tag) => tag.trim())
+        .includes(entry.etag)
+    ) {
       res.writeHead(304, headers);
       res.end();
       return;
@@ -233,13 +241,13 @@ function injectShareLandingMeta(html, meta) {
     `<meta property="og:description" content="${safeDescription}">`,
     '<meta property="og:type" content="website">',
     '<meta property="og:site_name" content="AI 可信路书">',
-    ...(safeImage ? [
-      `<meta property="og:image" content="${safeImage}">`,
-      '<meta name="twitter:card" content="summary_large_image">',
-      `<meta name="twitter:image" content="${safeImage}">`
-    ] : [
-      '<meta name="twitter:card" content="summary">'
-    ]),
+    ...(safeImage
+      ? [
+          `<meta property="og:image" content="${safeImage}">`,
+          '<meta name="twitter:card" content="summary_large_image">',
+          `<meta name="twitter:image" content="${safeImage}">`
+        ]
+      : ['<meta name="twitter:card" content="summary">']),
     `<meta name="description" content="${safeDescription}">`
   ].join('\n    ');
   // 用函数返回替换串：字符串形态的第二参会展开 $&/$` 等模板序列，
@@ -254,18 +262,20 @@ function injectShareLandingMeta(html, meta) {
 // L4: prefer the configured PUBLIC_BASE_URL. Otherwise only trust X-Forwarded-Proto
 // from a trusted proxy and only accept a syntactically valid Host header, so a
 // spoofed Host cannot inject arbitrary origins into og:image.
-const VALID_HOST_HEADER = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
+const VALID_HOST_HEADER =
+  /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
 
 function shareLandingOrigin(req) {
   if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
   const host = String(req.headers.host ?? '').trim();
   if (!host || host.length > 255 || !VALID_HOST_HEADER.test(host)) return '';
   const forwardedProto = shouldTrustProxyHeaders(req)
-    ? String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim().toLowerCase()
+    ? String(req.headers['x-forwarded-proto'] ?? '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase()
     : '';
-  const proto = forwardedProto === 'https' || forwardedProto === 'http'
-    ? forwardedProto
-    : (req.socket?.encrypted ? 'https' : 'http');
+  const proto = forwardedProto === 'https' || forwardedProto === 'http' ? forwardedProto : req.socket?.encrypted ? 'https' : 'http';
   return `${proto}://${host}`;
 }
 

@@ -37,7 +37,9 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
           <Route size={28} />
           <h1>达人主页暂不可用</h1>
           <p>{state.error || '达人不存在或尚未发布路线'}</p>
-          <button className="btn btn-secondary" onClick={onBack}><ArrowLeft size={16} /> 返回</button>
+          <button className="btn btn-secondary" onClick={onBack}>
+            <ArrowLeft size={16} /> 返回
+          </button>
         </div>
       </div>
     );
@@ -49,15 +51,17 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
     .map((book) => getRouteTrustBadgeState(book))
     .filter((trustState) => trustState.verified)
     .map((trustState) => trustState.score);
-  const verifiedAverage = verifiedScores.length
-    ? Math.round(verifiedScores.reduce((sum, score) => sum + score, 0) / verifiedScores.length)
-    : null;
+  const verifiedAverage = verifiedScores.length ? Math.round(verifiedScores.reduce((sum, score) => sum + score, 0) / verifiedScores.length) : null;
 
   return (
     <div className="creator-page-shell page-enter">
       <section className="creator-hero">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}><ArrowLeft size={16} /> 返回平台</button>
-        <div className="creator-avatar" aria-hidden="true">{creator.name?.slice(0, 1) || '路'}</div>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <ArrowLeft size={16} /> 返回平台
+        </button>
+        <div className="creator-avatar" aria-hidden="true">
+          {creator.name?.slice(0, 1) || '路'}
+        </div>
         <div className="creator-title">
           <span className="badge badge-blue">{creator.sourceAuthorization === 'user-generated' ? '用户发布' : '授权内容'}</span>
           <h1>{creator.name || creator.id}</h1>
@@ -86,18 +90,30 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
               return (
                 <article key={book.publicId || book.title} className="creator-route-card">
                   <div>
-                    <span className={`badge ${trustState.badgeClass}`}><Shield size={12} /> {trustState.compactText}</span>
+                    <span className={`badge ${trustState.badgeClass}`}>
+                      <Shield size={12} /> {trustState.compactText}
+                    </span>
                     <h3>{book.title}</h3>
                     <p>{book.summary}</p>
                   </div>
                   <div className="creator-route-meta">
-                    <span><MapPin size={13} /> {book.city}</span>
-                    <span><Copy size={13} /> {book.copyCount ?? 0}</span>
-                    <span><Star size={13} /> {book.publishStatus || 'draft'}</span>
+                    <span>
+                      <MapPin size={13} /> {book.city}
+                    </span>
+                    <span>
+                      <Copy size={13} /> {book.copyCount ?? 0}
+                    </span>
+                    <span>
+                      <Star size={13} /> {book.publishStatus || 'draft'}
+                    </span>
                   </div>
                   <div className="creator-route-actions">
-                    <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(book)}>查看路书</button>
-                    <button className="btn btn-primary btn-sm" onClick={() => onCustomize(book)}>生成定制版</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(book)}>
+                      查看路书
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={() => onCustomize(book)}>
+                      生成定制版
+                    </button>
                   </div>
                 </article>
               );

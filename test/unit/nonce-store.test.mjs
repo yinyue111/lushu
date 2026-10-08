@@ -18,7 +18,12 @@ test('concurrent consumption of the same nonce lets exactly one win', async () =
 test('persisted nonces survive a restart; expired ones are pruned', async () => {
   let clock = 1_000_000;
   const persisted = [];
-  const first = createNonceStore({ now: () => clock, persist: async (record) => { persisted.push(record); } });
+  const first = createNonceStore({
+    now: () => clock,
+    persist: async (record) => {
+      persisted.push(record);
+    }
+  });
   await first.consume('kept', clock + 10_000);
   await first.consume('short', clock + 10);
   assert.equal(persisted.length, 2);

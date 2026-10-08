@@ -66,7 +66,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
   }, []);
 
   function commitCity(nextCity = cityQuery) {
-    const normalized = String(nextCity ?? '').trim().replace(/市$/, '');
+    const normalized = String(nextCity ?? '')
+      .trim()
+      .replace(/市$/, '');
     if (!normalized) return;
     cityDirtyRef.current = true;
     setCityTouched(true);
@@ -103,14 +105,22 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             {cmsConfig?.announcements?.length > 0 && (
               <div className="home-announcements" aria-label="运营公告">
                 {cmsConfig.announcements.slice(0, 2).map((item) => (
-                  <span key={item}><Bell size={14} /> {item}</span>
+                  <span key={item}>
+                    <Bell size={14} /> {item}
+                  </span>
                 ))}
               </div>
             )}
             <div className="home-hero-metrics" aria-label={`${city} 路线数据`}>
-              <span><Shield size={15} /> 编辑样板 · 待真实验证</span>
-              <span><Camera size={15} /> 真实数据来自有效 GPS 打卡</span>
-              <span><Clock3 size={15} /> {story.season}</span>
+              <span>
+                <Shield size={15} /> 编辑样板 · 待真实验证
+              </span>
+              <span>
+                <Camera size={15} /> 真实数据来自有效 GPS 打卡
+              </span>
+              <span>
+                <Clock3 size={15} /> {story.season}
+              </span>
             </div>
           </div>
 
@@ -121,7 +131,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <input
                   value={guideSeed}
                   onChange={(event) => setGuideSeed(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') startFromImport(); }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') startFromImport();
+                  }}
                   placeholder="粘贴小红书 / 抖音 / X 链接，或输入想去的地点"
                   aria-label="粘贴攻略链接或正文"
                 />
@@ -135,9 +147,14 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <span>目的地</span>
                 <input
                   value={cityQuery}
-                  onChange={(event) => { cityDirtyRef.current = true; setCityQuery(event.target.value); }}
+                  onChange={(event) => {
+                    cityDirtyRef.current = true;
+                    setCityQuery(event.target.value);
+                  }}
                   onBlur={() => commitCity()}
-                  onKeyDown={(event) => { if (event.key === 'Enter') commitCity(); }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') commitCity();
+                  }}
                   placeholder="输入目的地城市"
                   aria-label="输入目的地城市"
                 />
@@ -145,7 +162,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               <label>
                 <span>天数</span>
                 <select value={duration} onChange={(event) => setDuration(event.target.value)}>
-                  {durations.map((item) => <option key={item}>{item}</option>)}
+                  {durations.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -165,12 +184,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               <span className="composer-label">主题</span>
               <div className="composer-chips">
                 {visibleThemes.map((item) => (
-                  <button
-                    key={item}
-                    className={`chip ${theme === item ? 'active' : ''}`}
-                    aria-pressed={theme === item}
-                    onClick={() => setTheme(item)}
-                  >
+                  <button key={item} className={`chip ${theme === item ? 'active' : ''}`} aria-pressed={theme === item} onClick={() => setTheme(item)}>
                     {item}
                   </button>
                 ))}
@@ -195,40 +209,49 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </button>
           </div>
           <div className="curated-route-grid">
-            {cityRoutes.length ? cityRoutes.map((route) => (
-              <article key={route.id} className="curated-route-card">
-                <button className="route-card-cover" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}>
-                  <img src={route.image} alt={`${route.title} 封面`} loading="lazy" />
-                  <span className="trust-pill badge badge-blue" style={{ background: 'var(--blue-bg)', color: 'var(--blue)' }}>
-                    <Shield size={13} /> 预测编排 · 待真实验证
-                  </span>
-                </button>
-                <div className="route-card-body">
-                  <div className="route-card-tags">
-                    {route.tags.map((tag) => <span key={tag}>{tag}</span>)}
+            {cityRoutes.length ? (
+              cityRoutes.map((route) => (
+                <article key={route.id} className="curated-route-card">
+                  <button className="route-card-cover" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}>
+                    <img src={route.image} alt={`${route.title} 封面`} loading="lazy" />
+                    <span className="trust-pill badge badge-blue" style={{ background: 'var(--blue-bg)', color: 'var(--blue)' }}>
+                      <Shield size={13} /> 预测编排 · 待真实验证
+                    </span>
+                  </button>
+                  <div className="route-card-body">
+                    <div className="route-card-tags">
+                      {route.tags.map((tag) => (
+                        <span key={tag}>{tag}</span>
+                      ))}
+                    </div>
+                    <h3>{route.title}</h3>
+                    <p>{route.summary}</p>
+                    <div className="route-card-facts">
+                      <span>{route.subtitle}</span>
+                      <span>预测编排 · 待真实打卡验证</span>
+                    </div>
+                    <div className="route-card-actions">
+                      <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}>
+                        <Route size={15} /> 查看路书
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => onNewBook({ city: route.city, duration, theme: route.tags, guide: route.summary })}
+                      >
+                        AI 改成适合我 <ArrowRight size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <h3>{route.title}</h3>
-                  <p>{route.summary}</p>
-                  <div className="route-card-facts">
-                    <span>{route.subtitle}</span>
-                    <span>预测编排 · 待真实打卡验证</span>
-                  </div>
-                  <div className="route-card-actions">
-                    <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}>
-                      <Route size={15} /> 查看路书
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => onNewBook({ city: route.city, duration, theme: route.tags, guide: route.summary })}>
-                      AI 改成适合我 <ArrowRight size={15} />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )) : (
+                </article>
+              ))
+            ) : (
               <div className="national-empty-routes">
                 <MapPin size={28} />
                 <h3>{city} 暂无运营精选路线</h3>
                 <p>可粘贴当地攻略、收藏地点或想去的商圈生成试验路书。POI、营业信息和导航需人工复核。</p>
-                <button className="btn btn-primary" onClick={startFromHero}><Sparkles size={16} /> 生成{city}路书</button>
+                <button className="btn btn-primary" onClick={startFromHero}>
+                  <Sparkles size={16} /> 生成{city}路书
+                </button>
               </div>
             )}
           </div>
@@ -240,9 +263,15 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             <h2>{city} 当季路线资产</h2>
             <p>{story.summary}</p>
             <div className="destination-stats">
-              <span><Shield size={16} /> 编辑样板 · 待真实验证</span>
-              <span><Camera size={16} /> 有效 GPS 样本达标后展示真实可信分</span>
-              <span><Compass size={16} /> 首批可信城市：上海 · 杭州 · 苏州</span>
+              <span>
+                <Shield size={16} /> 编辑样板 · 待真实验证
+              </span>
+              <span>
+                <Camera size={16} /> 有效 GPS 样本达标后展示真实可信分
+              </span>
+              <span>
+                <Compass size={16} /> 首批可信城市：上海 · 杭州 · 苏州
+              </span>
             </div>
             <button className="btn btn-secondary btn-sm" style={{ marginTop: 18 }} onClick={() => onOpenDestination(city)}>
               <MapPin size={15} /> 打开{city}目的地页
@@ -254,7 +283,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <img src={photo.image} alt={`${photo.poi} ${photo.title}`} loading="lazy" />
                 <figcaption>
                   <strong>{photo.title}</strong>
-                  <span><MapPin size={12} /> {photo.poi} · {photo.source}</span>
+                  <span>
+                    <MapPin size={12} /> {photo.poi} · {photo.source}
+                  </span>
                 </figcaption>
               </figure>
             ))}
@@ -279,7 +310,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <h3>还没有保存的路书</h3>
                 <p>从推荐路线复制一份，或粘贴攻略链接生成你的第一份可信路书。</p>
               </div>
-              <button className="btn btn-secondary btn-sm" onClick={startFromHero}>开始生成</button>
+              <button className="btn btn-secondary btn-sm" onClick={startFromHero}>
+                开始生成
+              </button>
             </div>
           ) : (
             <div className="book-grid compact">
@@ -287,10 +320,14 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 const trustState = getRouteTrustBadgeState(book);
                 return (
                   <button key={`${book.city}-${idx}`} className="book-card compact-book" onClick={() => onOpenBook(book)}>
-                    <span className={`badge ${trustState.badgeClass}`}><Shield size={12} /> {trustState.compactText}</span>
+                    <span className={`badge ${trustState.badgeClass}`}>
+                      <Shield size={12} /> {trustState.compactText}
+                    </span>
                     <h3>{book.title ?? `${book.city} 路书`}</h3>
                     <p>{book.summary?.slice(0, 58) ?? '可信路书'}</p>
-                    <span><MapPin size={12} /> {book.city} · {book.stops?.length ?? 0} 站</span>
+                    <span>
+                      <MapPin size={12} /> {book.city} · {book.stops?.length ?? 0} 站
+                    </span>
                   </button>
                 );
               })}

@@ -23,7 +23,9 @@ export function getStoredRoutebooks(profileId = '') {
   for (const key of indexedKeys) {
     try {
       collect(JSON.parse(safeGetItem(key) ?? 'null'));
-    } catch { /* skip corrupted */ }
+    } catch {
+      /* skip corrupted */
+    }
   }
   // 自愈：索引外的历史路书键补录进索引，之后的读取只需按索引定位，不再每次全量解析。
   const missingKeys = [];
@@ -35,7 +37,9 @@ export function getStoredRoutebooks(profileId = '') {
       // :last 是 legacy 重复副本：只参与展示去重，不补录进索引（与迁移口径一致）。
       if (!key.endsWith(':last')) missingKeys.push(key);
       collect(data);
-    } catch { /* skip corrupted */ }
+    } catch {
+      /* skip corrupted */
+    }
   }
   if (missingKeys.length) writeRoutebookIndex(insertKeysByRecency(indexedKeys, missingKeys).slice(0, MAX_INDEXED_ROUTEBOOKS));
   return books.sort((a, b) => {
@@ -52,7 +56,9 @@ export function getStoredRoutebookById(id) {
   try {
     const data = JSON.parse(safeGetItem(routebookPrimaryKey(target)) ?? 'null');
     if (data && (routebookStorageId(data) === target || data.publicId === target || data.id === target)) return data;
-  } catch { /* fall through to list scan */ }
+  } catch {
+    /* fall through to list scan */
+  }
   return getStoredRoutebooks().find((book) => routebookStorageId(book) === target || book.publicId === target || book.id === target) ?? null;
 }
 
@@ -61,9 +67,7 @@ export function saveRoutebook(routebook, options = {}) {
   // 浏览他人路线时落库仅作缓存，不据为己有。profileId === 'anonymous' 视同未声明
   // 所有权：claimOwnership 时允许覆盖为当前身份，任何情况下 anonymous 不算 owner。
   const claimedOwner = routebook?.profileId && routebook.profileId !== 'anonymous';
-  const normalized = claimedOwner || !options.claimOwnership
-    ? routebook
-    : { ...routebook, profileId: currentProfileId() };
+  const normalized = claimedOwner || !options.claimOwnership ? routebook : { ...routebook, profileId: currentProfileId() };
   const key = routebookPrimaryKey(routebookStorageId(normalized));
   try {
     const serialized = JSON.stringify(normalized);
@@ -97,13 +101,17 @@ export function deleteRoutebook(routebookOrId) {
     try {
       const data = JSON.parse(safeGetItem(key) ?? 'null');
       if (data && routebookStorageId(data) === storageId) removedKeys.add(key);
-    } catch { /* keep unrelated corrupted entries */ }
+    } catch {
+      /* keep unrelated corrupted entries */
+    }
   }
   const legacyKey = `${CACHE_PREFIX}:${encodeURIComponent(target.city ?? '杭州')}:last`;
   try {
     const legacy = JSON.parse(safeGetItem(legacyKey) ?? 'null');
     if (legacy && routebookStorageId(legacy) === storageId) removedKeys.add(legacyKey);
-  } catch { /* legacy cache stays untouched when unreadable */ }
+  } catch {
+    /* legacy cache stays untouched when unreadable */
+  }
   for (const key of removedKeys) safeRemoveItem(key);
   writeRoutebookIndex(readRoutebookIndex().filter((key) => !removedKeys.has(key)));
   return true;
@@ -167,10 +175,7 @@ export function saveFavorite(favorite, profileId = currentProfileId()) {
     createdAt: favorite?.createdAt || new Date().toISOString()
   };
   const routeKey = favoriteRouteKey(normalized);
-  const next = [
-    normalized,
-    ...getStoredFavorites(profileId).filter((item) => favoriteRouteKey(item) !== routeKey)
-  ].slice(0, 100);
+  const next = [normalized, ...getStoredFavorites(profileId).filter((item) => favoriteRouteKey(item) !== routeKey)].slice(0, 100);
   safeWriteJsonStorage(favoriteStorageKey(profileId), next);
   return normalized;
 }
@@ -237,10 +242,12 @@ export function migrateLocalProfileData(previousProfileId, nextProfileId) {
     nextId,
     { newestAtEnd: true }
   );
-  const clicks = migrateSingleScopedList(clickStorageKey(previousId), clickStorageKey(nextId), previousId, nextId)
-    + migrateLegacyRootRows(CLICK_PREFIX, clickStorageKey(nextId), previousId, nextId);
-  const favorites = migrateSingleScopedList(favoriteStorageKey(previousId), favoriteStorageKey(nextId), previousId, nextId)
-    + migrateLegacyRootRows(FAVORITE_PREFIX, favoriteStorageKey(nextId), previousId, nextId);
+  const clicks =
+    migrateSingleScopedList(clickStorageKey(previousId), clickStorageKey(nextId), previousId, nextId) +
+    migrateLegacyRootRows(CLICK_PREFIX, clickStorageKey(nextId), previousId, nextId);
+  const favorites =
+    migrateSingleScopedList(favoriteStorageKey(previousId), favoriteStorageKey(nextId), previousId, nextId) +
+    migrateLegacyRootRows(FAVORITE_PREFIX, favoriteStorageKey(nextId), previousId, nextId);
   const tripSessions = migrateTripSessionKeys(previousId, nextId);
   return { routebooks: migratedBookIds.size, checkins, clicks, favorites, tripSessions };
 }
@@ -262,7 +269,11 @@ function routebookPrimaryKey(storageId) {
 }
 
 function routebookStorageId(routebook) {
-  return routebook?.publicId || routebook?.id || `${routebook?.city ?? 'city'}:${routebook?.title ?? 'route'}:${routebook?.provider?.generatedAt ?? routebook?.updatedAt ?? 'last'}`;
+  return (
+    routebook?.publicId ||
+    routebook?.id ||
+    `${routebook?.city ?? 'city'}:${routebook?.title ?? 'route'}:${routebook?.provider?.generatedAt ?? routebook?.updatedAt ?? 'last'}`
+  );
 }
 
 function readRoutebookIndex() {
@@ -345,9 +356,7 @@ function migrateSingleScopedList(previousKey, nextKey, previousId, nextId, optio
     const merged = Array.isArray(existing) ? [...migratedRows, ...existing] : migratedRows;
     // 打卡类列表存储序为旧→新，截断保留末尾（最新）；点击/收藏为新→旧，保留开头，
     // 确保目标账号最新记录不会被迁移合并截掉。
-    const limited = options.newestAtEnd
-      ? merged.slice(-MAX_SCOPED_LIST_ROWS)
-      : merged.slice(0, MAX_SCOPED_LIST_ROWS);
+    const limited = options.newestAtEnd ? merged.slice(-MAX_SCOPED_LIST_ROWS) : merged.slice(0, MAX_SCOPED_LIST_ROWS);
     safeSetItem(nextKey, JSON.stringify(limited));
     safeRemoveItem(previousKey);
     return migratedRows.length;

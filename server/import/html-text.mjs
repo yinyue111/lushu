@@ -42,9 +42,28 @@ export function decodeHtmlBody(body, contentType = '') {
 }
 
 const NAMED_ENTITIES = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', middot: '·', hellip: '…',
-  mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
-  copy: '©', reg: '®', trade: '™', yen: '¥', times: '×', deg: '°'
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00a0',
+  middot: '·',
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  laquo: '«',
+  raquo: '»',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  yen: '¥',
+  times: '×',
+  deg: '°'
 };
 
 function fromCodePointSafe(codePoint) {

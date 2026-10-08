@@ -5,9 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { listFiles } from './lib/list-files.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const files = listFiles(root, (path) =>
-  path === 'server.mjs' || /^(scripts|server|test)\/.+\.mjs$/.test(path)
-);
+const files = listFiles(root, (path) => path === 'server.mjs' || /^(scripts|server|test)\/.+\.mjs$/.test(path));
 
 let failed = 0;
 for (const file of files) {

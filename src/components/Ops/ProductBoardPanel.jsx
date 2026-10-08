@@ -37,16 +37,28 @@ export default function ProductBoardPanel() {
             <h2 id="product-ctr-title">商品 CTR 明细</h2>
             <p className="text-caption">按商品聚合曝光 / 点击 / CTR</p>
           </div>
-          <span className="badge badge-blue"><Ticket size={12} /> {analytics ? `${ctrRows.length} 个商品` : '—'}</span>
+          <span className="badge badge-blue">
+            <Ticket size={12} /> {analytics ? `${ctrRows.length} 个商品` : '—'}
+          </span>
         </div>
         {ctrRows.length ? (
           <div className="ops-table-scroll">
             <table className="ops-data-table">
-              <thead><tr><th>商品</th><th>曝光</th><th>点击</th><th>CTR</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>商品</th>
+                  <th>曝光</th>
+                  <th>点击</th>
+                  <th>CTR</th>
+                </tr>
+              </thead>
               <tbody>
                 {ctrRows.map((row, index) => (
                   <tr key={row.key || `${row.label}-${index}`}>
-                    <td><strong>{textValue(row.label || row.key)}</strong>{row.key && row.key !== row.label && <small>{row.key}</small>}</td>
+                    <td>
+                      <strong>{textValue(row.label || row.key)}</strong>
+                      {row.key && row.key !== row.label && <small>{row.key}</small>}
+                    </td>
                     <td>{numberValue(row.exposureCount)}</td>
                     <td>{numberValue(row.clickCount)}</td>
                     <td>{hasValue(row.ctr) && Number.isFinite(Number(row.ctr)) ? `${Number(row.ctr)}%` : '—'}</td>
@@ -80,12 +92,21 @@ export default function ProductBoardPanel() {
             <h2 id="product-recent-title">最近点击流水</h2>
             <p className="text-caption">最近 20 条点击归因，含种子商品兜底点击标注</p>
           </div>
-          <span className="badge badge-blue"><MousePointerClick size={12} /> {analytics ? `${recentClicks.length} 条` : '—'}</span>
+          <span className="badge badge-blue">
+            <MousePointerClick size={12} /> {analytics ? `${recentClicks.length} 条` : '—'}
+          </span>
         </div>
         {recentClicks.length ? (
           <div className="ops-table-scroll">
             <table className="ops-data-table">
-              <thead><tr><th>时间</th><th>商品</th><th>路线</th><th>来源</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>商品</th>
+                  <th>路线</th>
+                  <th>来源</th>
+                </tr>
+              </thead>
               <tbody>
                 {recentClicks.map((click, index) => (
                   <tr key={click.id || `${click.productId}-${click.createdAt}-${index}`}>
@@ -95,7 +116,10 @@ export default function ProductBoardPanel() {
                       {isSeedFallbackClick(click) && <span className="badge badge-orange">seed-fallback</span>}
                     </td>
                     <td>{textValue(firstValue(click.routeTitle, click.routeId))}</td>
-                    <td>{textValue(firstValue(click.source, click.sourcePosition))}{click.sourcePosition && click.source ? ` · ${click.sourcePosition}` : ''}</td>
+                    <td>
+                      {textValue(firstValue(click.source, click.sourcePosition))}
+                      {click.sourcePosition && click.source ? ` · ${click.sourcePosition}` : ''}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -156,10 +180,18 @@ function BoardStat({ label, value }) {
 function GroupTable({ title, rows, ready }) {
   return (
     <div className="card-flat" style={{ padding: 14 }}>
-      <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>{title}</h3>
+      <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
+        {title}
+      </h3>
       {rows.length ? (
         <table className="ops-data-table">
-          <thead><tr><th>名称</th><th>点击</th><th>最近点击</th></tr></thead>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>点击</th>
+              <th>最近点击</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.slice(0, 8).map((row, index) => (
               <tr key={row.key || `${row.label}-${index}`}>

@@ -29,24 +29,24 @@ export function freePort() {
  * @param {{ env?: Record<string, string | null>, dataDir?: string, waitFor?: 'live' | 'none', args?: string[], port?: number }} [options]
  */
 export async function startServer(options = {}) {
-  const port = options.port ?? await freePort();
-  const dataDir = options.dataDir ?? await mkdtemp(join(tmpdir(), 'routebook-unit-'));
+  const port = options.port ?? (await freePort());
+  const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), 'routebook-unit-')));
   const output = [];
   const env = hermeticServerEnv({
-      NODE_ENV: 'production',
-      HOST: '127.0.0.1',
-      PORT: String(port),
-      ROUTEBOOK_DATA_DIR: dataDir,
-      ROUTEBOOK_ADMIN_TOKEN: ADMIN_TOKEN,
-      ROUTEBOOK_API_TOKEN: API_TOKEN,
-      ALLOW_PUBLIC_MODEL_PROXY: 'true',
-      PROFILE_ID_SECRET: 'unit-test-profile-secret',
-      PROFILE_IDENTITY_ASSERTION_SECRET: IDENTITY_SECRET,
-      REQUIRE_LOCAL_ADMIN_TOKEN: 'true',
-      RATE_LIMIT_MAX: '1000',
-      RATE_LIMIT_CORE_WRITE_MAX: '1000',
-      RATE_LIMIT_PUBLIC_READ_MAX: '1000',
-      ...(options.env ?? {})
+    NODE_ENV: 'production',
+    HOST: '127.0.0.1',
+    PORT: String(port),
+    ROUTEBOOK_DATA_DIR: dataDir,
+    ROUTEBOOK_ADMIN_TOKEN: ADMIN_TOKEN,
+    ROUTEBOOK_API_TOKEN: API_TOKEN,
+    ALLOW_PUBLIC_MODEL_PROXY: 'true',
+    PROFILE_ID_SECRET: 'unit-test-profile-secret',
+    PROFILE_IDENTITY_ASSERTION_SECRET: IDENTITY_SECRET,
+    REQUIRE_LOCAL_ADMIN_TOKEN: 'true',
+    RATE_LIMIT_MAX: '1000',
+    RATE_LIMIT_CORE_WRITE_MAX: '1000',
+    RATE_LIMIT_PUBLIC_READ_MAX: '1000',
+    ...(options.env ?? {})
   });
   for (const [key, value] of Object.entries(env)) {
     if (value == null) delete env[key];
@@ -106,10 +106,7 @@ export const adminHeaders = (extra = {}) => ({ 'x-routebook-admin-token': ADMIN_
  * @param {{ exited: Promise<{ code: number | null, signal: string | null }> }} server
  */
 export function waitForExit(server, timeoutMs = 15000) {
-  return Promise.race([
-    server.exited,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('process did not exit')), timeoutMs))
-  ]);
+  return Promise.race([server.exited, new Promise((_, reject) => setTimeout(() => reject(new Error('process did not exit')), timeoutMs))]);
 }
 
 /** Appends JSON rows to a JSONL file in the data dir. */

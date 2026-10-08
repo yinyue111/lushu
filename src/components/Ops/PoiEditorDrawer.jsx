@@ -36,8 +36,8 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
   const [form, setForm] = useState(() => buildInitialForm(poi));
   const [validation, setValidation] = useState({ status: 'idle', data: null, content: '', error: null });
   const [commit, setCommit] = useState({ status: 'idle', data: null, error: null });
-  const canCommit = validation.status === 'ready' && validation.data?.canCommit === true &&
-    Boolean(validation.data?.batchId) && Boolean(validation.data?.commitToken);
+  const canCommit =
+    validation.status === 'ready' && validation.data?.canCommit === true && Boolean(validation.data?.batchId) && Boolean(validation.data?.commitToken);
   const validationRow = Array.isArray(validation.data?.rows) ? validation.data.rows[0] : null;
   const rowErrors = collectIssues(validationRow?.errors);
   const rowWarnings = collectIssues(validationRow?.warnings);
@@ -98,7 +98,9 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
           <div>
-            <h2 id="poi-editor-title" className="text-subtitle">POI 查看 / 编辑</h2>
+            <h2 id="poi-editor-title" className="text-subtitle">
+              POI 查看 / 编辑
+            </h2>
             <p className="text-caption">
               {textValue(poi.poiId)}
               {poi.sourceKind === 'seed' ? ' · 种子数据（保存后转为运营快照）' : ''}
@@ -117,7 +119,11 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
           <label>
             <span className="input-label">城市</span>
             <select className="input-field" value={form.city} onChange={(event) => updateForm({ city: event.target.value })}>
-              {EDITOR_CITIES.map((city) => <option key={city} value={city}>{city}</option>)}
+              {EDITOR_CITIES.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
               {form.city && !EDITOR_CITIES.includes(form.city) && <option value={form.city}>{form.city}</option>}
             </select>
           </label>
@@ -135,7 +141,12 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
           </label>
           <label>
             <span className="input-label">分类</span>
-            <input className="input-field" value={form.category} onChange={(event) => updateForm({ category: event.target.value })} placeholder="如 寺庙 / 街区 / 美术馆" />
+            <input
+              className="input-field"
+              value={form.category}
+              onChange={(event) => updateForm({ category: event.target.value })}
+              placeholder="如 寺庙 / 街区 / 美术馆"
+            />
           </label>
           <label>
             <span className="input-label">别名（顿号分隔）</span>
@@ -144,18 +155,28 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
           <label>
             <span className="input-label">审核状态</span>
             <select className="input-field" value={form.reviewStatus} onChange={(event) => updateForm({ reviewStatus: event.target.value })}>
-              {REVIEW_STATUS_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              {REVIEW_STATUS_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
             </select>
           </label>
           <label>
             <span className="input-label">来源类型</span>
             <select className="input-field" value={form.sourceType} onChange={(event) => updateForm({ sourceType: event.target.value })}>
-              {SOURCE_TYPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              {SOURCE_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
             </select>
           </label>
           {QUICK_FACT_FIELDS.map((item) => (
             <label key={item.field} style={{ gridColumn: '1 / -1' }}>
-              <span className="input-label">{item.label}（存储为事实 {item.field}）</span>
+              <span className="input-label">
+                {item.label}（存储为事实 {item.field}）
+              </span>
               <input
                 className="input-field"
                 value={form.quickFacts[item.field] ?? ''}
@@ -167,15 +188,20 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
         </div>
 
         <p className="text-caption" style={{ marginTop: 12 }}>
-          现有事实 {Array.isArray(poi.facts) ? poi.facts.length : 0} 条 · 证据 {Array.isArray(poi.evidence) ? poi.evidence.length : 0} 条 · 更新于 {formatOpsDate(poi.updatedAt)}。
-          证据与完整事实（含有效期、证据关联）请继续用批量导入维护；快捷字段置空不会删除既有事实。
+          现有事实 {Array.isArray(poi.facts) ? poi.facts.length : 0} 条 · 证据 {Array.isArray(poi.evidence) ? poi.evidence.length : 0} 条 · 更新于{' '}
+          {formatOpsDate(poi.updatedAt)}。 证据与完整事实（含有效期、证据关联）请继续用批量导入维护；快捷字段置空不会删除既有事实。
         </p>
 
         <div className="ops-inline-actions" style={{ marginTop: 12 }}>
           <button className="btn btn-secondary btn-sm" type="button" onClick={handleValidate} disabled={validation.status === 'loading'}>
             <FileCheck2 size={14} /> {validation.status === 'loading' ? '校验中...' : '校验（dry-run）'}
           </button>
-          <button className="btn btn-primary btn-sm" type="button" onClick={handleCommit} disabled={!canCommit || commit.status === 'loading' || commit.status === 'ready'}>
+          <button
+            className="btn btn-primary btn-sm"
+            type="button"
+            onClick={handleCommit}
+            disabled={!canCommit || commit.status === 'loading' || commit.status === 'ready'}
+          >
             <CheckCircle2 size={14} /> {commit.status === 'loading' ? '保存中...' : commit.status === 'ready' ? '已保存' : '确认保存'}
           </button>
         </div>
@@ -183,9 +209,7 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
         <div className="ops-live-message" role="status" aria-live="polite" aria-atomic="true">
           {validation.status === 'error' && <span className="ops-error-text">校验失败：{formatApiError(validation.error)}</span>}
           {validation.status === 'ready' && !canCommit && (
-            <span className="ops-error-text">
-              校验未通过{rowErrors.length ? `：${rowErrors.join('；')}` : '，请检查填写内容。'}
-            </span>
+            <span className="ops-error-text">校验未通过{rowErrors.length ? `：${rowErrors.join('；')}` : '，请检查填写内容。'}</span>
           )}
           {validation.status === 'ready' && canCommit && (
             <span>
@@ -193,9 +217,7 @@ export default function PoiEditorDrawer({ poi, onClose, onSaved }) {
             </span>
           )}
           {commit.status === 'error' && <span className="ops-error-text">保存失败：{formatApiError(commit.error)}</span>}
-          {commit.status === 'ready' && (
-            <span>{commit.data?.replayed ? '该批次已写入过，本次返回幂等结果。' : '保存成功，列表已刷新。'}</span>
-          )}
+          {commit.status === 'ready' && <span>{commit.data?.replayed ? '该批次已写入过，本次返回幂等结果。' : '保存成功，列表已刷新。'}</span>}
         </div>
       </div>
     </div>
@@ -244,7 +266,10 @@ function buildRowPayload(poi, form) {
     poiId: String(poi?.poiId || poi?.id || ''),
     city: form.city.trim(),
     name: form.name.trim(),
-    aliases: form.aliases.split(/[、,，;；\n]/).map((alias) => alias.trim()).filter(Boolean),
+    aliases: form.aliases
+      .split(/[、,，;；\n]/)
+      .map((alias) => alias.trim())
+      .filter(Boolean),
     category: form.category.trim(),
     location: {
       lat: Number(form.lat),
@@ -263,10 +288,10 @@ function buildRowPayload(poi, form) {
 function collectIssues(values) {
   if (!Array.isArray(values)) return [];
   return values
-    .map((item) => typeof item === 'string' ? item : [item?.path || item?.field, item?.message || item?.code].filter(Boolean).join('：'))
+    .map((item) => (typeof item === 'string' ? item : [item?.path || item?.field, item?.message || item?.code].filter(Boolean).join('：')))
     .filter(Boolean);
 }
 
 function actionLabel(value) {
-  return ({ new: '新增', update: '更新', unchanged: '无变化' })[String(value ?? '')] || '待写入';
+  return { new: '新增', update: '更新', unchanged: '无变化' }[String(value ?? '')] || '待写入';
 }

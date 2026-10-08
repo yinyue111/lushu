@@ -9,7 +9,14 @@ import { adminHeaders, fetchJson, startServer, writeJsonl } from '../helpers/ser
 // filter afterwards, so matching rows outside the window silently disappeared.
 
 const route = (id, city, extra = {}) => ({
-  id, publicId: id, title: `路书 ${id}`, city, publishStatus: 'published', version: 1, stops: [], ...extra
+  id,
+  publicId: id,
+  title: `路书 ${id}`,
+  city,
+  publishStatus: 'published',
+  version: 1,
+  stops: [],
+  ...extra
 });
 
 let server;
@@ -38,23 +45,34 @@ before(async () => {
   await writeJsonl(dataDir, 'poi-knowledge.jsonl', knowledge);
   server = await startServer({ dataDir });
 });
-after(async () => { await server?.stop(); });
+after(async () => {
+  await server?.stop();
+});
 
 test('city + status filter returns matches beyond the global window', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/routebooks?city=${encodeURIComponent('杭州')}&status=published&limit=1`);
   assert.equal(result.status, 200, JSON.stringify(result.data));
-  assert.deepEqual(result.data.routebooks.map((item) => item.publicId), ['rb-hz-old']);
+  assert.deepEqual(
+    result.data.routebooks.map((item) => item.publicId),
+    ['rb-hz-old']
+  );
 });
 
 test('filters apply to the latest version only (archived routebook stays hidden)', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/routebooks?city=${encodeURIComponent('杭州')}&status=published&limit=50`);
-  assert.deepEqual(result.data.routebooks.map((item) => item.publicId), ['rb-hz-old']);
+  assert.deepEqual(
+    result.data.routebooks.map((item) => item.publicId),
+    ['rb-hz-old']
+  );
 });
 
 test('profileId filter finds the owner routebook behind 520 newer ones', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/routebooks?profileId=p_owner&limit=5`, { headers: adminHeaders() });
   assert.equal(result.status, 200, JSON.stringify(result.data));
-  assert.deepEqual(result.data.routebooks.map((item) => item.publicId), ['rb-hz-old']);
+  assert.deepEqual(
+    result.data.routebooks.map((item) => item.publicId),
+    ['rb-hz-old']
+  );
 });
 
 test('creator profile finds routebooks older than the latest 500', async () => {
@@ -66,11 +84,17 @@ test('creator profile finds routebooks older than the latest 500', async () => {
 test('poi-corrections status filter is applied during the scan', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/poi-corrections?status=approved&limit=1`, { headers: adminHeaders() });
   assert.equal(result.status, 200, JSON.stringify(result.data));
-  assert.deepEqual(result.data.corrections.map((item) => item.id), ['corr-approved']);
+  assert.deepEqual(
+    result.data.corrections.map((item) => item.id),
+    ['corr-approved']
+  );
 });
 
 test('poi-knowledge city filter is applied during the scan', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/poi-knowledge?city=${encodeURIComponent('杭州')}&limit=1`);
   assert.equal(result.status, 200, JSON.stringify(result.data));
-  assert.deepEqual(result.data.knowledge.map((item) => item.id), ['k-hz']);
+  assert.deepEqual(
+    result.data.knowledge.map((item) => item.id),
+    ['k-hz']
+  );
 });

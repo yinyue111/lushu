@@ -15,44 +15,44 @@ import { normalizeReviewShare, reviewIsStillPublic } from '../reviews/reviews.mj
 
 export const profileRoutes = [
   route('POST', '/api/profile', async ({ req, res }) => {
-	      enforceRateLimit(req);
-	      const body = await readJsonBody(req);
-	      // 同一 profile 的「读旧行-合并-追加」需要互斥，否则并发更新会彼此覆盖。
-	      const profileLockKey = normalizeProfile(body).id || 'anonymous';
-	      const publicProfile = await withSingleProcessKeyLock(profileMutationLocks, profileLockKey, async () => {
-	        const { storedProfile, publicProfile: builtProfile } = await buildStoredProfile(body);
-	        await appendJsonLine(PROFILE_LOG_PATH, storedProfile);
-	        return builtProfile;
-	      });
-	      return sendJson(res, 200, { ok: true, profile: publicProfile });
-	    }),
+    enforceRateLimit(req);
+    const body = await readJsonBody(req);
+    // 同一 profile 的「读旧行-合并-追加」需要互斥，否则并发更新会彼此覆盖。
+    const profileLockKey = normalizeProfile(body).id || 'anonymous';
+    const publicProfile = await withSingleProcessKeyLock(profileMutationLocks, profileLockKey, async () => {
+      const { storedProfile, publicProfile: builtProfile } = await buildStoredProfile(body);
+      await appendJsonLine(PROFILE_LOG_PATH, storedProfile);
+      return builtProfile;
+    });
+    return sendJson(res, 200, { ok: true, profile: publicProfile });
+  }),
   route('POST', '/api/reviews', async ({ req, res }) => {
-      enforceRateLimit(req, 'core-write');
-      const body = await readJsonBody(req);
-      const routeId = sanitizePublicId(body?.routebookId || body?.routeId || body?.publicId || body?.routebook?.publicId || body?.routebook?.id);
-      if (!routeId) throw createHttpError('请提供公开路书 ID', 400, 'REVIEW_ROUTE_REQUIRED');
-      const currentRoutebook = await getResolvableRoutebook(routeId);
-      if (!currentRoutebook || !isPublicRoutebook(currentRoutebook)) {
-        throw createHttpError('路书公开发布后才能生成回顾分享页', 403, 'REVIEW_ROUTE_NOT_PUBLIC');
-      }
-      const requestedProfileId = normalizeProfileId(body?.profileId);
-      const actor = await resolveWriteProfile(req, requestedProfileId);
-      if (!actor.verified) throw createHttpError('生成个人回顾需要 profile token', 403, 'PROFILE_TOKEN_REQUIRED');
-      const review = await normalizeReviewShare(body, currentRoutebook, {
-        profileId: actor.profileId,
-        includePersistedProfileCheckins: true
-      });
-      await appendJsonLine(REVIEW_LOG_PATH, review);
-      return sendJson(res, 200, { ok: true, review: publicReviewView(review), shareUrl: `/review/${review.publicId}` });
-    }),
+    enforceRateLimit(req, 'core-write');
+    const body = await readJsonBody(req);
+    const routeId = sanitizePublicId(body?.routebookId || body?.routeId || body?.publicId || body?.routebook?.publicId || body?.routebook?.id);
+    if (!routeId) throw createHttpError('请提供公开路书 ID', 400, 'REVIEW_ROUTE_REQUIRED');
+    const currentRoutebook = await getResolvableRoutebook(routeId);
+    if (!currentRoutebook || !isPublicRoutebook(currentRoutebook)) {
+      throw createHttpError('路书公开发布后才能生成回顾分享页', 403, 'REVIEW_ROUTE_NOT_PUBLIC');
+    }
+    const requestedProfileId = normalizeProfileId(body?.profileId);
+    const actor = await resolveWriteProfile(req, requestedProfileId);
+    if (!actor.verified) throw createHttpError('生成个人回顾需要 profile token', 403, 'PROFILE_TOKEN_REQUIRED');
+    const review = await normalizeReviewShare(body, currentRoutebook, {
+      profileId: actor.profileId,
+      includePersistedProfileCheckins: true
+    });
+    await appendJsonLine(REVIEW_LOG_PATH, review);
+    return sendJson(res, 200, { ok: true, review: publicReviewView(review), shareUrl: `/review/${review.publicId}` });
+  }),
   route('GET', '/api/reviews/:id', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'public-read');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const review = await getSavedReview(id);
-      if (!review) throw createHttpError('路线回顾不存在或尚未保存', 404, 'REVIEW_NOT_FOUND');
-      if (!isPublicRoutebook(review.routebook) || !(await reviewIsStillPublic(review))) {
-        throw createHttpError('路线回顾已失效', 404, 'REVIEW_NOT_FOUND');
-      }
-	      return sendJson(res, 200, { ok: true, review: publicReviewView(review) });
-    })
+    enforceRateLimit(req, 'public-read');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const review = await getSavedReview(id);
+    if (!review) throw createHttpError('路线回顾不存在或尚未保存', 404, 'REVIEW_NOT_FOUND');
+    if (!isPublicRoutebook(review.routebook) || !(await reviewIsStillPublic(review))) {
+      throw createHttpError('路线回顾已失效', 404, 'REVIEW_NOT_FOUND');
+    }
+    return sendJson(res, 200, { ok: true, review: publicReviewView(review) });
+  })
 ];

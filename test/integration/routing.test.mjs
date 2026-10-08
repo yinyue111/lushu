@@ -21,7 +21,9 @@ before(async () => {
   ]);
   server = await startServer({ dataDir });
 });
-after(async () => { await server?.stop(); });
+after(async () => {
+  await server?.stop();
+});
 
 test('single-segment ids still resolve', async () => {
   const detail = await fetchJson(`${server.baseUrl}/api/routebooks/rb-hz`);

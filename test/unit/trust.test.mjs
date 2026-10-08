@@ -11,7 +11,11 @@ import {
 } from '../../src/lib/trust.js';
 
 const verifiedMeta = (overrides = {}) => ({
-  source: 'verified-feedback', sampleCount: PUBLIC_TRUST_SAMPLE_THRESHOLD, displayScore: 87.6, label: '', ...overrides
+  source: 'verified-feedback',
+  sampleCount: PUBLIC_TRUST_SAMPLE_THRESHOLD,
+  displayScore: 87.6,
+  label: '',
+  ...overrides
 });
 
 test('route trust is verified only with verified-feedback, enough samples and a 0-100 score', () => {
@@ -41,7 +45,10 @@ test('route trust is verified only with verified-feedback, enough samples and a 
 
 test('unverified routes show sample progress capped at the threshold', () => {
   assert.equal(getRouteTrustPresentation({ trustMeta: { sampleCount: 1 } }).sampleProgressText, `已收集 1/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`);
-  assert.equal(getRouteTrustPresentation({ trustMeta: { sampleCount: 99, source: 'x' } }).sampleProgressText, `已收集 ${PUBLIC_TRUST_SAMPLE_THRESHOLD}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`);
+  assert.equal(
+    getRouteTrustPresentation({ trustMeta: { sampleCount: 99, source: 'x' } }).sampleProgressText,
+    `已收集 ${PUBLIC_TRUST_SAMPLE_THRESHOLD}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`
+  );
   assert.equal(getRouteTrustPresentation({ feedbackSummary: { validArrivalCount: 2 } }).sampleCount, 2);
   assert.equal(getRouteTrustPresentation(null).sampleCount, 0);
   assert.equal(getRouteTrustPresentation({ trustMeta: { sampleCount: -5 } }).sampleCount, 0);
@@ -64,16 +71,30 @@ test('POI trust sample evaluation and stop badges', () => {
   assert.equal(evaluatePoiTrustSample(undefined).verified, false);
   assert.equal(getStopTrustBadge({ poiTrust: { sampleCount: 5, score: 79.5 } }, 'trial').tone, 'trial');
   assert.deepEqual(getStopTrustBadge({ poiTrust: { sampleCount: 5, score: 79.5 } }, 'verified'), {
-    tone: 'verified', badgeClass: 'badge-green', verified: true, value: '80', label: 'POI 可信 80'
+    tone: 'verified',
+    badgeClass: 'badge-green',
+    verified: true,
+    value: '80',
+    label: 'POI 可信 80'
   });
   assert.equal(getStopTrustBadge({}, 'prediction').value, '待验证');
 });
 
 test('trust metric masking and verified date formatting', () => {
-  const metrics = [{ label: '可信分', value: 90 }, { label: '站点数', value: 6 }, { label: '平均评分', value: 4.8 }];
+  const metrics = [
+    { label: '可信分', value: 90 },
+    { label: '站点数', value: 6 },
+    { label: '平均评分', value: 4.8 }
+  ];
   assert.deepEqual(maskTrustMetrics(metrics, 'verified'), metrics);
-  assert.deepEqual(maskTrustMetrics(metrics, 'prediction').map((metric) => metric.value), ['待验证', 6, '待验证']);
-  assert.deepEqual(maskTrustMetrics(metrics, 'trial', 2).map((metric) => metric.value), ['待复核', 6]);
+  assert.deepEqual(
+    maskTrustMetrics(metrics, 'prediction').map((metric) => metric.value),
+    ['待验证', 6, '待验证']
+  );
+  assert.deepEqual(
+    maskTrustMetrics(metrics, 'trial', 2).map((metric) => metric.value),
+    ['待复核', 6]
+  );
   assert.equal(formatVerifiedDate(''), '待验证');
   assert.equal(formatVerifiedDate('not a date'), '待验证');
   assert.match(formatVerifiedDate('2026-10-08T00:00:00Z'), /2026/);

@@ -81,7 +81,9 @@ export function ResourceNotice({ resource, label, loadingLabel = '正在读取�
   return (
     <div className="ops-resource-state is-error" role="alert">
       <AlertCircle size={16} />
-      <span>{label}读取失败：{formatApiError(resource.error)}</span>
+      <span>
+        {label}读取失败：{formatApiError(resource.error)}
+      </span>
       <button className="btn btn-secondary btn-sm" type="button" onClick={resource.retry}>
         <RefreshCw size={13} /> 重试
       </button>

@@ -59,7 +59,9 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           <AlertCircle size={28} />
           <h1>分享路书暂不可用</h1>
           <p>{state.error || '链接不存在或已失效'}</p>
-          <button className="btn btn-secondary" onClick={onBack}><ArrowLeft size={16} /> 返回首页</button>
+          <button className="btn btn-secondary" onClick={onBack}>
+            <ArrowLeft size={16} /> 返回首页
+          </button>
         </div>
       </div>
     );
@@ -93,7 +95,9 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
     try {
       const result = await onSave(routebook, { surface: 'public-share-save' });
       const syncNote = result.synced
-        ? (result.attributionSynced === false ? '已保存到我的路书，来源归因暂未同步。' : '已保存到我的路书。')
+        ? result.attributionSynced === false
+          ? '已保存到我的路书，来源归因暂未同步。'
+          : '已保存到我的路书。'
         : `已保存到本地，服务端暂未同步：${result.syncError || '网络不可用'}`;
       setActionState({
         pending: '',
@@ -124,9 +128,13 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   return (
     <div className="share-page-shell page-enter">
       <div className="share-page-hero">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}><ArrowLeft size={16} /> 返回平台</button>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <ArrowLeft size={16} /> 返回平台
+        </button>
         <div className="share-page-title">
-          <span className={`badge ${trustState.badgeClass}`}><TrustStateIcon size={12} /> {trustState.compactText}</span>
+          <span className={`badge ${trustState.badgeClass}`}>
+            <TrustStateIcon size={12} /> {trustState.compactText}
+          </span>
           <h1>{routebook.title}</h1>
           <p>{routebook.summary}</p>
           {routebook.creator?.id && (
@@ -139,18 +147,19 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
         </div>
         <div className="share-page-actions">
           <button className="btn btn-green btn-lg share-page-primary-action" disabled={Boolean(actionState.pending)} onClick={useRoutebookNow}>
-            <Play size={18} /> {actionState.pending === 'use'
-              ? '正在保存私有副本...'
-              : actionState.savedDraft
-                ? '使用已保存副本开始行程'
-                : '保存私有副本并开始行程'}
+            <Play size={18} />{' '}
+            {actionState.pending === 'use' ? '正在保存私有副本...' : actionState.savedDraft ? '使用已保存副本开始行程' : '保存私有副本并开始行程'}
           </button>
           <div className="share-page-secondary-actions">
             <button className="btn btn-secondary" disabled={Boolean(actionState.pending || actionState.savedDraft)} onClick={saveToMyRoutebooks}>
               <BookmarkPlus size={16} /> {actionState.savedDraft ? '已保存私有副本' : actionState.pending === 'save' ? '正在保存...' : '仅保存私有副本'}
             </button>
-            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={() => onCustomize(routebook, { surface: 'public-share' })}><RefreshCw size={16} /> 定制路线</button>
-            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={copyShareText}><Copy size={16} /> 复制摘要</button>
+            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={() => onCustomize(routebook, { surface: 'public-share' })}>
+              <RefreshCw size={16} /> 定制路线
+            </button>
+            <button className="btn btn-ghost" disabled={Boolean(actionState.pending)} onClick={copyShareText}>
+              <Copy size={16} /> 复制摘要
+            </button>
           </div>
           <p
             className="share-action-feedback text-caption"
@@ -171,20 +180,24 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
             {days.map((day) => (
               <div key={day} className="share-page-day">
                 <span className="badge badge-blue">{day}</span>
-                {stops.filter((stop) => stop.day === day).map((stop, index) => {
-                  const stopTrust = getStopTrustState(stop, trustState.tone);
-                  return (
-                    <div key={stop.id ?? `${day}-${index}`} className="share-page-stop">
-                      <span>{index + 1}</span>
-                      <div>
-                        <strong>{stop.name}</strong>
-                        <small>{stop.time} · {stop.stay} · {stop.cost}</small>
-                        <p>{stop.verify}</p>
+                {stops
+                  .filter((stop) => stop.day === day)
+                  .map((stop, index) => {
+                    const stopTrust = getStopTrustState(stop, trustState.tone);
+                    return (
+                      <div key={stop.id ?? `${day}-${index}`} className="share-page-stop">
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>{stop.name}</strong>
+                          <small>
+                            {stop.time} · {stop.stay} · {stop.cost}
+                          </small>
+                          <p>{stop.verify}</p>
+                        </div>
+                        <b className={`trust-${stopTrust.tone}`}>{stopTrust.value}</b>
                       </div>
-                      <b className={`trust-${stopTrust.tone}`}>{stopTrust.value}</b>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             ))}
           </div>
@@ -216,10 +229,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           </section>
           <section className="share-page-panel compact">
             <h2>分享说明</h2>
-            <p className="text-caption">
-              公开页只展示结构化路线、站点可信度和校验结果；不搬运第三方攻略原文。真实打卡会继续校准路线质量。
+            <p className="text-caption">公开页只展示结构化路线、站点可信度和校验结果；不搬运第三方攻略原文。真实打卡会继续校准路线质量。</p>
+            <p className="text-caption" style={{ marginTop: 10 }}>
+              <MapPin size={12} /> {routebook.city} · {stops.length} 站
             </p>
-            <p className="text-caption" style={{ marginTop: 10 }}><MapPin size={12} /> {routebook.city} · {stops.length} 站</p>
           </section>
         </aside>
       </div>

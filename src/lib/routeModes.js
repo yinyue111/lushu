@@ -70,10 +70,7 @@ export function greedyModeOrder(sourceStops, initialAnchor, mode) {
 
 export function orderedDays(stops = [], preferredDays = []) {
   const daySet = new Set(stops.map((stop) => stop.day || 'Day 1'));
-  return [
-    ...(preferredDays ?? []).filter((day) => daySet.has(day)),
-    ...[...daySet].filter((day) => !(preferredDays ?? []).includes(day))
-  ];
+  return [...(preferredDays ?? []).filter((day) => daySet.has(day)), ...[...daySet].filter((day) => !(preferredDays ?? []).includes(day))];
 }
 
 // 全路线重排：逐日应用贪心最近邻，前一日末站作为次日锚点。

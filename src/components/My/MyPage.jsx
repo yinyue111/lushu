@@ -46,9 +46,17 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         favorites: favoriteResult.status === 'fulfilled' ? (favoriteResult.value.favorites ?? []) : []
       });
       // 401/403 视为未授权静默降级，仅 5xx 才展示错误横幅。
-      const failures = /** @type {PromiseRejectedResult[]} */ ([bookResult, checkinResult, clickResult, favoriteResult]
-        .filter((item) => item.status === 'rejected' && Number(item.reason?.status) >= 500));
-      setError(failures.length ? failures.map((item) => item.reason?.message).filter(Boolean).join('；') || '服务端暂时不可用' : '');
+      const failures = /** @type {PromiseRejectedResult[]} */ (
+        [bookResult, checkinResult, clickResult, favoriteResult].filter((item) => item.status === 'rejected' && Number(item.reason?.status) >= 500)
+      );
+      setError(
+        failures.length
+          ? failures
+              .map((item) => item.reason?.message)
+              .filter(Boolean)
+              .join('；') || '服务端暂时不可用'
+          : ''
+      );
     });
     return () => ctrl.abort();
   }, [profile.id, profile.profileAccessToken]);
@@ -74,7 +82,8 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   // 打卡去重键与 ReviewPage 口径一致：clientLocalId 优先（服务端行也带）、服务端 id 兜底，
   // 避免本地行还没回写服务端 id 时本地 + 服务端双倍计数。
   const checkins = mergeRows(localCheckins, serverData.checkins, (item) =>
-    String(item.clientLocalId || item.id || `${item.routeTitle ?? ''}:${item.stopId ?? item.stopName ?? ''}:${item.time ?? item.createdAt ?? ''}`));
+    String(item.clientLocalId || item.id || `${item.routeTitle ?? ''}:${item.stopId ?? item.stopName ?? ''}:${item.time ?? item.createdAt ?? ''}`)
+  );
   // 点击优先用 productId + 分钟级时间复合键（服务端行也能匹配到未回写 id 的本地行），拼不出复合键再退服务端 id。
   const clicks = mergeRows(localClicks, serverData.clicks, (item) => {
     const productKey = String(item.productId ?? item.productTitle ?? item.title ?? '').trim();
@@ -82,8 +91,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     if (productKey && timeKey) return `${item.routeId ?? ''}:${productKey}:${timeKey}`;
     return String(item.id || `${item.routeId ?? ''}:${productKey}:${timeKey}`);
   });
-  const favorites = mergeRows(localFavorites, serverData.favorites, (item) => `${item.routeId ?? ''}:${item.routeTitle ?? ''}:${item.createdAt ?? ''}`)
-    .filter((item) => !removedFavoriteKeys.has(favoriteKeyOf(item)));
+  const favorites = mergeRows(localFavorites, serverData.favorites, (item) => `${item.routeId ?? ''}:${item.routeTitle ?? ''}:${item.createdAt ?? ''}`).filter(
+    (item) => !removedFavoriteKeys.has(favoriteKeyOf(item))
+  );
   const sharedBooks = books.filter((book) => ['published', 'featured'].includes(book.publishStatus));
   const creatorBooks = sharedBooks.filter((book) => book.creator?.id === profile.id || book.profileId === profile.id);
 
@@ -116,9 +126,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       const saved = adoption.profile;
       setProfile(saved);
       onProfileChanged?.(saved);
-      setProfileMessage(adoption.migratedCount
-        ? `已保存偏好，并迁移 ${adoption.migratedCount} 条本机资产到新身份`
-        : '已保存偏好，下一次生成会默认套用');
+      setProfileMessage(adoption.migratedCount ? `已保存偏好，并迁移 ${adoption.migratedCount} 条本机资产到新身份` : '已保存偏好，下一次生成会默认套用');
     } catch (err) {
       setProfileMessage(`本地已保存，服务端同步失败：${err.message}`);
     }
@@ -182,13 +190,17 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         <div>
           <span className="section-kicker">我的资产</span>
           <h1>路书、打卡和分享</h1>
-          <p className="text-body">
-            本机资产与服务端记录统一展示；恢复码可在另一设备继续同一段旅行。
-          </p>
+          <p className="text-body">本机资产与服务端记录统一展示；恢复码可在另一设备继续同一段旅行。</p>
         </div>
-        <button className="btn btn-primary" onClick={() => onNewBook({})}><Plus size={16} /> 新建路书</button>
+        <button className="btn btn-primary" onClick={() => onNewBook({})}>
+          <Plus size={16} /> 新建路书
+        </button>
       </div>
-      {error && <p className="text-caption" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 12, color: 'var(--orange)' }}>服务端资产暂不可用，已显示本地数据：{error}</p>}
+      {error && (
+        <p className="text-caption" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 12, color: 'var(--orange)' }}>
+          服务端资产暂不可用，已显示本地数据：{error}
+        </p>
+      )}
 
       <div className="stats-grid" style={{ marginTop: 28 }}>
         <Stat icon={Route} label="我的路书" value={books.length} />
@@ -209,7 +221,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           <section className="ops-panel my-section-primary">
             <div className="ops-panel-head">
               <h2>我的路书</h2>
-              <span className="badge badge-blue"><Shield size={11} /> {books.length} 条</span>
+              <span className="badge badge-blue">
+                <Shield size={11} /> {books.length} 条
+              </span>
             </div>
             {books.length ? (
               <>
@@ -220,10 +234,14 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     return (
                       <div key={bookKey} style={{ position: 'relative' }}>
                         <button className="book-card compact-book" style={{ width: '100%', height: '100%' }} onClick={() => onOpenBook(book)}>
-                          <span className={`badge ${trustState.badgeClass}`}><Shield size={12} /> {trustState.compactText}</span>
+                          <span className={`badge ${trustState.badgeClass}`}>
+                            <Shield size={12} /> {trustState.compactText}
+                          </span>
                           <h3>{book.title || '未命名路书'}</h3>
                           <p>{book.summary?.slice(0, 70) || '暂无路线摘要'}</p>
-                          <span><MapPin size={12} /> {book.city || '城市待补充'} · {book.stops?.length ?? 0} 站</span>
+                          <span>
+                            <MapPin size={12} /> {book.city || '城市待补充'} · {book.stops?.length ?? 0} 站
+                          </span>
                         </button>
                         <button
                           type="button"
@@ -239,34 +257,50 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     );
                   })}
                 </div>
-                {books.length > 8 && <p className="text-caption" style={{ marginTop: 10 }}>仅显示最近 8 条，共 {books.length} 条</p>}
+                {books.length > 8 && (
+                  <p className="text-caption" style={{ marginTop: 10 }}>
+                    仅显示最近 8 条，共 {books.length} 条
+                  </p>
+                )}
               </>
-            ) : <Empty text="还没有路书，先粘贴攻略链接生成一条。" />}
+            ) : (
+              <Empty text="还没有路书，先粘贴攻略链接生成一条。" />
+            )}
           </section>
 
           <div className="my-section-stack">
             <section className="ops-panel">
               <div className="ops-panel-head">
                 <h2>我的公开路线</h2>
-                <span className="badge badge-blue"><UserRound size={11} /> {creatorBooks.length} 条</span>
+                <span className="badge badge-blue">
+                  <UserRound size={11} /> {creatorBooks.length} 条
+                </span>
               </div>
               {creatorBooks.length ? (
                 <div className="ops-list">
                   {creatorBooks.slice(0, 8).map((book) => (
                     <div key={`creator-${book.publicId || book.title}`} className="checkin-review-row">
                       <strong>{book.title || '未命名路书'}</strong>
-                      <span>{book.city || '城市待补充'} · {book.publishStatus || 'draft'} · {getRouteTrustBadgeState(book).compactText}</span>
-                      <p><Copy size={12} /> 复制 {book.copyCount ?? 0} 次 · {book.creator?.sourceAuthorization || book.sourceAuthorization || 'user-generated'}</p>
+                      <span>
+                        {book.city || '城市待补充'} · {book.publishStatus || 'draft'} · {getRouteTrustBadgeState(book).compactText}
+                      </span>
+                      <p>
+                        <Copy size={12} /> 复制 {book.copyCount ?? 0} 次 · {book.creator?.sourceAuthorization || book.sourceAuthorization || 'user-generated'}
+                      </p>
                     </div>
                   ))}
                 </div>
-              ) : <Empty text="保存路书后会自动带上你的达人身份，可在运营台发布。" />}
+              ) : (
+                <Empty text="保存路书后会自动带上你的达人身份，可在运营台发布。" />
+              )}
             </section>
 
             <section className="ops-panel">
               <div className="ops-panel-head">
                 <h2>我的分享</h2>
-                <span className="badge badge-blue"><Share2 size={11} /> {sharedBooks.length} 条</span>
+                <span className="badge badge-blue">
+                  <Share2 size={11} /> {sharedBooks.length} 条
+                </span>
               </div>
               {sharedBooks.length ? (
                 <div className="ops-list">
@@ -275,13 +309,19 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     return (
                       <div key={`${book.publicId}-${book.title}`} className="checkin-review-row">
                         <strong>{book.title || '未命名路书'}</strong>
-                        <span>{book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}</span>
-                        <a href={url} target="_blank" rel="noreferrer"><ExternalLink size={12} /> 打开分享页</a>
+                        <span>
+                          {book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}
+                        </span>
+                        <a href={url} target="_blank" rel="noreferrer">
+                          <ExternalLink size={12} /> 打开分享页
+                        </a>
                       </div>
                     );
                   })}
                 </div>
-              ) : <Empty text="发布或精选后的路书会出现在这里。" />}
+              ) : (
+                <Empty text="发布或精选后的路书会出现在这里。" />
+              )}
             </section>
           </div>
         </div>
@@ -291,22 +331,32 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         <section className="ops-panel my-tab-panel" role="tabpanel" aria-label="收藏">
           <div className="ops-panel-head">
             <h2>我的收藏</h2>
-            <span className="badge badge-blue"><Heart size={11} /> {favorites.length} 条</span>
+            <span className="badge badge-blue">
+              <Heart size={11} /> {favorites.length} 条
+            </span>
           </div>
-          {favoriteNotice && <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">{favoriteNotice}</p>}
+          {favoriteNotice && (
+            <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">
+              {favoriteNotice}
+            </p>
+          )}
           {favorites.length ? (
             <>
               <div className="ops-list my-asset-list">
                 {favorites.slice(0, 12).map((item) => (
                   <div key={item.id ?? favoriteKeyOf(item)} className="checkin-review-row">
                     <strong>{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
-                    <span>{item.city || '城市待补充'} · {formatHistoryDate(item.createdAt)}</span>
+                    <span>
+                      {item.city || '城市待补充'} · {formatHistoryDate(item.createdAt)}
+                    </span>
                     <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
                         disabled={!item.routeId}
-                        onClick={() => onOpenBook(books.find((book) => (book.publicId || book.id) === item.routeId) || { id: item.routeId, publicId: item.routeId })}
+                        onClick={() =>
+                          onOpenBook(books.find((book) => (book.publicId || book.id) === item.routeId) || { id: item.routeId, publicId: item.routeId })
+                        }
                       >
                         打开路线
                       </button>
@@ -317,9 +367,15 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                   </div>
                 ))}
               </div>
-              {favorites.length > 12 && <p className="text-caption" style={{ marginTop: 10 }}>仅显示最近 12 条，共 {favorites.length} 条</p>}
+              {favorites.length > 12 && (
+                <p className="text-caption" style={{ marginTop: 10 }}>
+                  仅显示最近 12 条，共 {favorites.length} 条
+                </p>
+              )}
             </>
-          ) : <Empty text="在路线详情页点收藏后会沉淀到这里。" />}
+          ) : (
+            <Empty text="在路线详情页点收藏后会沉淀到这里。" />
+          )}
         </section>
       )}
 
@@ -328,7 +384,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           <section className="ops-panel">
             <div className="ops-panel-head">
               <h2>我的打卡</h2>
-              <span className="badge badge-green"><Camera size={11} /> {checkins.length} 条</span>
+              <span className="badge badge-green">
+                <Camera size={11} /> {checkins.length} 条
+              </span>
             </div>
             {checkins.length ? (
               <>
@@ -336,20 +394,30 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                   {checkins.slice(0, 12).map((item, index) => (
                     <div key={`${item.id ?? item.stopName}-${index}`} className="checkin-review-row">
                       <strong>{item.stopName || '未命名地点'}</strong>
-                      <span>{item.city || '城市待补充'} · {item.worth || '体验待补充'} · 排队 {item.queue ?? '待补充'}</span>
+                      <span>
+                        {item.city || '城市待补充'} · {item.worth || '体验待补充'} · 排队 {item.queue ?? '待补充'}
+                      </span>
                       <p>{item.comment || item.pitfall || '无补充'}</p>
                     </div>
                   ))}
                 </div>
-                {checkins.length > 12 && <p className="text-caption" style={{ marginTop: 10 }}>仅显示最近 12 条，共 {checkins.length} 条</p>}
+                {checkins.length > 12 && (
+                  <p className="text-caption" style={{ marginTop: 10 }}>
+                    仅显示最近 12 条，共 {checkins.length} 条
+                  </p>
+                )}
               </>
-            ) : <Empty text="进入行中模式后，GPS 和体验反馈会沉淀到这里。" />}
+            ) : (
+              <Empty text="进入行中模式后，GPS 和体验反馈会沉淀到这里。" />
+            )}
           </section>
 
           <section className="ops-panel">
             <div className="ops-panel-head">
               <h2>最近商品点击</h2>
-              <span className="badge badge-orange"><Ticket size={11} /> {clicks.length} 条</span>
+              <span className="badge badge-orange">
+                <Ticket size={11} /> {clicks.length} 条
+              </span>
             </div>
             {clicks.length ? (
               <>
@@ -359,14 +427,22 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       <span className="badge badge-blue">{item.type || '商品'}</span>
                       <div>
                         <strong>{item.productTitle || item.title || '未命名商品'}</strong>
-                        <p>{item.poi || '关联地点待补充'} · {item.provider || '本地记录'}</p>
+                        <p>
+                          {item.poi || '关联地点待补充'} · {item.provider || '本地记录'}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
-                {clicks.length > 12 && <p className="text-caption" style={{ marginTop: 10 }}>仅显示最近 12 条，共 {clicks.length} 条</p>}
+                {clicks.length > 12 && (
+                  <p className="text-caption" style={{ marginTop: 10 }}>
+                    仅显示最近 12 条，共 {clicks.length} 条
+                  </p>
+                )}
               </>
-            ) : <Empty text="点击路线里的商品卡后会记录在这里。" />}
+            ) : (
+              <Empty text="点击路线里的商品卡后会记录在这里。" />
+            )}
           </section>
         </div>
       )}
@@ -375,7 +451,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         <section className="ops-panel my-account-panel" role="tabpanel" aria-label="账户">
           <div className="ops-panel-head">
             <h2>账户与旅行偏好</h2>
-            <span className="badge badge-blue"><UserRound size={11} /> {profile.id}</span>
+            <span className="badge badge-blue">
+              <UserRound size={11} /> {profile.id}
+            </span>
           </div>
           <form className="profile-form" onSubmit={handleProfileSave}>
             <div className="card-flat profile-bind-card">
@@ -392,7 +470,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             <div className="profile-sync-section">
               <div className="profile-sync-heading">
                 <div>
-                  <span className="input-label"><KeyRound size={13} /> 跨设备恢复</span>
+                  <span className="input-label">
+                    <KeyRound size={13} /> 跨设备恢复
+                  </span>
                   <p className="text-caption">恢复码等同账号访问权限，请勿发到群聊、评论区或公开笔记。</p>
                 </div>
                 <button className="btn btn-secondary btn-sm" type="button" disabled={syncBusy} onClick={() => prepareSyncCode({ copy: Boolean(syncCode) })}>
@@ -415,40 +495,82 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             </div>
             <label>
               <span className="input-label">常住/出发城市</span>
-              <input className="input-field" value={profile.homeCity ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, homeCity: event.target.value }))} />
+              <input
+                className="input-field"
+                value={profile.homeCity ?? ''}
+                onChange={(event) => setProfile((prev) => ({ ...prev, homeCity: event.target.value }))}
+              />
             </label>
             <label>
               <span className="input-label">常去城市</span>
-              <input className="input-field" value={(profile.preferredCities ?? []).join('、')} onChange={(event) => setProfile((prev) => ({ ...prev, preferredCities: event.target.value.split(/[、,\s]+/).filter(Boolean) }))} />
+              <input
+                className="input-field"
+                value={(profile.preferredCities ?? []).join('、')}
+                onChange={(event) => setProfile((prev) => ({ ...prev, preferredCities: event.target.value.split(/[、,\s]+/).filter(Boolean) }))}
+              />
             </label>
             <label>
               <span className="input-label">预算</span>
-              <input className="input-field" value={profile.budget ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, budget: event.target.value }))} />
+              <input
+                className="input-field"
+                value={profile.budget ?? ''}
+                onChange={(event) => setProfile((prev) => ({ ...prev, budget: event.target.value }))}
+              />
             </label>
             <label>
               <span className="input-label">同行 / 节奏</span>
               <div className="profile-inline-fields">
-                <input className="input-field" value={profile.companion ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, companion: event.target.value }))} />
-                <input className="input-field" value={profile.tempo ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, tempo: event.target.value }))} />
+                <input
+                  className="input-field"
+                  value={profile.companion ?? ''}
+                  onChange={(event) => setProfile((prev) => ({ ...prev, companion: event.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  value={profile.tempo ?? ''}
+                  onChange={(event) => setProfile((prev) => ({ ...prev, tempo: event.target.value }))}
+                />
               </div>
             </label>
             <label>
               <span className="input-label">主题偏好</span>
-              <input className="input-field" value={(profile.themes ?? []).join('、')} onChange={(event) => setProfile((prev) => ({ ...prev, themes: event.target.value.split(/[、,\s]+/).filter(Boolean) }))} />
+              <input
+                className="input-field"
+                value={(profile.themes ?? []).join('、')}
+                onChange={(event) => setProfile((prev) => ({ ...prev, themes: event.target.value.split(/[、,\s]+/).filter(Boolean) }))}
+              />
             </label>
             <label>
               <span className="input-label">达人名称</span>
-              <input className="input-field" value={profile.creatorName ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, creatorName: event.target.value }))} placeholder="用于公开路线作者展示" />
+              <input
+                className="input-field"
+                value={profile.creatorName ?? ''}
+                onChange={(event) => setProfile((prev) => ({ ...prev, creatorName: event.target.value }))}
+                placeholder="用于公开路线作者展示"
+              />
             </label>
             <label>
               <span className="input-label">达人简介</span>
-              <textarea className="input-field" value={profile.creatorBio ?? ''} onChange={(event) => setProfile((prev) => ({ ...prev, creatorBio: event.target.value }))} placeholder="例如：周末短途路线整理者，偏好少绕路和真实打卡反馈" />
+              <textarea
+                className="input-field"
+                value={profile.creatorBio ?? ''}
+                onChange={(event) => setProfile((prev) => ({ ...prev, creatorBio: event.target.value }))}
+                placeholder="例如：周末短途路线整理者，偏好少绕路和真实打卡反馈"
+              />
             </label>
             <div className="profile-inline-actions">
-              <button className="btn btn-primary btn-sm" type="submit"><Save size={14} /> 保存偏好</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpenCreator?.(profile.id)}><UserRound size={14} /> 达人主页</button>
+              <button className="btn btn-primary btn-sm" type="submit">
+                <Save size={14} /> 保存偏好
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpenCreator?.(profile.id)}>
+                <UserRound size={14} /> 达人主页
+              </button>
             </div>
-            {profileMessage && <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">{profileMessage}</p>}
+            {profileMessage && (
+              <p className="text-caption" role="status" aria-live="polite" aria-atomic="true">
+                {profileMessage}
+              </p>
+            )}
           </form>
         </section>
       )}
@@ -460,13 +582,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 function MyTab({ id, activeTab, onSelect, icon: Icon, label, count }) {
   const active = activeTab === id;
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      className={`my-tab ${active ? 'active' : ''}`}
-      onClick={() => onSelect(id)}
-    >
+    <button type="button" role="tab" aria-selected={active} className={`my-tab ${active ? 'active' : ''}`} onClick={() => onSelect(id)}>
       <Icon size={16} />
       <span>{label}</span>
       {Number.isFinite(count) && <b>{count}</b>}
@@ -532,12 +648,7 @@ function mergeBooks(localBooks, serverBooks) {
 }
 
 function routebookTimestamp(book) {
-  return Math.max(0, ...[
-    book?.provider?.editedAt,
-    book?.updatedAt,
-    book?.provider?.generatedAt,
-    book?.createdAt
-  ].map((value) => Date.parse(value ?? '') || 0));
+  return Math.max(0, ...[book?.provider?.editedAt, book?.updatedAt, book?.provider?.generatedAt, book?.createdAt].map((value) => Date.parse(value ?? '') || 0));
 }
 
 function validEditToken(value) {
@@ -551,9 +662,7 @@ function mergeRows(localRows, serverRows, keyFn) {
     const key = keyFn(row);
     if (!map.has(key)) map.set(key, row);
   }
-  return [...map.values()].sort((a, b) =>
-    String(b.createdAt ?? b.time ?? b.clickedAt ?? '').localeCompare(String(a.createdAt ?? a.time ?? a.clickedAt ?? ''))
-  );
+  return [...map.values()].sort((a, b) => String(b.createdAt ?? b.time ?? b.clickedAt ?? '').localeCompare(String(a.createdAt ?? a.time ?? a.clickedAt ?? '')));
 }
 
 function belongsToProfile(item, profileId) {

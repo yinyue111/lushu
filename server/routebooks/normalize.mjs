@@ -1,8 +1,27 @@
 // Routebook normalisation, validation, metrics and curated routebooks.
 import { createHmac } from 'node:crypto';
-import { sanitizePublicId, truncateString, clampNumber, parseMoney, isValidCoordinate, distanceMeters, positiveInteger, normalizeRoutebookActorType, createHttpError, normalizeCityName } from '../lib/util.mjs';
+import {
+  sanitizePublicId,
+  truncateString,
+  clampNumber,
+  parseMoney,
+  isValidCoordinate,
+  distanceMeters,
+  positiveInteger,
+  normalizeRoutebookActorType,
+  createHttpError,
+  normalizeCityName
+} from '../lib/util.mjs';
 import { safeSourceUrl } from '../lib/urls.mjs';
-import { PROFILE_ID_SECRET, MAX_ROUTEBOOK_STOPS, PUBLIC_ROUTE_STATUSES, MAX_IMPORT_URLS, ROUTEBOOK_STATUSES, CURATED_ROUTE_VERSION, CURATED_ROUTE_IDS } from '../config/index.mjs';
+import {
+  PROFILE_ID_SECRET,
+  MAX_ROUTEBOOK_STOPS,
+  PUBLIC_ROUTE_STATUSES,
+  MAX_IMPORT_URLS,
+  ROUTEBOOK_STATUSES,
+  CURATED_ROUTE_VERSION,
+  CURATED_ROUTE_IDS
+} from '../config/index.mjs';
 import { safeEqualHex, cryptoRandomId, normalizeProfileId, sanitizeEditToken } from '../auth/tokens.mjs';
 import { findTrustedPoi, resolvePoiId } from '../poi/catalog.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
@@ -30,8 +49,14 @@ function importedSourceProofPayload(source = {}) {
     truncateString(source?.description, 260),
     truncateString(source?.excerpt, 700),
     clampNumber(source?.trustScore, 0, 100, 20),
-    (Array.isArray(source?.signals) ? source.signals : []).slice(0, 5).map((item) => truncateString(item, 80)).join(';'),
-    (Array.isArray(source?.warnings) ? source.warnings : []).slice(0, 5).map((item) => truncateString(item, 100)).join(';'),
+    (Array.isArray(source?.signals) ? source.signals : [])
+      .slice(0, 5)
+      .map((item) => truncateString(item, 80))
+      .join(';'),
+    (Array.isArray(source?.warnings) ? source.warnings : [])
+      .slice(0, 5)
+      .map((item) => truncateString(item, 100))
+      .join(';'),
     truncateString(source?.fetchedAt, 60)
   ].join('|');
 }
@@ -48,9 +73,7 @@ export function buildRoutebookMetrics(stops, existingMetrics = []) {
   const metrics = Array.isArray(existingMetrics) ? existingMetrics : [];
   const stopCount = stops.length;
   const lowGeoCount = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const avgScore = stopCount
-    ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stopCount)
-    : 78;
+  const avgScore = stopCount ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stopCount) : 78;
   const estimatedBudget = stops.reduce((sum, stop) => sum + parseMoney(stop.cost), 0);
   const calculated = [
     { label: '站点均分', value: `${avgScore}` },
@@ -103,7 +126,9 @@ function mergeSourceValidations(validations, sourceSummary) {
     `已分析 ${sourceSummary.sourceCount} 条导入来源，平均可信 ${sourceSummary.averageTrust}。`,
     sourceSummary.platforms?.length ? `平台：${sourceSummary.platforms.join('、')}。` : '',
     sourceSummary.warnings?.[0] ? `首要风险：${sourceSummary.warnings[0]}` : ''
-  ].filter(Boolean).join('');
+  ]
+    .filter(Boolean)
+    .join('');
   const sourceValidation = {
     id: 'source-trust',
     label: '导入来源',
@@ -118,19 +143,29 @@ export function calculateRouteTrustScore(stops) {
   const avgPoiScore = stops.reduce((sum, stop) => sum + clampNumber(stop.score, 40, 99, 78), 0) / stops.length;
   const lowGeoPenalty = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length * 3;
   const missingCostPenalty = stops.filter((stop) => !/\d/.test(String(stop.cost ?? ''))).length * 1.5;
-  const denseDayPenalty = Math.max(0, Math.max(...Object.values(stops.reduce((acc, stop) => {
-    const day = stop.day || 'Day 1';
-    acc[day] = (acc[day] ?? 0) + 1;
-    return acc;
-  }, {}))) - 6) * 2;
+  const denseDayPenalty =
+    Math.max(
+      0,
+      Math.max(
+        ...Object.values(
+          stops.reduce((acc, stop) => {
+            const day = stop.day || 'Day 1';
+            acc[day] = (acc[day] ?? 0) + 1;
+            return acc;
+          }, {})
+        )
+      ) - 6
+    ) * 2;
   return Math.round(clampNumber(avgPoiScore - lowGeoPenalty - missingCostPenalty - denseDayPenalty, 45, 96, 78));
 }
 
 export function hasPreciseCoordinate(stop) {
-  return isValidCoordinate(Number(stop?.lat), Number(stop?.lng)) &&
+  return (
+    isValidCoordinate(Number(stop?.lat), Number(stop?.lng)) &&
     Number(stop?.geoConfidence ?? 0) >= 60 &&
     stop?.navigationDisabled !== true &&
-    !['city-center', 'region-center', 'country-center'].includes(String(stop?.coordinateSource ?? ''));
+    !['city-center', 'region-center', 'country-center'].includes(String(stop?.coordinateSource ?? ''))
+  );
 }
 
 function routeLegStats(stops) {
@@ -330,9 +365,7 @@ function normalizeRoutebookStop(stop, index, city) {
   const name = truncateString(stop?.name, 48) || `站点 ${index + 1}`;
   const poiId = resolvePoiId({ ...stop, name }, city);
   const existingId = stop?.id;
-  const stableStopId = typeof existingId === 'number' && Number.isFinite(existingId)
-    ? existingId
-    : sanitizePublicId(existingId) || `stop-${index + 1}`;
+  const stableStopId = typeof existingId === 'number' && Number.isFinite(existingId) ? existingId : sanitizePublicId(existingId) || `stop-${index + 1}`;
   return {
     id: stableStopId,
     poiId,
@@ -347,15 +380,17 @@ function normalizeRoutebookStop(stop, index, city) {
     score: clampNumber(stop?.score, 40, 99, 78),
     lat: coordinate.lat,
     lng: coordinate.lng,
-    geoConfidence: coordinate.fallback || coordinate.navigationDisabled === true
-      ? clampNumber(coordinate.confidence, 20, 59, 45)
-      : clampNumber(stop?.geoConfidence, 60, 99, coordinate.confidence ?? 82),
+    geoConfidence:
+      coordinate.fallback || coordinate.navigationDisabled === true
+        ? clampNumber(coordinate.confidence, 20, 59, 45)
+        : clampNumber(stop?.geoConfidence, 60, 99, coordinate.confidence ?? 82),
     coordinateSystem: 'WGS84',
     coordinateSource: truncateString(stop?.coordinateSource, 40) || coordinate.source,
     coordinatePrecision: truncateString(stop?.coordinatePrecision, 40) || coordinate.precision,
-    coordinateRadiusMeters: coordinate.fallback || coordinate.navigationDisabled === true
-      ? clampNumber(coordinate.radiusMeters, 400, 1000000, 1500)
-      : clampNumber(stop?.coordinateRadiusMeters, 0, 1000000, coordinate.radiusMeters ?? 0),
+    coordinateRadiusMeters:
+      coordinate.fallback || coordinate.navigationDisabled === true
+        ? clampNumber(coordinate.radiusMeters, 400, 1000000, 1500)
+        : clampNumber(stop?.coordinateRadiusMeters, 0, 1000000, coordinate.radiusMeters ?? 0),
     navigationDisabled: stop?.navigationDisabled === true || coordinate.navigationDisabled === true,
     sourceEvidence: normalizeStopEvidence(stop?.sourceEvidence),
     facts: normalizeStopFacts(stop?.facts)
@@ -364,31 +399,37 @@ function normalizeRoutebookStop(stop, index, city) {
 
 export function normalizeStopEvidence(items = []) {
   if (!Array.isArray(items)) return [];
-  return items.slice(0, 5).map((item, index) => ({
-    id: sanitizePublicId(item?.id) || `evidence-${index + 1}`,
-    type: truncateString(item?.type, 32) || 'source',
-    label: truncateString(item?.label, 80) || '来源证据',
-    detail: truncateString(item?.detail, 220),
-    platform: truncateString(item?.platform, 40),
-    trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 50),
-    url: safeSourceUrl(item?.url),
-    checkedAt: truncateString(item?.checkedAt, 60)
-  })).filter((item) => item.label || item.detail || item.url);
+  return items
+    .slice(0, 5)
+    .map((item, index) => ({
+      id: sanitizePublicId(item?.id) || `evidence-${index + 1}`,
+      type: truncateString(item?.type, 32) || 'source',
+      label: truncateString(item?.label, 80) || '来源证据',
+      detail: truncateString(item?.detail, 220),
+      platform: truncateString(item?.platform, 40),
+      trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 50),
+      url: safeSourceUrl(item?.url),
+      checkedAt: truncateString(item?.checkedAt, 60)
+    }))
+    .filter((item) => item.label || item.detail || item.url);
 }
 
 export function normalizeStopFacts(items = []) {
   if (!Array.isArray(items)) return [];
-  return items.slice(0, 8).map((item, index) => ({
-    id: sanitizePublicId(item?.id) || `fact-${index + 1}`,
-    field: truncateString(item?.field, 40) || '综合信息',
-    value: truncateString(item?.value, 180),
-    confidence: clampNumber(item?.confidence, 0, 100, 60),
-    sourceLabel: truncateString(item?.sourceLabel, 80),
-    sourceType: truncateString(item?.sourceType, 32) || 'derived',
-    sourceUrl: safeSourceUrl(item?.sourceUrl),
-    status: truncateString(item?.status, 24) || '需复核',
-    checkedAt: truncateString(item?.checkedAt, 60)
-  })).filter((item) => item.field && item.value);
+  return items
+    .slice(0, 8)
+    .map((item, index) => ({
+      id: sanitizePublicId(item?.id) || `fact-${index + 1}`,
+      field: truncateString(item?.field, 40) || '综合信息',
+      value: truncateString(item?.value, 180),
+      confidence: clampNumber(item?.confidence, 0, 100, 60),
+      sourceLabel: truncateString(item?.sourceLabel, 80),
+      sourceType: truncateString(item?.sourceType, 32) || 'derived',
+      sourceUrl: safeSourceUrl(item?.sourceUrl),
+      status: truncateString(item?.status, 24) || '需复核',
+      checkedAt: truncateString(item?.checkedAt, 60)
+    }))
+    .filter((item) => item.field && item.value);
 }
 
 export function routebookValidationContext(routebook) {
@@ -402,9 +443,7 @@ export function routebookValidationContext(routebook) {
 export function normalizeRouteVariant(variant, index, city, fallbackStops = [], context = {}) {
   const mode = truncateString(variant?.mode, 24) || '自定义';
   const sourceStops = Array.isArray(variant?.stops) && variant.stops.length ? variant.stops : fallbackStops;
-  const stops = sourceStops
-    .slice(0, MAX_ROUTEBOOK_STOPS)
-    .map((stop, stopIndex) => normalizeRoutebookStop(stop, stopIndex, city));
+  const stops = sourceStops.slice(0, MAX_ROUTEBOOK_STOPS).map((stop, stopIndex) => normalizeRoutebookStop(stop, stopIndex, city));
   if (stops.length < 2) return null;
   const id = sanitizePublicId(variant?.id) || cryptoRandomId();
   const days = [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
@@ -448,8 +487,8 @@ function routebookVersionMetadata(input, now, publishStatus) {
     parentVersion: parentVersion != null && parentVersion < version ? parentVersion : null,
     createdAt,
     updatedAt: now.toISOString(),
-    publishedAt: PUBLIC_ROUTE_STATUSES.has(publishStatus) ? (existingPublishedAt || now.toISOString()) : existingPublishedAt,
-    archivedAt: publishStatus === 'archived' ? (existingArchivedAt || now.toISOString()) : '',
+    publishedAt: PUBLIC_ROUTE_STATUSES.has(publishStatus) ? existingPublishedAt || now.toISOString() : existingPublishedAt,
+    archivedAt: publishStatus === 'archived' ? existingArchivedAt || now.toISOString() : '',
     changeReason: truncateString(input?.changeReason || input?.editReason, 160) || (version === 1 ? '创建路书' : '更新路书'),
     actorType: normalizeRoutebookActorType(input?.actorType || (input?.profileId ? 'user' : 'system'))
   };
@@ -458,16 +497,18 @@ function routebookVersionMetadata(input, now, publishStatus) {
 export function normalizeRoutebookForStorage(input, existingId = '') {
   const city = normalizeCityName(input?.city);
   const now = new Date();
-  const stops = (Array.isArray(input?.stops) ? input.stops : [])
-    .slice(0, MAX_ROUTEBOOK_STOPS)
-    .map((stop, index) => normalizeRoutebookStop(stop, index, city));
+  const stops = (Array.isArray(input?.stops) ? input.stops : []).slice(0, MAX_ROUTEBOOK_STOPS).map((stop, index) => normalizeRoutebookStop(stop, index, city));
   if (stops.length < 2) {
     throw createHttpError('路书至少需要 2 个站点才能保存', 400, 'ROUTEBOOK_TOO_SHORT');
   }
   const id = sanitizePublicId(existingId || input?.id || input?.publicId) || cryptoRandomId();
-  const days = Array.isArray(input?.days) && input.days.length
-    ? input.days.map((day) => truncateString(day, 24)).filter(Boolean).slice(0, 10)
-    : [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
+  const days =
+    Array.isArray(input?.days) && input.days.length
+      ? input.days
+          .map((day) => truncateString(day, 24))
+          .filter(Boolean)
+          .slice(0, 10)
+      : [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
   const sourceSummary = normalizeSourceSummary(input?.sourceSummary, input?.importedSources);
   const validationContext = {
     city,
@@ -483,11 +524,11 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
   const publishStatus = ROUTEBOOK_STATUSES.has(input?.publishStatus) ? input.publishStatus : 'draft';
   const versionMetadata = routebookVersionMetadata(input, now, publishStatus);
   return {
-	    id,
-	    publicId: id,
-	    profileId: normalizeProfileId(input?.profileId),
-	    editToken: sanitizeEditToken(input?.editToken),
-	    creator: normalizeCreator(input?.creator),
+    id,
+    publicId: id,
+    profileId: normalizeProfileId(input?.profileId),
+    editToken: sanitizeEditToken(input?.editToken),
+    creator: normalizeCreator(input?.creator),
     publishStatus,
     sourceAuthorization: truncateString(input?.sourceAuthorization || input?.creator?.sourceAuthorization, 40) || 'self-owned',
     copyCount: clampNumber(input?.copyCount, 0, 1000000, 0),
@@ -497,11 +538,13 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     trustScore,
     days,
     stops,
-    assets: Array.isArray(input?.assets) ? input.assets.slice(0, 12).map((item, index) => ({
-      label: truncateString(item?.label, 30) || `资产 ${index + 1}`,
-      type: truncateString(item?.type, 24) || 'POI',
-      confidence: clampNumber(item?.confidence, 0, 99, 72)
-    })) : [],
+    assets: Array.isArray(input?.assets)
+      ? input.assets.slice(0, 12).map((item, index) => ({
+          label: truncateString(item?.label, 30) || `资产 ${index + 1}`,
+          type: truncateString(item?.type, 24) || 'POI',
+          confidence: clampNumber(item?.confidence, 0, 99, 72)
+        }))
+      : [],
     validations,
     metrics,
     logs: normalizeLogs(input?.logs, now),
@@ -576,30 +619,33 @@ export function getCuratedRoutebook(publicId) {
   const id = sanitizePublicId(publicId);
   const source = curatedRoutes.find((route) => sanitizePublicId(route.id) === id);
   if (!source) return null;
-  const normalized = normalizeRoutebookForStorage({
-    ...curatedRouteToRoutebook(source),
-    schemaVersion: 2,
-    version: 1,
-    parentVersion: null,
-    createdAt: CURATED_ROUTE_VERSION,
-    publishedAt: CURATED_ROUTE_VERSION,
-    changeReason: '编辑部精选初始版本',
-    actorType: 'admin',
-    profileId: 'official-curation',
-    publishStatus: 'featured',
-    sourceAuthorization: 'self-owned',
-    creator: {
-      id: 'official-curation',
-      name: '可信路书编辑部',
-      bio: '首批可信城市路线由编辑样板和真实打卡持续校准。',
-      sourceAuthorization: 'self-owned'
+  const normalized = normalizeRoutebookForStorage(
+    {
+      ...curatedRouteToRoutebook(source),
+      schemaVersion: 2,
+      version: 1,
+      parentVersion: null,
+      createdAt: CURATED_ROUTE_VERSION,
+      publishedAt: CURATED_ROUTE_VERSION,
+      changeReason: '编辑部精选初始版本',
+      actorType: 'admin',
+      profileId: 'official-curation',
+      publishStatus: 'featured',
+      sourceAuthorization: 'self-owned',
+      creator: {
+        id: 'official-curation',
+        name: '可信路书编辑部',
+        bio: '首批可信城市路线由编辑样板和真实打卡持续校准。',
+        sourceAuthorization: 'self-owned'
+      },
+      provider: {
+        name: 'curation',
+        model: 'ops-template',
+        generatedAt: CURATED_ROUTE_VERSION
+      }
     },
-    provider: {
-      name: 'curation',
-      model: 'ops-template',
-      generatedAt: CURATED_ROUTE_VERSION
-    }
-  }, id);
+    id
+  );
   return {
     ...normalized,
     updatedAt: CURATED_ROUTE_VERSION,
@@ -621,30 +667,35 @@ export function isCuratedRouteId(publicId) {
 
 export function normalizeImportedSources(sources) {
   if (!Array.isArray(sources)) return [];
-  return sources.slice(0, MAX_IMPORT_URLS).map((source) => {
-    const normalized = {
-      url: safeSourceUrl(source?.url),
-      finalUrl: safeSourceUrl(source?.finalUrl),
-      platform: truncateString(source?.platform, 40),
-      platformId: truncateString(source?.platformId, 40),
-      status: truncateString(source?.status, 30),
-      title: truncateString(source?.title, 120),
-      description: truncateString(source?.description, 260),
-      excerpt: truncateString(source?.excerpt, 700),
-      trustScore: clampNumber(source?.trustScore, 0, 100, 20),
-      signals: Array.isArray(source?.signals) ? source.signals.slice(0, 5).map((item) => truncateString(item, 80)) : [],
-      warnings: Array.isArray(source?.warnings) ? source.warnings.slice(0, 5).map((item) => truncateString(item, 100)) : [],
-      fetchedAt: truncateString(source?.fetchedAt, 60),
-      proof: String(source?.proof ?? '').trim().toLowerCase()
-    };
-    if (hasValidImportedSourceProof(normalized)) return normalized;
-    return {
-      ...normalized,
-      trustScore: Math.min(20, normalized.trustScore),
-      proof: '',
-      warnings: [...new Set([...normalized.warnings, '来源可信度未由服务端签名'])].slice(0, 5)
-    };
-  }).filter((source) => source.url || source.excerpt || source.title);
+  return sources
+    .slice(0, MAX_IMPORT_URLS)
+    .map((source) => {
+      const normalized = {
+        url: safeSourceUrl(source?.url),
+        finalUrl: safeSourceUrl(source?.finalUrl),
+        platform: truncateString(source?.platform, 40),
+        platformId: truncateString(source?.platformId, 40),
+        status: truncateString(source?.status, 30),
+        title: truncateString(source?.title, 120),
+        description: truncateString(source?.description, 260),
+        excerpt: truncateString(source?.excerpt, 700),
+        trustScore: clampNumber(source?.trustScore, 0, 100, 20),
+        signals: Array.isArray(source?.signals) ? source.signals.slice(0, 5).map((item) => truncateString(item, 80)) : [],
+        warnings: Array.isArray(source?.warnings) ? source.warnings.slice(0, 5).map((item) => truncateString(item, 100)) : [],
+        fetchedAt: truncateString(source?.fetchedAt, 60),
+        proof: String(source?.proof ?? '')
+          .trim()
+          .toLowerCase()
+      };
+      if (hasValidImportedSourceProof(normalized)) return normalized;
+      return {
+        ...normalized,
+        trustScore: Math.min(20, normalized.trustScore),
+        proof: '',
+        warnings: [...new Set([...normalized.warnings, '来源可信度未由服务端签名'])].slice(0, 5)
+      };
+    })
+    .filter((source) => source.url || source.excerpt || source.title);
 }
 
 export function normalizeLogs(logs, now) {

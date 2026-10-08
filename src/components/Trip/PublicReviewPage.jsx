@@ -15,7 +15,12 @@ export default function PublicReviewPage({ publicId, onBack }) {
   }, [publicId]);
 
   if (state.loading) {
-    return <div className="share-page-loading"><Camera size={28} /><p>正在读取路线回顾...</p></div>;
+    return (
+      <div className="share-page-loading">
+        <Camera size={28} />
+        <p>正在读取路线回顾...</p>
+      </div>
+    );
   }
   if (state.error || !state.review) {
     return (
@@ -23,7 +28,9 @@ export default function PublicReviewPage({ publicId, onBack }) {
         <AlertCircle size={28} />
         <h1>路线回顾暂不可用</h1>
         <p>{state.error || '链接不存在或已失效'}</p>
-        <button className="btn btn-secondary" onClick={onBack}><ArrowLeft size={16} /> 返回首页</button>
+        <button className="btn btn-secondary" onClick={onBack}>
+          <ArrowLeft size={16} /> 返回首页
+        </button>
       </div>
     );
   }
@@ -42,14 +49,36 @@ export default function PublicReviewPage({ publicId, onBack }) {
         <ArrowLeft size={16} /> 返回平台
       </button>
       <div className="card review-hero">
-        <span className="badge badge-blue"><Shield size={12} /> 路线执行与体验反馈</span>
-        <h1 className="text-title" style={{ marginTop: 12 }}>{routebook.title}</h1>
-        <p className="text-caption" style={{ marginTop: 6 }}>{routebook.city} · {stops.length} 站 · 有效 GPS 到达率 {displayStats.completionRate}%</p>
+        <span className="badge badge-blue">
+          <Shield size={12} /> 路线执行与体验反馈
+        </span>
+        <h1 className="text-title" style={{ marginTop: 12 }}>
+          {routebook.title}
+        </h1>
+        <p className="text-caption" style={{ marginTop: 6 }}>
+          {routebook.city} · {stops.length} 站 · 有效 GPS 到达率 {displayStats.completionRate}%
+        </p>
         <div className="review-stats-grid">
-          <div className="review-stat"><CheckCircle size={18} style={{ color: 'var(--green)' }} /><strong>{displayStats.completionRate}%</strong><span>有效 GPS 到达率</span></div>
-          <div className="review-stat"><Camera size={18} style={{ color: 'var(--blue)' }} /><strong>{displayStats.feedbackCount}</strong><span>体验反馈</span></div>
-          <div className="review-stat"><Clock size={18} style={{ color: 'var(--orange)' }} /><strong>{displayStats.pitfallCount}</strong><span>踩坑</span></div>
-          <div className="review-stat"><AlertCircle size={18} style={{ color: 'var(--orange)' }} /><strong>{displayStats.lowConfidenceArrivalCount}</strong><span>低置信</span></div>
+          <div className="review-stat">
+            <CheckCircle size={18} style={{ color: 'var(--green)' }} />
+            <strong>{displayStats.completionRate}%</strong>
+            <span>有效 GPS 到达率</span>
+          </div>
+          <div className="review-stat">
+            <Camera size={18} style={{ color: 'var(--blue)' }} />
+            <strong>{displayStats.feedbackCount}</strong>
+            <span>体验反馈</span>
+          </div>
+          <div className="review-stat">
+            <Clock size={18} style={{ color: 'var(--orange)' }} />
+            <strong>{displayStats.pitfallCount}</strong>
+            <span>踩坑</span>
+          </div>
+          <div className="review-stat">
+            <AlertCircle size={18} style={{ color: 'var(--orange)' }} />
+            <strong>{displayStats.lowConfidenceArrivalCount}</strong>
+            <span>低置信</span>
+          </div>
         </div>
       </div>
       <div className="review-timeline" style={{ marginTop: 24 }}>
@@ -58,10 +87,16 @@ export default function PublicReviewPage({ publicId, onBack }) {
           const evidence = publicReviewEvidence(checkin, stop);
           const hasResult = evidence.kind !== 'missing';
           return (
-            <div key={stop.id ?? index} className={`review-stop ${hasResult ? (['skipped', 'replaced'].includes(evidence.kind) ? 'skipped' : evidence.kind === 'valid' ? 'done' : 'feedback') : 'missed'}`}>
+            <div
+              key={stop.id ?? index}
+              className={`review-stop ${hasResult ? (['skipped', 'replaced'].includes(evidence.kind) ? 'skipped' : evidence.kind === 'valid' ? 'done' : 'feedback') : 'missed'}`}
+            >
               <div className="review-stop-marker">{reviewMarker(evidence.kind)}</div>
               <div className="review-stop-content">
-                <div className="review-stop-header"><strong>{stop.name}</strong><span className="text-micro">{stop.time}</span></div>
+                <div className="review-stop-header">
+                  <strong>{stop.name}</strong>
+                  <span className="text-micro">{stop.time}</span>
+                </div>
                 {hasResult ? (
                   <div className="review-stop-feedback">
                     <span className={`badge ${evidence.badgeClass}`}>{evidence.label}</span>
@@ -69,9 +104,15 @@ export default function PublicReviewPage({ publicId, onBack }) {
                     {['valid', 'low', 'feedback'].includes(evidence.kind) && checkin?.queue && <span className="text-micro">排队 {checkin.queue}</span>}
                     {['valid', 'low', 'feedback'].includes(evidence.kind) && checkin?.cost && <span className="text-micro">花费 {checkin.cost}</span>}
                   </div>
-                ) : <p className="text-caption">暂无到达或体验反馈</p>}
+                ) : (
+                  <p className="text-caption">暂无到达或体验反馈</p>
+                )}
                 {checkin?.comment && <p className="text-caption">{checkin.comment}</p>}
-                {checkin?.pitfall && <p className="text-caption" style={{ color: 'var(--red)' }}>踩坑: {checkin.pitfall}</p>}
+                {checkin?.pitfall && (
+                  <p className="text-caption" style={{ color: 'var(--red)' }}>
+                    踩坑: {checkin.pitfall}
+                  </p>
+                )}
                 {checkin?.photoId && (
                   <a href={checkinPhotoUrl(checkin.photoId)} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6 }}>
                     <img
@@ -89,16 +130,12 @@ export default function PublicReviewPage({ publicId, onBack }) {
       </div>
       {photoCheckins.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h2 className="text-subtitle" style={{ marginBottom: 12 }}>打卡照片墙</h2>
+          <h2 className="text-subtitle" style={{ marginBottom: 12 }}>
+            打卡照片墙
+          </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
             {photoCheckins.map((item) => (
-              <a
-                key={item.photoId}
-                href={checkinPhotoUrl(item.photoId)}
-                target="_blank"
-                rel="noreferrer"
-                title={item.stopName || '打卡照片'}
-              >
+              <a key={item.photoId} href={checkinPhotoUrl(item.photoId)} target="_blank" rel="noreferrer" title={item.stopName || '打卡照片'}>
                 <img
                   src={checkinPhotoUrl(item.photoId)}
                   alt={`${item.stopName || '打卡'}照片`}
@@ -139,16 +176,16 @@ function checkinKey(item) {
 
 function computePublicStats(checkins, stops) {
   const stopIds = new Set(stops.map(stopKeyForStop));
-  const rows = [...latestCheckinsByStop(checkins).entries()]
-    .filter(([key]) => stopIds.has(key))
-    .map(([, row]) => row);
+  const rows = [...latestCheckinsByStop(checkins).entries()].filter(([key]) => stopIds.has(key)).map(([, row]) => row);
   const feedbackRows = rows.filter(isVisitedFeedback);
   const validRows = feedbackRows.filter(isValidGpsArrival);
   return {
     completionRate: stops.length ? Math.min(100, Math.round((validRows.length / stops.length) * 100)) : 0,
     feedbackCount: feedbackRows.length,
     pitfallCount: feedbackRows.filter((item) => item.worth === '踩坑' || item.pitfall).length,
-    lowConfidenceArrivalCount: feedbackRows.filter((item) => !isValidGpsArrival(item) && ['weak', 'invalid'].includes(item.arrivalConfidence || item.arrival?.confidence)).length
+    lowConfidenceArrivalCount: feedbackRows.filter(
+      (item) => !isValidGpsArrival(item) && ['weak', 'invalid'].includes(item.arrivalConfidence || item.arrival?.confidence)
+    ).length
   };
 }
 

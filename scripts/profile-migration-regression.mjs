@@ -37,62 +37,86 @@ const legacyLastKey = `trusted-routebook:v4:${encodeURIComponent('杭州')}:last
 const indexKey = 'trusted-routebook:v4:routebook-index';
 localStorage.setItem('trusted-routebook:profile:v1', JSON.stringify({ id: previousId, homeCity: '杭州' }));
 localStorage.setItem(indexKey, JSON.stringify([routeKey]));
-localStorage.setItem(routeKey, JSON.stringify({
-  id: 'route-1',
-  publicId: 'route-1',
-  profileId: previousId,
-  creator: { id: previousId, name: '本机用户' },
-  city: '杭州',
-  stops: [{ id: 'a' }, { id: 'b' }]
-}));
+localStorage.setItem(
+  routeKey,
+  JSON.stringify({
+    id: 'route-1',
+    publicId: 'route-1',
+    profileId: previousId,
+    creator: { id: previousId, name: '本机用户' },
+    city: '杭州',
+    stops: [{ id: 'a' }, { id: 'b' }]
+  })
+);
 // 索引外的路书（历史版本只写主键未写索引）也要被迁移并补录进索引。
-localStorage.setItem(orphanRouteKey, JSON.stringify({
-  id: 'route-2',
-  publicId: 'route-2',
-  profileId: previousId,
-  city: '杭州',
-  stops: [{ id: 'c' }, { id: 'd' }]
-}));
+localStorage.setItem(
+  orphanRouteKey,
+  JSON.stringify({
+    id: 'route-2',
+    publicId: 'route-2',
+    profileId: previousId,
+    city: '杭州',
+    stops: [{ id: 'c' }, { id: 'd' }]
+  })
+);
 // legacy :last 键与 route-1 是同一本书：原地改写 profileId，但不重复计数、不进索引。
-localStorage.setItem(legacyLastKey, JSON.stringify({
-  id: 'route-1',
-  publicId: 'route-1',
-  profileId: previousId,
-  city: '杭州',
-  stops: [{ id: 'a' }, { id: 'b' }]
-}));
-localStorage.setItem(`trusted-routebook:checkins:${previousId}:route-1`, JSON.stringify([{ id: 'c1', profileId: previousId, time: '2026-07-10T08:00:00.000Z' }]));
+localStorage.setItem(
+  legacyLastKey,
+  JSON.stringify({
+    id: 'route-1',
+    publicId: 'route-1',
+    profileId: previousId,
+    city: '杭州',
+    stops: [{ id: 'a' }, { id: 'b' }]
+  })
+);
+localStorage.setItem(
+  `trusted-routebook:checkins:${previousId}:route-1`,
+  JSON.stringify([{ id: 'c1', profileId: previousId, time: '2026-07-10T08:00:00.000Z' }])
+);
 // 目标账号已有的最新打卡不能被合并截断丢掉（存储序旧→新，最新在末尾）。
-localStorage.setItem(`trusted-routebook:checkins:${nextId}:route-1`, JSON.stringify([{ id: 'c-target-latest', profileId: nextId, time: '2026-07-20T08:00:00.000Z' }]));
+localStorage.setItem(
+  `trusted-routebook:checkins:${nextId}:route-1`,
+  JSON.stringify([{ id: 'c-target-latest', profileId: nextId, time: '2026-07-20T08:00:00.000Z' }])
+);
 // 行中会话键（trip-session，前缀口径与 src/lib/tripSession.js 一致）也要随身份迁移：
 // 旧 id 前缀键改写为新 id 前缀，内部 profileId 同步改写（readTripSession 的校验字段）。
 const tripSessionPreviousKey = `trusted-routebook:trip-session:v1:${encodeURIComponent(previousId)}:route-1`;
 const tripSessionNextKey = `trusted-routebook:trip-session:v1:${encodeURIComponent(nextId)}:route-1`;
-localStorage.setItem(tripSessionPreviousKey, JSON.stringify({
-  version: 1,
-  routeId: 'route-1',
-  profileId: previousId,
-  stops: [{ id: 'a' }, { id: 'b' }],
-  createdAt: '2026-07-10T08:00:00.000Z',
-  updatedAt: '2026-07-10T09:00:00.000Z'
-}));
+localStorage.setItem(
+  tripSessionPreviousKey,
+  JSON.stringify({
+    version: 1,
+    routeId: 'route-1',
+    profileId: previousId,
+    stops: [{ id: 'a' }, { id: 'b' }],
+    createdAt: '2026-07-10T08:00:00.000Z',
+    updatedAt: '2026-07-10T09:00:00.000Z'
+  })
+);
 localStorage.setItem(`trusted-routebook:clicks:${previousId}`, JSON.stringify([{ id: 'k1', profileId: previousId }]));
 localStorage.setItem(`trusted-routebook:favorites:${previousId}`, JSON.stringify([{ id: 'f1', profileId: previousId }]));
 // legacy 根键（未按 profile 作用域）里属于旧 id 的行要改写并搬入新作用域键，其他人的行原样保留。
-localStorage.setItem('trusted-routebook:clicks', JSON.stringify([
-  { id: 'k-legacy', profileId: previousId },
-  { id: 'k-other', profileId: 'p_someone_else' }
-]));
+localStorage.setItem(
+  'trusted-routebook:clicks',
+  JSON.stringify([
+    { id: 'k-legacy', profileId: previousId },
+    { id: 'k-other', profileId: 'p_someone_else' }
+  ])
+);
 localStorage.setItem('trusted-routebook:favorites', JSON.stringify([{ id: 'f-legacy', profileId: previousId }]));
 
 const { createProfileSyncCode, parseProfileSyncCode } = await import('../src/lib/profile.js');
 const { adoptServerProfile } = await import('../src/lib/profileSync.js');
-const adoption = adoptServerProfile({
-  id: nextId,
-  previousLocalId: previousId,
-  profileAccessToken: 'profile-token-1234567890',
-  homeCity: '杭州'
-}, { id: previousId, homeCity: '杭州' });
+const adoption = adoptServerProfile(
+  {
+    id: nextId,
+    previousLocalId: previousId,
+    profileAccessToken: 'profile-token-1234567890',
+    homeCity: '杭州'
+  },
+  { id: previousId, homeCity: '杭州' }
+);
 
 assert.equal(adoption.profile.id, nextId);
 // 断言更新说明（rank10 迁移语义刻意变更）：
@@ -117,7 +141,11 @@ assert.equal(mergedCheckins.at(-1).id, 'c-target-latest', '目标账号最新打
 const mergedClicks = JSON.parse(localStorage.getItem(`trusted-routebook:clicks:${nextId}`));
 assert.deepEqual(mergedClicks.map((row) => row.id).sort(), ['k-legacy', 'k1']);
 assert.ok(mergedClicks.every((row) => row.profileId === nextId));
-assert.deepEqual(JSON.parse(localStorage.getItem('trusted-routebook:clicks')), [{ id: 'k-other', profileId: 'p_someone_else' }], 'legacy 根键里其他人的行要原样保留');
+assert.deepEqual(
+  JSON.parse(localStorage.getItem('trusted-routebook:clicks')),
+  [{ id: 'k-other', profileId: 'p_someone_else' }],
+  'legacy 根键里其他人的行要原样保留'
+);
 const mergedFavorites = JSON.parse(localStorage.getItem(`trusted-routebook:favorites:${nextId}`));
 assert.deepEqual(mergedFavorites.map((row) => row.id).sort(), ['f-legacy', 'f1']);
 assert.ok(mergedFavorites.every((row) => row.profileId === nextId));

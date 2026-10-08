@@ -4,17 +4,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import {
-  ADMIN_TOKEN,
-  API_TOKEN,
-  PROJECT_ROOT,
-  adminHeaders,
-  fetchJson,
-  jsonHeaders,
-  startServer,
-  waitForExit,
-  writeJsonl
-} from '../helpers/server.mjs';
+import { ADMIN_TOKEN, API_TOKEN, PROJECT_ROOT, adminHeaders, fetchJson, jsonHeaders, startServer, waitForExit, writeJsonl } from '../helpers/server.mjs';
 
 const HAS_DIST = existsSync(join(PROJECT_ROOT, 'dist', 'index.html'));
 
@@ -142,7 +132,14 @@ test('L6: routebook edit-token checks still accept the right token and reject ot
     const created = await fetchJson(`${server.baseUrl}/api/routebooks`, {
       method: 'POST',
       headers: jsonHeaders(),
-      body: JSON.stringify({ title: '编辑令牌测试', city: '杭州', stops: [{ name: '柳浪闻莺', day: 1 }, { name: '南宋御街', day: 1 }] })
+      body: JSON.stringify({
+        title: '编辑令牌测试',
+        city: '杭州',
+        stops: [
+          { name: '柳浪闻莺', day: 1 },
+          { name: '南宋御街', day: 1 }
+        ]
+      })
     });
     assert.equal(created.status, 200, JSON.stringify(created.data));
     const { publicId, editToken, version } = created.data.routebook;
@@ -169,7 +166,10 @@ test('L9: public read endpoints are rate limited', async () => {
   const server = await startServer({ env: { RATE_LIMIT_PUBLIC_READ_MAX: '2', RATE_LIMIT_PUBLIC_CONFIG_MAX: '2' } });
   try {
     // public-read bucket (expensive JSONL reads) and public-config bucket (cheap config) are separate.
-    for (const [first, then] of [['/api/poi-knowledge', '/api/routebooks?status=published'], ['/api/cms', '/api/products']]) {
+    for (const [first, then] of [
+      ['/api/poi-knowledge', '/api/routebooks?status=published'],
+      ['/api/cms', '/api/products']
+    ]) {
       const statuses = [];
       for (let index = 0; index < 2; index += 1) statuses.push((await fetch(`${server.baseUrl}${first}`)).status);
       statuses.push((await fetch(`${server.baseUrl}${then}`)).status);
@@ -182,9 +182,17 @@ test('L9: public read endpoints are rate limited', async () => {
 
 async function seedPublishedRoutebook(dataDir) {
   await mkdir(dataDir, { recursive: true });
-  await writeJsonl(dataDir, 'routebooks.jsonl', [{
-    id: 'og-test', publicId: 'og-test', title: '分享测试', city: '杭州', publishStatus: 'published', version: 1, stops: []
-  }]);
+  await writeJsonl(dataDir, 'routebooks.jsonl', [
+    {
+      id: 'og-test',
+      publicId: 'og-test',
+      title: '分享测试',
+      city: '杭州',
+      publishStatus: 'published',
+      version: 1,
+      stops: []
+    }
+  ]);
 }
 
 test('L4: og:image ignores a spoofed Host header and uses PUBLIC_BASE_URL when set', { skip: !HAS_DIST && 'requires npm run build' }, async () => {
@@ -196,7 +204,9 @@ test('L4: og:image ignores a spoofed Host header and uses PUBLIC_BASE_URL when s
     const html = await new Promise((resolve, reject) => {
       const req = request(`${server.baseUrl}/share/og-test`, { headers: { host: 'evil.example/"><script>x</script>' } }, (res) => {
         let body = '';
-        res.on('data', (chunk) => { body += chunk; });
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
         res.on('end', () => resolve(body));
       });
       req.on('error', reject);

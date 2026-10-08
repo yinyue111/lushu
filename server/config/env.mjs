@@ -19,13 +19,7 @@ function defaultWarn(message) {
  * @returns {number}
  */
 export function envNumber(name, fallback, options = {}) {
-  const {
-    min = Number.NEGATIVE_INFINITY,
-    max = Number.POSITIVE_INFINITY,
-    integer = true,
-    env = process.env,
-    warn = defaultWarn
-  } = options;
+  const { min = Number.NEGATIVE_INFINITY, max = Number.POSITIVE_INFINITY, integer = true, env = process.env, warn = defaultWarn } = options;
   const raw = env[name];
   if (raw == null || String(raw).trim() === '') return fallback;
   const value = Number(String(raw).trim());
@@ -55,7 +49,9 @@ export function envNumber(name, fallback, options = {}) {
  * @param {Record<string, string | undefined>} [env]
  */
 export function envFlag(name, fallback, env = process.env) {
-  const raw = String(env[name] ?? '').trim().toLowerCase();
+  const raw = String(env[name] ?? '')
+    .trim()
+    .toLowerCase();
   if (raw === 'true') return true;
   if (raw === 'false') return false;
   return fallback;

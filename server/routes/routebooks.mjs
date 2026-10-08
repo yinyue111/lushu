@@ -3,7 +3,15 @@ import { clampNumber, createHttpError, normalizeCityName, positiveInteger, safeD
 import { ALLOW_LOCAL_ADMIN_BYPASS, FAVORITE_LOG_PATH, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { appendJsonLine, readJsonLines, readMatchingJsonLines, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
 import { cryptoRandomId, normalizeProfileId, safeTokenEqual, sanitizeEditToken } from '../auth/tokens.mjs';
-import { hasAdminAccess, isLocalRequest, resolveWriteProfile, verifyAdminAccess, verifyProfileReadAccess, verifySensitiveOrProfileReadAccess, verifySensitiveReadAccess } from '../auth/request-access.mjs';
+import {
+  hasAdminAccess,
+  isLocalRequest,
+  resolveWriteProfile,
+  verifyAdminAccess,
+  verifyProfileReadAccess,
+  verifySensitiveOrProfileReadAccess,
+  verifySensitiveReadAccess
+} from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -12,99 +20,110 @@ import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook, listRoutebookAudits, listRoutebookVersionRows } from '../routebooks/versions.mjs';
 import { isPublicRoutebook, publicRoutebookView } from '../routebooks/views.mjs';
-import { copyRoutebook, ensureDraftEditToken, publishOwnRoutebook, routebookMutationLocks, saveDraftRoutebook, saveRoutebookVariant, updateRoutebookStatus } from '../routebooks/mutations.mjs';
+import {
+  copyRoutebook,
+  ensureDraftEditToken,
+  publishOwnRoutebook,
+  routebookMutationLocks,
+  saveDraftRoutebook,
+  saveRoutebookVariant,
+  updateRoutebookStatus
+} from '../routebooks/mutations.mjs';
 import { buildCreatorProfile, buildPlatformDashboard } from '../analytics/dashboard.mjs';
 
 export const routebookRoutes = [
   route('GET', '/api/routebooks', async ({ req, res, url }) => {
-      enforceRateLimit(req, 'public-read');
-      const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
-      const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
-      const statuses = String(url.searchParams.get('status') ?? '')
-        .split(',')
-        .map((item) => truncateString(item.trim(), 40))
-        .filter(Boolean);
-	      const allRequestedStatusesPublic = statuses.length > 0 && statuses.every((status) => PUBLIC_ROUTE_STATUSES.has(status));
-	      const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
-	      if (profileId) {
-	        await verifySensitiveOrProfileReadAccess(req, profileId);
-	      } else if (!privilegedRead && !allRequestedStatusesPublic) {
-	        verifyAdminAccess(req);
-	      }
-      // H4: filter while scanning so `limit` counts matching routebooks, not the global window.
-      const filtered = await listSavedRoutebooks(clampNumber(url.searchParams.get('limit'), 1, 200, 100), (routebook) =>
+    enforceRateLimit(req, 'public-read');
+    const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
+    const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
+    const statuses = String(url.searchParams.get('status') ?? '')
+      .split(',')
+      .map((item) => truncateString(item.trim(), 40))
+      .filter(Boolean);
+    const allRequestedStatusesPublic = statuses.length > 0 && statuses.every((status) => PUBLIC_ROUTE_STATUSES.has(status));
+    const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
+    if (profileId) {
+      await verifySensitiveOrProfileReadAccess(req, profileId);
+    } else if (!privilegedRead && !allRequestedStatusesPublic) {
+      verifyAdminAccess(req);
+    }
+    // H4: filter while scanning so `limit` counts matching routebooks, not the global window.
+    const filtered = await listSavedRoutebooks(
+      clampNumber(url.searchParams.get('limit'), 1, 200, 100),
+      (routebook) =>
         (!city || routebook.city === city) &&
         (!profileId || normalizeProfileId(routebook.profileId) === profileId) &&
         (!statuses.length || statuses.includes(routebook.publishStatus || 'draft'))
-      );
-      // rank23①：列表路径先一次性读齐 5 份 JSONL，逐路书 enrich 时传引用复用。
-      const feedbackContext = filtered.length ? await buildRouteFeedbackContext() : null;
-      const enrichedRoutebooks = await Promise.all(filtered.map((routebook) => enrichRoutebook(routebook, feedbackContext)));
-	      const publicList = !privilegedRead && allRequestedStatusesPublic && !profileId;
-      return sendJson(res, 200, {
-        ok: true,
-        routebooks: publicList ? enrichedRoutebooks.map(publicRoutebookView) : enrichedRoutebooks
-      });
-    }),
+    );
+    // rank23①：列表路径先一次性读齐 5 份 JSONL，逐路书 enrich 时传引用复用。
+    const feedbackContext = filtered.length ? await buildRouteFeedbackContext() : null;
+    const enrichedRoutebooks = await Promise.all(filtered.map((routebook) => enrichRoutebook(routebook, feedbackContext)));
+    const publicList = !privilegedRead && allRequestedStatusesPublic && !profileId;
+    return sendJson(res, 200, {
+      ok: true,
+      routebooks: publicList ? enrichedRoutebooks.map(publicRoutebookView) : enrichedRoutebooks
+    });
+  }),
   route('GET', '/api/dashboard', async ({ req, res, url }) => {
-      verifySensitiveReadAccess(req);
-      return sendJson(res, 200, {
-        ok: true,
-        dashboard: await buildPlatformDashboard(clampNumber(url.searchParams.get('limit'), 100, 2000, 1000))
-      });
-    }),
+    verifySensitiveReadAccess(req);
+    return sendJson(res, 200, {
+      ok: true,
+      dashboard: await buildPlatformDashboard(clampNumber(url.searchParams.get('limit'), 100, 2000, 1000))
+    });
+  }),
   route('GET', '/api/creators/:id', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'public-read');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      if (!id) throw createHttpError('达人 ID 不合法', 400, 'CREATOR_ID_REQUIRED');
-      return sendJson(res, 200, {
-        ok: true,
-        profile: await buildCreatorProfile(id)
-      });
-    }),
+    enforceRateLimit(req, 'public-read');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    if (!id) throw createHttpError('达人 ID 不合法', 400, 'CREATOR_ID_REQUIRED');
+    return sendJson(res, 200, {
+      ok: true,
+      profile: await buildCreatorProfile(id)
+    });
+  }),
   route('POST', '/api/routebooks/:id/status', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'core-write');
-      verifyAdminAccess(req);
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const body = await readJsonBody(req);
-      const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => updateRoutebookStatus(id, body));
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: await enrichRoutebook(routebook)
-      });
-    }),
+    enforceRateLimit(req, 'core-write');
+    verifyAdminAccess(req);
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => updateRoutebookStatus(id, body));
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: await enrichRoutebook(routebook)
+    });
+  }),
   route('POST', '/api/routebooks/:id/publish', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'core-write');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const body = await readJsonBody(req);
-      const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => publishOwnRoutebook(id, body));
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: await enrichRoutebook(routebook),
-        shareUrl: `/share/${routebook.publicId}`
-      });
-    }),
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => publishOwnRoutebook(id, body));
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: await enrichRoutebook(routebook),
+      shareUrl: `/share/${routebook.publicId}`
+    });
+  }),
   route('POST', '/api/routebooks/:id/copy', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'core-write');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const body = await readJsonBody(req);
-      const actor = await resolveWriteProfile(req, body?.profileId);
-      const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => copyRoutebook(id, { ...body, profileId: actor.profileId }));
-      const enriched = await enrichRoutebook(routebook);
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: publicRoutebookView(enriched),
-        copyCount: enriched.copyCount ?? 0
-      });
-    }),
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => copyRoutebook(id, { ...body, profileId: actor.profileId }));
+    const enriched = await enrichRoutebook(routebook);
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: publicRoutebookView(enriched),
+      copyCount: enriched.copyCount ?? 0
+    });
+  }),
   route('GET', '/api/routebooks/:id/versions', async ({ req, res, params }) => {
-      verifyAdminAccess(req);
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      let versions = await listRoutebookVersionRows(id);
-      if (!versions.length) {
-        const curated = getCuratedRoutebook(id);
-        if (!curated) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
-        versions = [{
+    verifyAdminAccess(req);
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    let versions = await listRoutebookVersionRows(id);
+    if (!versions.length) {
+      const curated = getCuratedRoutebook(id);
+      if (!curated) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+      versions = [
+        {
           schemaVersion: positiveInteger(curated.schemaVersion, 2),
           version: positiveInteger(curated.version, 1),
           parentVersion: positiveInteger(curated.parentVersion),
@@ -120,114 +139,112 @@ export const routebookRoutes = [
           updatedAt: curated.updatedAt,
           publishedAt: curated.publishedAt,
           archivedAt: curated.archivedAt
-        }];
-      }
-      const audits = await listRoutebookAudits(id);
-      return sendJson(res, 200, {
-        ok: true,
-        routebookId: id,
-        currentVersion: versions.at(-1)?.version ?? null,
-        versions,
-        audits
-      });
-    }),
-  route('GET', '/api/routebooks/:id', async ({ req, res, params }) => {
-      // 单路书详情要做全文件反扫 + enrich，读放大明显，挂公共读桶防刷。
-      enforceRateLimit(req, 'public-read');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const savedRoutebook = await getResolvableRoutebook(id);
-      if (!savedRoutebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
-      const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
-      const ownerRead = !privilegedRead && normalizeProfileId(savedRoutebook.profileId) !== 'anonymous'
-        ? await verifyProfileReadAccess(req, savedRoutebook.profileId)
-        : false;
-      // 匿名持有编辑令牌的用户刷新页面后仍可恢复自己的草稿：
-      // x-routebook-edit-token 与存储 editToken 匹配时按 owner 读处理。
-      const requestedEditToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
-      const storedEditToken = sanitizeEditToken(savedRoutebook.editToken);
-      const editTokenRead = Boolean(
-        !privilegedRead && !ownerRead &&
-        requestedEditToken && storedEditToken &&
-        safeTokenEqual(requestedEditToken, storedEditToken)
-      );
-      if (!privilegedRead && !ownerRead && !editTokenRead && !isPublicRoutebook(savedRoutebook)) {
-        throw createHttpError('路书不存在或尚未公开发布', 404, 'ROUTEBOOK_NOT_FOUND');
-      }
-      const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
-      const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
-      return sendJson(res, 200, { ok: true, routebook: privateRead ? routebook : publicRoutebookView(routebook) });
-    }),
-  route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'core-write');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const body = await readJsonBody(req);
-      const result = await withSingleProcessKeyLock(routebookMutationLocks, id, () => saveRoutebookVariant(id, body));
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: await enrichRoutebook(result.routebook),
-        variant: result.variant
-      });
-    }),
-  route('POST', '/api/routebooks', async ({ req, res }) => {
-      enforceRateLimit(req, 'core-write');
-      const body = await readJsonBody(req);
-      const actor = await resolveWriteProfile(req, body?.profileId);
-      const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${/** @type {any} */ (req).requestId}`;
-      const { routebook, enriched } = await withSingleProcessKeyLock(routebookMutationLocks, lockKey, async () => {
-        const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId });
-        await appendVersionedRoutebook(savedRoutebook, savedRoutebook.parentVersion ? 'draft-saved' : 'created');
-        return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook) };
-      });
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: enriched,
-        shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
-      });
-    }),
-  route('GET', '/api/share/:id', async ({ req, res, params }) => {
-      enforceRateLimit(req, 'public-read');
-      const id = sanitizePublicId(safeDecodePathSegment(params.id));
-      const routebook = await enrichRoutebook(await getResolvableRoutebook(id));
-      if (!routebook || !isPublicRoutebook(routebook)) {
-        throw createHttpError('分享路书不存在或已失效', 404, 'SHARE_NOT_FOUND');
-      }
-      const publicRoutebook = publicRoutebookView(routebook);
-      return sendJson(res, 200, {
-        ok: true,
-        routebook: publicRoutebook,
-        share: {
-          publicId: publicRoutebook.publicId,
-          title: publicRoutebook.title,
-          city: publicRoutebook.city,
-          trustScore: publicRoutebook.trustScore,
-          updatedAt: publicRoutebook.updatedAt
         }
-      });
-    }),
+      ];
+    }
+    const audits = await listRoutebookAudits(id);
+    return sendJson(res, 200, {
+      ok: true,
+      routebookId: id,
+      currentVersion: versions.at(-1)?.version ?? null,
+      versions,
+      audits
+    });
+  }),
+  route('GET', '/api/routebooks/:id', async ({ req, res, params }) => {
+    // 单路书详情要做全文件反扫 + enrich，读放大明显，挂公共读桶防刷。
+    enforceRateLimit(req, 'public-read');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const savedRoutebook = await getResolvableRoutebook(id);
+    if (!savedRoutebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+    const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
+    const ownerRead =
+      !privilegedRead && normalizeProfileId(savedRoutebook.profileId) !== 'anonymous' ? await verifyProfileReadAccess(req, savedRoutebook.profileId) : false;
+    // 匿名持有编辑令牌的用户刷新页面后仍可恢复自己的草稿：
+    // x-routebook-edit-token 与存储 editToken 匹配时按 owner 读处理。
+    const requestedEditToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
+    const storedEditToken = sanitizeEditToken(savedRoutebook.editToken);
+    const editTokenRead = Boolean(
+      !privilegedRead && !ownerRead && requestedEditToken && storedEditToken && safeTokenEqual(requestedEditToken, storedEditToken)
+    );
+    if (!privilegedRead && !ownerRead && !editTokenRead && !isPublicRoutebook(savedRoutebook)) {
+      throw createHttpError('路书不存在或尚未公开发布', 404, 'ROUTEBOOK_NOT_FOUND');
+    }
+    const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
+    const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
+    return sendJson(res, 200, { ok: true, routebook: privateRead ? routebook : publicRoutebookView(routebook) });
+  }),
+  route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const result = await withSingleProcessKeyLock(routebookMutationLocks, id, () => saveRoutebookVariant(id, body));
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: await enrichRoutebook(result.routebook),
+      variant: result.variant
+    });
+  }),
+  route('POST', '/api/routebooks', async ({ req, res }) => {
+    enforceRateLimit(req, 'core-write');
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${/** @type {any} */ (req).requestId}`;
+    const { routebook, enriched } = await withSingleProcessKeyLock(routebookMutationLocks, lockKey, async () => {
+      const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId });
+      await appendVersionedRoutebook(savedRoutebook, savedRoutebook.parentVersion ? 'draft-saved' : 'created');
+      return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook) };
+    });
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: enriched,
+      shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
+    });
+  }),
+  route('GET', '/api/share/:id', async ({ req, res, params }) => {
+    enforceRateLimit(req, 'public-read');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const routebook = await enrichRoutebook(await getResolvableRoutebook(id));
+    if (!routebook || !isPublicRoutebook(routebook)) {
+      throw createHttpError('分享路书不存在或已失效', 404, 'SHARE_NOT_FOUND');
+    }
+    const publicRoutebook = publicRoutebookView(routebook);
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: publicRoutebook,
+      share: {
+        publicId: publicRoutebook.publicId,
+        title: publicRoutebook.title,
+        city: publicRoutebook.city,
+        trustScore: publicRoutebook.trustScore,
+        updatedAt: publicRoutebook.updatedAt
+      }
+    });
+  }),
   route('POST', '/api/favorites', async ({ req, res }) => {
-      enforceRateLimit(req, 'core-write');
-      const body = await readJsonBody(req);
-      const actor = await resolveWriteProfile(req, body?.profileId);
-      const row = {
-        id: cryptoRandomId(),
-        profileId: actor.profileId,
-        routeId: sanitizePublicId(body?.routeId || body?.publicId),
-        routeTitle: truncateString(body?.routeTitle || body?.title, 100),
-        city: body?.city ? normalizeCityName(body.city) : '',
-        source: truncateString(body?.source, 40) || 'user',
-        creatorId: sanitizePublicId(body?.creatorId),
-        createdAt: new Date().toISOString()
-      };
-      await appendJsonLine(FAVORITE_LOG_PATH, row);
-      return sendJson(res, 200, { ok: true, favorite: row });
-    }),
+    enforceRateLimit(req, 'core-write');
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const row = {
+      id: cryptoRandomId(),
+      profileId: actor.profileId,
+      routeId: sanitizePublicId(body?.routeId || body?.publicId),
+      routeTitle: truncateString(body?.routeTitle || body?.title, 100),
+      city: body?.city ? normalizeCityName(body.city) : '',
+      source: truncateString(body?.source, 40) || 'user',
+      creatorId: sanitizePublicId(body?.creatorId),
+      createdAt: new Date().toISOString()
+    };
+    await appendJsonLine(FAVORITE_LOG_PATH, row);
+    return sendJson(res, 200, { ok: true, favorite: row });
+  }),
   route('GET', '/api/favorites', async ({ req, res, url }) => {
-      const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
-      await verifySensitiveOrProfileReadAccess(req, profileId);
-      const favoriteLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 80);
-      const favorites = profileId
-        ? await readMatchingJsonLines(FAVORITE_LOG_PATH, (item) => normalizeProfileId(item?.profileId) === profileId, favoriteLimit, 100000)
-        : await readJsonLines(FAVORITE_LOG_PATH, favoriteLimit);
-      return sendJson(res, 200, { ok: true, favorites });
-    })
+    const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
+    await verifySensitiveOrProfileReadAccess(req, profileId);
+    const favoriteLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 80);
+    const favorites = profileId
+      ? await readMatchingJsonLines(FAVORITE_LOG_PATH, (item) => normalizeProfileId(item?.profileId) === profileId, favoriteLimit, 100000)
+      : await readJsonLines(FAVORITE_LOG_PATH, favoriteLimit);
+    return sendJson(res, 200, { ok: true, favorites });
+  })
 ];

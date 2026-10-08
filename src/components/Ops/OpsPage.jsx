@@ -65,7 +65,9 @@ export default function OpsPage() {
           <h1 className="text-hero">内容质量与路书运营</h1>
           <p className="text-body">核对三城内容覆盖，处理审核任务，并追踪路书发布版本。</p>
         </div>
-        <span className="badge badge-green"><ShieldCheck size={13} /> 管理模式</span>
+        <span className="badge badge-green">
+          <ShieldCheck size={13} /> 管理模式
+        </span>
       </header>
 
       <nav className="ops-tabs" role="tablist" aria-label="运营工作区" onKeyDown={handleTabKeyDown}>
@@ -92,13 +94,7 @@ export default function OpsPage() {
         })}
       </nav>
 
-      <main
-        id={`ops-panel-${activeTab}`}
-        className="ops-workspace"
-        role="tabpanel"
-        aria-labelledby={`ops-tab-${activeTab}`}
-        tabIndex={0}
-      >
+      <main id={`ops-panel-${activeTab}`} className="ops-workspace" role="tabpanel" aria-labelledby={`ops-tab-${activeTab}`} tabIndex={0}>
         {activeTab === 'overview' && <OpsOverview />}
         {activeTab === 'content' && <PoiContentPanel />}
         {activeTab === 'checkins' && <CheckinAuditPanel />}

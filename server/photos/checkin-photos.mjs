@@ -2,7 +2,16 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { CHECKIN_PHOTO_ID_PATTERN, CHECKIN_PHOTO_GPS_MATCH_METERS, CHECKIN_PHOTO_DIR, CHECKIN_PHOTO_LOG_PATH, CHECKIN_PHOTO_QUOTA_MAX, CHECKIN_PHOTO_QUOTA_WINDOW_MS, MAX_CHECKIN_PHOTO_BYTES, CHECKIN_PHOTO_EXTENSIONS } from '../config/index.mjs';
+import {
+  CHECKIN_PHOTO_ID_PATTERN,
+  CHECKIN_PHOTO_GPS_MATCH_METERS,
+  CHECKIN_PHOTO_DIR,
+  CHECKIN_PHOTO_LOG_PATH,
+  CHECKIN_PHOTO_QUOTA_MAX,
+  CHECKIN_PHOTO_QUOTA_WINDOW_MS,
+  MAX_CHECKIN_PHOTO_BYTES,
+  CHECKIN_PHOTO_EXTENSIONS
+} from '../config/index.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { distanceMeters, isValidCoordinate, sanitizePublicId, truncateString, createHttpError } from '../lib/util.mjs';
 import { appendJsonLine, findLatestJsonLine, readMatchingJsonLines } from '../storage/jsonl.mjs';
@@ -25,10 +34,7 @@ async function findRouteStopForPhoto(routeId, stopId) {
   if (!routeId) return null;
   const routebook = await getResolvableRoutebook(routeId).catch(() => null);
   if (!routebook?.stops?.length) return null;
-  const routeStops = [
-    ...(routebook.stops ?? []),
-    ...(routebook.variants ?? []).flatMap((variant) => variant?.stops ?? [])
-  ];
+  const routeStops = [...(routebook.stops ?? []), ...(routebook.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
   const requestedStopId = String(stopId ?? '').trim();
   if (!requestedStopId) return null;
   return routeStops.find((stop) => String(stop?.id ?? '') === requestedStopId) ?? null;
@@ -38,9 +44,8 @@ async function findRouteStopForPhoto(routeId, stopId) {
 async function checkinPhotoExifMatchesStop(exif, routeId, stopId) {
   if (!exif || !isValidCoordinate(Number(exif.lat), Number(exif.lng))) return null;
   const stop = await findRouteStopForPhoto(routeId, stopId).catch(() => null);
-  const distance = stop && isValidCoordinate(Number(stop.lat), Number(stop.lng))
-    ? distanceMeters({ lat: Number(exif.lat), lng: Number(exif.lng) }, stop)
-    : null;
+  const distance =
+    stop && isValidCoordinate(Number(stop.lat), Number(stop.lng)) ? distanceMeters({ lat: Number(exif.lat), lng: Number(exif.lng) }, stop) : null;
   return Number.isFinite(distance) ? distance <= CHECKIN_PHOTO_GPS_MATCH_METERS : null;
 }
 
@@ -67,9 +72,7 @@ export async function storeCheckinPhoto(body, actor) {
   if (clientLocalId) {
     const existing = await findLatestJsonLine(
       CHECKIN_PHOTO_LOG_PATH,
-      (item) => normalizeProfileId(item?.profileId) === actor.profileId &&
-        sanitizePublicId(item?.routeId) === routeId &&
-        item?.clientLocalId === clientLocalId
+      (item) => normalizeProfileId(item?.profileId) === actor.profileId && sanitizePublicId(item?.routeId) === routeId && item?.clientLocalId === clientLocalId
     ).catch(() => null);
     if (existing) return checkinPhotoResponse(existing, true);
   }
@@ -77,8 +80,7 @@ export async function storeCheckinPhoto(body, actor) {
   const quotaWindowStartMs = Date.now() - CHECKIN_PHOTO_QUOTA_WINDOW_MS;
   const recentUploads = await readMatchingJsonLines(
     CHECKIN_PHOTO_LOG_PATH,
-    (item) => normalizeProfileId(item?.profileId) === actor.profileId &&
-      Date.parse(item?.createdAt ?? '') >= quotaWindowStartMs,
+    (item) => normalizeProfileId(item?.profileId) === actor.profileId && Date.parse(item?.createdAt ?? '') >= quotaWindowStartMs,
     CHECKIN_PHOTO_QUOTA_MAX,
     100000
   );

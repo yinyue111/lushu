@@ -9,14 +9,7 @@ import { createRouter } from '../http/router.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { sendJson } from '../http/response.mjs';
 
-const apiRoutes = [
-  ...systemRoutes,
-  ...poiRoutes,
-  ...routebookRoutes,
-  ...profileRoutes,
-  ...aiRoutes,
-  ...checkinRoutes
-];
+const apiRoutes = [...systemRoutes, ...poiRoutes, ...routebookRoutes, ...profileRoutes, ...aiRoutes, ...checkinRoutes];
 
 const apiRouter = createRouter(apiRoutes);
 
@@ -29,7 +22,9 @@ export async function handleApi(req, res) {
     throw createHttpError('接口不存在', 404, 'API_NOT_FOUND');
   } catch (error) {
     if (error.upstreamDetail) {
-      console.error(`[model] requestId=${req.requestId ?? 'unknown'} status=${error.upstreamStatus ?? error.statusCode ?? 500} code=${error.upstreamCode ?? error.code ?? 'MODEL_ERROR'}`);
+      console.error(
+        `[model] requestId=${req.requestId ?? 'unknown'} status=${error.upstreamStatus ?? error.statusCode ?? 500} code=${error.upstreamCode ?? error.code ?? 'MODEL_ERROR'}`
+      );
     } else if ((error.statusCode ?? 500) >= 500) {
       console.error(`[server] requestId=${req.requestId ?? 'unknown'} status=${error.statusCode ?? 500} code=${error.code ?? 'SERVER_ERROR'}`);
     }

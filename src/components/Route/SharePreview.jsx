@@ -93,14 +93,16 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           const latest = await getRoutebookRemote(routeId);
           const latestRoutebook = latest.routebook;
           if (requestSequenceRef.current !== refreshSequence || latestRoutebookRef.current !== routebookBeforeRefresh) {
-            setShareState((previous) => ({ ...previous, loading: false, message: `发布未提交：刷新期间当前页面已有新更新，未用较早响应覆盖。${recoveryText}` }));
+            setShareState((previous) => ({
+              ...previous,
+              loading: false,
+              message: `发布未提交：刷新期间当前页面已有新更新，未用较早响应覆盖。${recoveryText}`
+            }));
             return;
           }
           const latestVersion = currentRoutebookVersion(latestRoutebook) ?? error.currentVersion;
           const isPublished = ['published', 'featured'].includes(latestRoutebook?.publishStatus);
-          const latestUrl = isPublished
-            ? new URL(`/share/${latestRoutebook.publicId || routeId}`, window.location.origin).toString()
-            : '';
+          const latestUrl = isPublished ? new URL(`/share/${latestRoutebook.publicId || routeId}`, window.location.origin).toString() : '';
           onShared?.(latestRoutebook);
           setShareState({
             loading: false,
@@ -134,13 +136,27 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div ref={dialogRef} className="modal-content share-preview" role="dialog" aria-modal="true" aria-labelledby="share-preview-title" tabIndex={-1} onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content share-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-preview-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="share-header">
           <div>
-            <h2 className="text-title" id="share-preview-title">{routebook.title}</h2>
-            <p className="text-caption" style={{ marginTop: 4 }}>{routebook.summary}</p>
+            <h2 className="text-title" id="share-preview-title">
+              {routebook.title}
+            </h2>
+            <p className="text-caption" style={{ marginTop: 4 }}>
+              {routebook.summary}
+            </p>
           </div>
-          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭分享预览"><X size={18} /></button>
+          <button className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭分享预览">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Hero trust score */}
@@ -151,36 +167,42 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
             <span>{trustState.text}</span>
           </div>
           <div className="share-trust-stats">
-            <span><b>{stops.length}</b> 站点</span>
-            <span><b>{days.length}</b> 天</span>
-            <span><b>{routebook.city}</b></span>
+            <span>
+              <b>{stops.length}</b> 站点
+            </span>
+            <span>
+              <b>{days.length}</b> 天
+            </span>
+            <span>
+              <b>{routebook.city}</b>
+            </span>
           </div>
-          {trustState.tone === 'prediction' && trustState.sampleProgressText && (
-            <p className="text-micro">{trustState.sampleProgressText}</p>
-          )}
+          {trustState.tone === 'prediction' && trustState.sampleProgressText && <p className="text-micro">{trustState.sampleProgressText}</p>}
         </div>
 
         {/* Route summary */}
         <div className="share-route-list">
-          {days.map(day => (
+          {days.map((day) => (
             <div key={day} className="share-day-section">
               <span className="badge badge-blue">{day}</span>
               <div className="share-stops">
-                {stops.filter(s => s.day === day).map((stop, i) => {
-                  const stopTrust = getStopTrustState(stop, trustState.tone);
-                  return (
-                    <div key={stop.id ?? i} className="share-stop-row">
-                      <span className="share-stop-time">{stop.time}</span>
-                      <div>
-                        <strong>{stop.name}</strong>
-                        <span className="text-micro">{stop.stay} · {stop.cost}</span>
+                {stops
+                  .filter((s) => s.day === day)
+                  .map((stop, i) => {
+                    const stopTrust = getStopTrustState(stop, trustState.tone);
+                    return (
+                      <div key={stop.id ?? i} className="share-stop-row">
+                        <span className="share-stop-time">{stop.time}</span>
+                        <div>
+                          <strong>{stop.name}</strong>
+                          <span className="text-micro">
+                            {stop.stay} · {stop.cost}
+                          </span>
+                        </div>
+                        <span className={`share-stop-score trust-${stopTrust.tone}`}>{stopTrust.value}</span>
                       </div>
-                      <span className={`share-stop-score trust-${stopTrust.tone}`}>
-                        {stopTrust.value}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           ))}
@@ -189,8 +211,10 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         {/* Validations highlight */}
         {routebook.validations?.length > 0 && (
           <div className="share-validations">
-            <p className="text-micro" style={{ marginBottom: 8 }}>可执行校验</p>
-            {routebook.validations.slice(0, 3).map(v => (
+            <p className="text-micro" style={{ marginBottom: 8 }}>
+              可执行校验
+            </p>
+            {routebook.validations.slice(0, 3).map((v) => (
               <span key={v.id} className="badge badge-orange" style={{ marginRight: 6, marginBottom: 4 }}>
                 {v.label}: {v.state}
               </span>
@@ -201,7 +225,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         {/* Metrics */}
         {visibleMetrics.length > 0 && (
           <div className="share-metrics">
-            {visibleMetrics.map(m => (
+            {visibleMetrics.map((m) => (
               <div key={m.label} className="share-metric-item">
                 <span className="text-micro">{m.label}</span>
                 <strong>{m.value}</strong>
@@ -212,9 +236,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
 
         {/* Footer */}
         <div className="share-footer">
-          <p className="text-caption">
-            公开页只展示路线结构与可信状态，不搬运第三方攻略原文。真实打卡持续校准。
-          </p>
+          <p className="text-caption">公开页只展示路线结构与可信状态，不搬运第三方攻略原文。真实打卡持续校准。</p>
           <div className="share-actions">
             <button
               className="btn btn-primary"
@@ -250,12 +272,14 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           </div>
           {!shareUrl && (
             <p className="text-caption" style={{ marginTop: 10 }}>
-              {isCuratedRoute
-                ? '精选路线请先『定制同款』复制为个人路书再发布。'
-                : '路线尚未发布：发布 H5 链接后才能使用系统分享，私有编辑链接不会被分享。'}
+              {isCuratedRoute ? '精选路线请先『定制同款』复制为个人路书再发布。' : '路线尚未发布：发布 H5 链接后才能使用系统分享，私有编辑链接不会被分享。'}
             </p>
           )}
-          {shareUrl && <p className="text-caption" style={{ marginTop: 10, wordBreak: 'break-all' }}>{shareUrl}</p>}
+          {shareUrl && (
+            <p className="text-caption" style={{ marginTop: 10, wordBreak: 'break-all' }}>
+              {shareUrl}
+            </p>
+          )}
           <p className="text-caption" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: shareState.message ? 8 : 0 }}>
             {shareState.message}
           </p>

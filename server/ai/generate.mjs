@@ -1,11 +1,32 @@
 // Model calls: routebook generation, OCR and prompt construction.
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
-import { AI_RUNTIME_FROM_CODEX, CODEX_AUTH_PATH, CODEX_CONFIG_PATH, MAX_OCR_IMAGE_BYTES, MAX_GUIDE_CHARS, AMAP_GEOCODE_KEY, AI_MAX_OUTPUT_TOKENS, AI_TIMEOUT_MS, OCR_MAX_OUTPUT_TOKENS, AI_MAX_OUTPUT_TOKENS_RETRY } from '../config/index.mjs';
+import {
+  AI_RUNTIME_FROM_CODEX,
+  CODEX_AUTH_PATH,
+  CODEX_CONFIG_PATH,
+  MAX_OCR_IMAGE_BYTES,
+  MAX_GUIDE_CHARS,
+  AMAP_GEOCODE_KEY,
+  AI_MAX_OUTPUT_TOKENS,
+  AI_TIMEOUT_MS,
+  OCR_MAX_OUTPUT_TOKENS,
+  AI_MAX_OUTPUT_TOKENS_RETRY
+} from '../config/index.mjs';
 import { createHttpError, truncateString, clampNumber, isValidCoordinate, normalizeCityName, mapWithConcurrency } from '../lib/util.mjs';
 import { hasImageMagicBytes } from '../photos/image-metadata.mjs';
 import { refreshMergedPoiCatalog } from '../poi/catalog.mjs';
 import { normalizeProfileId, sanitizeEditToken, cryptoRandomId } from '../auth/tokens.mjs';
-import { normalizeImportedSources, buildRoutebookMetrics, buildRoutebookValidations, buildSourceSummary, calculateRouteTrustScore, normalizeCreator, normalizeLogs, normalizeRouteConstraints, normalizeTravelDate } from '../routebooks/normalize.mjs';
+import {
+  normalizeImportedSources,
+  buildRoutebookMetrics,
+  buildRoutebookValidations,
+  buildSourceSummary,
+  calculateRouteTrustScore,
+  normalizeCreator,
+  normalizeLogs,
+  normalizeRouteConstraints,
+  normalizeTravelDate
+} from '../routebooks/normalize.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
 
@@ -180,27 +201,27 @@ function systemPrompt() {
     '你是 AI 可信路书平台的路线编排引擎。',
     '目标不是写泛攻略，而是把用户输入的分散攻略/需求变成可执行、可编辑、可验证的地图路书。',
     '只返回 JSON，不返回 Markdown。',
-	    '路线必须服务 MVP 闭环：攻略导入、POI 提取、分日路书、可执行校验、行中打卡反哺可信分、商业点击验证。',
-	    '不要搬运第三方攻略原文；只提取 POI、约束、风险、执行顺序和验证理由。',
+    '路线必须服务 MVP 闭环：攻略导入、POI 提取、分日路书、可执行校验、行中打卡反哺可信分、商业点击验证。',
+    '不要搬运第三方攻略原文；只提取 POI、约束、风险、执行顺序和验证理由。',
     '如果用户提供小红书、抖音、X 或普通网页链接，只能基于公开可访问信息和用户粘贴内容分析；不能假设已绕过登录墙或反爬。',
     '必须显式降低低可信来源、商业推广、过时信息、仅元数据页面的权重，并把需要复核的事实写入 validations 或 stop.risk。',
-	    '支持中国大陆和港澳台常见旅行目的地；热门城市可直接使用城市中心，非热门城市必须基于用户攻略和地点线索生成，并显式提示需要复核定位。',
+    '支持中国大陆和港澳台常见旅行目的地；热门城市可直接使用城市中心，非热门城市必须基于用户攻略和地点线索生成，并显式提示需要复核定位。',
     '每个 stop 必须包含 0-100 的 score，以及真实地图可用的 lat/lng。',
     'lat/lng 使用 WGS84，经纬度必须落在对应城市附近；无法精确定位时返回街区级近似坐标并降低 geoConfidence。',
     '每个 stop 的 coordinateSystem 固定返回 WGS84，geoConfidence 为 0-100。',
-	    'validations 必须覆盖开放时间、步行强度、预算风险、拥挤风险。',
-	    'logs 必须体现链接导入、来源可信度分析、POI 提取、约束过滤、路线编排、可执行校验。',
-	    '如果输入携带 approvedPoiCandidates（运营已审核 POI 候选），优先从候选中选点并直接使用候选给出的坐标与营业时间；不在候选中的自创点位必须显式降低 geoConfidence（<60）并在 stop.risk 标注需实地复核。'
-	  ].join('\n');
-	}
+    'validations 必须覆盖开放时间、步行强度、预算风险、拥挤风险。',
+    'logs 必须体现链接导入、来源可信度分析、POI 提取、约束过滤、路线编排、可执行校验。',
+    '如果输入携带 approvedPoiCandidates（运营已审核 POI 候选），优先从候选中选点并直接使用候选给出的坐标与营业时间；不在候选中的自创点位必须显式降低 geoConfidence（<60）并在 stop.risk 标注需实地复核。'
+  ].join('\n');
+}
 
 // rank12③：按目标城市注入 top-N 已审核运营 POI 候选（紧凑单行格式），
 // 让生成结果优先复用运营核验过的坐标/营业时间/停留建议。
 const MAX_PROMPT_POI_CANDIDATES = 40;
 
 function approvedFactValue(poi, fieldPattern) {
-  const fact = (Array.isArray(poi?.facts) ? poi.facts : []).find((item) =>
-    item?.reviewStatus === 'approved' && fieldPattern.test(String(item?.field ?? '')) && String(item?.value ?? '').trim()
+  const fact = (Array.isArray(poi?.facts) ? poi.facts : []).find(
+    (item) => item?.reviewStatus === 'approved' && fieldPattern.test(String(item?.field ?? '')) && String(item?.value ?? '').trim()
   );
   return fact ? truncateString(fact.value, 60) : '';
 }
@@ -264,23 +285,21 @@ function userPrompt(payload) {
     {
       city: payload.city,
       guide: payload.guide,
-	      constraints: {
-	        duration: constraints.duration ?? '2 天 1 晚',
-	        budget: constraints.budget ?? '人均 900',
-	        tempo: constraints.tempo ?? '松弛但不空',
-	        companion: constraints.companion ?? '朋友',
-	        date: constraints.date ?? '',
-	        base: constraints.base ?? '',
-	        transport: constraints.transport ?? '',
-	        theme: constraints.theme ?? '',
-	        mustGo: constraints.mustGo ?? '',
-	        avoid: constraints.avoid ?? ''
-	      },
+      constraints: {
+        duration: constraints.duration ?? '2 天 1 晚',
+        budget: constraints.budget ?? '人均 900',
+        tempo: constraints.tempo ?? '松弛但不空',
+        companion: constraints.companion ?? '朋友',
+        date: constraints.date ?? '',
+        base: constraints.base ?? '',
+        transport: constraints.transport ?? '',
+        theme: constraints.theme ?? '',
+        mustGo: constraints.mustGo ?? '',
+        avoid: constraints.avoid ?? ''
+      },
       importedSources: payload.importedSources ?? [],
       // rank12③：运营已审核 POI 候选（名称|坐标|开放|建议停留|适合），无候选时省略。
-      ...(Array.isArray(payload.poiCandidates) && payload.poiCandidates.length
-        ? { approvedPoiCandidates: payload.poiCandidates }
-        : {}),
+      ...(Array.isArray(payload.poiCandidates) && payload.poiCandidates.length ? { approvedPoiCandidates: payload.poiCandidates } : {}),
       sourcePolicy: [
         'importedSources 是公开链接导入与可信度分析结果，不代表平台已验证全部事实。',
         '优先使用 trustScore 高、status=fetched、signals 多的来源；对 warnings 中的商业推广、页面不可抓取、正文过短等信号降权。',
@@ -288,8 +307,8 @@ function userPrompt(payload) {
         '如果链接只能拿到元数据，必须在 stop.verify 或 validations 里提示“需用户补充原文/出发前复核”。',
         '个人攻略必须服从用户 constraints，而不是照搬任一平台作者路线。'
       ],
-	      requiredOutputShape: RESPONSE_SCHEMA
-	    },
+      requiredOutputShape: RESPONSE_SCHEMA
+    },
     null,
     2
   );
@@ -346,13 +365,15 @@ function normalizeRoutebook(routebook, payload, runtime) {
       score: clampNumber(stop.score, 60, 98, 82),
       lat: coordinate.lat,
       lng: coordinate.lng,
-      geoConfidence: coordinate.fallback || coordinate.navigationDisabled === true
-        ? clampNumber(coordinate.confidence, 20, 59, 45)
-        : clampNumber(stop.geoConfidence, 60, 99, coordinate.confidence ?? 86),
+      geoConfidence:
+        coordinate.fallback || coordinate.navigationDisabled === true
+          ? clampNumber(coordinate.confidence, 20, 59, 45)
+          : clampNumber(stop.geoConfidence, 60, 99, coordinate.confidence ?? 86),
       coordinateSystem: 'WGS84',
       coordinateSource: coordinate.source,
       coordinatePrecision: coordinate.precision,
-      coordinateRadiusMeters: coordinate.fallback || coordinate.navigationDisabled === true ? coordinate.radiusMeters ?? 1500 : coordinate.radiusMeters ?? 0,
+      coordinateRadiusMeters:
+        coordinate.fallback || coordinate.navigationDisabled === true ? (coordinate.radiusMeters ?? 1500) : (coordinate.radiusMeters ?? 0),
       navigationDisabled: coordinate.navigationDisabled === true
     };
   });
@@ -368,17 +389,18 @@ function normalizeRoutebook(routebook, payload, runtime) {
     constraints: payload.constraints,
     travelDate: normalizeTravelDate(payload.constraints?.date)
   });
-  const routebookValidations = requestedDayCount > inferredDayCount
-    ? [
-        {
-          id: 'day-count-compressed',
-          label: '行程天数',
-          state: '已压缩',
-          detail: `识别到约 ${requestedDayCount} 天行程，超出单次生成 ${MAX_GENERATED_ROUTE_DAYS} 天上限，已压缩为 ${inferredDayCount} 天，建议按段拆分生成。`
-        },
-        ...baseValidations
-      ].slice(0, 8)
-    : baseValidations;
+  const routebookValidations =
+    requestedDayCount > inferredDayCount
+      ? [
+          {
+            id: 'day-count-compressed',
+            label: '行程天数',
+            state: '已压缩',
+            detail: `识别到约 ${requestedDayCount} 天行程，超出单次生成 ${MAX_GENERATED_ROUTE_DAYS} 天上限，已压缩为 ${inferredDayCount} 天，建议按段拆分生成。`
+          },
+          ...baseValidations
+        ].slice(0, 8)
+      : baseValidations;
   const routebookMetrics = buildRoutebookMetrics(stops, routebook.metrics);
   return {
     id,
@@ -513,29 +535,26 @@ function isStructuredOutputUnsupported(error) {
  * @param {any} runtime
  * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number }} [options]
  */
-async function callOpenAiApi(
-  payload,
-  runtime,
-  { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS } = {}
-) {
-  const requestBody = runtime.wireApi === 'chat_completions'
-    ? {
-        model: runtime.model,
-        messages: [
-          { role: 'system', content: systemPrompt() },
-          { role: 'user', content: userPrompt(payload) }
-        ],
-        max_tokens: maxOutputTokens
-      }
-    : {
-        model: runtime.model,
-        input: [
-          { role: 'system', content: [{ type: 'input_text', text: systemPrompt() }] },
-          { role: 'user', content: [{ type: 'input_text', text: userPrompt(payload) }] }
-        ],
-        store: false,
-        max_output_tokens: maxOutputTokens
-      };
+async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS } = {}) {
+  const requestBody =
+    runtime.wireApi === 'chat_completions'
+      ? {
+          model: runtime.model,
+          messages: [
+            { role: 'system', content: systemPrompt() },
+            { role: 'user', content: userPrompt(payload) }
+          ],
+          max_tokens: maxOutputTokens
+        }
+      : {
+          model: runtime.model,
+          input: [
+            { role: 'system', content: [{ type: 'input_text', text: systemPrompt() }] },
+            { role: 'user', content: [{ type: 'input_text', text: userPrompt(payload) }] }
+          ],
+          store: false,
+          max_output_tokens: maxOutputTokens
+        };
 
   if (responseFormat === 'json_schema') {
     const format = {
@@ -609,24 +628,20 @@ async function callOpenAiApi(
     data = { raw: text };
   }
 
-	  if (!response.ok) {
-	    const detail = data.error?.message ?? data.message ?? `HTTP ${response.status}`;
-	    const error = createHttpError('模型服务调用失败', response.status >= 500 ? 502 : response.status, 'MODEL_ERROR');
-	    error.upstreamStatus = response.status;
-	    error.upstreamDetail = detail;
-	    error.upstreamCode = data.error?.code ?? data.code;
-	    throw error;
-	  }
+  if (!response.ok) {
+    const detail = data.error?.message ?? data.message ?? `HTTP ${response.status}`;
+    const error = createHttpError('模型服务调用失败', response.status >= 500 ? 502 : response.status, 'MODEL_ERROR');
+    error.upstreamStatus = response.status;
+    error.upstreamDetail = detail;
+    error.upstreamCode = data.error?.code ?? data.code;
+    throw error;
+  }
 
   // A response that ran out of output budget still returns HTTP 200 with a
   // half-written JSON body, so it has to be caught here instead of at parse time.
   if (data.status === 'incomplete') {
     const reason = data.incomplete_details?.reason ?? 'unknown';
-    const error = createHttpError(
-      'AI 输出被截断，请重试',
-      502,
-      reason === 'max_output_tokens' ? 'MODEL_OUTPUT_TRUNCATED' : 'MODEL_OUTPUT_INCOMPLETE'
-    );
+    const error = createHttpError('AI 输出被截断，请重试', 502, reason === 'max_output_tokens' ? 'MODEL_OUTPUT_TRUNCATED' : 'MODEL_OUTPUT_INCOMPLETE');
     error.upstreamDetail = `status=incomplete reason=${reason} max_output_tokens=${maxOutputTokens}`;
     error.truncatedByTokenLimit = reason === 'max_output_tokens';
     error.attemptedMaxOutputTokens = maxOutputTokens;
@@ -646,15 +661,19 @@ export async function analyzeGuideImages(images, signal) {
     '只识别用户上传截图中的旅行地点、时间、价格、排队、风险、路线顺序线索。',
     '不要复写长篇原文，不要生成营销文案，只返回 JSON。'
   ].join('\n');
-  const userText = JSON.stringify({
-    task: '从截图中提取旅行攻略线索',
-    outputShape: {
-      places: [{ name: '地点', time: '时间线索', price: '价格/门票/人均', note: '风险或上下文', confidence: 0 }],
-      guideText: '可追加到攻略输入框的摘要',
-      warnings: ['需要用户复核的事项']
+  const userText = JSON.stringify(
+    {
+      task: '从截图中提取旅行攻略线索',
+      outputShape: {
+        places: [{ name: '地点', time: '时间线索', price: '价格/门票/人均', note: '风险或上下文', confidence: 0 }],
+        guideText: '可追加到攻略输入框的摘要',
+        warnings: ['需要用户复核的事项']
+      },
+      policy: '只输出 JSON，不要 Markdown；无法识别时返回空 places 和 warnings。'
     },
-    policy: '只输出 JSON，不要 Markdown；无法识别时返回空 places 和 warnings。'
-  }, null, 2);
+    null,
+    2
+  );
   const responseSchema = {
     type: 'object',
     additionalProperties: false,
@@ -681,36 +700,31 @@ export async function analyzeGuideImages(images, signal) {
     }
   };
   const buildRequestBody = (responseFormat) => {
-    const requestBody = runtime.wireApi === 'chat_completions'
-      ? {
-          model: runtime.model,
-          messages: [
-            { role: 'system', content: systemText },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: userText },
-                ...images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } }))
-              ]
-            }
-          ],
-          max_tokens: OCR_MAX_OUTPUT_TOKENS
-        }
-      : {
-          model: runtime.model,
-          input: [
-            { role: 'system', content: [{ type: 'input_text', text: systemText }] },
-            {
-              role: 'user',
-              content: [
-                { type: 'input_text', text: userText },
-                ...images.map((image) => ({ type: 'input_image', image_url: image.dataUrl }))
-              ]
-            }
-          ],
-          store: false,
-          max_output_tokens: OCR_MAX_OUTPUT_TOKENS
-        };
+    const requestBody =
+      runtime.wireApi === 'chat_completions'
+        ? {
+            model: runtime.model,
+            messages: [
+              { role: 'system', content: systemText },
+              {
+                role: 'user',
+                content: [{ type: 'text', text: userText }, ...images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } }))]
+              }
+            ],
+            max_tokens: OCR_MAX_OUTPUT_TOKENS
+          }
+        : {
+            model: runtime.model,
+            input: [
+              { role: 'system', content: [{ type: 'input_text', text: systemText }] },
+              {
+                role: 'user',
+                content: [{ type: 'input_text', text: userText }, ...images.map((image) => ({ type: 'input_image', image_url: image.dataUrl }))]
+              }
+            ],
+            store: false,
+            max_output_tokens: OCR_MAX_OUTPUT_TOKENS
+          };
     if (responseFormat === 'json_schema') {
       if (runtime.wireApi === 'chat_completions') {
         requestBody.response_format = {
@@ -803,14 +817,22 @@ export async function analyzeGuideImages(images, signal) {
 // the AI log; the HTTP code alone collapses both into MODEL_ERROR.
 export function generationFailureReason(error) {
   switch (error?.code) {
-    case 'MODEL_OUTPUT_TRUNCATED': return 'truncated';
-    case 'MODEL_OUTPUT_INCOMPLETE': return 'incomplete';
-    case 'MODEL_BAD_OUTPUT': return 'bad-output';
-    case 'MODEL_TIMEOUT': return 'timeout';
-    case 'MODEL_NOT_READY': return 'not-ready';
-    case 'CLIENT_ABORTED': return 'client-aborted';
-    case 'MODEL_FETCH_FAILED': return 'upstream-unreachable';
-    default: return error?.upstreamStatus ? 'upstream-error' : 'unknown';
+    case 'MODEL_OUTPUT_TRUNCATED':
+      return 'truncated';
+    case 'MODEL_OUTPUT_INCOMPLETE':
+      return 'incomplete';
+    case 'MODEL_BAD_OUTPUT':
+      return 'bad-output';
+    case 'MODEL_TIMEOUT':
+      return 'timeout';
+    case 'MODEL_NOT_READY':
+      return 'not-ready';
+    case 'CLIENT_ABORTED':
+      return 'client-aborted';
+    case 'MODEL_FETCH_FAILED':
+      return 'upstream-unreachable';
+    default:
+      return error?.upstreamStatus ? 'upstream-error' : 'unknown';
   }
 }
 
@@ -829,25 +851,26 @@ export async function generateRoutebook(payload, signal) {
     promptPayload = payload;
   }
 
-  const callModel = (options = {}) => callOpenAiApi(promptPayload, runtime, {
-    responseFormat: 'json_schema',
-    signal,
-    ...options
-  }).catch(async (error) => {
-    if (!isStructuredOutputUnsupported(error)) throw error;
-    return callOpenAiApi(promptPayload, runtime, {
-      responseFormat: 'json_object',
+  const callModel = (options = {}) =>
+    callOpenAiApi(promptPayload, runtime, {
+      responseFormat: 'json_schema',
       signal,
       ...options
-    }).catch((fallbackError) => {
-      if (!isStructuredOutputUnsupported(fallbackError)) throw fallbackError;
+    }).catch(async (error) => {
+      if (!isStructuredOutputUnsupported(error)) throw error;
       return callOpenAiApi(promptPayload, runtime, {
-        responseFormat: 'none',
+        responseFormat: 'json_object',
         signal,
         ...options
+      }).catch((fallbackError) => {
+        if (!isStructuredOutputUnsupported(fallbackError)) throw fallbackError;
+        return callOpenAiApi(promptPayload, runtime, {
+          responseFormat: 'none',
+          signal,
+          ...options
+        });
       });
     });
-  });
 
   const raw = await callModel().catch((error) => {
     if (!error?.truncatedByTokenLimit || error.attemptedMaxOutputTokens >= AI_MAX_OUTPUT_TOKENS_RETRY) throw error;
@@ -856,11 +879,7 @@ export async function generateRoutebook(payload, signal) {
 
   let routebook;
   try {
-    routebook = normalizeRoutebook(
-      { ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId },
-      payload,
-      runtime
-    );
+    routebook = normalizeRoutebook({ ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId }, payload, runtime);
   } catch (error) {
     if (error?.statusCode) throw error;
     const failure = createHttpError('AI 输出格式异常，请重新生成', 502, 'MODEL_BAD_OUTPUT');

@@ -13,26 +13,27 @@ export function copyActorKey(input = {}) {
 // 仅凭 surface='copy-routebook' 的行只可能来自历史客户端伪造直写，不再计入。
 export function isRoutebookCopyExposure(event, routeId = '') {
   const eventRouteId = sanitizePublicId(event?.routeId || event?.itemId);
-  return Boolean(
-    event?.itemType === 'routebook-copy' &&
-    (!routeId || eventRouteId === routeId)
-  );
+  return Boolean(event?.itemType === 'routebook-copy' && (!routeId || eventRouteId === routeId));
 }
 
 export function routebookCopyCount(exposures, routeId) {
-  return new Set((exposures ?? [])
-    .filter((event) => isRoutebookCopyExposure(event, routeId))
-    .map(copyActorKey)
-    .filter(Boolean)).size;
+  return new Set(
+    (exposures ?? [])
+      .filter((event) => isRoutebookCopyExposure(event, routeId))
+      .map(copyActorKey)
+      .filter(Boolean)
+  ).size;
 }
 
 export function totalRoutebookCopyCount(exposures) {
-  return new Set((exposures ?? [])
-    .filter((event) => isRoutebookCopyExposure(event))
-    .map((event) => {
-      const routeId = sanitizePublicId(event?.routeId || event?.itemId);
-      const actorKey = copyActorKey(event);
-      return routeId && actorKey ? `${routeId}::${actorKey}` : '';
-    })
-    .filter(Boolean)).size;
+  return new Set(
+    (exposures ?? [])
+      .filter((event) => isRoutebookCopyExposure(event))
+      .map((event) => {
+        const routeId = sanitizePublicId(event?.routeId || event?.itemId);
+        const actorKey = copyActorKey(event);
+        return routeId && actorKey ? `${routeId}::${actorKey}` : '';
+      })
+      .filter(Boolean)
+  ).size;
 }

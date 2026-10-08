@@ -44,7 +44,7 @@ jobs:
           node-version: 20.19
           cache: npm
       - run: npm ci
-      - name: Verify (syntax, lint, typecheck, build, node:test, regression scripts)
+      - name: Verify (syntax, lint, format, typecheck, build, node:test, regression scripts)
         run: npm run verify
       - name: Ensure PostgreSQL client tools
         run: command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)

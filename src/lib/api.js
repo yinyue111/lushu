@@ -67,9 +67,7 @@ export async function analyzeGuideImages(images, signal) {
 }
 
 export async function saveRoutebookRemote(routebook, optionsOrSignal, maybeSignal) {
-  const options = optionsOrSignal && typeof optionsOrSignal === 'object' && !('aborted' in optionsOrSignal)
-    ? optionsOrSignal
-    : {};
+  const options = optionsOrSignal && typeof optionsOrSignal === 'object' && !('aborted' in optionsOrSignal) ? optionsOrSignal : {};
   const signal = maybeSignal ?? (optionsOrSignal && 'aborted' in optionsOrSignal ? optionsOrSignal : undefined);
   const body = { ...routebook, ...options };
   if (!hasExpectedVersion(body)) {
@@ -80,9 +78,8 @@ export async function saveRoutebookRemote(routebook, optionsOrSignal, maybeSigna
 }
 
 export async function saveRoutebookVariant(publicId, payload, signal) {
-  const body = payload && typeof payload === 'object' && ('variant' in payload || 'editToken' in payload || 'profileId' in payload)
-    ? payload
-    : { variant: payload };
+  const body =
+    payload && typeof payload === 'object' && ('variant' in payload || 'editToken' in payload || 'profileId' in payload) ? payload : { variant: payload };
   return postJson(`/routebooks/${encodeURIComponent(publicId)}/variants`, body, signal);
 }
 
@@ -124,9 +121,7 @@ function routebookVersion(routebook) {
 }
 
 function hasExpectedVersion(payload) {
-  return Object.prototype.hasOwnProperty.call(payload ?? {}, 'expectedVersion') &&
-    payload.expectedVersion !== '' &&
-    payload.expectedVersion != null;
+  return Object.prototype.hasOwnProperty.call(payload ?? {}, 'expectedVersion') && payload.expectedVersion !== '' && payload.expectedVersion != null;
 }
 
 export async function copyRoutebookRemote(publicId, payload = {}, signal) {
@@ -263,20 +258,21 @@ export async function recordExposure(exposure, signal) {
 export async function recordJourneyEvent(surface, routebook, profileId, signal) {
   const routeId = routebook?.publicId || routebook?.id;
   if (!routeId || !profileId) return null;
-  const travelDate = [routebook?.travelDate, routebook?.constraints?.date, routebook?.provider?.travelDate]
-    .map(normalizeJourneyTravelDate)
-    .find(Boolean) || '';
-  return recordExposure({
-    profileId,
-    surface,
-    itemType: 'journey-event',
-    itemId: routeId,
-    routeId,
-    routeTitle: routebook?.title,
-    city: routebook?.city,
-    creatorId: routebook?.creator?.id,
-    travelDate
-  }, signal);
+  const travelDate = [routebook?.travelDate, routebook?.constraints?.date, routebook?.provider?.travelDate].map(normalizeJourneyTravelDate).find(Boolean) || '';
+  return recordExposure(
+    {
+      profileId,
+      surface,
+      itemType: 'journey-event',
+      itemId: routeId,
+      routeId,
+      routeTitle: routebook?.title,
+      city: routebook?.city,
+      creatorId: routebook?.creator?.id,
+      travelDate
+    },
+    signal
+  );
 }
 
 function normalizeJourneyTravelDate(value) {

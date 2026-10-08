@@ -25,11 +25,12 @@ export default function OpsOverview() {
       // saveRate 口径 = 已保存的生成路书 / 生成路书（见 server/analytics/dashboard.mjs funnel.saveRate）。
       // 分子字段（savedGeneratedRoutebooks）落库前不展示分数，避免与百分比口径矛盾。
       value: rateValue(dashboardKnown, funnel?.saveRate),
-      detail: dashboardKnown && hasValue(funnel?.savedGeneratedRoutebooks)
-        ? ratioText(dashboardKnown, funnel.savedGeneratedRoutebooks, funnel?.generatedRoutes, '条')
-        : dashboardKnown
-          ? '口径：已保存的生成路书 / 生成路书'
-          : '数据状态未知'
+      detail:
+        dashboardKnown && hasValue(funnel?.savedGeneratedRoutebooks)
+          ? ratioText(dashboardKnown, funnel.savedGeneratedRoutebooks, funnel?.generatedRoutes, '条')
+          : dashboardKnown
+            ? '口径：已保存的生成路书 / 生成路书'
+            : '数据状态未知'
     },
     {
       label: '出行日打开率',
@@ -53,9 +54,7 @@ export default function OpsOverview() {
       label: '商品 CTR',
       icon: MousePointerClick,
       value: rateValue(analyticsKnown || dashboardKnown, firstValue(analytics?.overallCtr, funnel?.clickThroughRate)),
-      detail: analyticsKnown
-        ? `${numberValue(analytics?.totalExposures)} 曝光 / ${numberValue(analytics?.totalClicks)} 点击`
-        : '数据状态未知'
+      detail: analyticsKnown ? `${numberValue(analytics?.totalExposures)} 曝光 / ${numberValue(analytics?.totalClicks)} 点击` : '数据状态未知'
     },
     {
       label: '来源解析率',
@@ -93,7 +92,8 @@ export default function OpsOverview() {
         </div>
         {travelDayDefinition && (
           <p className="ops-definition-note">
-            出行日窗口：{travelDayDefinition.timezone} 自然日，计划日前 {travelDayDefinition.windowDaysBefore} 天至计划日后 {travelDayDefinition.windowDaysAfter} 天。
+            出行日窗口：{travelDayDefinition.timezone} 自然日，计划日前 {travelDayDefinition.windowDaysBefore} 天至计划日后{' '}
+            {travelDayDefinition.windowDaysAfter} 天。
           </p>
         )}
       </section>
@@ -112,13 +112,22 @@ export default function OpsOverview() {
           <div className="ops-table-scroll">
             <table className="ops-data-table">
               <thead>
-                <tr><th>类型</th><th>对象</th><th>详情</th><th>时间</th></tr>
+                <tr>
+                  <th>类型</th>
+                  <th>对象</th>
+                  <th>详情</th>
+                  <th>时间</th>
+                </tr>
               </thead>
               <tbody>
                 {dashboard.recentActivity.slice(0, 12).map((item, index) => (
                   <tr key={`${item.type}-${item.title}-${item.createdAt}-${index}`}>
-                    <td><span className="badge badge-blue">{item.type || '动态'}</span></td>
-                    <td><strong>{item.title || '未命名'}</strong></td>
+                    <td>
+                      <span className="badge badge-blue">{item.type || '动态'}</span>
+                    </td>
+                    <td>
+                      <strong>{item.title || '未命名'}</strong>
+                    </td>
                     <td>{item.detail || '—'}</td>
                     <td>{formatOpsDate(item.createdAt)}</td>
                   </tr>

@@ -63,7 +63,9 @@ export function createRouter(routes) {
      */
     match(method, pathname) {
       const upper = String(method ?? '').toUpperCase();
-      const parts = String(pathname ?? '').slice(1).split('/');
+      const parts = String(pathname ?? '')
+        .slice(1)
+        .split('/');
       for (const candidate of routes) {
         if (candidate.method !== upper) continue;
         const params = matchSegments(candidate, parts);

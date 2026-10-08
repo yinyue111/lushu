@@ -8,9 +8,7 @@ import { IDENTITY_SECRET, fetchJson, jsonHeaders, startServer } from '../helpers
 
 function phoneAssertion(phone, nonce = randomUUID().replace(/-/g, '')) {
   const issuedAt = new Date().toISOString();
-  const signature = createHmac('sha256', IDENTITY_SECRET)
-    .update(`trusted-routebook:phone:${phone}:${issuedAt}:${nonce}`)
-    .digest('hex');
+  const signature = createHmac('sha256', IDENTITY_SECRET).update(`trusted-routebook:phone:${phone}:${issuedAt}:${nonce}`).digest('hex');
   return { phone, proof: { issuedAt, nonce, signature } };
 }
 
@@ -37,7 +35,10 @@ test('M1: an identity assertion cannot be replayed to rotate the profile token',
     assert.equal(replay.data.code, 'IDENTITY_ASSERTION_REPLAYED');
 
     const concurrent = await Promise.all([1, 2, 3].map(() => bind(server.baseUrl, assertion)));
-    assert.deepEqual(concurrent.map((item) => item.status), [409, 409, 409]);
+    assert.deepEqual(
+      concurrent.map((item) => item.status),
+      [409, 409, 409]
+    );
   } finally {
     await server.stop();
   }

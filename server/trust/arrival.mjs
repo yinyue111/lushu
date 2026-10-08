@@ -3,7 +3,12 @@ import { isValidCoordinate, normalizeCityName, sanitizePublicId, truncateString,
 import { normalizePoiName, resolvePoiId } from '../poi/catalog.mjs';
 import { getResolvableRoutebook, hasPreciseCoordinate } from '../routebooks/normalize.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
-import { CHECKIN_GCJ_CORRECTION_MAX_METERS, CHECKIN_GCJ_CORRECTION_MIN_METERS, CHECKIN_MAX_REPORTED_ACCURACY_METERS, CHECKIN_TRUSTED_ACCURACY_METERS } from '../config/index.mjs';
+import {
+  CHECKIN_GCJ_CORRECTION_MAX_METERS,
+  CHECKIN_GCJ_CORRECTION_MIN_METERS,
+  CHECKIN_MAX_REPORTED_ACCURACY_METERS,
+  CHECKIN_TRUSTED_ACCURACY_METERS
+} from '../config/index.mjs';
 import { gcj02ToWgs84 } from '../geo/coordinates.mjs';
 import { normalizeCheckinCoordinateSystem } from './checkins.mjs';
 
@@ -39,10 +44,7 @@ export async function findStopForCheckin(body) {
   });
   const stopId = String(body?.stopId ?? '');
   const stopName = String(body?.stopName ?? '');
-  const routeStops = [
-    ...(routebook.stops ?? []),
-    ...(routebook.variants ?? []).flatMap((variant) => variant?.stops ?? [])
-  ];
+  const routeStops = [...(routebook.stops ?? []), ...(routebook.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
   const byId = routeStops.find((stop) => stopId && String(stop.id) === stopId);
   if (byId) return resolvedStop(byId);
   const normalizedName = normalizePoiName(stopName);
@@ -54,11 +56,14 @@ export async function findStopForCheckin(body) {
 }
 
 export function buildArrivalEvidence(body, targetStop) {
-  const gps = body?.gps && typeof body.gps === 'object' ? {
-    lat: clampNumber(body.gps.lat, -90, 90, 0),
-    lng: clampNumber(body.gps.lng, -180, 180, 0),
-    accuracy: clampNumber(body.gps.accuracy, 0, 10000, 0)
-  } : null;
+  const gps =
+    body?.gps && typeof body.gps === 'object'
+      ? {
+          lat: clampNumber(body.gps.lat, -90, 90, 0),
+          lng: clampNumber(body.gps.lng, -180, 180, 0),
+          accuracy: clampNumber(body.gps.accuracy, 0, 10000, 0)
+        }
+      : null;
   if (!gps || !isValidCoordinate(gps.lat, gps.lng)) {
     return {
       valid: false,
@@ -102,10 +107,12 @@ export function buildArrivalEvidence(body, targetStop) {
   let distance = reportedDistance;
   let correctedDistance = null;
   let usedCoordinateCorrection = false;
-  if (coordinateSystem !== 'wgs84' &&
+  if (
+    coordinateSystem !== 'wgs84' &&
     Number.isFinite(reportedDistance) &&
     reportedDistance >= CHECKIN_GCJ_CORRECTION_MIN_METERS &&
-    reportedDistance <= CHECKIN_GCJ_CORRECTION_MAX_METERS) {
+    reportedDistance <= CHECKIN_GCJ_CORRECTION_MAX_METERS
+  ) {
     const corrected = gcj02ToWgs84(gps.lat, gps.lng);
     correctedDistance = distanceMeters(corrected, targetStop);
     if (Number.isFinite(correctedDistance) && correctedDistance < reportedDistance) {
@@ -118,23 +125,20 @@ export function buildArrivalEvidence(body, targetStop) {
   const reportedAccuracy = gps.accuracy || 0;
   const threshold = Math.max(250, Math.round(Math.min(reportedAccuracy, CHECKIN_TRUSTED_ACCURACY_METERS) + 180));
   const accuracyImplausible = reportedAccuracy > CHECKIN_MAX_REPORTED_ACCURACY_METERS;
-  const distanceConfidence = distance <= threshold
-    ? 'valid'
-    : distance <= Math.max(1000, threshold * 2)
-      ? 'weak'
-      : 'invalid';
+  const distanceConfidence = distance <= threshold ? 'valid' : distance <= Math.max(1000, threshold * 2) ? 'weak' : 'invalid';
   const confidence = accuracyImplausible && distanceConfidence === 'valid' ? 'weak' : distanceConfidence;
   return {
     valid: confidence === 'valid',
     confidence,
     label: confidence === 'valid' ? '有效到达' : confidence === 'weak' ? '弱定位' : '疑似偏离',
-    detail: confidence === 'valid'
-      ? `GPS 距目标约 ${distance}m，已计入有效到达。${usedCoordinateCorrection ? '（已按 GCJ02 纠偏取更近距离）' : ''}`
-      : accuracyImplausible
-        ? `GPS 距目标约 ${distance}m，但上报定位误差 ${Math.round(reportedAccuracy)}m 过大，不计入高置信到达。`
-        : confidence === 'weak'
-          ? `GPS 距目标约 ${distance}m，位置接近但不计入高置信到达。`
-          : `GPS 距目标约 ${distance}m，偏离过大，不计入完成率。`,
+    detail:
+      confidence === 'valid'
+        ? `GPS 距目标约 ${distance}m，已计入有效到达。${usedCoordinateCorrection ? '（已按 GCJ02 纠偏取更近距离）' : ''}`
+        : accuracyImplausible
+          ? `GPS 距目标约 ${distance}m，但上报定位误差 ${Math.round(reportedAccuracy)}m 过大，不计入高置信到达。`
+          : confidence === 'weak'
+            ? `GPS 距目标约 ${distance}m，位置接近但不计入高置信到达。`
+            : `GPS 距目标约 ${distance}m，偏离过大，不计入完成率。`,
     distanceMeters: distance,
     ...(usedCoordinateCorrection
       ? {

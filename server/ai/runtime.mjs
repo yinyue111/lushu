@@ -141,9 +141,7 @@ export function createModelRuntimeLoader({ env = process.env, readCodex, configP
   /** @type {{ fingerprint: string, runtime: ModelRuntime } | null} */
   let cache = null;
   return async function loadModelRuntime() {
-    const fingerprint = readCodex
-      ? `${await fileFingerprint(configPath)}|${await fileFingerprint(authPath)}`
-      : 'env-only';
+    const fingerprint = readCodex ? `${await fileFingerprint(configPath)}|${await fileFingerprint(authPath)}` : 'env-only';
     if (cache && cache.fingerprint === fingerprint) return cache.runtime;
     let codexConfigText = '';
     let codexAuth = {};

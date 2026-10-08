@@ -45,32 +45,37 @@ export function detectPlatform(url) {
       note: '链接格式无法解析。'
     };
   }
-  return SOURCE_PLATFORMS.find((platform) =>
-    platform.hosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))
-  ) ?? {
-    id: 'web',
-    name: hostname,
-    baseScore: 58,
-    note: '普通公开网页，可信度取决于页面可访问性、发布时间和内容完整度。'
-  };
+  return (
+    SOURCE_PLATFORMS.find((platform) => platform.hosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))) ?? {
+      id: 'web',
+      name: hostname,
+      baseScore: 58,
+      note: '普通公开网页，可信度取决于页面可访问性、发布时间和内容完整度。'
+    }
+  );
 }
 
 function extractMeta(html, property) {
   const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>|<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`, 'i');
+  const pattern = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>|<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`,
+    'i'
+  );
   const match = html.match(pattern);
   return decodeHtmlEntities(match?.[1] ?? match?.[2] ?? '').trim();
 }
 
 function extractTitle(html) {
-  return extractMeta(html, 'og:title') ||
-    decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+  return (
+    extractMeta(html, 'og:title') ||
+    decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 function extractDescription(html) {
-  return extractMeta(html, 'description') ||
-    extractMeta(html, 'og:description') ||
-    extractMeta(html, 'twitter:description');
+  return extractMeta(html, 'description') || extractMeta(html, 'og:description') || extractMeta(html, 'twitter:description');
 }
 
 function stripHtmlToText(html) {

@@ -49,7 +49,12 @@ test('H6: not-ready runtime always explains why (reason was empty before)', () =
   const runtime = resolveModelRuntime({ env: { OPENAI_BASE_URL: 'https://x.example' }, readCodex: false, configPath: '', authPath: '' });
   assert.equal(runtime.ready, false);
   assert.notEqual(runtime.readyReason, '');
-  const badWire = resolveModelRuntime({ env: { OPENAI_BASE_URL: 'https://x', OPENAI_API_KEY: 'k', OPENAI_WIRE_API: 'grpc' }, readCodex: false, configPath: '', authPath: '' });
+  const badWire = resolveModelRuntime({
+    env: { OPENAI_BASE_URL: 'https://x', OPENAI_API_KEY: 'k', OPENAI_WIRE_API: 'grpc' },
+    readCodex: false,
+    configPath: '',
+    authPath: ''
+  });
   assert.match(badWire.readyReason, /wire_api=grpc/);
 });
 

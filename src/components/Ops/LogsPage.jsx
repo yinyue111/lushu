@@ -30,14 +30,20 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
 
   const core = (
     <>
-      {error && <p className="text-caption" style={{ marginTop: 10, color: 'var(--orange)' }}>日志接口暂不可用：{error}</p>}
+      {error && (
+        <p className="text-caption" style={{ marginTop: 10, color: 'var(--orange)' }}>
+          日志接口暂不可用：{error}
+        </p>
+      )}
 
       {/* Pipeline */}
       <div className="pipeline" style={{ marginTop: embedded ? 0 : 32 }}>
         {PIPELINE_STAGES.map((stage, i) => (
           <div key={stage} className="card-flat pipeline-node">
             <span className="pipeline-num">{i + 1}</span>
-            <span className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>{stage}</span>
+            <span className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>
+              {stage}
+            </span>
           </div>
         ))}
       </div>
@@ -54,7 +60,9 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
               <div key={i} className="log-item">
                 <span className="text-micro">{log.time}</span>
                 <div style={{ flex: 1 }}>
-                  <strong className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>{log.stage}</strong>
+                  <strong className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>
+                    {log.stage}
+                  </strong>
                   <p className="text-caption">{log.result}</p>
                 </div>
                 <span className={`badge ${log.status === '通过' ? 'badge-green' : 'badge-orange'}`}>
@@ -94,12 +102,19 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="text-hero">AI 日志</h1>
-          <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>模型生成与校验链路追踪</p>
+          <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
+            模型生成与校验链路追踪
+          </p>
         </div>
         {modelHealth && (
-          <div className={`card-flat ${modelHealth?.ready ? '' : 'model-offline'}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px' }}>
+          <div
+            className={`card-flat ${modelHealth?.ready ? '' : 'model-offline'}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px' }}
+          >
             <Bot size={16} style={{ color: modelHealth?.ready ? 'var(--green)' : 'var(--muted)' }} />
-            <span className="text-caption">{modelHealth?.ready ? ([modelHealth.provider, modelHealth.model].filter(Boolean).join(' · ') || '已就绪') : '未就绪'}</span>
+            <span className="text-caption">
+              {modelHealth?.ready ? [modelHealth.provider, modelHealth.model].filter(Boolean).join(' · ') || '已就绪' : '未就绪'}
+            </span>
           </div>
         )}
       </div>
@@ -113,9 +128,10 @@ function normalizeServerLog(log) {
     time: log.createdAt ? new Date(log.createdAt).toLocaleTimeString('zh-CN', { hour12: false }) : '--:--:--',
     stage: log.kind === 'generate-routebook' ? '路书生成' : '系统事件',
     input: log.inputHash ? `${log.city ?? '-'} · ${log.inputLength ?? 0} 字 · ${log.inputHash}` : (log.city ?? '-'),
-    result: log.status === 'ok'
-      ? `${log.outputTitle ?? '生成成功'} · ${log.stopCount ?? 0} 站 · 可信 ${log.trustScore ?? '-'}`
-      : `生成失败 · ${log.code ?? 'MODEL_ERROR'} · ${log.requestId ?? ''}`,
+    result:
+      log.status === 'ok'
+        ? `${log.outputTitle ?? '生成成功'} · ${log.stopCount ?? 0} 站 · 可信 ${log.trustScore ?? '-'}`
+        : `生成失败 · ${log.code ?? 'MODEL_ERROR'} · ${log.requestId ?? ''}`,
     status: log.status === 'ok' ? '通过' : '需复核'
   };
 }

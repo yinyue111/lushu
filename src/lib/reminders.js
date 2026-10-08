@@ -50,9 +50,7 @@ export function dueTripReminders(routebooks = []) {
 }
 
 export function dismissTripReminder(routeId) {
-  writeTripReminders(readTripReminders().map((item) =>
-    item.routeId === routeId ? { ...item, dismissedAt: new Date().toISOString() } : item
-  ));
+  writeTripReminders(readTripReminders().map((item) => (item.routeId === routeId ? { ...item, dismissedAt: new Date().toISOString() } : item)));
 }
 
 // 与实际能力一致的文案：提醒只在「出行当天打开本站」时以站内横幅提示，
@@ -62,9 +60,7 @@ export async function requestTripNotification(routebook) {
   if (!saved.ok) return saved;
   const savedReason = '已保存站内提醒：出行当天打开本站会提示进入行中模式';
   if (!('Notification' in window)) return { ok: true, reason: savedReason };
-  const permission = Notification.permission === 'default'
-    ? await Notification.requestPermission()
-    : Notification.permission;
+  const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
   if (permission !== 'granted') {
     return { ok: true, reason: `${savedReason}（浏览器通知未授权，不影响站内提示）` };
   }
@@ -156,9 +152,16 @@ function todayDateString() {
 }
 
 function formatUtcDate(date) {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  return date
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
 }
 
 function escapeIcsText(value) {
-  return String(value ?? '').replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll(',', '\\,').replaceAll(';', '\\;');
+  return String(value ?? '')
+    .replaceAll('\\', '\\\\')
+    .replaceAll('\n', '\\n')
+    .replaceAll(',', '\\,')
+    .replaceAll(';', '\\;');
 }

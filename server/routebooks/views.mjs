@@ -13,9 +13,7 @@ function hasPublicTrustSamples(sampleCount) {
 }
 
 function hasPublicRouteTrustScore(meta = {}) {
-  return hasPublicTrustSamples(meta?.sampleCount) &&
-    meta?.source === 'verified-feedback' &&
-    isValidTrustDisplayScore(meta?.displayScore);
+  return hasPublicTrustSamples(meta?.sampleCount) && meta?.source === 'verified-feedback' && isValidTrustDisplayScore(meta?.displayScore);
 }
 
 function isValidTrustDisplayScore(value) {
@@ -28,9 +26,7 @@ function isValidTrustDisplayScore(value) {
 export function publicRoutebookView(routebook) {
   if (!routebook) return null;
   const routeTrustVisible = hasPublicRouteTrustScore(routebook.trustMeta);
-  const publicRouteTrustScore = routeTrustVisible
-    ? clampNumber(routebook.trustMeta.displayScore, 0, 100, 0)
-    : null;
+  const publicRouteTrustScore = routeTrustVisible ? clampNumber(routebook.trustMeta.displayScore, 0, 100, 0) : null;
   return {
     id: sanitizePublicId(routebook.id || routebook.publicId),
     publicId: sanitizePublicId(routebook.publicId || routebook.id),
@@ -39,29 +35,36 @@ export function publicRoutebookView(routebook) {
     city: routebook.city ? normalizeCityName(routebook.city) : '',
     trustScore: publicRouteTrustScore,
     trustMeta: publicTrustMeta(routebook.trustMeta),
-    days: Array.isArray(routebook.days) ? routebook.days.map((day) => truncateString(day, 24)).filter(Boolean).slice(0, 10) : [],
-    stops: Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
-    assets: Array.isArray(routebook.assets) ? routebook.assets.slice(0, 12).map((item) => ({
-      label: truncateString(item?.label, 30),
-      type: truncateString(item?.type, 24),
-      confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0)
-    })) : [],
-    validations: Array.isArray(routebook.validations) ? routebook.validations.slice(0, 8).map((item) => ({
-      id: sanitizePublicId(item?.id),
-      label: truncateString(item?.label, 60),
-      state: truncateString(item?.state, 40),
-      detail: truncateString(item?.detail, 220)
-    })) : [],
-    metrics: Array.isArray(routebook.metrics) ? routebook.metrics.slice(0, 10).map((item) => ({
-      label: truncateString(item?.label, 60),
-      value: !routeTrustVisible && item?.label === '站点均分'
-        ? '待验证'
-        : truncateString(item?.value, 80)
-    })) : [],
-    feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
-    variants: Array.isArray(routebook.variants)
-      ? routebook.variants.slice(0, 8).map(publicRouteVariant)
+    days: Array.isArray(routebook.days)
+      ? routebook.days
+          .map((day) => truncateString(day, 24))
+          .filter(Boolean)
+          .slice(0, 10)
       : [],
+    stops: Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
+    assets: Array.isArray(routebook.assets)
+      ? routebook.assets.slice(0, 12).map((item) => ({
+          label: truncateString(item?.label, 30),
+          type: truncateString(item?.type, 24),
+          confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0)
+        }))
+      : [],
+    validations: Array.isArray(routebook.validations)
+      ? routebook.validations.slice(0, 8).map((item) => ({
+          id: sanitizePublicId(item?.id),
+          label: truncateString(item?.label, 60),
+          state: truncateString(item?.state, 40),
+          detail: truncateString(item?.detail, 220)
+        }))
+      : [],
+    metrics: Array.isArray(routebook.metrics)
+      ? routebook.metrics.slice(0, 10).map((item) => ({
+          label: truncateString(item?.label, 60),
+          value: !routeTrustVisible && item?.label === '站点均分' ? '待验证' : truncateString(item?.value, 80)
+        }))
+      : [],
+    feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
+    variants: Array.isArray(routebook.variants) ? routebook.variants.slice(0, 8).map(publicRouteVariant) : [],
     activeVariantId: sanitizePublicId(routebook.activeVariantId),
     creator: publicCreatorView(routebook.creator),
     publishStatus: PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus) ? routebook.publishStatus : 'published',
@@ -101,24 +104,28 @@ export function publicRoutebookStop(stop = {}) {
     coordinateRadiusMeters: stop.coordinateRadiusMeters == null ? null : clampNumber(stop.coordinateRadiusMeters, 0, 1000000, 0),
     navigationDisabled: stop.navigationDisabled === true,
     poiTrust,
-    sourceEvidence: Array.isArray(stop.sourceEvidence) ? stop.sourceEvidence.slice(0, 5).map((item) => ({
-      id: sanitizePublicId(item?.id),
-      type: truncateString(item?.type, 32),
-      label: truncateString(item?.label, 80),
-      platform: truncateString(item?.platform, 40),
-      trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 0),
-      checkedAt: truncateString(item?.checkedAt, 60)
-    })) : [],
-    facts: Array.isArray(stop.facts) ? stop.facts.slice(0, 8).map((item) => ({
-      id: sanitizePublicId(item?.id),
-      field: truncateString(item?.field, 40),
-      value: truncateString(item?.value, 180),
-      confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0),
-      sourceLabel: truncateString(item?.sourceLabel, 80),
-      sourceType: truncateString(item?.sourceType, 32),
-      status: truncateString(item?.status, 24),
-      checkedAt: truncateString(item?.checkedAt, 60)
-    })) : []
+    sourceEvidence: Array.isArray(stop.sourceEvidence)
+      ? stop.sourceEvidence.slice(0, 5).map((item) => ({
+          id: sanitizePublicId(item?.id),
+          type: truncateString(item?.type, 32),
+          label: truncateString(item?.label, 80),
+          platform: truncateString(item?.platform, 40),
+          trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 0),
+          checkedAt: truncateString(item?.checkedAt, 60)
+        }))
+      : [],
+    facts: Array.isArray(stop.facts)
+      ? stop.facts.slice(0, 8).map((item) => ({
+          id: sanitizePublicId(item?.id),
+          field: truncateString(item?.field, 40),
+          value: truncateString(item?.value, 180),
+          confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0),
+          sourceLabel: truncateString(item?.sourceLabel, 80),
+          sourceType: truncateString(item?.sourceType, 32),
+          status: truncateString(item?.status, 24),
+          checkedAt: truncateString(item?.checkedAt, 60)
+        }))
+      : []
   };
 }
 
@@ -128,19 +135,28 @@ function publicRouteVariant(variant = {}) {
     mode: truncateString(variant.mode, 24),
     label: truncateString(variant.label, 40),
     summary: truncateString(variant.summary, 160),
-    days: Array.isArray(variant.days) ? variant.days.map((day) => truncateString(day, 24)).filter(Boolean).slice(0, 10) : [],
+    days: Array.isArray(variant.days)
+      ? variant.days
+          .map((day) => truncateString(day, 24))
+          .filter(Boolean)
+          .slice(0, 10)
+      : [],
     stops: Array.isArray(variant.stops) ? variant.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
     trustScore: null,
-    metrics: Array.isArray(variant.metrics) ? variant.metrics.slice(0, 10).map((item) => ({
-      label: truncateString(item?.label, 60),
-      value: item?.label === '站点均分' ? '待验证' : truncateString(item?.value, 80)
-    })) : [],
-    validations: Array.isArray(variant.validations) ? variant.validations.slice(0, 8).map((item) => ({
-      id: sanitizePublicId(item?.id),
-      label: truncateString(item?.label, 60),
-      state: truncateString(item?.state, 40),
-      detail: truncateString(item?.detail, 220)
-    })) : [],
+    metrics: Array.isArray(variant.metrics)
+      ? variant.metrics.slice(0, 10).map((item) => ({
+          label: truncateString(item?.label, 60),
+          value: item?.label === '站点均分' ? '待验证' : truncateString(item?.value, 80)
+        }))
+      : [],
+    validations: Array.isArray(variant.validations)
+      ? variant.validations.slice(0, 8).map((item) => ({
+          id: sanitizePublicId(item?.id),
+          label: truncateString(item?.label, 60),
+          state: truncateString(item?.state, 40),
+          detail: truncateString(item?.detail, 220)
+        }))
+      : [],
     createdAt: truncateString(variant.createdAt, 60),
     updatedAt: truncateString(variant.updatedAt, 60)
   };
@@ -197,9 +213,7 @@ function publicFeedbackSummary(summary = {}) {
 /** @param {any} [poiTrust] */
 function publicPoiTrust(poiTrust = {}) {
   if (!poiTrust || typeof poiTrust !== 'object') return null;
-  const scoreVisible = hasPublicTrustSamples(poiTrust.sampleCount) &&
-    poiTrust.score != null &&
-    Number.isFinite(Number(poiTrust.score));
+  const scoreVisible = hasPublicTrustSamples(poiTrust.sampleCount) && poiTrust.score != null && Number.isFinite(Number(poiTrust.score));
   const parsedLatestVerifiedAt = Date.parse(poiTrust.latestVerifiedAt ?? '');
   const derivedFreshnessDays = Number.isFinite(parsedLatestVerifiedAt)
     ? Math.max(0, Math.floor((Date.now() - parsedLatestVerifiedAt) / (24 * 60 * 60 * 1000)))
@@ -213,11 +227,14 @@ function publicPoiTrust(poiTrust = {}) {
     pitfallRate: poiTrust.pitfallRate == null ? null : clampNumber(poiTrust.pitfallRate, 0, 100, 0),
     // rank20①：打卡反哺的经验聚合字段（人群构成/排队/花费/拥挤/最新反馈）。
     audienceBreakdown: Array.isArray(poiTrust.audienceBreakdown)
-      ? poiTrust.audienceBreakdown.slice(0, 6).map((item) => ({
-          label: truncateString(item?.label, 80),
-          count: clampNumber(item?.count, 0, 1000000, 0),
-          share: clampNumber(Math.round(Number(item?.share)), 0, 100, 0)
-        })).filter((item) => item.label)
+      ? poiTrust.audienceBreakdown
+          .slice(0, 6)
+          .map((item) => ({
+            label: truncateString(item?.label, 80),
+            count: clampNumber(item?.count, 0, 1000000, 0),
+            share: clampNumber(Math.round(Number(item?.share)), 0, 100, 0)
+          }))
+          .filter((item) => item.label)
       : [],
     queueMinutesMedian: poiTrust.queueMinutesMedian == null ? null : clampNumber(poiTrust.queueMinutesMedian, 0, 100000, 0),
     costMedian: poiTrust.costMedian == null ? null : clampNumber(poiTrust.costMedian, 0, 10000000, 0),
@@ -225,9 +242,7 @@ function publicPoiTrust(poiTrust = {}) {
     latestFeedbackAt: truncateString(poiTrust.latestFeedbackAt || poiTrust.latestVerifiedAt, 60),
     recentCorrectionCount: clampNumber(poiTrust.recentCorrectionCount, 0, 1000000, 0),
     latestVerifiedAt: truncateString(poiTrust.latestVerifiedAt, 60),
-    freshnessDays: poiTrust.freshnessDays == null
-      ? derivedFreshnessDays
-      : clampNumber(poiTrust.freshnessDays, 0, 36500, 0),
+    freshnessDays: poiTrust.freshnessDays == null ? derivedFreshnessDays : clampNumber(poiTrust.freshnessDays, 0, 36500, 0),
     trustState: scoreVisible ? 'verified' : sampleCount > 0 ? 'collecting' : 'pending',
     label: truncateString(poiTrust.label, 60)
   };
@@ -239,12 +254,8 @@ export function publicReviewView(review) {
     publicId: sanitizePublicId(review.publicId || review.id),
     routebookId: sanitizePublicId(review.routebookId || review.routebook?.publicId || review.routebook?.id),
     routebook: publicReviewRoutebookView(review.routebook),
-    executionStops: Array.isArray(review.executionStops)
-      ? review.executionStops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicReviewExecutionStop)
-      : [],
-    checkins: Array.isArray(review.checkins)
-      ? review.checkins.slice(0, MAX_ROUTEBOOK_STOPS).map(publicCheckinForReview)
-      : [],
+    executionStops: Array.isArray(review.executionStops) ? review.executionStops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicReviewExecutionStop) : [],
+    checkins: Array.isArray(review.checkins) ? review.checkins.slice(0, MAX_ROUTEBOOK_STOPS).map(publicCheckinForReview) : [],
     stats: publicReviewStats(review.stats)
   };
 }
@@ -255,9 +266,7 @@ function publicReviewRoutebookView(routebook = {}) {
     publicId: sanitizePublicId(routebook.publicId || routebook.id),
     title: truncateString(routebook.title, 80),
     city: routebook.city ? normalizeCityName(routebook.city) : '',
-    stops: Array.isArray(routebook.stops)
-      ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicReviewRouteStop)
-      : []
+    stops: Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicReviewRouteStop) : []
   };
 }
 
@@ -292,13 +301,14 @@ function publicReviewStats(stats = {}) {
 }
 
 export function publicCheckinForReview(item = {}) {
-  const arrival = item?.arrival && typeof item.arrival === 'object'
-    ? {
-        valid: item.arrival.valid === true,
-        confidence: truncateString(item.arrival.confidence || item.arrivalConfidence, 24),
-        label: truncateString(item.arrival.label, 40)
-      }
-    : null;
+  const arrival =
+    item?.arrival && typeof item.arrival === 'object'
+      ? {
+          valid: item.arrival.valid === true,
+          confidence: truncateString(item.arrival.confidence || item.arrivalConfidence, 24),
+          label: truncateString(item.arrival.label, 40)
+        }
+      : null;
   return {
     localStopKey: truncateString(item?.localStopKey, 120),
     stopId: truncateString(item?.stopId, 80),

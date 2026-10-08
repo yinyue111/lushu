@@ -2,9 +2,24 @@
 // audits, feedback history) cache slim rows instead of full routebook snapshots.
 // Projected rows live under their own cache key, so full-row readers are unaffected.
 const ROUTEBOOK_HISTORY_FIELDS = [
-  'id', 'publicId', 'title', 'city', 'version', 'parentVersion', 'schemaVersion', 'publishStatus',
-  'changeReason', 'editReason', 'actorType', 'profileId', 'createdAt', 'updatedAt', 'publishedAt',
-  'archivedAt', 'versionAudit', 'activeVariantId'
+  'id',
+  'publicId',
+  'title',
+  'city',
+  'version',
+  'parentVersion',
+  'schemaVersion',
+  'publishStatus',
+  'changeReason',
+  'editReason',
+  'actorType',
+  'profileId',
+  'createdAt',
+  'updatedAt',
+  'publishedAt',
+  'archivedAt',
+  'versionAudit',
+  'activeVariantId'
 ];
 export const ROUTEBOOK_HISTORY_PROJECTION = {
   name: 'routebook-history',

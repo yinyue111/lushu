@@ -88,34 +88,40 @@ function approvedPoi({ poiId, city, name, lat, lng, validUntil }) {
     location: { lat, lng, address: `${city}测试地址` },
     reviewStatus: 'approved',
     sourceType: 'official',
-    evidence: [{
-      id: evidenceId,
-      type: 'web',
-      sourceType: 'official',
-      reviewStatus: 'approved',
-      url: `https://example.com/${poiId}`,
-      title: `${name}官方信息`,
-      capturedAt: isoDay(0)
-    }],
-    facts: [{
-      id: `${poiId}-fact`,
-      field: '开放时间',
-      value: '09:00-17:00',
-      sourceType: 'official',
-      reviewStatus: 'approved',
-      validFrom: isoDay(-90),
-      validUntil,
-      verifiedAt: isoDay(0),
-      evidenceIds: [evidenceId]
-    }],
-    audits: [{
-      id: `${poiId}-review`,
-      action: 'review',
-      reviewStatus: 'approved',
-      note: '隔离回归审核',
-      createdAt: isoDay(0),
-      actorType: 'admin'
-    }]
+    evidence: [
+      {
+        id: evidenceId,
+        type: 'web',
+        sourceType: 'official',
+        reviewStatus: 'approved',
+        url: `https://example.com/${poiId}`,
+        title: `${name}官方信息`,
+        capturedAt: isoDay(0)
+      }
+    ],
+    facts: [
+      {
+        id: `${poiId}-fact`,
+        field: '开放时间',
+        value: '09:00-17:00',
+        sourceType: 'official',
+        reviewStatus: 'approved',
+        validFrom: isoDay(-90),
+        validUntil,
+        verifiedAt: isoDay(0),
+        evidenceIds: [evidenceId]
+      }
+    ],
+    audits: [
+      {
+        id: `${poiId}-review`,
+        action: 'review',
+        reviewStatus: 'approved',
+        note: '隔离回归审核',
+        createdAt: isoDay(0),
+        actorType: 'admin'
+      }
+    ]
   };
 }
 
@@ -124,18 +130,20 @@ function pendingPoi() {
     poiId: 'poi-test-pending-suzhou',
     city: '苏州',
     name: '苏州待审核测试点',
-    location: { lat: 31.30, lng: 120.62 },
+    location: { lat: 31.3, lng: 120.62 },
     reviewStatus: 'pending',
     sourceType: 'editorial',
-    facts: [{
-      id: 'poi-test-pending-suzhou-fact',
-      field: '预约要求',
-      value: '待运营复核',
-      sourceType: 'editorial',
-      reviewStatus: 'pending',
-      validUntil: isoDay(20),
-      evidenceIds: []
-    }],
+    facts: [
+      {
+        id: 'poi-test-pending-suzhou-fact',
+        field: '预约要求',
+        value: '待运营复核',
+        sourceType: 'editorial',
+        reviewStatus: 'pending',
+        validUntil: isoDay(20),
+        evidenceIds: []
+      }
+    ],
     evidence: [],
     audits: []
   };
@@ -247,7 +255,15 @@ async function main() {
   await writeFile(routebookLogPath, `${legacyRows.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
   const legacyAudits = [
     { id: 'legacy-audit-1', routebookId: 'legacy-route', event: 'created', version: 1, publishStatus: 'draft', createdAt: '2026-01-01T00:00:00.000Z' },
-    { id: 'legacy-audit-2', routebookId: 'legacy-route', event: 'published', version: 2, parentVersion: 1, publishStatus: 'published', createdAt: '2026-01-02T00:00:00.000Z' }
+    {
+      id: 'legacy-audit-2',
+      routebookId: 'legacy-route',
+      event: 'published',
+      version: 2,
+      parentVersion: 1,
+      publishStatus: 'published',
+      createdAt: '2026-01-02T00:00:00.000Z'
+    }
   ];
   await writeFile(routebookAuditLogPath, `${legacyAudits.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
 
@@ -274,8 +290,12 @@ async function main() {
       env: serverEnv,
       stdio: ['ignore', 'pipe', 'pipe']
     });
-    childProcess.stdout.on('data', (chunk) => { logs += chunk.toString(); });
-    childProcess.stderr.on('data', (chunk) => { logs += chunk.toString(); });
+    childProcess.stdout.on('data', (chunk) => {
+      logs += chunk.toString();
+    });
+    childProcess.stderr.on('data', (chunk) => {
+      logs += chunk.toString();
+    });
     return childProcess;
   };
   let child = startServer();
@@ -313,11 +333,14 @@ async function main() {
     assert.equal(initialCoverage.data.totals.pendingReview, 16);
     assert.equal(initialCoverage.data.totals.verifiedCoveragePercent, 0);
     assert.equal(initialCoverage.data.totals.currentFactPercent, null);
-    assert.deepEqual(initialCoverage.data.cities.map((item) => [item.city, item.totalPois]), [
-      ['杭州', 10],
-      ['上海', 3],
-      ['苏州', 3]
-    ]);
+    assert.deepEqual(
+      initialCoverage.data.cities.map((item) => [item.city, item.totalPois]),
+      [
+        ['杭州', 10],
+        ['上海', 3],
+        ['苏州', 3]
+      ]
+    );
 
     const noWriteRow = approvedPoi({
       poiId: 'poi-test-no-write',
@@ -422,7 +445,14 @@ async function main() {
     assert.equal(malformed.data.canCommit, false);
     assert.equal(malformed.data.summary.error, 2);
     const errorCodes = new Set(malformed.data.rows.flatMap((row) => row.errors.map((error) => error.code)));
-    for (const code of ['UNSUPPORTED_OPERATIONAL_CITY', 'INVALID_POI_STATUS', 'INVALID_HTTP_URL', 'INVALID_DATE', 'UNKNOWN_EVIDENCE_REFERENCE', 'INVALID_JSON']) {
+    for (const code of [
+      'UNSUPPORTED_OPERATIONAL_CITY',
+      'INVALID_POI_STATUS',
+      'INVALID_HTTP_URL',
+      'INVALID_DATE',
+      'UNKNOWN_EVIDENCE_REFERENCE',
+      'INVALID_JSON'
+    ]) {
       assert.ok(errorCodes.has(code), `missing stable validation code ${code}`);
     }
     assert.equal(await lineCount(poiLogPath), 0);
@@ -462,12 +492,19 @@ async function main() {
     });
     assert.equal(validation.response.status, 200);
     assert.equal(validation.data.canCommit, true, JSON.stringify(validation.data.rows));
-    assert.deepEqual(validation.data.rows.map((row) => row.status), ['new', 'new', 'new']);
+    assert.deepEqual(
+      validation.data.rows.map((row) => row.status),
+      ['new', 'new', 'new']
+    );
 
     const committed = await fetchJson(`${baseUrl}/api/pois/upsert`, {
       method: 'POST',
       headers: adminHeaders(true),
-      body: JSON.stringify({ rows: validation.data.rows.map((row) => row.normalized), batchId: validation.data.batchId, commitToken: validation.data.commitToken })
+      body: JSON.stringify({
+        rows: validation.data.rows.map((row) => row.normalized),
+        batchId: validation.data.batchId,
+        commitToken: validation.data.commitToken
+      })
     });
     assert.equal(committed.response.status, 200);
     assert.equal(committed.data.replayed, false);
@@ -476,7 +513,11 @@ async function main() {
     const replayed = await fetchJson(`${baseUrl}/api/pois/upsert`, {
       method: 'POST',
       headers: adminHeaders(true),
-      body: JSON.stringify({ rows: validation.data.rows.map((row) => row.normalized), batchId: validation.data.batchId, commitToken: validation.data.commitToken })
+      body: JSON.stringify({
+        rows: validation.data.rows.map((row) => row.normalized),
+        batchId: validation.data.batchId,
+        commitToken: validation.data.commitToken
+      })
     });
     assert.equal(replayed.response.status, 200);
     assert.equal(replayed.data.replayed, true);
@@ -540,18 +581,20 @@ async function main() {
       city: '杭州',
       name: '杭州过期写入保护测试点',
       lat: 30.28,
-      lng: 120.20,
+      lng: 120.2,
       validUntil: isoDay(60)
     });
     staleWinnerRow.facts[0].value = '赢家事实值';
     const staleLoserRow = structuredClone(staleWinnerRow);
     staleLoserRow.facts[0].value = '过期批次事实值';
     const [staleWinnerValidation, staleLoserValidation] = await Promise.all(
-      [staleWinnerRow, staleLoserRow].map((row) => fetchJson(`${baseUrl}/api/pois/validate`, {
-        method: 'POST',
-        headers: adminHeaders(true),
-        body: JSON.stringify({ rows: [row] })
-      }))
+      [staleWinnerRow, staleLoserRow].map((row) =>
+        fetchJson(`${baseUrl}/api/pois/validate`, {
+          method: 'POST',
+          headers: adminHeaders(true),
+          body: JSON.stringify({ rows: [row] })
+        })
+      )
     );
     assert.ok(staleWinnerValidation.data.canCommit && staleLoserValidation.data.canCommit);
     const staleWinnerCommit = await fetchJson(`${baseUrl}/api/pois/upsert`, {
@@ -598,30 +641,36 @@ async function main() {
     });
     assert.equal(concurrentBaselineCommit.response.status, 200);
 
-    const concurrentValidations = await Promise.all([1, 2].map(async (index) => {
-      const result = await fetchJson(`${baseUrl}/api/pois/validate`, {
-        method: 'POST',
-        headers: adminHeaders(true),
-        body: JSON.stringify({ rows: [concurrentApprovedPoi(index)] })
-      });
-      assert.equal(result.response.status, 200);
-      assert.equal(result.data.canCommit, true, JSON.stringify(result.data.rows));
-      return result.data;
-    }));
+    const concurrentValidations = await Promise.all(
+      [1, 2].map(async (index) => {
+        const result = await fetchJson(`${baseUrl}/api/pois/validate`, {
+          method: 'POST',
+          headers: adminHeaders(true),
+          body: JSON.stringify({ rows: [concurrentApprovedPoi(index)] })
+        });
+        assert.equal(result.response.status, 200);
+        assert.equal(result.data.canCommit, true, JSON.stringify(result.data.rows));
+        return result.data;
+      })
+    );
     assert.notEqual(concurrentValidations[0].batchId, concurrentValidations[1].batchId);
-    const concurrentCommits = await Promise.all(concurrentValidations.map((batch) => fetchJson(`${baseUrl}/api/pois/upsert`, {
-      method: 'POST',
-      headers: adminHeaders(true),
-      body: JSON.stringify({ rows: batch.rows.map((row) => row.normalized), batchId: batch.batchId, commitToken: batch.commitToken })
-    })));
-    assert.ok(concurrentCommits.every((result) => result.response.status === 200), JSON.stringify(concurrentCommits.map((result) => result.data)));
+    const concurrentCommits = await Promise.all(
+      concurrentValidations.map((batch) =>
+        fetchJson(`${baseUrl}/api/pois/upsert`, {
+          method: 'POST',
+          headers: adminHeaders(true),
+          body: JSON.stringify({ rows: batch.rows.map((row) => row.normalized), batchId: batch.batchId, commitToken: batch.commitToken })
+        })
+      )
+    );
+    assert.ok(
+      concurrentCommits.every((result) => result.response.status === 200),
+      JSON.stringify(concurrentCommits.map((result) => result.data))
+    );
     const concurrentPoiList = await fetchJson(`${baseUrl}/api/pois?city=${encodeURIComponent('杭州')}`, { headers: adminHeaders() });
     const concurrentPoi = concurrentPoiList.data.pois.find((poi) => poi.poiId === 'poi-test-concurrent-hangzhou');
     assert.ok(concurrentPoi, 'concurrently committed POI must exist');
-    assert.deepEqual(concurrentPoi.facts.map((fact) => fact.id).sort(), [
-      'poi-test-concurrent-hangzhou-fact-1',
-      'poi-test-concurrent-hangzhou-fact-2'
-    ]);
+    assert.deepEqual(concurrentPoi.facts.map((fact) => fact.id).sort(), ['poi-test-concurrent-hangzhou-fact-1', 'poi-test-concurrent-hangzhou-fact-2']);
     assert.deepEqual(concurrentPoi.evidence.map((evidence) => evidence.id).sort(), [
       'poi-test-concurrent-hangzhou-evidence-1',
       'poi-test-concurrent-hangzhou-evidence-2'
@@ -631,9 +680,15 @@ async function main() {
     assert.equal(legacyUnauthorized.response.status, 403);
     const legacyHistory = await fetchJson(`${baseUrl}/api/routebooks/legacy-route/versions`, { headers: adminHeaders() });
     assert.equal(legacyHistory.response.status, 200);
-    assert.deepEqual(legacyHistory.data.versions.map((row) => row.version), [1, 2]);
+    assert.deepEqual(
+      legacyHistory.data.versions.map((row) => row.version),
+      [1, 2]
+    );
     assert.ok(legacyHistory.data.versions.every((row) => row.derived));
-    assert.deepEqual(legacyHistory.data.audits.map((row) => row.event), ['created', 'published']);
+    assert.deepEqual(
+      legacyHistory.data.audits.map((row) => row.event),
+      ['created', 'published']
+    );
 
     await rm(routebookAuditLogPath, { force: true });
     await mkdir(routebookAuditLogPath);
@@ -675,12 +730,14 @@ async function main() {
     const saved = await fetchJson(`${baseUrl}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(routePayload('w3-w5-version-route', {
-        title: 'W3-W5 版本回归路书已编辑',
-        editToken,
-        expectedVersion: 1,
-        editReason: '修改标题'
-      }))
+      body: JSON.stringify(
+        routePayload('w3-w5-version-route', {
+          title: 'W3-W5 版本回归路书已编辑',
+          editToken,
+          expectedVersion: 1,
+          editReason: '修改标题'
+        })
+      )
     });
     assert.equal(saved.response.status, 200);
     assert.equal(saved.data.routebook.version, 2);
@@ -689,10 +746,12 @@ async function main() {
     const conflict = await fetchJson(`${baseUrl}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(routePayload('w3-w5-version-route', {
-        editToken,
-        expectedVersion: 1
-      }))
+      body: JSON.stringify(
+        routePayload('w3-w5-version-route', {
+          editToken,
+          expectedVersion: 1
+        })
+      )
     });
     assert.equal(conflict.response.status, 409);
     assert.equal(conflict.data.code, 'VERSION_CONFLICT');
@@ -812,37 +871,55 @@ async function main() {
     const history = await fetchJson(`${baseUrl}/api/routebooks/w3-w5-version-route/versions`, { headers: adminHeaders() });
     assert.equal(history.response.status, 200);
     assert.equal(history.data.currentVersion, 5);
-    assert.deepEqual(history.data.versions.map((row) => row.version), [1, 2, 3, 4, 5]);
+    assert.deepEqual(
+      history.data.versions.map((row) => row.version),
+      [1, 2, 3, 4, 5]
+    );
     assert.equal(history.data.audits.length, 5);
-    assert.deepEqual(history.data.audits.map((row) => row.event), ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']);
+    assert.deepEqual(
+      history.data.audits.map((row) => row.event),
+      ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']
+    );
     const routebookSnapshots = (await readFile(routebookLogPath, 'utf8'))
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line))
       .filter((row) => row.publicId === 'w3-w5-version-route');
     assert.equal(routebookSnapshots.length, 5);
-    assert.ok(routebookSnapshots.every((row) => row.versionAudit?.version === row.version), 'every version snapshot must carry its audit in the same JSONL record');
-    assert.deepEqual(routebookSnapshots.map((row) => row.versionAudit.event), ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']);
+    assert.ok(
+      routebookSnapshots.every((row) => row.versionAudit?.version === row.version),
+      'every version snapshot must carry its audit in the same JSONL record'
+    );
+    assert.deepEqual(
+      routebookSnapshots.map((row) => row.versionAudit.event),
+      ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']
+    );
     assert.equal((await stat(routebookAuditLogPath)).isDirectory(), true, 'new mutations must not depend on the legacy audit sink');
 
     await access(poiLogPath);
-    console.log(JSON.stringify({
-      ok: true,
-      isolatedDataDir: dataDir,
-      seedPois: initialCoverage.data.totals.totalPois,
-      committedPois: committed.data.summary.total,
-      poiLogLines: await lineCount(poiLogPath),
-      coverage: {
-        totalPois: coverage.data.totals.totalPois,
-        verifiedPois: coverage.data.totals.verifiedPois,
-        staleFacts: coverage.data.totals.staleFacts,
-        pendingReview: coverage.data.totals.pendingReview
-      },
-      routebookVersion: history.data.currentVersion,
-      routebookAuditEvents: history.data.audits.length,
-      embeddedRoutebookAuditEvents: routebookSnapshots.length,
-      concurrentPoiFacts: concurrentPoi.facts.length
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          isolatedDataDir: dataDir,
+          seedPois: initialCoverage.data.totals.totalPois,
+          committedPois: committed.data.summary.total,
+          poiLogLines: await lineCount(poiLogPath),
+          coverage: {
+            totalPois: coverage.data.totals.totalPois,
+            verifiedPois: coverage.data.totals.verifiedPois,
+            staleFacts: coverage.data.totals.staleFacts,
+            pendingReview: coverage.data.totals.pendingReview
+          },
+          routebookVersion: history.data.currentVersion,
+          routebookAuditEvents: history.data.audits.length,
+          embeddedRoutebookAuditEvents: routebookSnapshots.length,
+          concurrentPoiFacts: concurrentPoi.facts.length
+        },
+        null,
+        2
+      )
+    );
   } finally {
     await stopServer(child);
     await rm(dataDir, { recursive: true, force: true });

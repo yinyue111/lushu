@@ -26,7 +26,9 @@ export async function geocodePoiWithAmap(city, name, signal) {
     if (!response.ok) return null;
     const data = await response.json();
     const result = Array.isArray(data?.geocodes) ? data.geocodes[0] : null;
-    const [gcjLng, gcjLat] = String(result?.location ?? '').split(',').map(Number);
+    const [gcjLng, gcjLat] = String(result?.location ?? '')
+      .split(',')
+      .map(Number);
     if (!isValidCoordinate(gcjLat, gcjLng)) return null;
     const wgs = gcj02ToWgs84(gcjLat, gcjLng);
     if (coordinateDistanceWarning(wgs.lat, wgs.lng, city)) return null;

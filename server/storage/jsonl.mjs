@@ -85,9 +85,7 @@ async function scanRecentJsonlRows(filePath, maxRows, projection = null) {
       position -= bytesToRead;
       const buffer = Buffer.alloc(bytesToRead);
       await handle.read(buffer, 0, bytesToRead, position);
-      const { head, lines } = splitTrailingJsonlLines(
-        pending.length ? Buffer.concat([buffer, pending]) : buffer
-      );
+      const { head, lines } = splitTrailingJsonlLines(pending.length ? Buffer.concat([buffer, pending]) : buffer);
       pending = head;
       for (let index = lines.length - 1; index >= 0 && rows.length < maxRows; index -= 1) {
         const line = lines[index].trim();
@@ -206,9 +204,7 @@ export async function findLatestJsonLine(filePath, predicate, scanLimit = 50000)
       position -= bytesToRead;
       const buffer = Buffer.alloc(bytesToRead);
       await handle.read(buffer, 0, bytesToRead, position);
-      const { head, lines } = splitTrailingJsonlLines(
-        pending.length ? Buffer.concat([buffer, pending]) : buffer
-      );
+      const { head, lines } = splitTrailingJsonlLines(pending.length ? Buffer.concat([buffer, pending]) : buffer);
       pending = head;
       for (let index = lines.length - 1; index >= 0; index -= 1) {
         const line = lines[index].trim();
@@ -266,9 +262,7 @@ export async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, sc
       position -= bytesToRead;
       const buffer = Buffer.alloc(bytesToRead);
       await handle.read(buffer, 0, bytesToRead, position);
-      const { head, lines } = splitTrailingJsonlLines(
-        pending.length ? Buffer.concat([buffer, pending]) : buffer
-      );
+      const { head, lines } = splitTrailingJsonlLines(pending.length ? Buffer.concat([buffer, pending]) : buffer);
       pending = head;
       for (let index = lines.length - 1; index >= 0; index -= 1) {
         const line = lines[index].trim();

@@ -43,12 +43,84 @@ export const curatedRoutes = [
     image: localImage('/assets/hangzhou-tea.webp'),
     summary: '上午把西湖核心段走完，中午避开湖边人流，下午进寺院和茶山，夜晚回到湖滨。',
     stops: [
-      { day: 'Day 1', time: '09:30', name: '柳浪闻莺', area: '西湖东南', stay: '60 分钟', cost: '免费', verify: '编辑建议：清晨进入湖区，给后续行程留出缓冲', risk: '雨天湖边拍照效果下降', score: 88, lat: 30.242, lng: 120.1617 },
-      { day: 'Day 1', time: '11:00', name: '南宋御街', area: '上城', stay: '90 分钟', cost: '80-120 元', verify: '餐饮选择多，适合作为午餐缓冲', risk: '部分店铺同质化，建议只选 1 家', score: 80, lat: 30.2432, lng: 120.1696 },
-      { day: 'Day 1', time: '15:00', name: '北山街日落线', area: '西湖北线', stay: '75 分钟', cost: '免费', verify: '编辑建议：把北线放在傍晚，减少正午暴晒', risk: '节假日骑行和车流偏密', score: 86, lat: 30.2596, lng: 120.1472 },
-      { day: 'Day 2', time: '09:30', name: '法喜寺', area: '西湖西南', stay: '90 分钟', cost: '10 元', verify: '编辑建议：寺院与茶山安排在同一天，减少跨区折返', risk: '开放时间与排队情况需出发前复核', score: 84, lat: 30.2366, lng: 120.0954 },
-      { day: 'Day 2', time: '12:00', name: '龙井茶园', area: '龙井', stay: '120 分钟', cost: '120-220 元', verify: '编辑建议：预留茶歇时段并确认具体体验门店', risk: '需警惕高价茶叶推销', score: 78, lat: 30.2248, lng: 120.1032 },
-      { day: 'Day 2', time: '15:30', name: '茅家埠', area: '西湖西线', stay: '75 分钟', cost: '免费', verify: '比核心湖区更适合慢走', risk: '雨天道路湿滑', score: 83, lat: 30.2468, lng: 120.1139 }
+      {
+        day: 'Day 1',
+        time: '09:30',
+        name: '柳浪闻莺',
+        area: '西湖东南',
+        stay: '60 分钟',
+        cost: '免费',
+        verify: '编辑建议：清晨进入湖区，给后续行程留出缓冲',
+        risk: '雨天湖边拍照效果下降',
+        score: 88,
+        lat: 30.242,
+        lng: 120.1617
+      },
+      {
+        day: 'Day 1',
+        time: '11:00',
+        name: '南宋御街',
+        area: '上城',
+        stay: '90 分钟',
+        cost: '80-120 元',
+        verify: '餐饮选择多，适合作为午餐缓冲',
+        risk: '部分店铺同质化，建议只选 1 家',
+        score: 80,
+        lat: 30.2432,
+        lng: 120.1696
+      },
+      {
+        day: 'Day 1',
+        time: '15:00',
+        name: '北山街日落线',
+        area: '西湖北线',
+        stay: '75 分钟',
+        cost: '免费',
+        verify: '编辑建议：把北线放在傍晚，减少正午暴晒',
+        risk: '节假日骑行和车流偏密',
+        score: 86,
+        lat: 30.2596,
+        lng: 120.1472
+      },
+      {
+        day: 'Day 2',
+        time: '09:30',
+        name: '法喜寺',
+        area: '西湖西南',
+        stay: '90 分钟',
+        cost: '10 元',
+        verify: '编辑建议：寺院与茶山安排在同一天，减少跨区折返',
+        risk: '开放时间与排队情况需出发前复核',
+        score: 84,
+        lat: 30.2366,
+        lng: 120.0954
+      },
+      {
+        day: 'Day 2',
+        time: '12:00',
+        name: '龙井茶园',
+        area: '龙井',
+        stay: '120 分钟',
+        cost: '120-220 元',
+        verify: '编辑建议：预留茶歇时段并确认具体体验门店',
+        risk: '需警惕高价茶叶推销',
+        score: 78,
+        lat: 30.2248,
+        lng: 120.1032
+      },
+      {
+        day: 'Day 2',
+        time: '15:30',
+        name: '茅家埠',
+        area: '西湖西线',
+        stay: '75 分钟',
+        cost: '免费',
+        verify: '比核心湖区更适合慢走',
+        risk: '雨天道路湿滑',
+        score: 83,
+        lat: 30.2468,
+        lng: 120.1139
+      }
     ]
   },
   {
@@ -60,9 +132,45 @@ export const curatedRoutes = [
     image: localImage('/assets/shanghai-street.webp'),
     summary: '从武康路低强度进入街区，午后把咖啡和小展馆串起来，傍晚转向安福路晚餐。',
     stops: [
-      { day: 'Day 1', time: '10:00', name: '武康路', area: '徐汇', stay: '80 分钟', cost: '免费', verify: '编辑建议：上午从街区北段开始，按相邻道路步行', risk: '热门机位排队影响体验', score: 84, lat: 31.2123, lng: 121.4382 },
-      { day: 'Day 1', time: '12:00', name: '安福路', area: '徐汇', stay: '90 分钟', cost: '100-180 元', verify: '餐饮和咖啡密度高', risk: '周末午餐等位较久', score: 82, lat: 31.217, lng: 121.4431 },
-      { day: 'Day 1', time: '15:00', name: '上海展览中心', area: '静安', stay: '90 分钟', cost: '0-100 元', verify: '编辑建议：作为室内备选，使用前确认当日展览', risk: '展览档期需提前复核', score: 78, lat: 31.2264, lng: 121.4512 }
+      {
+        day: 'Day 1',
+        time: '10:00',
+        name: '武康路',
+        area: '徐汇',
+        stay: '80 分钟',
+        cost: '免费',
+        verify: '编辑建议：上午从街区北段开始，按相邻道路步行',
+        risk: '热门机位排队影响体验',
+        score: 84,
+        lat: 31.2123,
+        lng: 121.4382
+      },
+      {
+        day: 'Day 1',
+        time: '12:00',
+        name: '安福路',
+        area: '徐汇',
+        stay: '90 分钟',
+        cost: '100-180 元',
+        verify: '餐饮和咖啡密度高',
+        risk: '周末午餐等位较久',
+        score: 82,
+        lat: 31.217,
+        lng: 121.4431
+      },
+      {
+        day: 'Day 1',
+        time: '15:00',
+        name: '上海展览中心',
+        area: '静安',
+        stay: '90 分钟',
+        cost: '0-100 元',
+        verify: '编辑建议：作为室内备选，使用前确认当日展览',
+        risk: '展览档期需提前复核',
+        score: 78,
+        lat: 31.2264,
+        lng: 121.4512
+      }
     ]
   },
   {
@@ -74,9 +182,45 @@ export const curatedRoutes = [
     image: localImage('/assets/suzhou-water-town.webp'),
     summary: '上午进园林，下午平江路慢走，晚上只保留一段水巷，避免一天塞太满。',
     stops: [
-      { day: 'Day 1', time: '09:30', name: '拙政园', area: '姑苏', stay: '120 分钟', cost: '80 元', verify: '编辑建议：上午先进入园林，避开下午行程堆叠', risk: '旺季门票和人流需复核', score: 82, lat: 31.3243, lng: 120.6252 },
-      { day: 'Day 1', time: '13:30', name: '平江路', area: '姑苏', stay: '120 分钟', cost: '80-160 元', verify: '餐饮和评弹选择多', risk: '商业街同质化较强', score: 78, lat: 31.3156, lng: 120.6314 },
-      { day: 'Day 1', time: '19:00', name: '山塘街', area: '姑苏', stay: '90 分钟', cost: '免费', verify: '编辑建议：只保留一段夜游作为当日收尾', risk: '返程打车高峰需预留时间', score: 81, lat: 31.3267, lng: 120.6004 }
+      {
+        day: 'Day 1',
+        time: '09:30',
+        name: '拙政园',
+        area: '姑苏',
+        stay: '120 分钟',
+        cost: '80 元',
+        verify: '编辑建议：上午先进入园林，避开下午行程堆叠',
+        risk: '旺季门票和人流需复核',
+        score: 82,
+        lat: 31.3243,
+        lng: 120.6252
+      },
+      {
+        day: 'Day 1',
+        time: '13:30',
+        name: '平江路',
+        area: '姑苏',
+        stay: '120 分钟',
+        cost: '80-160 元',
+        verify: '餐饮和评弹选择多',
+        risk: '商业街同质化较强',
+        score: 78,
+        lat: 31.3156,
+        lng: 120.6314
+      },
+      {
+        day: 'Day 1',
+        time: '19:00',
+        name: '山塘街',
+        area: '姑苏',
+        stay: '90 分钟',
+        cost: '免费',
+        verify: '编辑建议：只保留一段夜游作为当日收尾',
+        risk: '返程打车高峰需预留时间',
+        score: 81,
+        lat: 31.3267,
+        lng: 120.6004
+      }
     ]
   }
 ];
@@ -91,12 +235,84 @@ export const inspirationPhotos = [
 ];
 
 export const productCards = [
-  { type: '本地玩乐', title: '柳浪闻莺西湖 Citywalk 讲解', poi: '柳浪闻莺', targetPoi: '柳浪闻莺', city: '杭州', price: '前往平台查看价格', provider: '携程本地玩乐', url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E8%A5%BF%E6%B9%96%20Citywalk', linkType: 'search', deepLinkStatus: 'search_fallback', analyticsStatus: 'not_collected' },
-  { type: '本地玩乐', title: '龙井茶园采茶炒茶体验', poi: '龙井茶园', targetPoi: '龙井茶园', city: '杭州', price: '前往平台查看价格', provider: '飞猪旅行', url: 'https://h5.fliggy.com/search.html?q=%E9%BE%99%E4%BA%95%E8%8C%B6%E5%9B%AD%E4%BD%93%E9%AA%8C', linkType: 'search', deepLinkStatus: 'search_fallback', analyticsStatus: 'not_collected' },
-  { type: '门票', title: '拙政园门票预订入口', poi: '拙政园', targetPoi: '拙政园', city: '苏州', price: '前往平台查看价格', provider: '携程门票', url: 'https://m.ctrip.com/webapp/ticket/dest/t140508.html', linkType: 'destination_listing', deepLinkStatus: 'listing_fallback', analyticsStatus: 'not_collected' },
-  { type: '本地玩乐', title: '平江路评弹茶馆体验', poi: '平江路', targetPoi: '平江路', city: '苏州', price: '前往平台查看价格', provider: '美团', url: 'https://www.meituan.com/s/%E5%B9%B3%E6%B1%9F%E8%B7%AF/', linkType: 'search', deepLinkStatus: 'search_fallback', analyticsStatus: 'not_collected' },
-  { type: '讲解', title: '武康路建筑漫步讲解', poi: '武康路', targetPoi: '武康路', city: '上海', price: '前往平台查看价格', provider: '携程本地玩乐', url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E6%AD%A6%E5%BA%B7%E8%B7%AF%20Citywalk', linkType: 'search', deepLinkStatus: 'search_fallback', analyticsStatus: 'not_collected' },
-  { type: '酒店区域', title: '杭州湖滨银泰周边住宿', poi: '湖滨银泰', targetPoi: '湖滨银泰', city: '杭州', price: '前往平台查看价格', provider: '高德酒店区域', url: 'https://ditu.amap.com/search?query=%E6%9D%AD%E5%B7%9E%E6%B9%96%E6%BB%A8%E9%85%92%E5%BA%97', linkType: 'search', deepLinkStatus: 'search_fallback', analyticsStatus: 'not_collected' }
+  {
+    type: '本地玩乐',
+    title: '柳浪闻莺西湖 Citywalk 讲解',
+    poi: '柳浪闻莺',
+    targetPoi: '柳浪闻莺',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '携程本地玩乐',
+    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E8%A5%BF%E6%B9%96%20Citywalk',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '本地玩乐',
+    title: '龙井茶园采茶炒茶体验',
+    poi: '龙井茶园',
+    targetPoi: '龙井茶园',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '飞猪旅行',
+    url: 'https://h5.fliggy.com/search.html?q=%E9%BE%99%E4%BA%95%E8%8C%B6%E5%9B%AD%E4%BD%93%E9%AA%8C',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '门票',
+    title: '拙政园门票预订入口',
+    poi: '拙政园',
+    targetPoi: '拙政园',
+    city: '苏州',
+    price: '前往平台查看价格',
+    provider: '携程门票',
+    url: 'https://m.ctrip.com/webapp/ticket/dest/t140508.html',
+    linkType: 'destination_listing',
+    deepLinkStatus: 'listing_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '本地玩乐',
+    title: '平江路评弹茶馆体验',
+    poi: '平江路',
+    targetPoi: '平江路',
+    city: '苏州',
+    price: '前往平台查看价格',
+    provider: '美团',
+    url: 'https://www.meituan.com/s/%E5%B9%B3%E6%B1%9F%E8%B7%AF/',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '讲解',
+    title: '武康路建筑漫步讲解',
+    poi: '武康路',
+    targetPoi: '武康路',
+    city: '上海',
+    price: '前往平台查看价格',
+    provider: '携程本地玩乐',
+    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E6%AD%A6%E5%BA%B7%E8%B7%AF%20Citywalk',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '酒店区域',
+    title: '杭州湖滨银泰周边住宿',
+    poi: '湖滨银泰',
+    targetPoi: '湖滨银泰',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '高德酒店区域',
+    url: 'https://ditu.amap.com/search?query=%E6%9D%AD%E5%B7%9E%E6%B9%96%E6%BB%A8%E9%85%92%E5%BA%97',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  }
 ];
 
 export const defaultCityImage = localImage('/assets/city-aerial.webp');

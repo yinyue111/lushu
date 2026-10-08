@@ -12,13 +12,16 @@ export default [
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
     linterOptions: { reportUnusedDisableDirectives: 'error' },
     rules: {
-      'no-unused-vars': ['error', {
-        args: 'after-used',
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrors: 'none',
-        ignoreRestSiblings: true
-      }]
+      'no-unused-vars': [
+        'error',
+        {
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'none',
+          ignoreRestSiblings: true
+        }
+      ]
     }
   },
   {

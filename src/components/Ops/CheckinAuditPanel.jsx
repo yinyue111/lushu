@@ -32,14 +32,20 @@ export default function CheckinAuditPanel() {
             <h2 id="checkin-audit-title">打卡审核（只读风控视图）</h2>
             <p className="text-caption">核对到达证据、定位质量与照片；排除样本等写操作将在后续版本提供</p>
           </div>
-          <span className="badge badge-orange"><ShieldAlert size={12} /> {checkinsResource.data ? `${visibleRows.length} 条` : '—'}</span>
+          <span className="badge badge-orange">
+            <ShieldAlert size={12} /> {checkinsResource.data ? `${visibleRows.length} 条` : '—'}
+          </span>
         </div>
         <div className="ops-filter-bar" aria-label="打卡筛选">
           <Filter size={15} aria-hidden="true" />
           <label>
             <span>风控筛选</span>
             <select className="input-field" value={filter} onChange={(event) => setFilter(event.target.value)}>
-              {FILTERS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              {FILTERS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
             </select>
           </label>
           <button className="btn btn-secondary btn-sm" type="button" onClick={checkinsResource.retry} disabled={checkinsResource.status === 'loading'}>
@@ -52,7 +58,15 @@ export default function CheckinAuditPanel() {
             <table className="ops-data-table">
               <thead>
                 <tr>
-                  <th>时间</th><th>路线 / 站点</th><th>身份</th><th>到达置信</th><th>距离 / 误差</th><th>照片</th><th>状态</th><th>值得</th><th>异常原因</th>
+                  <th>时间</th>
+                  <th>路线 / 站点</th>
+                  <th>身份</th>
+                  <th>到达置信</th>
+                  <th>距离 / 误差</th>
+                  <th>照片</th>
+                  <th>状态</th>
+                  <th>值得</th>
+                  <th>异常原因</th>
                 </tr>
               </thead>
               <tbody>
@@ -64,16 +78,24 @@ export default function CheckinAuditPanel() {
                     <td>{formatOpsDate(row.createdAt)}</td>
                     <td>
                       <strong>{textValue(firstValue(row.routeTitle, row.routeId))}</strong>
-                      <small>{textValue(firstValue(row.stopName, row.stopId))}{row.city ? ` · ${row.city}` : ''}</small>
+                      <small>
+                        {textValue(firstValue(row.stopName, row.stopId))}
+                        {row.city ? ` · ${row.city}` : ''}
+                      </small>
                     </td>
                     <td>
                       <TrustStateBadge value={row.trustState} />
                       <small>{shortProfileId(row.profileId)}</small>
                     </td>
-                    <td><ConfidenceBadge confidence={row.confidence} valid={row.arrivalValid} /></td>
+                    <td>
+                      <ConfidenceBadge confidence={row.confidence} valid={row.arrivalValid} />
+                    </td>
                     <td>
                       {hasValue(row.distanceMeters) ? `${Math.round(Number(row.distanceMeters))}m` : '—'}
-                      <small>误差 {hasValue(row.accuracy) ? `${Math.round(Number(row.accuracy))}m` : '—'}{hasValue(row.thresholdMeters) ? ` / 阈值 ${Math.round(Number(row.thresholdMeters))}m` : ''}</small>
+                      <small>
+                        误差 {hasValue(row.accuracy) ? `${Math.round(Number(row.accuracy))}m` : '—'}
+                        {hasValue(row.thresholdMeters) ? ` / 阈值 ${Math.round(Number(row.thresholdMeters))}m` : ''}
+                      </small>
                     </td>
                     <td>
                       {row.photoId ? (
@@ -83,17 +105,29 @@ export default function CheckinAuditPanel() {
                             alt={`${row.stopName || '打卡'}照片`}
                             loading="lazy"
                             style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, display: 'block' }}
-                            onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                            onError={(event) => {
+                              event.currentTarget.style.display = 'none';
+                            }}
                           />
                         </a>
-                      ) : '—'}
+                      ) : (
+                        '—'
+                      )}
                     </td>
-                    <td><StatusBadge value={row.status} /></td>
+                    <td>
+                      <StatusBadge value={row.status} />
+                    </td>
                     <td>{textValue(row.worth)}</td>
                     <td>
-                      {row.anomalies.length
-                        ? row.anomalies.map((reason) => <span key={reason} className="badge badge-red" style={{ marginRight: 4 }}>{reason}</span>)
-                        : <span className="badge badge-green">正常</span>}
+                      {row.anomalies.length ? (
+                        row.anomalies.map((reason) => (
+                          <span key={reason} className="badge badge-red" style={{ marginRight: 4 }}>
+                            {reason}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="badge badge-green">正常</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -104,7 +138,8 @@ export default function CheckinAuditPanel() {
           <EmptyState>{filter === 'all' ? '暂无打卡记录。' : '当前筛选条件下没有打卡记录。'}</EmptyState>
         ) : null}
         <p className="text-caption" style={{ marginTop: 10 }}>
-          异常判定：到达无效、上报定位误差超过 {ACCURACY_LIMIT_METERS}m、照片与 GPS 不一致（photoEvidence=gps-mismatch）或移动速度异常。部分字段（照片证据、纠偏标记）随服务端本波落库后才会出现。
+          异常判定：到达无效、上报定位误差超过 {ACCURACY_LIMIT_METERS}m、照片与 GPS
+          不一致（photoEvidence=gps-mismatch）或移动速度异常。部分字段（照片证据、纠偏标记）随服务端本波落库后才会出现。
         </p>
       </section>
     </div>

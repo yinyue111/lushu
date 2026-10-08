@@ -1,5 +1,12 @@
 // Check-in eligibility, travel-date and plausibility rules used by trust scoring.
-import { TRAVEL_DAY_DATE_FORMATTER, TRAVEL_DAY_WINDOW_DAYS, PUBLIC_TRUST_ELIGIBLE_STATES, CHECKIN_COORDINATE_SYSTEMS, CHECKIN_MAX_PLAUSIBLE_KMH, CHECKIN_PLAUSIBILITY_WINDOW_HOURS } from '../config/index.mjs';
+import {
+  TRAVEL_DAY_DATE_FORMATTER,
+  TRAVEL_DAY_WINDOW_DAYS,
+  PUBLIC_TRUST_ELIGIBLE_STATES,
+  CHECKIN_COORDINATE_SYSTEMS,
+  CHECKIN_MAX_PLAUSIBLE_KMH,
+  CHECKIN_PLAUSIBILITY_WINDOW_HOURS
+} from '../config/index.mjs';
 import { normalizeTravelDate } from '../routebooks/normalize.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { resolvePoiId } from '../poi/catalog.mjs';
@@ -40,11 +47,7 @@ export function checkinEventTime(item = {}) {
   const fallback = item?.createdAt ?? item?.time;
   const observedMs = Date.parse(item?.observedAt ?? '');
   const createdMs = Date.parse(item?.createdAt ?? '');
-  if (
-    Number.isFinite(observedMs) &&
-    Number.isFinite(createdMs) &&
-    Math.abs(observedMs - createdMs) <= CHECKIN_OBSERVED_AT_MAX_DRIFT_MS
-  ) {
+  if (Number.isFinite(observedMs) && Number.isFinite(createdMs) && Math.abs(observedMs - createdMs) <= CHECKIN_OBSERVED_AT_MAX_DRIFT_MS) {
     return item.observedAt;
   }
   return fallback;
@@ -82,10 +85,7 @@ export function isPublicTrustEligibleCheckin(item = {}) {
 
 export function isEligibleTrustCheckin(item = {}) {
   const profileId = normalizeProfileId(item?.profileId);
-  return item?.status === 'visited' &&
-    isPublicTrustEligibleCheckin(item) &&
-    item?.arrival?.valid === true &&
-    Boolean(profileId && profileId !== 'anonymous');
+  return item?.status === 'visited' && isPublicTrustEligibleCheckin(item) && item?.arrival?.valid === true && Boolean(profileId && profileId !== 'anonymous');
 }
 
 export function latestTrustedCheckinsByProfileAndStop(checkins = []) {
@@ -118,7 +118,9 @@ export function poiCheckinKey(item = {}) {
 
 // rank18①：打卡坐标系白名单（unknown/wgs84/gcj02），未知一律记 unknown。
 export function normalizeCheckinCoordinateSystem(value) {
-  const system = String(value ?? '').trim().toLowerCase();
+  const system = String(value ?? '')
+    .trim()
+    .toLowerCase();
   return CHECKIN_COORDINATE_SYSTEMS.has(system) ? system : 'unknown';
 }
 

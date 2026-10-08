@@ -1,9 +1,44 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { ArrowLeft, Navigation, Share2, Shield, Clock, DollarSign, AlertTriangle, Check, Copy, RefreshCw, Trash2, ArrowUp, ArrowDown, Umbrella, Footprints, Baby, WalletCards, Ticket, Info, Plus, Pencil, GripVertical, X, Star } from 'lucide-react';
+import {
+  ArrowLeft,
+  Navigation,
+  Share2,
+  Shield,
+  Clock,
+  DollarSign,
+  AlertTriangle,
+  Check,
+  Copy,
+  RefreshCw,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Umbrella,
+  Footprints,
+  Baby,
+  WalletCards,
+  Ticket,
+  Info,
+  Plus,
+  Pencil,
+  GripVertical,
+  X,
+  Star
+} from 'lucide-react';
 import { cityCenters, coordinateForName, coordinateReviewLabel, isNavigableCoordinate, isValidCoordinate, routeLegLabel } from '../../lib/coordinates';
 import { clickStorageKey, getStoredRoutebookById, saveFavorite, saveRoutebook, safeWriteJsonStorage } from '../../lib/storage';
-import { copyRoutebookRemote, createFavorite, getJson, getRoutebookRemote, recordClick, recordExposure, recordJourneyEvent, saveRoutebookRemote, saveRoutebookVariant } from '../../lib/api';
+import {
+  copyRoutebookRemote,
+  createFavorite,
+  getJson,
+  getRoutebookRemote,
+  recordClick,
+  recordExposure,
+  recordJourneyEvent,
+  saveRoutebookRemote,
+  saveRoutebookVariant
+} from '../../lib/api';
 import { getProfile, profileRoutebookFields } from '../../lib/profile';
 import { downloadTripIcs, requestTripNotification } from '../../lib/reminders';
 import { isExternalSearchEntry, productsForRoutebook, useProductCards } from '../../lib/products';
@@ -36,7 +71,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const productCards = useProductCards();
 
   const stops = useMemo(() => routebook.stops ?? [], [routebook.stops]);
-  const dayStops = useMemo(() => stops.filter(s => s.day === activeDay), [stops, activeDay]);
+  const dayStops = useMemo(() => stops.filter((s) => s.day === activeDay), [stops, activeDay]);
   const routeProducts = useMemo(() => productsForRoutebook(productCards, routebook, 4), [routebook, productCards]);
   const trustMetrics = useMemo(() => buildTrustMetrics(routebook), [routebook]);
   const trust = getRouteTrustPresentation(routebook);
@@ -46,7 +81,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const TrustStateIcon = trustState.tone === 'trial' ? AlertTriangle : Shield;
 
   useEffect(() => {
-    if (dayStops.length && !dayStops.find(s => stopKey(s.id) === stopKey(selectedId))) {
+    if (dayStops.length && !dayStops.find((s) => stopKey(s.id) === stopKey(selectedId))) {
       setSelectedId(dayStops[0]?.id ?? null);
     }
   }, [dayStops, selectedId]);
@@ -90,7 +125,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       <div className="route-map-area">
         <RouteMap city={routebook.city} stops={dayStops} selectedId={selectedId} onSelect={setSelectedId} onTileStatus={setTileWarning} />
         <div className="route-map-overlay-top">
-          <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={14} /> 返回</button>
+          <button className="btn btn-secondary btn-sm" onClick={onBack}>
+            <ArrowLeft size={14} /> 返回
+          </button>
         </div>
         {tileWarning && <div className="route-map-warning">{tileWarning}</div>}
         <div className="route-map-overlay-bottom">
@@ -105,9 +142,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       {/* Right: Panel */}
       <aside className="route-panel">
         <div className="route-panel-header route-cover-card">
-          <span className={`badge ${trustState.badgeClass}`}><TrustStateIcon size={12} /> {trustState.label}</span>
+          <span className={`badge ${trustState.badgeClass}`}>
+            <TrustStateIcon size={12} /> {trustState.label}
+          </span>
           <h1 className="text-title">{routebook.title}</h1>
-          <p className="text-caption" style={{ marginTop: 4 }}>{routebook.summary}</p>
+          <p className="text-caption" style={{ marginTop: 4 }}>
+            {routebook.summary}
+          </p>
           <div className="route-quick-facts">
             <span>{stops.length} 个站点</span>
             <span>{routebook.days?.length ?? 1} 天</span>
@@ -135,16 +176,37 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <section className="evidence-panel">
             {routebook.sourceSummary?.sourceCount > 0 && (
               <div>
-                <h3><Shield size={14} /> 导入来源分析</h3>
-                <p>{routebook.sourceSummary.sourceCount} 条导入来源，来源预测均分 {predictionAverage(routebook.sourceSummary)}，仅作解析参考，不代表真实到访验证。{Array.isArray(routebook.sourceSummary.platforms) && routebook.sourceSummary.platforms.filter(Boolean).length ? `平台：${routebook.sourceSummary.platforms.filter(Boolean).join('、')}。` : ''}</p>
-                {routebook.sourceSummary.warnings?.slice(0, 2).map((warning, index) => <span key={index} className="badge badge-orange">{warning}</span>)}
+                <h3>
+                  <Shield size={14} /> 导入来源分析
+                </h3>
+                <p>
+                  {routebook.sourceSummary.sourceCount} 条导入来源，来源预测均分 {predictionAverage(routebook.sourceSummary)}
+                  ，仅作解析参考，不代表真实到访验证。
+                  {Array.isArray(routebook.sourceSummary.platforms) && routebook.sourceSummary.platforms.filter(Boolean).length
+                    ? `平台：${routebook.sourceSummary.platforms.filter(Boolean).join('、')}。`
+                    : ''}
+                </p>
+                {routebook.sourceSummary.warnings?.slice(0, 2).map((warning, index) => (
+                  <span key={index} className="badge badge-orange">
+                    {warning}
+                  </span>
+                ))}
               </div>
             )}
             {routebook.feedbackSummary && (
               <div>
-                <h3><Check size={14} /> 真实反馈</h3>
-                <p>真实反馈 {routebook.feedbackSummary.attestedCheckinCount || 0} 次，有效 GPS 到达率 {routebook.feedbackSummary.completionRate || 0}%，踩坑率 {routebook.feedbackSummary.pitfallRate || 0}%，纠错 {routebook.feedbackSummary.correctionCount || 0} 条。</p>
-                {routebook.trustMeta && <span className="badge badge-blue">AI {Math.round((routebook.trustMeta.aiWeight ?? 1) * 100)}% / 反馈 {Math.round((routebook.trustMeta.feedbackWeight ?? 0) * 100)}%</span>}
+                <h3>
+                  <Check size={14} /> 真实反馈
+                </h3>
+                <p>
+                  真实反馈 {routebook.feedbackSummary.attestedCheckinCount || 0} 次，有效 GPS 到达率 {routebook.feedbackSummary.completionRate || 0}%，踩坑率{' '}
+                  {routebook.feedbackSummary.pitfallRate || 0}%，纠错 {routebook.feedbackSummary.correctionCount || 0} 条。
+                </p>
+                {routebook.trustMeta && (
+                  <span className="badge badge-blue">
+                    AI {Math.round((routebook.trustMeta.aiWeight ?? 1) * 100)}% / 反馈 {Math.round((routebook.trustMeta.feedbackWeight ?? 0) * 100)}%
+                  </span>
+                )}
               </div>
             )}
           </section>
@@ -152,11 +214,21 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
         {canEdit && (
           <div className="route-toolstrip" aria-label="路书编辑工具">
-            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('少走路')} disabled={saving}><Footprints size={14} /> 少走路</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('雨天')} disabled={saving}><Umbrella size={14} /> 雨天</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('低预算')} disabled={saving}><WalletCards size={14} /> 低预算</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('亲子')} disabled={saving}><Baby size={14} /> 亲子</button>
-            <button className="btn btn-primary btn-sm" onClick={() => setEditingStop({ stop: createDraftStop(routebook, activeDay), isNew: true })}><Plus size={14} /> 加站点</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('少走路')} disabled={saving}>
+              <Footprints size={14} /> 少走路
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('雨天')} disabled={saving}>
+              <Umbrella size={14} /> 雨天
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('低预算')} disabled={saving}>
+              <WalletCards size={14} /> 低预算
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applyModeReorder('亲子')} disabled={saving}>
+              <Baby size={14} /> 亲子
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setEditingStop({ stop: createDraftStop(routebook, activeDay), isNew: true })}>
+              <Plus size={14} /> 加站点
+            </button>
           </div>
         )}
         {canEdit && (routebook.variants?.length > 0 || variantState) && (
@@ -183,7 +255,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
         {/* Day tabs */}
         <div className="day-tabs">
-          {(routebook.days ?? ['Day 1']).map(day => (
+          {(routebook.days ?? ['Day 1']).map((day) => (
             <button key={day} className={`chip ${activeDay === day ? 'active' : ''}`} onClick={() => setActiveDay(day)}>
               {day}
             </button>
@@ -231,15 +303,23 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         {/* Validations */}
         {routebook.validations?.length > 0 && (
           <div style={{ marginTop: 20 }}>
-            <h3 className="text-caption" style={{ fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>可执行校验</h3>
+            <h3 className="text-caption" style={{ fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              可执行校验
+            </h3>
             <div className="validation-list">
-              {routebook.validations.slice(0, 4).map(v => (
+              {routebook.validations.slice(0, 4).map((v) => (
                 <div key={v.id} className="card-flat validation-item">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>{v.label}</strong>
-                    <span className="badge badge-orange" style={{ fontSize: 11 }}>{v.state}</span>
+                    <strong className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>
+                      {v.label}
+                    </strong>
+                    <span className="badge badge-orange" style={{ fontSize: 11 }}>
+                      {v.state}
+                    </span>
                   </div>
-                  <p className="text-caption" style={{ marginTop: 4 }}>{v.detail}</p>
+                  <p className="text-caption" style={{ marginTop: 4 }}>
+                    {v.detail}
+                  </p>
                 </div>
               ))}
             </div>
@@ -248,13 +328,23 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
         {routeProducts.length > 0 && (
           <section className="route-products">
-            <h3 className="text-caption" style={{ fontWeight: 700 }}>相关商品卡</h3>
+            <h3 className="text-caption" style={{ fontWeight: 700 }}>
+              相关商品卡
+            </h3>
             <div className="product-list">
               {routeProducts.map((item, index) => (
-                <button key={item.id || item.url || `${item.provider}-${item.title}-${index}`} className="product-card" onClick={() => recordProductClick(item)}>
-                  <span className="badge badge-blue"><Ticket size={11} /> {item.type}</span>
+                <button
+                  key={item.id || item.url || `${item.provider}-${item.title}-${index}`}
+                  className="product-card"
+                  onClick={() => recordProductClick(item)}
+                >
+                  <span className="badge badge-blue">
+                    <Ticket size={11} /> {item.type}
+                  </span>
                   <strong>{item.title}</strong>
-                  <small>{item.poi} · {item.price} · {productLinkLabel(item)}</small>
+                  <small>
+                    {item.poi} · {item.price} · {productLinkLabel(item)}
+                  </small>
                 </button>
               ))}
             </div>
@@ -278,15 +368,31 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           )}
         </div>
         <div className="route-secondary-actions">
-          <button className="btn btn-secondary btn-sm" onClick={copyRoute}><Copy size={14} /> 复制</button>
-          <button className="btn btn-secondary btn-sm" onClick={favoriteRoute}><Star size={14} /> 收藏</button>
-          <button className="btn btn-secondary btn-sm" onClick={saveTripReminder}><Clock size={14} /> 出行提醒</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => onCustomize(routebook)}><RefreshCw size={14} /> 定制版</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowShare(true)}><Share2 size={14} /> 分享</button>
+          <button className="btn btn-secondary btn-sm" onClick={copyRoute}>
+            <Copy size={14} /> 复制
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={favoriteRoute}>
+            <Star size={14} /> 收藏
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={saveTripReminder}>
+            <Clock size={14} /> 出行提醒
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onCustomize(routebook)}>
+            <RefreshCw size={14} /> 定制版
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowShare(true)}>
+            <Share2 size={14} /> 分享
+          </button>
         </div>
-        {shareState && <p className="text-caption" style={{ textAlign: 'center' }}>{shareState}</p>}
+        {shareState && (
+          <p className="text-caption" style={{ textAlign: 'center' }}>
+            {shareState}
+          </p>
+        )}
 
-        {showShare && <SharePreview routebook={routebook} onClose={() => setShowShare(false)} onShared={handleShared} onConflictDraftSaved={() => onSaved?.()} />}
+        {showShare && (
+          <SharePreview routebook={routebook} onClose={() => setShowShare(false)} onShared={handleShared} onConflictDraftSaved={() => onSaved?.()} />
+        )}
         {poiDetailStop && <PoiDetail stop={poiDetailStop} routebook={routebook} onClose={() => setPoiDetailStop(null)} />}
         {editingStop && (
           <StopEditor
@@ -350,7 +456,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   }
 
   function moveStop(stopId, direction) {
-    const dayIndexes = stops.reduce((indexes, stop, index) => stop.day === activeDay ? [...indexes, index] : indexes, []);
+    const dayIndexes = stops.reduce((indexes, stop, index) => (stop.day === activeDay ? [...indexes, index] : indexes), []);
     const dayPosition = dayIndexes.findIndex((index) => stopKey(stops[index].id) === stopKey(stopId));
     const targetPosition = dayPosition + direction;
     if (dayPosition < 0 || targetPosition < 0 || targetPosition >= dayIndexes.length) return;
@@ -378,12 +484,12 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     if (!sourceId) return;
     const sourceIndex = stops.findIndex((stop) => stopKey(stop.id) === stopKey(sourceId));
     if (sourceIndex < 0) return;
-    const lastDayIndex = stops.reduce((last, stop, index) => (stop.day || 'Day 1') === day ? index : last, -1);
+    const lastDayIndex = stops.reduce((last, stop, index) => ((stop.day || 'Day 1') === day ? index : last), -1);
     setDraggedStopId(null);
     if (sourceIndex === lastDayIndex) return;
     const nextStops = [...stops];
     const [moved] = nextStops.splice(sourceIndex, 1);
-    const insertIndex = nextStops.reduce((last, stop, index) => (stop.day || 'Day 1') === day ? index : last, -1) + 1;
+    const insertIndex = nextStops.reduce((last, stop, index) => ((stop.day || 'Day 1') === day ? index : last), -1) + 1;
     nextStops.splice(insertIndex, 0, { ...moved, day });
     updateRoutebook(nextStops, { editReason: '拖拽排序' });
   }
@@ -402,24 +508,26 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       score: Number(nextStop.score) || 78,
       lat: Number(nextStop.lat) || cityCenters[routebook.city]?.lat || 35.8617,
       lng: Number(nextStop.lng) || cityCenters[routebook.city]?.lng || 104.1954,
-      geoConfidence: coordinatesEdited ? 45 : (Number(nextStop.geoConfidence) || 55),
+      geoConfidence: coordinatesEdited ? 45 : Number(nextStop.geoConfidence) || 55,
       coordinateSystem: 'WGS84',
-      ...(coordinatesEdited || renamed ? {
-        coordinateSource: 'user-edit',
-        coordinatePrecision: 'approximate',
-        coordinateRadiusMeters: 1500,
-        navigationDisabled: true
-      } : {}),
+      ...(coordinatesEdited || renamed
+        ? {
+            coordinateSource: 'user-edit',
+            coordinatePrecision: 'approximate',
+            coordinateRadiusMeters: 1500,
+            navigationDisabled: true
+          }
+        : {}),
       ...(renamed ? { geoConfidence: 30 } : {})
     };
     if (renamed) {
-      setShareState(coordinateForName(prepared.name, routebook.city)
-        ? `「${prepared.name}」坐标待确认，导航已暂停；本地目录有参考坐标，正在向服务端确认`
-        : `「${prepared.name}」坐标待确认，导航已暂停，正在向服务端匹配可信坐标`);
+      setShareState(
+        coordinateForName(prepared.name, routebook.city)
+          ? `「${prepared.name}」坐标待确认，导航已暂停；本地目录有参考坐标，正在向服务端确认`
+          : `「${prepared.name}」坐标待确认，导航已暂停，正在向服务端匹配可信坐标`
+      );
     }
-    const nextStops = isNew
-      ? [...stops, prepared]
-      : stops.map((stop) => stableStopId(stop.id) === prepared.id ? prepared : stop);
+    const nextStops = isNew ? [...stops, prepared] : stops.map((stop) => (stableStopId(stop.id) === prepared.id ? prepared : stop));
     updateRoutebook(nextStops, { editReason: isNew ? '添加站点' : '替换站点' });
     setActiveDay(prepared.day || activeDay);
     setSelectedId(prepared.id);
@@ -442,20 +550,21 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       const currentStops = Array.isArray(current?.stops) ? current.stops : [];
       const target = currentStops.find((item) => stopKey(item.id) === stopId);
       // 等待期间站点被删除、再次改名或手动改过坐标时放弃升级，避免覆盖后续编辑。
-      if (!target || String(target.name ?? '').trim() !== name ||
-        target.coordinateSource !== 'user-edit' || target.navigationDisabled !== true) return;
-      const upgradedStops = currentStops.map((item) => stopKey(item.id) === stopId
-        ? {
-            ...item,
-            lat: Number(poi.lat),
-            lng: Number(poi.lng),
-            geoConfidence: Number(poi.geoConfidence) || 88,
-            coordinateSource: String(poi.coordinateSource || 'known-poi'),
-            coordinatePrecision: 'exact',
-            coordinateRadiusMeters: 0,
-            navigationDisabled: false
-          }
-        : item);
+      if (!target || String(target.name ?? '').trim() !== name || target.coordinateSource !== 'user-edit' || target.navigationDisabled !== true) return;
+      const upgradedStops = currentStops.map((item) =>
+        stopKey(item.id) === stopId
+          ? {
+              ...item,
+              lat: Number(poi.lat),
+              lng: Number(poi.lng),
+              geoConfidence: Number(poi.geoConfidence) || 88,
+              coordinateSource: String(poi.coordinateSource || 'known-poi'),
+              coordinatePrecision: 'exact',
+              coordinateRadiusMeters: 0,
+              navigationDisabled: false
+            }
+          : item
+      );
       updateRoutebook(upgradedStops, { editReason: '坐标重校验' }, current);
       setShareState(`「${name}」已匹配平台可信坐标，已更新定位并恢复导航`);
     } catch {
@@ -493,20 +602,19 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     if (localEditsDirtyRef.current) {
       const saveResult = await saveCurrentRoutebook();
       if (saveResult?.status !== 'saved') {
-        const reason = saveResult?.status === 'conflict'
-          ? '云端版本冲突，待提交内容已按保存提示保留'
-          : saveResult?.status === 'stale'
-            ? '保存响应已过期（页面已有后续操作）'
-            : '本地编辑尚未同步到服务端';
+        const reason =
+          saveResult?.status === 'conflict'
+            ? '云端版本冲突，待提交内容已按保存提示保留'
+            : saveResult?.status === 'stale'
+              ? '保存响应已过期（页面已有后续操作）'
+              : '本地编辑尚未同步到服务端';
         setVariantState(`${mode}版已在本机重排生效；${reason}，同步成功后可再试云端变体`);
         return;
       }
     }
     const base = latestRoutebookRef.current;
     const operationSequence = ++routebookSyncSequenceRef.current;
-    const nextStops = Array.isArray(presetStops) && presetStops.length
-      ? presetStops
-      : reorderStopsByMode(base.stops ?? [], mode, { preferredDays: base.days });
+    const nextStops = Array.isArray(presetStops) && presetStops.length ? presetStops : reorderStopsByMode(base.stops ?? [], mode, { preferredDays: base.days });
     const variant = {
       id: `${modeSlug(mode)}-${Date.now()}`,
       mode,
@@ -557,9 +665,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       setRoutebook(localNext);
       const localSaved = saveRoutebook(localNext);
       if (localSaved) onSaved?.(localNext);
-      setVariantState(localSaved
-        ? `${variant.label}仅保存在本机，服务端同步失败：${error.message}`
-        : `${variant.label}在本机和服务端均未保存：${error.message}`);
+      setVariantState(
+        localSaved ? `${variant.label}仅保存在本机，服务端同步失败：${error.message}` : `${variant.label}在本机和服务端均未保存：${error.message}`
+      );
     }
   }
 
@@ -606,14 +714,14 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       const localSaved = saveRoutebook(next);
       onSaved?.(next);
       recordJourneyEvent('routebook-save', next, profile.id).catch(() => {});
-      const anonymousNote = data.routebook?.profileId === 'anonymous'
-        ? '；云端暂存为匿名草稿，同步身份后可关联到你的账号'
-        : '';
-      setShareState(localSaved
-        ? (data.shareUrl
-          ? `已保存并发布，H5 分享页：${new URL(data.shareUrl, window.location.origin).toString()}${anonymousNote}`
-          : `已保存为草稿，点击分享可发布 H5 链接${anonymousNote}`)
-        : `服务端已保存，但浏览器本地存储失败${anonymousNote}`);
+      const anonymousNote = data.routebook?.profileId === 'anonymous' ? '；云端暂存为匿名草稿，同步身份后可关联到你的账号' : '';
+      setShareState(
+        localSaved
+          ? data.shareUrl
+            ? `已保存并发布，H5 分享页：${new URL(data.shareUrl, window.location.origin).toString()}${anonymousNote}`
+            : `已保存为草稿，点击分享可发布 H5 链接${anonymousNote}`
+          : `服务端已保存，但浏览器本地存储失败${anonymousNote}`
+      );
       return { status: 'saved', routebook: next };
     } catch (error) {
       if (error?.status === 409) {
@@ -623,9 +731,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       if (routebookSyncSequenceRef.current !== operationSequence) return { status: 'stale', routebook: current };
       const localSaved = saveRoutebook(current);
       if (localSaved) onSaved?.(current);
-      setShareState(localSaved
-        ? `已保存到本地，服务端保存失败：${error.message}`
-        : `本地和服务端均保存失败：${error.message}`);
+      setShareState(localSaved ? `已保存到本地，服务端保存失败：${error.message}` : `本地和服务端均保存失败：${error.message}`);
       return { status: 'error', routebook: current };
     } finally {
       setSaving(false);
@@ -745,7 +851,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       return;
     }
     const ics = downloadTripIcs(routebook);
-    setShareState(ics.ok ? `${result.reason || '已保存提醒'}，并已下载日历文件` : (result.reason || ics.reason));
+    setShareState(ics.ok ? `${result.reason || '已保存提醒'}，并已下载日历文件` : result.reason || ics.reason);
   }
 
   function handleShared(nextRoutebook) {
@@ -760,9 +866,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     localEditsDirtyRef.current = false;
     setRoutebook(next);
     if (!saveRoutebook(next)) {
-      setShareState(['published', 'featured'].includes(next.publishStatus)
-        ? '路书已发布，但浏览器本地存储失败'
-        : '已读取服务端最新版本，但浏览器本地存储失败');
+      setShareState(['published', 'featured'].includes(next.publishStatus) ? '路书已发布，但浏览器本地存储失败' : '已读取服务端最新版本，但浏览器本地存储失败');
     }
     onSaved?.(next);
   }
@@ -838,10 +942,22 @@ function mergeServerDerivedRoutebookFields(base, serverRoutebook) {
   if (!serverRoutebook) return base;
   const merged = { ...base };
   const derivedFields = [
-    'variants', 'activeVariantId',
-    'version', 'currentVersion', 'parentVersion', 'schemaVersion', 'revision',
-    'trustScore', 'trustMeta', 'feedbackSummary', 'sourceSummary',
-    'copyCount', 'editToken', 'updatedAt', 'changeReason', 'actorType'
+    'variants',
+    'activeVariantId',
+    'version',
+    'currentVersion',
+    'parentVersion',
+    'schemaVersion',
+    'revision',
+    'trustScore',
+    'trustMeta',
+    'feedbackSummary',
+    'sourceSummary',
+    'copyCount',
+    'editToken',
+    'updatedAt',
+    'changeReason',
+    'actorType'
   ];
   for (const field of derivedFields) {
     if (serverRoutebook[field] !== undefined) merged[field] = serverRoutebook[field];
@@ -853,9 +969,8 @@ function mergeServerDerivedRoutebookFields(base, serverRoutebook) {
 // 使“我的页”本地/服务端点击去重键能对上；profileId 保持本地口径以便按用户过滤。
 function mergeServerClickIntoLocal(localPayload, serverClick, profileId) {
   const merged = { ...localPayload, ...serverClick, profileId: localPayload?.profileId ?? profileId };
-  const rest = safeReadClicks().filter((row) =>
-    row?.id !== serverClick?.id &&
-    !(row?.clickedAt === localPayload?.clickedAt && row?.productId === localPayload?.productId)
+  const rest = safeReadClicks().filter(
+    (row) => row?.id !== serverClick?.id && !(row?.clickedAt === localPayload?.clickedAt && row?.productId === localPayload?.productId)
   );
   safeWriteJsonStorage(clickStorageKey(profileId), [merged, ...rest].slice(0, 100));
 }
@@ -888,11 +1003,29 @@ function safeReadClicks() {
   }
 }
 
-function StopCard({ stop, index, isSelected, onSelect, onDelete, onMoveUp, onMoveDown, onDetail, onEdit, onDragStart, onDragEnd, onDragOver, onDrop, nextStop, routeTrustTone, isLast, canMoveUp, canMoveDown, canEdit }) {
+function StopCard({
+  stop,
+  index,
+  isSelected,
+  onSelect,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  onDetail,
+  onEdit,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  nextStop,
+  routeTrustTone,
+  isLast,
+  canMoveUp,
+  canMoveDown,
+  canEdit
+}) {
   const poiTrustState = getStopTrustBadge(stop, routeTrustTone);
-  const scoreColor = poiTrustState.tone === 'verified'
-    ? 'var(--green)'
-    : poiTrustState.tone === 'trial' ? 'var(--orange)' : 'var(--blue)';
+  const scoreColor = poiTrustState.tone === 'verified' ? 'var(--green)' : poiTrustState.tone === 'trial' ? 'var(--orange)' : 'var(--blue)';
   const latestVerifiedLabel = poiTrustState.verified ? formatVerifiedDate(stop.poiTrust?.latestVerifiedAt) : '待验证';
 
   return (
@@ -908,21 +1041,35 @@ function StopCard({ stop, index, isSelected, onSelect, onDelete, onMoveUp, onMov
         <div className="stop-card-indicator" style={{ background: scoreColor }} />
         <div className="stop-card-content">
           <button className="stop-card-header" onClick={onSelect} aria-expanded={isSelected}>
-            <span className="stop-num"><GripVertical size={12} /> {index + 1}</span>
+            <span className="stop-num">
+              <GripVertical size={12} /> {index + 1}
+            </span>
             <div style={{ flex: 1 }}>
-              <strong className="text-body" style={{ fontWeight: 600 }}>{stop.name}</strong>
+              <strong className="text-body" style={{ fontWeight: 600 }}>
+                {stop.name}
+              </strong>
               <div className="stop-meta">
-                <span><Clock size={11} /> {stop.time}</span>
+                <span>
+                  <Clock size={11} /> {stop.time}
+                </span>
                 <span>{stop.stay}</span>
-                <span><DollarSign size={11} /> {stop.cost}</span>
+                <span>
+                  <DollarSign size={11} /> {stop.cost}
+                </span>
               </div>
             </div>
-            <span className="text-micro" style={{ color: scoreColor, fontWeight: 700 }}>{poiTrustState.value}</span>
+            <span className="text-micro" style={{ color: scoreColor, fontWeight: 700 }}>
+              {poiTrustState.value}
+            </span>
           </button>
           {isSelected && (
             <div className="stop-detail">
-              <p className="text-caption"><Check size={12} style={{ color: 'var(--blue)' }} /> 复核建议：{stop.verify || '出发前核对开放时间与现场条件'}</p>
-              <p className="text-caption" style={{ marginTop: 4 }}><AlertTriangle size={12} style={{ color: 'var(--orange)' }} /> {stop.risk}</p>
+              <p className="text-caption">
+                <Check size={12} style={{ color: 'var(--blue)' }} /> 复核建议：{stop.verify || '出发前核对开放时间与现场条件'}
+              </p>
+              <p className="text-caption" style={{ marginTop: 4 }}>
+                <AlertTriangle size={12} style={{ color: 'var(--orange)' }} /> {stop.risk}
+              </p>
               <div className="stop-evidence-strip">
                 <span className={`badge ${isNavigableCoordinate(stop) ? 'badge-green' : 'badge-orange'}`}>{coordinateReviewLabel(stop)}</span>
                 <span className={`badge ${poiTrustState.badgeClass}`}>{poiTrustState.label}</span>
@@ -938,11 +1085,29 @@ function StopCard({ stop, index, isSelected, onSelect, onDelete, onMoveUp, onMov
                 </div>
               )}
               <div className="stop-edit-actions">
-                <button className="btn btn-secondary btn-sm" onClick={onDetail}><Info size={13} /> 详情</button>
-                {canEdit && <button className="btn btn-secondary btn-sm" onClick={onEdit}><Pencil size={13} /> 替换</button>}
-                {canEdit && <button className="btn btn-secondary btn-sm" onClick={onMoveUp} disabled={!canMoveUp}><ArrowUp size={13} /> 上移</button>}
-                {canEdit && <button className="btn btn-secondary btn-sm" onClick={onMoveDown} disabled={!canMoveDown}><ArrowDown size={13} /> 下移</button>}
-                {canEdit && <button className="btn btn-secondary btn-sm" onClick={onDelete}><Trash2 size={13} /> 删除</button>}
+                <button className="btn btn-secondary btn-sm" onClick={onDetail}>
+                  <Info size={13} /> 详情
+                </button>
+                {canEdit && (
+                  <button className="btn btn-secondary btn-sm" onClick={onEdit}>
+                    <Pencil size={13} /> 替换
+                  </button>
+                )}
+                {canEdit && (
+                  <button className="btn btn-secondary btn-sm" onClick={onMoveUp} disabled={!canMoveUp}>
+                    <ArrowUp size={13} /> 上移
+                  </button>
+                )}
+                {canEdit && (
+                  <button className="btn btn-secondary btn-sm" onClick={onMoveDown} disabled={!canMoveDown}>
+                    <ArrowDown size={13} /> 下移
+                  </button>
+                )}
+                {canEdit && (
+                  <button className="btn btn-secondary btn-sm" onClick={onDelete}>
+                    <Trash2 size={13} /> 删除
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1072,13 +1237,26 @@ function StopEditor({ stop, isNew = false, routebook, onClose, onSave }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <form ref={dialogRef} className="modal-content stop-editor-modal" role="dialog" aria-modal="true" aria-labelledby="stop-editor-title" tabIndex={-1} onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+      <form
+        ref={dialogRef}
+        className="modal-content stop-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stop-editor-title"
+        tabIndex={-1}
+        onSubmit={submit}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="poi-detail-header">
           <div>
             <span className="badge badge-blue">{isNew ? '新增站点' : '编辑站点'}</span>
-            <h2 className="text-title" id="stop-editor-title" style={{ marginTop: 8 }}>{isNew ? '新增路线站点' : `编辑：${form.name || '未命名站点'}`}</h2>
+            <h2 className="text-title" id="stop-editor-title" style={{ marginTop: 8 }}>
+              {isNew ? '新增路线站点' : `编辑：${form.name || '未命名站点'}`}
+            </h2>
           </div>
-          <button type="button" className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭站点编辑"><X size={18} /></button>
+          <button type="button" className="btn btn-icon btn-sm" onClick={onClose} aria-label="关闭站点编辑">
+            <X size={18} />
+          </button>
         </div>
         <div className="stop-editor-grid">
           <label>
@@ -1088,7 +1266,9 @@ function StopEditor({ stop, isNew = false, routebook, onClose, onSave }) {
           <label>
             <span className="input-label">所属天数</span>
             <select className="input-field" value={form.day} onChange={(event) => update('day', event.target.value)}>
-              {(routebook.days ?? ['Day 1']).map((day) => <option key={day}>{day}</option>)}
+              {(routebook.days ?? ['Day 1']).map((day) => (
+                <option key={day}>{day}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -1127,8 +1307,12 @@ function StopEditor({ stop, isNew = false, routebook, onClose, onSave }) {
           </label>
         </div>
         <div className="poi-detail-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>取消</button>
-          <button type="submit" className="btn btn-primary"><Check size={16} /> {isNew ? '添加站点' : '保存并重校验'}</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-primary">
+            <Check size={16} /> {isNew ? '添加站点' : '保存并重校验'}
+          </button>
         </div>
       </form>
     </div>
@@ -1159,13 +1343,36 @@ function buildEditedValidations(stops, existingValidations = [], reason = '编�
   const longestLeg = longestRouteLeg(stops);
   const calculated = [
     { id: 'client-edit-route', label: `${reason || '编辑'}后动线`, state: '已更新', detail: '已重新计算站点顺序、天数分组和地图连线。' },
-    { id: 'client-edit-density', label: '节奏密度', state: dense ? '偏紧' : '可执行', detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '单日站点密度在可执行范围内。' },
-    { id: 'client-edit-geo', label: '定位复核', state: lowGeo ? '需复核' : '通过', detail: lowGeo ? `${lowGeo} 个站点坐标置信度偏低。` : '当前站点坐标可用于地图展示。' },
-    { id: 'client-edit-leg', label: '转场距离', state: longestLeg > 12000 ? '偏远' : longestLeg > 6000 ? '需留缓冲' : '可执行', detail: longestLeg ? `最长相邻转场约 ${(longestLeg / 1000).toFixed(1)} km，建议结合真实交通复核。` : '站点距离信息不足，建议补充坐标。' },
-    { id: 'client-edit-ai-stale', label: 'AI 校验状态', state: '需复核', detail: '路线已被人工编辑，旧模型校验只作参考；分享前建议重新保存并按实际日期复核开放时间。' }
+    {
+      id: 'client-edit-density',
+      label: '节奏密度',
+      state: dense ? '偏紧' : '可执行',
+      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '单日站点密度在可执行范围内。'
+    },
+    {
+      id: 'client-edit-geo',
+      label: '定位复核',
+      state: lowGeo ? '需复核' : '通过',
+      detail: lowGeo ? `${lowGeo} 个站点坐标置信度偏低。` : '当前站点坐标可用于地图展示。'
+    },
+    {
+      id: 'client-edit-leg',
+      label: '转场距离',
+      state: longestLeg > 12000 ? '偏远' : longestLeg > 6000 ? '需留缓冲' : '可执行',
+      detail: longestLeg ? `最长相邻转场约 ${(longestLeg / 1000).toFixed(1)} km，建议结合真实交通复核。` : '站点距离信息不足，建议补充坐标。'
+    },
+    {
+      id: 'client-edit-ai-stale',
+      label: 'AI 校验状态',
+      state: '需复核',
+      detail: '路线已被人工编辑，旧模型校验只作参考；分享前建议重新保存并按实际日期复核开放时间。'
+    }
   ];
   const staleIds = new Set(['hours', 'walk', 'budget', 'crowd']);
-  return [...calculated, ...(existingValidations ?? []).filter((item) => !calculated.some((next) => next.id === item.id) && !staleIds.has(item.id))].slice(0, 8);
+  return [...calculated, ...(existingValidations ?? []).filter((item) => !calculated.some((next) => next.id === item.id) && !staleIds.has(item.id))].slice(
+    0,
+    8
+  );
 }
 
 function longestRouteLeg(stops) {
@@ -1231,8 +1438,7 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
       doubleClickZoom: !compact,
       boxZoom: !compact,
       keyboard: !compact
-    })
-      .setView([center.lat, center.lng], center.zoom);
+    }).setView([center.lat, center.lng], center.zoom);
     let hadTileError = false;
     const primaryLayer = L.tileLayer('/api/map-tiles/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -1272,17 +1478,20 @@ function RouteMap({ city, stops, selectedId, onSelect, onTileStatus }) {
     const map = mapRef.current;
     if (!map) return;
     // Clear existing
-    map.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polyline || l instanceof L.Circle) map.removeLayer(l); });
+    map.eachLayer((l) => {
+      if (l instanceof L.Marker || l instanceof L.Polyline || l instanceof L.Circle) map.removeLayer(l);
+    });
     stopLayersRef.current = new Map();
 
-    const allLatLngs = stops.map(s => [Number(s.lat), Number(s.lng)]).filter(([a, b]) => isValidCoordinate(a, b));
-    const navigableLatLngs = stops.filter(isNavigableCoordinate).map(s => [Number(s.lat), Number(s.lng)]);
+    const allLatLngs = stops.map((s) => [Number(s.lat), Number(s.lng)]).filter(([a, b]) => isValidCoordinate(a, b));
+    const navigableLatLngs = stops.filter(isNavigableCoordinate).map((s) => [Number(s.lat), Number(s.lng)]);
     if (navigableLatLngs.length > 1) {
       L.polyline(navigableLatLngs, { color: '#007AFF', weight: 3, opacity: 0.6, dashArray: '6 4' }).addTo(map);
     }
 
     stops.forEach((stop, i) => {
-      const lat = Number(stop.lat), lng = Number(stop.lng);
+      const lat = Number(stop.lat),
+        lng = Number(stop.lng);
       if (!isValidCoordinate(lat, lng)) return;
       if (!isNavigableCoordinate(stop)) {
         const circle = L.circle([lat, lng], {

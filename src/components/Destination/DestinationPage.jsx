@@ -36,15 +36,23 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
       <section className="destination-hero" style={/** @type {import('react').CSSProperties} */ ({ '--hero-image': `url(${story.image})` })}>
         <div className="home-hero-shade" />
         <div className="destination-hero-content">
-          <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={16} /> 返回首页</button>
+          <button className="btn btn-secondary btn-sm" onClick={onBack}>
+            <ArrowLeft size={16} /> 返回首页
+          </button>
           <div>
             <span className="home-kicker">{story.kicker}</span>
             <h1>{city} 目的地页</h1>
             <p>{story.summary}</p>
             <div className="home-hero-metrics">
-              <span><Shield size={15} /> 编辑样板 · 待真实验证</span>
-              <span><Camera size={15} /> 真实数据来自有效 GPS 打卡</span>
-              <span><Route size={15} /> {serverBooks.length ? `公开路线 ${serverBooks.length} 条 · ` : ''}编辑样板 {curated.length} 条</span>
+              <span>
+                <Shield size={15} /> 编辑样板 · 待真实验证
+              </span>
+              <span>
+                <Camera size={15} /> 真实数据来自有效 GPS 打卡
+              </span>
+              <span>
+                <Route size={15} /> {serverBooks.length ? `公开路线 ${serverBooks.length} 条 · ` : ''}编辑样板 {curated.length} 条
+              </span>
             </div>
           </div>
           <button className="btn btn-primary btn-lg" onClick={() => onNewBook({ city, guide: `想去${city}，请生成适合我的可信路书。` })}>
@@ -54,14 +62,20 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
       </section>
 
       <main className="container home-content">
-        {error && <p className="text-caption" style={{ color: 'var(--orange)' }}>服务端路线读取失败，已展示运营精选：{error}</p>}
+        {error && (
+          <p className="text-caption" style={{ color: 'var(--orange)' }}>
+            服务端路线读取失败，已展示运营精选：{error}
+          </p>
+        )}
         <section className="home-section">
           <div className="section-heading">
             <div>
               <span className="section-kicker">推荐路线</span>
               <h2>编辑精选 + 用户保存路线</h2>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => onNewBook({ city })}><Plus size={15} /> 新建</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => onNewBook({ city })}>
+              <Plus size={15} /> 新建
+            </button>
           </div>
           <div className="curated-route-grid">
             {curated.map((route) => (
@@ -75,7 +89,9 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                 <div className="route-card-body">
                   <h3>{route.title}</h3>
                   <p>{route.summary}</p>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}><Route size={15} /> 查看路书</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onOpenBook(curatedRouteToRoutebook(route))}>
+                    <Route size={15} /> 查看路书
+                  </button>
                 </div>
               </article>
             ))}
@@ -83,10 +99,14 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               const trustState = getRouteTrustBadgeState(book);
               return (
                 <button key={book.publicId ?? book.title} className="book-card compact-book" onClick={() => onOpenBook(book)}>
-                  <span className={`badge ${trustState.badgeClass}`}><Shield size={12} /> {trustState.compactText}</span>
+                  <span className={`badge ${trustState.badgeClass}`}>
+                    <Shield size={12} /> {trustState.compactText}
+                  </span>
                   <h3>{book.title}</h3>
                   <p>{book.summary}</p>
-                  <span><MapPin size={12} /> {book.stops?.length ?? 0} 站 · 用户保存</span>
+                  <span>
+                    <MapPin size={12} /> {book.stops?.length ?? 0} 站 · 用户保存
+                  </span>
                 </button>
               );
             })}
@@ -102,9 +122,13 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                   <div className="empty-city-guide">
                     <span>或先去已验证的目的地看看：</span>
                     <div className="city-suggestion-strip">
-                      {trustedCities.filter((item) => item !== city).map((item) => (
-                        <button key={item} onClick={() => onOpenDestination(item)}>{item}</button>
-                      ))}
+                      {trustedCities
+                        .filter((item) => item !== city)
+                        .map((item) => (
+                          <button key={item} onClick={() => onOpenDestination(item)}>
+                            {item}
+                          </button>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -126,7 +150,9 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                 <img src={photo.image} alt={`${photo.poi} ${photo.title}`} loading="lazy" />
                 <figcaption>
                   <strong>{photo.title}</strong>
-                  <span><MapPin size={12} /> {photo.poi} · {photo.source}</span>
+                  <span>
+                    <MapPin size={12} /> {photo.poi} · {photo.source}
+                  </span>
                 </figcaption>
               </figure>
             ))}

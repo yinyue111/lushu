@@ -12,9 +12,7 @@ export function useProductCards() {
         if (ctrl.signal.aborted) return;
         setRemoteState({
           status: 'ready',
-          products: (data.products ?? [])
-            .filter((item) => item.status !== 'paused')
-            .map((item) => ({ ...item, analyticsReady: true }))
+          products: (data.products ?? []).filter((item) => item.status !== 'paused').map((item) => ({ ...item, analyticsReady: true }))
         });
       })
       .catch(() => {
@@ -49,9 +47,7 @@ export function isExternalSearchEntry(product) {
 export function productMatchesStop(product, stopName) {
   const name = String(stopName ?? '').trim();
   if (!product || !name) return false;
-  const keywords = Array.isArray(product.keywords)
-    ? product.keywords
-    : String(product.keywords ?? '').split(/[、,，;；\s]+/);
+  const keywords = Array.isArray(product.keywords) ? product.keywords : String(product.keywords ?? '').split(/[、,，;；\s]+/);
   return [product.poi, product.targetPoi, ...keywords]
     .map((value) => String(value ?? '').trim())
     .filter((value) => value.length >= 2)

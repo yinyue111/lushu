@@ -14,7 +14,7 @@ function parseMapTilePath(pathname) {
   const x = Number(xText);
   const y = Number(yText);
   if (!Number.isInteger(z) || z < 0 || z > 19) return null;
-  const maxIndex = (2 ** z) - 1;
+  const maxIndex = 2 ** z - 1;
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x > maxIndex || y > maxIndex) return null;
   return { z, x, y, key: `${z}/${x}/${y}` };
 }
@@ -52,53 +52,56 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
   return new Promise((resolvePromise, rejectPromise) => {
     const chunks = [];
     let total = 0;
-    const request = httpsRequest({
-      protocol: 'https:',
-      hostname: upstream.hostname,
-      port: 443,
-      method: 'GET',
-      path: upstream.path(tileRequest.key),
-      signal,
-      headers: {
-        accept: 'image/png,image/*;q=0.8,*/*;q=0.5',
-        'user-agent': 'TrustedRoutebook/0.1 (+local map tile proxy)'
-      }
-    }, (response) => {
-      const statusCode = response.statusCode ?? 0;
-      const declaredLength = Number(response.headers['content-length'] ?? 0);
-      if (statusCode < 200 || statusCode >= 300) {
-        response.resume();
-        rejectPromise(createHttpError(`地图上游返回 HTTP ${statusCode}`, 502, 'MAP_TILE_UPSTREAM_ERROR'));
-        return;
-      }
-      if (declaredLength > MAP_TILE_MAX_BYTES) {
-        response.destroy();
-        rejectPromise(createHttpError('地图瓦片响应过大', 502, 'MAP_TILE_TOO_LARGE'));
-        return;
-      }
-      response.on('data', (chunk) => {
-        total += chunk.length;
-        if (total > MAP_TILE_MAX_BYTES) {
-          response.destroy(createHttpError('地图瓦片响应过大', 502, 'MAP_TILE_TOO_LARGE'));
+    const request = httpsRequest(
+      {
+        protocol: 'https:',
+        hostname: upstream.hostname,
+        port: 443,
+        method: 'GET',
+        path: upstream.path(tileRequest.key),
+        signal,
+        headers: {
+          accept: 'image/png,image/*;q=0.8,*/*;q=0.5',
+          'user-agent': 'TrustedRoutebook/0.1 (+local map tile proxy)'
+        }
+      },
+      (response) => {
+        const statusCode = response.statusCode ?? 0;
+        const declaredLength = Number(response.headers['content-length'] ?? 0);
+        if (statusCode < 200 || statusCode >= 300) {
+          response.resume();
+          rejectPromise(createHttpError(`地图上游返回 HTTP ${statusCode}`, 502, 'MAP_TILE_UPSTREAM_ERROR'));
           return;
         }
-        chunks.push(chunk);
-      });
-      response.on('end', () => {
-        const body = Buffer.concat(chunks);
-        if (!body.length) {
-          rejectPromise(createHttpError('地图瓦片内容无效', 502, 'MAP_TILE_INVALID'));
+        if (declaredLength > MAP_TILE_MAX_BYTES) {
+          response.destroy();
+          rejectPromise(createHttpError('地图瓦片响应过大', 502, 'MAP_TILE_TOO_LARGE'));
           return;
         }
-        const upstreamType = String(response.headers['content-type'] ?? '');
-        resolvePromise({
-          body,
-          contentType: upstreamType.startsWith('image/') ? upstreamType : 'image/png',
-          source: upstream.id
+        response.on('data', (chunk) => {
+          total += chunk.length;
+          if (total > MAP_TILE_MAX_BYTES) {
+            response.destroy(createHttpError('地图瓦片响应过大', 502, 'MAP_TILE_TOO_LARGE'));
+            return;
+          }
+          chunks.push(chunk);
         });
-      });
-      response.on('error', rejectPromise);
-    });
+        response.on('end', () => {
+          const body = Buffer.concat(chunks);
+          if (!body.length) {
+            rejectPromise(createHttpError('地图瓦片内容无效', 502, 'MAP_TILE_INVALID'));
+            return;
+          }
+          const upstreamType = String(response.headers['content-type'] ?? '');
+          resolvePromise({
+            body,
+            contentType: upstreamType.startsWith('image/') ? upstreamType : 'image/png',
+            source: upstream.id
+          });
+        });
+        response.on('error', rejectPromise);
+      }
+    );
     request.setTimeout(MAP_TILE_UPSTREAM_TIMEOUT_MS, () => {
       request.destroy(createHttpError('地图上游连接超时', 504, 'MAP_TILE_UPSTREAM_TIMEOUT'));
     });

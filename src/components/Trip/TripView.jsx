@@ -66,20 +66,14 @@ export default function TripView({ routebook, onBack, onReview }) {
   const currentLatest = current ? latestByStop.get(stopKeyForStop(current)) : null;
   const currentProcessed = isLocallyProcessedCheckin(currentLatest);
   const currentSyncPending = queueFlushing && Boolean(currentLatest) && !isServerSyncedCheckin(currentLatest);
-  const pendingSyncCount = useMemo(
-    () => checkins.filter((item) => !isServerSyncedCheckin(item)).length,
-    [checkins]
-  );
+  const pendingSyncCount = useMemo(() => checkins.filter((item) => !isServerSyncedCheckin(item)).length, [checkins]);
   const statusCheckin = useMemo(() => checkinForStatusDisplay(checkins), [checkins]);
   const statusEvidence = useMemo(() => checkinEvidenceState(statusCheckin), [statusCheckin]);
   const alternatives = useMemo(
     () => buildAlternatives(current, routebook, stops, latestByStop, poiKnowledge),
     [current, latestByStop, poiKnowledge, routebook, stops]
   );
-  const navigation = useMemo(
-    () => navigationForStop(stops, effectiveIdx, routebook, latestByStop),
-    [effectiveIdx, latestByStop, routebook, stops]
-  );
+  const navigation = useMemo(() => navigationForStop(stops, effectiveIdx, routebook, latestByStop), [effectiveIdx, latestByStop, routebook, stops]);
   const nextStopCountdown = useMemo(() => nextStopEta(next, nowTick), [next, nowTick]);
 
   useEffect(() => {
@@ -112,8 +106,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     getMyCheckins(profile.id, 200, ctrl.signal)
       .then((data) => {
         if (ctrl.signal.aborted) return;
-        const serverRows = (Array.isArray(data?.checkins) ? data.checkins : [])
-          .filter((item) => String(item?.routeId ?? '') === routeId);
+        const serverRows = (Array.isArray(data?.checkins) ? data.checkins : []).filter((item) => String(item?.routeId ?? '') === routeId);
         if (!serverRows.length) return;
         let rows = checkinsRef.current;
         for (const serverRow of serverRows) {
@@ -123,14 +116,14 @@ export default function TripView({ routebook, onBack, onReview }) {
           rows = existing
             ? markCheckinSynced(rows, clientLocalId, serverRow)
             : upsertCheckin(rows, {
-              ...serverRow,
-              clientLocalId,
-              clientSyncStatus: 'synced',
-              clientSyncError: '',
-              clientSyncRetryable: false,
-              clientSyncRetryAt: '',
-              clientSyncHttpStatus: ''
-            });
+                ...serverRow,
+                clientLocalId,
+                clientSyncStatus: 'synced',
+                clientSyncError: '',
+                clientSyncRetryable: false,
+                clientSyncRetryAt: '',
+                clientSyncHttpStatus: ''
+              });
         }
         commitCheckins(rows);
       })
@@ -201,12 +194,18 @@ export default function TripView({ routebook, onBack, onReview }) {
   function applyAlternative(alternative) {
     if (!current || currentProcessed || currentSyncPending) return;
     const alternativeStop = buildAlternativeStop(current, alternative);
-    const row = buildPendingCheckin(routebook, current, profile, {
-      status: 'replaced',
-      worth: '替换',
-      comment: `行中替换为：${alternativeStop.name}`,
-      replacementStopId: alternativeStop.id
-    }, { type: 'replace', replacementStop: alternativeStop, reason: alternative.reason });
+    const row = buildPendingCheckin(
+      routebook,
+      current,
+      profile,
+      {
+        status: 'replaced',
+        worth: '替换',
+        comment: `行中替换为：${alternativeStop.name}`,
+        replacementStopId: alternativeStop.id
+      },
+      { type: 'replace', replacementStop: alternativeStop, reason: alternative.reason }
+    );
     queueAndApplyLocalAction(row);
   }
 
@@ -240,7 +239,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     }
 
     const tripStatus = action.type === 'skip' ? 'skipped' : 'visited';
-    const updatedStops = stops.map((stop) => stopKeyForStop(stop) === row.localStopKey ? { ...stop, tripStatus } : stop);
+    const updatedStops = stops.map((stop) => (stopKeyForStop(stop) === row.localStopKey ? { ...stop, tripStatus } : stop));
     setActiveStops(updatedStops);
     advanceFromCurrent(updatedStops, { lastAction: { type: action.type || 'visit', stopId: row.stopId, at: row.time } });
     setModeNote(action.type === 'skip' ? '已在本地跳过此站，并进入下一站。' : '到达已记录在本地，并进入下一站。');
@@ -284,8 +283,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     const { attempted = 0, synced = 0, failed = 0 } = result ?? {};
     if (!attempted) return;
     if (failed) {
-      const terminalCount = checkinsRef.current
-        .filter((item) => item?.clientSyncStatus === 'failed' && item.clientSyncRetryable === false).length;
+      const terminalCount = checkinsRef.current.filter((item) => item?.clientSyncStatus === 'failed' && item.clientSyncRetryable === false).length;
       if (terminalCount) {
         setModeNote(`${terminalCount} 条记录未被服务端接受，需手动重试；其他可同步记录已继续处理${synced ? `，本次成功 ${synced} 条` : ''}。`);
       } else {
@@ -337,7 +335,11 @@ export default function TripView({ routebook, onBack, onReview }) {
       setModeNote('当前站点定位待复核，已禁用一键导航；请先在 POI 详情里补充真实坐标或改走下一个高置信站点。');
       return;
     }
-    window.open(`https://uri.amap.com/navigation?to=${current.lng},${current.lat},${encodeURIComponent(current.name)}&mode=${navigation.mode}&src=trusted-routebook&coordinate=wgs84&callnative=1`, '_blank', 'noopener,noreferrer');
+    window.open(
+      `https://uri.amap.com/navigation?to=${current.lng},${current.lat},${encodeURIComponent(current.name)}&mode=${navigation.mode}&src=trusted-routebook&coordinate=wgs84&callnative=1`,
+      '_blank',
+      'noopener,noreferrer'
+    );
   }
 
   function applyTripMode(mode) {
@@ -358,155 +360,215 @@ export default function TripView({ routebook, onBack, onReview }) {
     return ok;
   }
 
-  if (!current) return (
-    <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
-      <p className="text-body" style={{ color: 'var(--muted)' }}>暂无站点</p>
-      <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={onBack}>返回</button>
-    </div>
-  );
+  if (!current)
+    return (
+      <div className="container page-enter" style={{ paddingTop: 80, textAlign: 'center' }}>
+        <p className="text-body" style={{ color: 'var(--muted)' }}>
+          暂无站点
+        </p>
+        <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={onBack}>
+          返回
+        </button>
+      </div>
+    );
 
   return (
     <div className="trip-layout page-enter">
       <div className="trip-header">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}><ArrowLeft size={16} /> 退出行中</button>
-        <span className="text-micro">{effectiveIdx + 1} / {stops.length} · 行程进度 {progress}%</span>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <ArrowLeft size={16} /> 退出行中
+        </button>
+        <span className="text-micro">
+          {effectiveIdx + 1} / {stops.length} · 行程进度 {progress}%
+        </span>
       </div>
 
       <div className="trip-columns">
-      <div className="trip-main">
-        <div className="trip-progress">
-          <div className="trip-progress-bar"><span style={{ width: `${Math.min(100, progress)}%` }} /></div>
-          <div>
-            <strong>{routebook.title}</strong>
-            <span>{review}</span>
+        <div className="trip-main">
+          <div className="trip-progress">
+            <div className="trip-progress-bar">
+              <span style={{ width: `${Math.min(100, progress)}%` }} />
+            </div>
+            <div>
+              <strong>{routebook.title}</strong>
+              <span>{review}</span>
+            </div>
           </div>
-        </div>
 
-        {!trustedCities.includes(routebook.city) && (
-          <p className="text-caption trip-mode-note" role="status">
-            {routebook.city}为试验生成，POI、营业信息和导航需人工复核。
-          </p>
-        )}
-
-        <div className="trip-current-card card">
-          <span className="badge badge-green">当前站点</span>
-          <h1 className="text-hero" style={{ marginTop: 12 }}>{current.name}</h1>
-          <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
-            {current.time} · {current.stay} · {current.area}
-          </p>
-          <p className="text-caption" style={{ marginTop: 12 }}>{current.risk}</p>
-        </div>
-
-        {next && !isFinished && (
-          <div className="trip-next">
-            <ChevronRight size={16} style={{ color: 'var(--muted)' }} />
-            <span className="text-caption">
-              下一站：<strong>{next.name}</strong> · {next.time}
-              {nextStopCountdown && (
-                <strong style={{ marginLeft: 6, color: nextStopCountdown.overdue ? 'var(--orange)' : 'var(--green)' }}>
-                  {nextStopCountdown.label}
-                </strong>
-              )}
-            </span>
-          </div>
-        )}
-
-        <div className="trip-adjustments">
-          <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('少走路')}><Footprints size={14} /> 少走路</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('雨天')}><CloudRain size={14} /> 雨天</button>
-          <button className="btn btn-secondary btn-sm" onClick={skipStop} disabled={currentProcessed || currentSyncPending || isFinished}><SkipForward size={14} /> 跳过此站</button>
-        </div>
-        {modeNote && <p className="text-caption trip-mode-note">{modeNote}</p>}
-        {storageWarning && <p className="text-caption trip-mode-note">{storageWarning}</p>}
-        {tripStorageWarning && <p className="text-caption trip-mode-note">{tripStorageWarning}</p>}
-        {statusCheckin && (
-          <div className="trip-sync-state" role="status" aria-live="polite">
-            <span>
-              <strong>本地：{statusEvidence.localCompleted ? '操作已完成' : '待处理'}</strong>
-              {' · '}服务端：{syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
-              <br />
-              <small>{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</small>
-              {pendingSyncCount > 1 && <><br /><small>另有 {pendingSyncCount - 1} 条本地记录尚未同步；自动队列会继续处理可重试记录。</small></>}
-              {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && <><br /><small>最近错误：{statusCheckin.clientSyncError}</small></>}
-            </span>
-            {pendingSyncCount > 0 && (
-              <button className="btn btn-secondary btn-sm" onClick={handleSyncAction} disabled={queueFlushing}>
-                <RefreshCw size={14} /> {queueFlushing ? '同步中' : statusEvidence.syncStatus === 'failed' ? '重试此条' : '立即同步'}
-              </button>
-            )}
-          </div>
-        )}
-
-        <details className="trip-alternatives">
-          <summary>
-            <span>附近替代与休息点</span>
-            <small>
-              {alternatives.length} 个
-              {alternatives.length > 0 && (alternatives.some((item) => item.source === '平台 POI 库') ? ' · 含平台 POI 库' : ' · 路书内替代站点')}
-            </small>
-          </summary>
-          <div className="trip-alternative-list">
-            {alternatives.map((item) => (
-              <button key={item.stop.id} className="trip-alt-card" onClick={() => applyAlternative(item)} disabled={currentProcessed || currentSyncPending || isFinished}>
-                <strong>{item.name}</strong>
-                <span>{item.type} · {item.reason}</span>
-              </button>
-            ))}
-            {!alternatives.length && <p className="text-caption" style={{ color: 'var(--muted)' }}>当前路书及路线变体中没有可确认坐标或类别的替代站点。</p>}
-          </div>
-        </details>
-
-        <div className="trip-actions">
-          <button className="btn btn-primary btn-lg" style={{ flex: 1 }} onClick={() => setShowCheckin(true)} disabled={currentProcessed || currentSyncPending || isFinished}>
-            <Camera size={18} /> {isFinished ? '已完成' : currentProcessed ? '已记录' : currentSyncPending ? '同步中' : '记录到达'}
-          </button>
-          <button className="btn btn-secondary btn-lg" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
-            <MapIcon size={18} /> {navigation.label}
-          </button>
-        </div>
-
-        {checkins.length > 0 && (
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <p className="text-caption">
-              服务端有效到达 {progressStats.validArrivals} 站，公开可信样本 {progressStats.publicTrustSamples} 站
+          {!trustedCities.includes(routebook.city) && (
+            <p className="text-caption trip-mode-note" role="status">
+              {routebook.city}为试验生成，POI、营业信息和导航需人工复核。
             </p>
-            <p className="text-caption" style={{ marginTop: 4 }}>
-              普通反馈 {progressStats.feedbackOnly} 站，低置信/偏离 {progressStats.lowConfidenceArrivals} 次，跳过 {progressStats.skipped} 站，替换 {progressStats.replaced} 次
+          )}
+
+          <div className="trip-current-card card">
+            <span className="badge badge-green">当前站点</span>
+            <h1 className="text-hero" style={{ marginTop: 12 }}>
+              {current.name}
+            </h1>
+            <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
+              {current.time} · {current.stay} · {current.area}
             </p>
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onReview}>
-              <BookOpen size={14} /> {isFinished ? '生成完整路线回顾' : '查看路线回顾'}
+            <p className="text-caption" style={{ marginTop: 12 }}>
+              {current.risk}
+            </p>
+          </div>
+
+          {next && !isFinished && (
+            <div className="trip-next">
+              <ChevronRight size={16} style={{ color: 'var(--muted)' }} />
+              <span className="text-caption">
+                下一站：<strong>{next.name}</strong> · {next.time}
+                {nextStopCountdown && (
+                  <strong style={{ marginLeft: 6, color: nextStopCountdown.overdue ? 'var(--orange)' : 'var(--green)' }}>{nextStopCountdown.label}</strong>
+                )}
+              </span>
+            </div>
+          )}
+
+          <div className="trip-adjustments">
+            <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('少走路')}>
+              <Footprints size={14} /> 少走路
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applyTripMode('雨天')}>
+              <CloudRain size={14} /> 雨天
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={skipStop} disabled={currentProcessed || currentSyncPending || isFinished}>
+              <SkipForward size={14} /> 跳过此站
             </button>
           </div>
-        )}
-      </div>
+          {modeNote && <p className="text-caption trip-mode-note">{modeNote}</p>}
+          {storageWarning && <p className="text-caption trip-mode-note">{storageWarning}</p>}
+          {tripStorageWarning && <p className="text-caption trip-mode-note">{tripStorageWarning}</p>}
+          {statusCheckin && (
+            <div className="trip-sync-state" role="status" aria-live="polite">
+              <span>
+                <strong>本地：{statusEvidence.localCompleted ? '操作已完成' : '待处理'}</strong>
+                {' · '}服务端：{syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
+                <br />
+                <small>{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</small>
+                {pendingSyncCount > 1 && (
+                  <>
+                    <br />
+                    <small>另有 {pendingSyncCount - 1} 条本地记录尚未同步；自动队列会继续处理可重试记录。</small>
+                  </>
+                )}
+                {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
+                  <>
+                    <br />
+                    <small>最近错误：{statusCheckin.clientSyncError}</small>
+                  </>
+                )}
+              </span>
+              {pendingSyncCount > 0 && (
+                <button className="btn btn-secondary btn-sm" onClick={handleSyncAction} disabled={queueFlushing}>
+                  <RefreshCw size={14} /> {queueFlushing ? '同步中' : statusEvidence.syncStatus === 'failed' ? '重试此条' : '立即同步'}
+                </button>
+              )}
+            </div>
+          )}
 
-      <aside className="trip-rail" aria-label="行程总览">
-        <h2 className="text-subtitle">行程总览</h2>
-        <ol className="trip-rail-list">
-          {stops.map((stop, idx) => {
-            const processed = isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)));
-            const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
-            return (
-              <li key={stopKeyForStop(stop) || idx} className={`trip-rail-item ${state}`}>
-                <span className="rail-marker" aria-hidden="true">{processed ? <Check size={13} /> : idx + 1}</span>
-                <div className="rail-stop">
-                  <strong>{stop.name}</strong>
-                  <small>{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</small>
-                </div>
-                {state === 'current' && <span className="badge badge-green">当前</span>}
-                {state === 'done' && <span className="rail-done-label">已打卡</span>}
-              </li>
-            );
-          })}
-        </ol>
-      </aside>
+          <details className="trip-alternatives">
+            <summary>
+              <span>附近替代与休息点</span>
+              <small>
+                {alternatives.length} 个
+                {alternatives.length > 0 && (alternatives.some((item) => item.source === '平台 POI 库') ? ' · 含平台 POI 库' : ' · 路书内替代站点')}
+              </small>
+            </summary>
+            <div className="trip-alternative-list">
+              {alternatives.map((item) => (
+                <button
+                  key={item.stop.id}
+                  className="trip-alt-card"
+                  onClick={() => applyAlternative(item)}
+                  disabled={currentProcessed || currentSyncPending || isFinished}
+                >
+                  <strong>{item.name}</strong>
+                  <span>
+                    {item.type} · {item.reason}
+                  </span>
+                </button>
+              ))}
+              {!alternatives.length && (
+                <p className="text-caption" style={{ color: 'var(--muted)' }}>
+                  当前路书及路线变体中没有可确认坐标或类别的替代站点。
+                </p>
+              )}
+            </div>
+          </details>
+
+          <div className="trip-actions">
+            <button
+              className="btn btn-primary btn-lg"
+              style={{ flex: 1 }}
+              onClick={() => setShowCheckin(true)}
+              disabled={currentProcessed || currentSyncPending || isFinished}
+            >
+              <Camera size={18} /> {isFinished ? '已完成' : currentProcessed ? '已记录' : currentSyncPending ? '同步中' : '记录到达'}
+            </button>
+            <button className="btn btn-secondary btn-lg" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
+              <MapIcon size={18} /> {navigation.label}
+            </button>
+          </div>
+
+          {checkins.length > 0 && (
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <p className="text-caption">
+                服务端有效到达 {progressStats.validArrivals} 站，公开可信样本 {progressStats.publicTrustSamples} 站
+              </p>
+              <p className="text-caption" style={{ marginTop: 4 }}>
+                普通反馈 {progressStats.feedbackOnly} 站，低置信/偏离 {progressStats.lowConfidenceArrivals} 次，跳过 {progressStats.skipped} 站，替换{' '}
+                {progressStats.replaced} 次
+              </p>
+              <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onReview}>
+                <BookOpen size={14} /> {isFinished ? '生成完整路线回顾' : '查看路线回顾'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <aside className="trip-rail" aria-label="行程总览">
+          <h2 className="text-subtitle">行程总览</h2>
+          <ol className="trip-rail-list">
+            {stops.map((stop, idx) => {
+              const processed = isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)));
+              const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
+              return (
+                <li key={stopKeyForStop(stop) || idx} className={`trip-rail-item ${state}`}>
+                  <span className="rail-marker" aria-hidden="true">
+                    {processed ? <Check size={13} /> : idx + 1}
+                  </span>
+                  <div className="rail-stop">
+                    <strong>{stop.name}</strong>
+                    <small>{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</small>
+                  </div>
+                  {state === 'current' && <span className="badge badge-green">当前</span>}
+                  {state === 'done' && <span className="rail-done-label">已打卡</span>}
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
       </div>
 
       {showCheckin && (
         <div className="modal-backdrop" onClick={() => setShowCheckin(false)}>
-          <div ref={checkinDialogRef} className="sheet-content" role="dialog" aria-modal="true" aria-labelledby="checkin-title" tabIndex={-1} onClick={e => e.stopPropagation()}>
-            <h2 className="text-title" id="checkin-title">记录到达 · {current.name}</h2>
-            <p className="text-caption" style={{ marginTop: 4 }}>GPS 和体验字段均为选填；只有服务端确认的实名有效 GPS 到达才计入公开可信样本。</p>
+          <div
+            ref={checkinDialogRef}
+            className="sheet-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkin-title"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-title" id="checkin-title">
+              记录到达 · {current.name}
+            </h2>
+            <p className="text-caption" style={{ marginTop: 4 }}>
+              GPS 和体验字段均为选填；只有服务端确认的实名有效 GPS 到达才计入公开可信样本。
+            </p>
             <CheckinForm onSubmit={submitCheckin} onCancel={() => setShowCheckin(false)} />
           </div>
         </div>
@@ -622,14 +684,15 @@ function CheckinForm({ onSubmit, onCancel }) {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => setGps({
-        lat: Number(position.coords.latitude.toFixed(6)),
-        lng: Number(position.coords.longitude.toFixed(6)),
-        accuracy: Math.round(position.coords.accuracy),
-        // 客户端无法可靠判定浏览器返回的坐标系，标注 unknown 交由服务端双算纠偏。
-        coordinateSystem: 'unknown',
-        userAgent: String(navigator.userAgent ?? '').slice(0, 160)
-      }),
+      (position) =>
+        setGps({
+          lat: Number(position.coords.latitude.toFixed(6)),
+          lng: Number(position.coords.longitude.toFixed(6)),
+          accuracy: Math.round(position.coords.accuracy),
+          // 客户端无法可靠判定浏览器返回的坐标系，标注 unknown 交由服务端双算纠偏。
+          coordinateSystem: 'unknown',
+          userAgent: String(navigator.userAgent ?? '').slice(0, 160)
+        }),
       () => setGpsError('定位失败，仍可记录到达；服务端会保存为普通反馈，不是已验证到达。'),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
@@ -658,26 +721,49 @@ function CheckinForm({ onSubmit, onCancel }) {
   }
 
   return (
-    <form className="checkin-form" onSubmit={e => { e.preventDefault(); if (photoBusy) return; onSubmit({ queue, cost, worth, crowd, comment, pitfall, audience, photoName, photoData, gps }); }}>
+    <form
+      className="checkin-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (photoBusy) return;
+        onSubmit({ queue, cost, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
+      }}
+    >
       <button type="button" className="btn btn-secondary" style={{ marginTop: 18 }} onClick={locate}>
         <LocateFixed size={16} /> 可选：用 GPS 验证到达
       </button>
-      {gps && <p className="text-caption" style={{ marginTop: 8 }}>已定位：{gps.lat}, {gps.lng} · 精度约 {gps.accuracy}m</p>}
-      {gpsError && <p className="text-caption" style={{ marginTop: 8, color: 'var(--orange)' }}>{gpsError}</p>}
-      {!gps && !gpsError && <p className="text-caption" style={{ marginTop: 8 }}>不使用 GPS 也可记录到达；服务端会保存为普通反馈，不是已验证到达。</p>}
+      {gps && (
+        <p className="text-caption" style={{ marginTop: 8 }}>
+          已定位：{gps.lat}, {gps.lng} · 精度约 {gps.accuracy}m
+        </p>
+      )}
+      {gpsError && (
+        <p className="text-caption" style={{ marginTop: 8, color: 'var(--orange)' }}>
+          {gpsError}
+        </p>
+      )}
+      {!gps && !gpsError && (
+        <p className="text-caption" style={{ marginTop: 8 }}>
+          不使用 GPS 也可记录到达；服务端会保存为普通反馈，不是已验证到达。
+        </p>
+      )}
       <fieldset className="checkin-option-group" style={{ marginTop: 20 }}>
         <legend className="input-label">是否值得去（选填）</legend>
         <div className="chip-group">
-          {['值得', '一般', '踩坑'].map(v => (
-            <button type="button" key={v} aria-pressed={worth === v} className={`chip ${worth === v ? 'active' : ''}`} onClick={() => setWorth(v)}>{v}</button>
+          {['值得', '一般', '踩坑'].map((v) => (
+            <button type="button" key={v} aria-pressed={worth === v} className={`chip ${worth === v ? 'active' : ''}`} onClick={() => setWorth(v)}>
+              {v}
+            </button>
           ))}
         </div>
       </fieldset>
       <fieldset className="checkin-option-group" style={{ marginTop: 12 }}>
         <legend className="input-label">现场拥挤度（选填）</legend>
         <div className="chip-group">
-          {['空', '适中', '拥挤', '不建议'].map(v => (
-            <button type="button" key={v} aria-pressed={crowd === v} className={`chip ${crowd === v ? 'active' : ''}`} onClick={() => setCrowd(v)}>{v}</button>
+          {['空', '适中', '拥挤', '不建议'].map((v) => (
+            <button type="button" key={v} aria-pressed={crowd === v} className={`chip ${crowd === v ? 'active' : ''}`} onClick={() => setCrowd(v)}>
+              {v}
+            </button>
           ))}
         </div>
       </fieldset>
@@ -688,29 +774,75 @@ function CheckinForm({ onSubmit, onCancel }) {
         </summary>
         <div style={{ padding: 16 }}>
           <div>
-            <label className="input-label" htmlFor={`${fieldPrefix}-queue`}>排队时间</label>
-            <input id={`${fieldPrefix}-queue`} className="input-field" value={queue} onChange={e => setQueue(e.target.value)} placeholder="按现场情况填写，例如 15 分钟" />
+            <label className="input-label" htmlFor={`${fieldPrefix}-queue`}>
+              排队时间
+            </label>
+            <input
+              id={`${fieldPrefix}-queue`}
+              className="input-field"
+              value={queue}
+              onChange={(e) => setQueue(e.target.value)}
+              placeholder="按现场情况填写，例如 15 分钟"
+            />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-cost`}>实际花费</label>
-            <input id={`${fieldPrefix}-cost`} className="input-field" value={cost} onChange={e => setCost(e.target.value)} placeholder="按实际支付填写，例如 80 元" />
+            <label className="input-label" htmlFor={`${fieldPrefix}-cost`}>
+              实际花费
+            </label>
+            <input
+              id={`${fieldPrefix}-cost`}
+              className="input-field"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="按实际支付填写，例如 80 元"
+            />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-audience`}>适合人群</label>
-            <input id={`${fieldPrefix}-audience`} className="input-field" value={audience} onChange={e => setAudience(e.target.value)} placeholder="朋友/情侣/亲子/独行" />
+            <label className="input-label" htmlFor={`${fieldPrefix}-audience`}>
+              适合人群
+            </label>
+            <input
+              id={`${fieldPrefix}-audience`}
+              className="input-field"
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              placeholder="朋友/情侣/亲子/独行"
+            />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-comment`}>短评</label>
-            <textarea id={`${fieldPrefix}-comment`} className="input-field" value={comment} onChange={e => setComment(e.target.value)} placeholder="现场体验、是否顺路、是否值得保留..." />
+            <label className="input-label" htmlFor={`${fieldPrefix}-comment`}>
+              短评
+            </label>
+            <textarea
+              id={`${fieldPrefix}-comment`}
+              className="input-field"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="现场体验、是否顺路、是否值得保留..."
+            />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-pitfall`}>踩坑/风险</label>
-            <input id={`${fieldPrefix}-pitfall`} className="input-field" value={pitfall} onChange={e => setPitfall(e.target.value)} placeholder="闭店、涨价、排队、商业推销..." />
+            <label className="input-label" htmlFor={`${fieldPrefix}-pitfall`}>
+              踩坑/风险
+            </label>
+            <input
+              id={`${fieldPrefix}-pitfall`}
+              className="input-field"
+              value={pitfall}
+              onChange={(e) => setPitfall(e.target.value)}
+              placeholder="闭店、涨价、排队、商业推销..."
+            />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="input-label" htmlFor={`${fieldPrefix}-photo`}>打卡照片（选填）</label>
+            <label className="input-label" htmlFor={`${fieldPrefix}-photo`}>
+              打卡照片（选填）
+            </label>
             <input id={`${fieldPrefix}-photo`} className="input-field" type="file" accept="image/*" onChange={handlePhotoChange} />
-            {photoError && <p className="text-caption" style={{ marginTop: 6, color: 'var(--orange)' }}>{photoError}</p>}
+            {photoError && (
+              <p className="text-caption" style={{ marginTop: 6, color: 'var(--orange)' }}>
+                {photoError}
+              </p>
+            )}
             <p className="text-caption" style={{ marginTop: 6 }}>
               {photoBusy
                 ? '照片压缩中...'
@@ -722,8 +854,12 @@ function CheckinForm({ onSubmit, onCancel }) {
         </div>
       </details>
       <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-        <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>取消</button>
-        <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={photoBusy}><Check size={16} /> {photoBusy ? '照片处理中...' : '记录到达'}</button>
+        <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>
+          取消
+        </button>
+        <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={photoBusy}>
+          <Check size={16} /> {photoBusy ? '照片处理中...' : '记录到达'}
+        </button>
       </div>
     </form>
   );
@@ -805,19 +941,23 @@ function queuedCheckinsByTime(checkins) {
 }
 
 function latestCheckinByTime(checkins) {
-  return [...(checkins ?? [])].sort((left, right) => {
-    const leftTime = String(left?.time ?? left?.createdAt ?? '');
-    const rightTime = String(right?.time ?? right?.createdAt ?? '');
-    return rightTime.localeCompare(leftTime) || String(right?.clientLocalId ?? '').localeCompare(String(left?.clientLocalId ?? ''));
-  })[0] ?? null;
+  return (
+    [...(checkins ?? [])].sort((left, right) => {
+      const leftTime = String(left?.time ?? left?.createdAt ?? '');
+      const rightTime = String(right?.time ?? right?.createdAt ?? '');
+      return rightTime.localeCompare(leftTime) || String(right?.clientLocalId ?? '').localeCompare(String(left?.clientLocalId ?? ''));
+    })[0] ?? null
+  );
 }
 
 function checkinForStatusDisplay(checkins) {
   const rows = checkins ?? [];
-  return rows.find((item) => item?.clientSyncStatus === 'syncing')
-    ?? rows.find((item) => item?.clientSyncStatus === 'failed')
-    ?? queuedCheckinsByTime(rows)[0]
-    ?? latestCheckinByTime(rows);
+  return (
+    rows.find((item) => item?.clientSyncStatus === 'syncing') ??
+    rows.find((item) => item?.clientSyncStatus === 'failed') ??
+    queuedCheckinsByTime(rows)[0] ??
+    latestCheckinByTime(rows)
+  );
 }
 
 function syncStatusLabel(status, row) {
@@ -985,10 +1125,11 @@ function buildStopsForMode(mode, sourceStops, routebook, anchorStop, processedKe
 
 function navigationForStop(stops, currentIndex, routebook, latestByStop) {
   const current = stops[currentIndex];
-  const previous = [...stops.slice(0, currentIndex)].reverse().find((stop) => {
-    const checkin = latestByStop.get(stopKeyForStop(stop));
-    return checkin?.status !== 'skipped' && checkin?.status !== 'replaced' && checkin?.worth !== '跳过' && checkin?.worth !== '替换';
-  }) ?? stops[currentIndex - 1];
+  const previous =
+    [...stops.slice(0, currentIndex)].reverse().find((stop) => {
+      const checkin = latestByStop.get(stopKeyForStop(stop));
+      return checkin?.status !== 'skipped' && checkin?.status !== 'replaced' && checkin?.worth !== '跳过' && checkin?.worth !== '替换';
+    }) ?? stops[currentIndex - 1];
   const distance = previous && current ? distanceKm(previous, current) : null;
   // 站点上并没有 transport/transfer 之类的转场字段；从实际存在的 verify/risk 文本
   // 与路书约束里的交通偏好推断导航模式。

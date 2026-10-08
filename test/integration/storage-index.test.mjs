@@ -13,7 +13,14 @@ const stops = [
   { id: 's2', name: '平湖秋月', lat: 30.2525, lng: 120.1441 }
 ];
 const route = (id, extra = {}) => ({
-  id, publicId: id, title: `路书 ${id}`, city: '杭州', publishStatus: 'published', version: 1, stops, ...extra
+  id,
+  publicId: id,
+  title: `路书 ${id}`,
+  city: '杭州',
+  publishStatus: 'published',
+  version: 1,
+  stops,
+  ...extra
 });
 
 let server;
@@ -25,7 +32,9 @@ before(async () => {
   await writeJsonl(dataDir, 'routebooks.jsonl', rows);
   server = await startServer({ dataDir });
 });
-after(async () => { await server?.stop(); });
+after(async () => {
+  await server?.stop();
+});
 
 test('an old routebook behind thousands of newer rows resolves to its latest snapshot', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/routebooks/rb-oldest`);
@@ -51,11 +60,17 @@ test('writes through the API are visible on the next read (read-your-writes)', a
 test('version history and audits are built from projected rows', async () => {
   const result = await fetchJson(`${server.baseUrl}/api/routebooks/rb-oldest/versions`, { headers: adminHeaders() });
   assert.equal(result.status, 200, JSON.stringify(result.data));
-  assert.deepEqual(result.data.versions.map((item) => item.version), [1, 2, 3]);
+  assert.deepEqual(
+    result.data.versions.map((item) => item.version),
+    [1, 2, 3]
+  );
   assert.equal(result.data.versions[1].changeReason, '编辑');
   assert.equal(result.data.versions[2].publishStatus, 'archived');
   assert.equal(result.data.currentVersion, 3);
-  assert.ok(result.data.audits.some((audit) => audit.event === 'status-changed'), JSON.stringify(result.data.audits));
+  assert.ok(
+    result.data.audits.some((audit) => audit.event === 'status-changed'),
+    JSON.stringify(result.data.audits)
+  );
 });
 
 test('rows appended by another process are picked up without a restart', async () => {

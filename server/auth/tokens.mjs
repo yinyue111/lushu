@@ -13,11 +13,16 @@ export function createRouteEditToken() {
 }
 
 export function createServerProfileId() {
-  return `p_${cryptoRandomId().replace(/[^A-Za-z0-9]/g, '').slice(0, 24)}`;
+  return `p_${cryptoRandomId()
+    .replace(/[^A-Za-z0-9]/g, '')
+    .slice(0, 24)}`;
 }
 
 export function sanitizeEditToken(value) {
-  return String(value ?? '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
+  return String(value ?? '')
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '')
+    .slice(0, 96);
 }
 
 export function safeEqualHex(a, b) {
@@ -37,7 +42,10 @@ export function safeTokenEqual(provided, expected) {
 }
 
 export function hmacText(value, secret = PROFILE_ID_SECRET) {
-  return createHmac('sha256', String(secret || 'trusted-routebook')).update(String(value ?? '')).digest('hex').slice(0, 18);
+  return createHmac('sha256', String(secret || 'trusted-routebook'))
+    .update(String(value ?? ''))
+    .digest('hex')
+    .slice(0, 18);
 }
 
 export function hashSecretToken(value) {

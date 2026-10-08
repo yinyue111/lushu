@@ -4,7 +4,8 @@ import { isValidCoordinate } from '../lib/util.mjs';
 export function hasImageMagicBytes(buffer, mimeType) {
   const type = String(mimeType ?? '').toLowerCase();
   if (type === 'image/png') {
-    return buffer.length >= 8 &&
+    return (
+      buffer.length >= 8 &&
       buffer[0] === 0x89 &&
       buffer[1] === 0x50 &&
       buffer[2] === 0x4e &&
@@ -12,15 +13,14 @@ export function hasImageMagicBytes(buffer, mimeType) {
       buffer[4] === 0x0d &&
       buffer[5] === 0x0a &&
       buffer[6] === 0x1a &&
-      buffer[7] === 0x0a;
+      buffer[7] === 0x0a
+    );
   }
   if (type === 'image/jpeg' || type === 'image/jpg') {
     return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
   }
   if (type === 'image/webp') {
-    return buffer.length >= 12 &&
-      buffer.toString('ascii', 0, 4) === 'RIFF' &&
-      buffer.toString('ascii', 8, 12) === 'WEBP';
+    return buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
   }
   return false;
 }
@@ -83,13 +83,15 @@ function parseExifTiff(tiff) {
     }
     return entries;
   };
-  const entryValueOffset = (entryOffset, byteLength) =>
-    (byteLength <= 4 ? entryOffset + 8 : readUInt32(entryOffset + 8));
+  const entryValueOffset = (entryOffset, byteLength) => (byteLength <= 4 ? entryOffset + 8 : readUInt32(entryOffset + 8));
   const readAscii = (entryOffset) => {
     const count = readUInt32(entryOffset + 4);
     const valueOffset = entryValueOffset(entryOffset, count);
     if (!Number.isFinite(valueOffset) || valueOffset + count > tiff.length) return '';
-    return tiff.toString('latin1', valueOffset, valueOffset + count).replace(/\0+$/, '').trim();
+    return tiff
+      .toString('latin1', valueOffset, valueOffset + count)
+      .replace(/\0+$/, '')
+      .trim();
   };
   const readRationals = (entryOffset, expected) => {
     const count = readUInt32(entryOffset + 4);

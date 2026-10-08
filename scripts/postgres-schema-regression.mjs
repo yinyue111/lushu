@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const migrationPath = fileURLToPath(
-  new URL('../migrations/0001_content_routebook_foundation.sql', import.meta.url)
-);
+const migrationPath = fileURLToPath(new URL('../migrations/0001_content_routebook_foundation.sql', import.meta.url));
 const databaseName = `trusted_routebook_schema_${process.pid}_${Date.now().toString(36)}`;
 const commandEnv = {
   ...process.env,
@@ -57,15 +55,7 @@ async function requireTool(command) {
 }
 
 async function psql(args) {
-  return run('psql', [
-    '--no-password',
-    '--no-psqlrc',
-    '--set',
-    'ON_ERROR_STOP=1',
-    '--dbname',
-    databaseName,
-    ...args
-  ]);
+  return run('psql', ['--no-password', '--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--dbname', databaseName, ...args]);
 }
 
 async function query(sql) {
@@ -74,22 +64,11 @@ async function query(sql) {
 }
 
 async function expectSqlFailure(label, sql, expectedPattern) {
-  const result = await run('psql', [
-    '--no-password',
-    '--no-psqlrc',
-    '--set',
-    'ON_ERROR_STOP=1',
-    '--dbname',
-    databaseName,
-    '--command',
-    sql
-  ], { allowFailure: true });
+  const result = await run('psql', ['--no-password', '--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--dbname', databaseName, '--command', sql], {
+    allowFailure: true
+  });
   assert.notEqual(result.code, 0, `${label} unexpectedly succeeded`);
-  assert.match(
-    redact(`${result.stderr}\n${result.stdout}`),
-    expectedPattern,
-    `${label} failed for an unexpected reason`
-  );
+  assert.match(redact(`${result.stderr}\n${result.stdout}`), expectedPattern, `${label} failed for an unexpected reason`);
 }
 
 function sqlTextList(values) {
@@ -106,24 +85,20 @@ async function main() {
 
   let failure = null;
   try {
-    await run('createdb', [
-      '--no-password',
-      '--template',
-      'template0',
-      '--encoding',
-      'UTF8',
-      databaseName
-    ]);
+    await run('createdb', ['--no-password', '--template', 'template0', '--encoding', 'UTF8', databaseName]);
 
     await psql(['--file', migrationPath]);
-    await psql(['--command', `
+    await psql([
+      '--command',
+      `
       alter table trusted_routebook.routebook_versions
         drop constraint routebook_versions_snapshot_no_credentials_check;
       alter table trusted_routebook.routebook_versions
         add constraint routebook_versions_snapshot_no_credentials_check check (
           snapshot::text !~* '"editToken"[[:space:]]*:'
         );
-    `]);
+    `
+    ]);
     await psql(['--file', migrationPath]);
 
     const tables = [
@@ -223,13 +198,11 @@ async function main() {
       '1',
       'routebook version immutability trigger should exist exactly once'
     );
-    assert.equal(
-      await query(`select has_schema_privilege('public', 'trusted_routebook', 'usage')`),
-      'f',
-      'PUBLIC must not have schema usage'
-    );
+    assert.equal(await query(`select has_schema_privilege('public', 'trusted_routebook', 'usage')`), 'f', 'PUBLIC must not have schema usage');
 
-    await psql(['--command', `
+    await psql([
+      '--command',
+      `
       insert into trusted_routebook.profiles (public_id, display_name)
       values ('profile-regression', 'Schema regression');
 
@@ -371,7 +344,8 @@ async function main() {
         on evidence.poi_id = facts.poi_id
       where facts.public_id = 'fact-regression-a'
         and evidence.public_id = 'evidence-regression-a';
-    `]);
+    `
+    ]);
 
     assert.equal(
       await query(`
@@ -529,21 +503,23 @@ async function main() {
       'failed idempotency writes must leave one checkin'
     );
 
-    console.log(JSON.stringify({
-      ok: true,
-      migrationRuns: 2,
-      tables: tables.length,
-      catalogAssertions: constraints.length + indexes.length + 3,
-      negativeAssertions: 6 + sensitiveSnapshotCases.length
-    }));
+    console.log(
+      JSON.stringify({
+        ok: true,
+        migrationRuns: 2,
+        tables: tables.length,
+        catalogAssertions: constraints.length + indexes.length + 3,
+        negativeAssertions: 6 + sensitiveSnapshotCases.length
+      })
+    );
   } catch (error) {
     failure = error;
   } finally {
-    const cleanup = await run(
-      'dropdb',
-      ['--no-password', '--if-exists', '--force', databaseName],
-      { allowFailure: true }
-    ).catch((error) => ({ code: 1, stderr: error.message, stdout: '' }));
+    const cleanup = await run('dropdb', ['--no-password', '--if-exists', '--force', databaseName], { allowFailure: true }).catch((error) => ({
+      code: 1,
+      stderr: error.message,
+      stdout: ''
+    }));
     if (cleanup.code !== 0 && !failure) {
       failure = new Error(`temporary database cleanup failed: ${redact(cleanup.stderr || cleanup.stdout)}`);
     }

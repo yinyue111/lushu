@@ -7,21 +7,17 @@ export const PUBLIC_TRUST_SAMPLE_THRESHOLD = 3;
 export function getRouteTrustPresentation(routebook) {
   const meta = routebook?.trustMeta ?? {};
   const sampleCount = Math.max(0, Number(meta.sampleCount ?? routebook?.feedbackSummary?.validArrivalCount ?? 0) || 0);
-  const scorePresent = typeof meta.displayScore === 'number' ||
-    (typeof meta.displayScore === 'string' && meta.displayScore.trim() !== '');
+  const scorePresent = typeof meta.displayScore === 'number' || (typeof meta.displayScore === 'string' && meta.displayScore.trim() !== '');
   const displayScore = scorePresent ? Number(meta.displayScore) : Number.NaN;
-  const verified = meta.source === 'verified-feedback' &&
+  const verified =
+    meta.source === 'verified-feedback' &&
     sampleCount >= PUBLIC_TRUST_SAMPLE_THRESHOLD &&
     Number.isFinite(displayScore) &&
     displayScore >= 0 &&
     displayScore <= 100;
   const metaLabel = typeof meta.label === 'string' && meta.label.trim() ? meta.label.trim() : '';
-  const label = verified
-    ? (metaLabel || '真实打卡验证可信分')
-    : (metaLabel || '预测可信度 · 待真实验证');
-  const sampleProgressText = verified
-    ? ''
-    : `已收集 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`;
+  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '预测可信度 · 待真实验证';
+  const sampleProgressText = verified ? '' : `已收集 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`;
 
   return {
     verified,

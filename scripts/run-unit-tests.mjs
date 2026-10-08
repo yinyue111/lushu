@@ -6,8 +6,7 @@ import { listFiles } from './lib/list-files.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const filter = process.argv.slice(2);
-const files = listFiles(root, (path) => /^test\/.+\.test\.mjs$/.test(path))
-  .filter((file) => !filter.length || filter.some((item) => file.includes(item)));
+const files = listFiles(root, (path) => /^test\/.+\.test\.mjs$/.test(path)).filter((file) => !filter.length || filter.some((item) => file.includes(item)));
 if (!files.length) {
   console.error('No test files matched.');
   process.exit(1);

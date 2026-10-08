@@ -49,7 +49,7 @@ export const MAX_IMPORT_PAGE_BYTES = envNumber('MAX_IMPORT_PAGE_BYTES', 512 * 10
 export const MAX_ROUTEBOOK_STOPS = envNumber('MAX_ROUTEBOOK_STOPS', 40, { min: 2, max: 500 });
 export const MAX_OCR_IMAGES = envNumber('MAX_OCR_IMAGES', 4, { min: 1, max: 20 });
 export const MAX_OCR_IMAGE_BYTES = envNumber('MAX_OCR_IMAGE_BYTES', 2 * 1024 * 1024, { min: 1024 });
-export const MAX_OCR_REQUEST_BYTES = envNumber('MAX_OCR_REQUEST_BYTES', Math.ceil(MAX_OCR_IMAGES * MAX_OCR_IMAGE_BYTES * 4 / 3) + 64 * 1024, { min: 1024 });
+export const MAX_OCR_REQUEST_BYTES = envNumber('MAX_OCR_REQUEST_BYTES', Math.ceil((MAX_OCR_IMAGES * MAX_OCR_IMAGE_BYTES * 4) / 3) + 64 * 1024, { min: 1024 });
 export const IMPORT_TIMEOUT_MS = envNumber('IMPORT_TIMEOUT_MS', 12000, { min: 100 });
 export const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 120000, { min: 1000 });
 
@@ -73,7 +73,7 @@ export const RATE_LIMIT_BUCKET_SWEEP_SIZE = 10000;
 
 // rank13 打卡照片：解码后大小上限与 OCR 同级；请求体按 base64 膨胀预留余量。
 export const MAX_CHECKIN_PHOTO_BYTES = envNumber('MAX_CHECKIN_PHOTO_BYTES', MAX_OCR_IMAGE_BYTES, { min: 1024 });
-export const MAX_CHECKIN_PHOTO_REQUEST_BYTES = Math.ceil(MAX_CHECKIN_PHOTO_BYTES * 4 / 3) + 64 * 1024;
+export const MAX_CHECKIN_PHOTO_REQUEST_BYTES = Math.ceil((MAX_CHECKIN_PHOTO_BYTES * 4) / 3) + 64 * 1024;
 export const CHECKIN_PHOTO_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export const CHECKIN_PHOTO_GPS_MATCH_METERS = 500;
 
@@ -106,11 +106,10 @@ export const { secret: PROFILE_ID_SECRET, source: PROFILE_ID_SECRET_SOURCE } = r
 
 const REQUIRE_LOCAL_ADMIN_TOKEN = process.env.REQUIRE_LOCAL_ADMIN_TOKEN === 'true';
 
-export const ALLOW_LOCAL_API_BYPASS = process.env.ALLOW_LOCAL_API_BYPASS === 'true' ||
-  (!IS_PRODUCTION && process.env.ALLOW_LOCAL_API_BYPASS !== 'false');
+export const ALLOW_LOCAL_API_BYPASS = process.env.ALLOW_LOCAL_API_BYPASS === 'true' || (!IS_PRODUCTION && process.env.ALLOW_LOCAL_API_BYPASS !== 'false');
 
-export const ALLOW_LOCAL_ADMIN_BYPASS = process.env.ALLOW_LOCAL_ADMIN_BYPASS === 'true' ||
-  (!IS_PRODUCTION && !REQUIRE_LOCAL_ADMIN_TOKEN && process.env.ALLOW_LOCAL_ADMIN_BYPASS !== 'false');
+export const ALLOW_LOCAL_ADMIN_BYPASS =
+  process.env.ALLOW_LOCAL_ADMIN_BYPASS === 'true' || (!IS_PRODUCTION && !REQUIRE_LOCAL_ADMIN_TOKEN && process.env.ALLOW_LOCAL_ADMIN_BYPASS !== 'false');
 
 export const PROFILE_IDENTITY_ASSERTION_SECRET = process.env.PROFILE_IDENTITY_ASSERTION_SECRET || '';
 export const TRUST_PROXY_HEADERS = process.env.TRUST_PROXY_HEADERS === 'true';

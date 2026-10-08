@@ -26,7 +26,10 @@ function shanghaiDate() {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).formatToParts(new Date()).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value])
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value])
   );
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
@@ -74,17 +77,17 @@ async function main() {
       PORT: String(PORT),
       HOST: '127.0.0.1',
       ROUTEBOOK_DATA_DIR: dataDir,
-	      RATE_LIMIT_MAX: '420',
+      RATE_LIMIT_MAX: '420',
       // rank9 分桶后核心写（routebooks/checkins 等）默认 24/分；本脚本的
       // 「列表唯一性」用例要对同一路书连续 205 次编辑（压测型用例），与原
       // RATE_LIMIT_MAX 同步放宽核心写配额，不改变限流断言语义。
       RATE_LIMIT_CORE_WRITE_MAX: '420',
       RATE_LIMIT_WINDOW_MS: '60000',
       REQUIRE_LOCAL_ADMIN_TOKEN: 'true',
-	      ROUTEBOOK_ADMIN_TOKEN: ADMIN_TOKEN,
-	      PROFILE_ID_SECRET: 'security-regression-profile-secret',
-	      PROFILE_IDENTITY_ASSERTION_SECRET: IDENTITY_ASSERTION_SECRET,
-	      ALLOW_PUBLIC_MODEL_PROXY: 'true',
+      ROUTEBOOK_ADMIN_TOKEN: ADMIN_TOKEN,
+      PROFILE_ID_SECRET: 'security-regression-profile-secret',
+      PROFILE_IDENTITY_ASSERTION_SECRET: IDENTITY_ASSERTION_SECRET,
+      ALLOW_PUBLIC_MODEL_PROXY: 'true',
       ROUTEBOOK_API_TOKEN: PUBLIC_TOKEN,
       TRUST_PROXY_HEADERS: 'true',
       IMPORT_TIMEOUT_MS: '3000',
@@ -92,10 +95,10 @@ async function main() {
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
-	  const stderr = [];
-	  let originalProducts = null;
-	  const targetFailures = [];
-	  child.stderr.on('data', (chunk) => stderr.push(chunk.toString()));
+  const stderr = [];
+  let originalProducts = null;
+  const targetFailures = [];
+  child.stderr.on('data', (chunk) => stderr.push(chunk.toString()));
 
   try {
     await waitForHealth();
@@ -111,16 +114,16 @@ async function main() {
     if (csp.includes('https://images.unsplash.com')) {
       throw new Error(`Static CSP should not allow removed Unsplash assets, got ${csp}`);
     }
-	    if (/127\.0\.0\.1:\*|ws:\/\/127\.0\.0\.1:\*/.test(csp)) {
-	      throw new Error(`Production CSP should not allow localhost or ws connect-src, got ${csp}`);
-	    }
-	    const missingAsset = await fetch(`${BASE_URL}/assets/not-found.js`);
-	    recordTargetFailure(
-	      targetFailures,
-	      missingAsset.status === 404 && !String(missingAsset.headers.get('content-type') ?? '').includes('text/html'),
-	      `[SR-07] Missing asset should return HTTP 404 instead of the SPA index, got HTTP ${missingAsset.status} (${missingAsset.headers.get('content-type')})`
-	    );
-	    originalProducts = await fetchJson(`${BASE_URL}/api/products`);
+    if (/127\.0\.0\.1:\*|ws:\/\/127\.0\.0\.1:\*/.test(csp)) {
+      throw new Error(`Production CSP should not allow localhost or ws connect-src, got ${csp}`);
+    }
+    const missingAsset = await fetch(`${BASE_URL}/assets/not-found.js`);
+    recordTargetFailure(
+      targetFailures,
+      missingAsset.status === 404 && !String(missingAsset.headers.get('content-type') ?? '').includes('text/html'),
+      `[SR-07] Missing asset should return HTTP 404 instead of the SPA index, got HTTP ${missingAsset.status} (${missingAsset.headers.get('content-type')})`
+    );
+    originalProducts = await fetchJson(`${BASE_URL}/api/products`);
     if (!originalProducts.response.ok) {
       throw new Error(`Product config preflight failed: ${JSON.stringify(originalProducts.data)}`);
     }
@@ -164,7 +167,7 @@ async function main() {
       logs: [{ stage: '私有生成日志', input: '用户输入', result: '内部结果', status: '通过' }],
       provider: { name: 'security-provider', model: 'private-model', baseUrl: 'https://private-provider.example.com' },
       stops: [
-	        { id: 'a', day: 'Day 1', time: '09:00', name: '柳浪闻莺', area: '西湖', lat: 30.242, lng: 120.1617, score: 80 },
+        { id: 'a', day: 'Day 1', time: '09:00', name: '柳浪闻莺', area: '西湖', lat: 30.242, lng: 120.1617, score: 80 },
         { id: 'b', day: 'Day 1', time: '11:00', name: '灵隐寺', area: '西湖', lat: 30.24, lng: 120.102, score: 82, geoConfidence: 45 }
       ],
       days: ['Day 1']
@@ -186,24 +189,35 @@ async function main() {
     if (!lowGeoStop?.navigationDisabled) {
       throw new Error(`Low-confidence coordinates should disable navigation: ${JSON.stringify(saved.data.routebook.stops)}`);
     }
-	    const unverifiedProfile = await fetchJson(`${BASE_URL}/api/profile`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        profileId: 'local-profile-to-bind',
-	        phone: '13800000000',
-	        homeCity: '杭州'
-	      })
-	    });
-	    if (!unverifiedProfile.response.ok || unverifiedProfile.data.profile?.id === 'local-profile-to-bind' || unverifiedProfile.data.profile?.previousLocalId !== 'local-profile-to-bind' || unverifiedProfile.data.profile?.identityBound || !unverifiedProfile.data.profile?.identityBindingRequired || !unverifiedProfile.data.profile?.profileAccessToken) {
-	      throw new Error(`Bare phone/openid should not bind a stable identity: ${JSON.stringify(unverifiedProfile.data)}`);
-	    }
+    const unverifiedProfile = await fetchJson(`${BASE_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        profileId: 'local-profile-to-bind',
+        phone: '13800000000',
+        homeCity: '杭州'
+      })
+    });
+    if (
+      !unverifiedProfile.response.ok ||
+      unverifiedProfile.data.profile?.id === 'local-profile-to-bind' ||
+      unverifiedProfile.data.profile?.previousLocalId !== 'local-profile-to-bind' ||
+      unverifiedProfile.data.profile?.identityBound ||
+      !unverifiedProfile.data.profile?.identityBindingRequired ||
+      !unverifiedProfile.data.profile?.profileAccessToken
+    ) {
+      throw new Error(`Bare phone/openid should not bind a stable identity: ${JSON.stringify(unverifiedProfile.data)}`);
+    }
     const arbitraryProfileClaim = await fetchJson(`${BASE_URL}/api/profile`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id: 'security-owner', homeCity: '杭州' })
     });
-    if (!arbitraryProfileClaim.response.ok || arbitraryProfileClaim.data.profile?.id === 'security-owner' || arbitraryProfileClaim.data.profile?.previousLocalId !== 'security-owner') {
+    if (
+      !arbitraryProfileClaim.response.ok ||
+      arbitraryProfileClaim.data.profile?.id === 'security-owner' ||
+      arbitraryProfileClaim.data.profile?.previousLocalId !== 'security-owner'
+    ) {
       throw new Error(`Arbitrary profileId should be migrated to a server-issued id, not tokenized in place: ${JSON.stringify(arbitraryProfileClaim.data)}`);
     }
     const claimedOwnerRead = await fetchJson(`${BASE_URL}/api/routebooks?profileId=security-owner`, {
@@ -213,27 +227,29 @@ async function main() {
       }
     });
     if (claimedOwnerRead.response.status !== 403) {
-      throw new Error(`Server-issued token for migrated local profile should not read arbitrary previousLocalId assets, got HTTP ${claimedOwnerRead.response.status}`);
+      throw new Error(
+        `Server-issued token for migrated local profile should not read arbitrary previousLocalId assets, got HTTP ${claimedOwnerRead.response.status}`
+      );
     }
-	    const verifiedIdentity = createIdentityProof('phone', '13800000000');
-	    const boundProfile = await fetchJson(`${BASE_URL}/api/profile`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        profileId: 'local-profile-to-bind',
-	        identity: verifiedIdentity,
-	        homeCity: '杭州'
-	      })
-	    });
-	    if (!boundProfile.response.ok || boundProfile.data.profile?.id === 'local-profile-to-bind' || !boundProfile.data.profile?.identityBound) {
-	      throw new Error(`Verified identity assertion should replace local profileId: ${JSON.stringify(boundProfile.data)}`);
-	    }
+    const verifiedIdentity = createIdentityProof('phone', '13800000000');
+    const boundProfile = await fetchJson(`${BASE_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        profileId: 'local-profile-to-bind',
+        identity: verifiedIdentity,
+        homeCity: '杭州'
+      })
+    });
+    if (!boundProfile.response.ok || boundProfile.data.profile?.id === 'local-profile-to-bind' || !boundProfile.data.profile?.identityBound) {
+      throw new Error(`Verified identity assertion should replace local profileId: ${JSON.stringify(boundProfile.data)}`);
+    }
     if (!boundProfile.data.profile?.profileAccessToken) {
       throw new Error(`Profile binding should return owner read token: ${JSON.stringify(boundProfile.data)}`);
     }
-	    const boundDraft = await fetchJson(`${BASE_URL}/api/routebooks`, {
-	      method: 'POST',
-	      headers: profileHeaders(boundProfile.data.profile),
+    const boundDraft = await fetchJson(`${BASE_URL}/api/routebooks`, {
+      method: 'POST',
+      headers: profileHeaders(boundProfile.data.profile),
       body: JSON.stringify({
         ...template,
         title: '已绑定用户私有草稿',
@@ -259,7 +275,11 @@ async function main() {
         'x-forwarded-for': '203.0.113.201'
       }
     });
-    if (!boundDraftOwnerRead.response.ok || !boundDraftOwnerRead.data.routebook?.editToken || boundDraftOwnerRead.data.routebook?.constraints?.base !== '西湖边某酒店') {
+    if (
+      !boundDraftOwnerRead.response.ok ||
+      !boundDraftOwnerRead.data.routebook?.editToken ||
+      boundDraftOwnerRead.data.routebook?.constraints?.base !== '西湖边某酒店'
+    ) {
       throw new Error(`Owner token should read full private draft: ${JSON.stringify(boundDraftOwnerRead.data)}`);
     }
     const ownerScopedRead = await fetchJson(`${BASE_URL}/api/checkins?profileId=${encodeURIComponent(boundProfile.data.profile.id)}`, {
@@ -271,17 +291,17 @@ async function main() {
     if (!ownerScopedRead.response.ok) {
       throw new Error(`Profile owner token should allow scoped reads: ${JSON.stringify(ownerScopedRead.data)}`);
     }
-	    const hijackedProfile = await fetchJson(`${BASE_URL}/api/profile`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        phone: '13800000000',
-	        homeCity: '上海'
-	      })
-	    });
-	    if (!hijackedProfile.response.ok || hijackedProfile.data.profile?.id === boundProfile.data.profile.id || hijackedProfile.data.profile?.identityBound) {
-	      throw new Error(`Bare phone should not recover or reset an existing stable profile: ${JSON.stringify(hijackedProfile.data)}`);
-	    }
+    const hijackedProfile = await fetchJson(`${BASE_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        phone: '13800000000',
+        homeCity: '上海'
+      })
+    });
+    if (!hijackedProfile.response.ok || hijackedProfile.data.profile?.id === boundProfile.data.profile.id || hijackedProfile.data.profile?.identityBound) {
+      throw new Error(`Bare phone should not recover or reset an existing stable profile: ${JSON.stringify(hijackedProfile.data)}`);
+    }
     const tokenProfileUpdate = await fetchJson(`${BASE_URL}/api/profile`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -295,41 +315,54 @@ async function main() {
         creatorName: '跨设备测试用户'
       })
     });
-		    if (!tokenProfileUpdate.response.ok || tokenProfileUpdate.data.profile?.id !== boundProfile.data.profile.id || !tokenProfileUpdate.data.profile?.identityBound || tokenProfileUpdate.data.profile?.creatorName !== '跨设备测试用户') {
-		      throw new Error(`Existing stable profile should update with current token: ${JSON.stringify(tokenProfileUpdate.data)}`);
-		    }
-		    const recoveredProfile = await fetchJson(`${BASE_URL}/api/profile`, {
-		      method: 'POST',
-		      headers: { 'content-type': 'application/json' },
-		      body: JSON.stringify({
-		        id: boundProfile.data.profile.id,
-		        profileAccessToken: boundProfile.data.profile.profileAccessToken
-		      })
-		    });
-		    if (!recoveredProfile.response.ok || recoveredProfile.data.profile?.homeCity !== '上海' || recoveredProfile.data.profile?.budget !== '人均 1600' || recoveredProfile.data.profile?.creatorName !== '跨设备测试用户' || !recoveredProfile.data.profile?.preferredCities?.includes('苏州') || !recoveredProfile.data.profile?.themes?.includes('建筑') || !recoveredProfile.data.profile?.identityBound) {
-		      throw new Error(`Token-only profile recovery should preserve stored preferences and identity: ${JSON.stringify(recoveredProfile.data)}`);
-		    }
-		    const wrongRecoveryToken = await fetchJson(`${BASE_URL}/api/profile`, {
-		      method: 'POST',
-		      headers: { 'content-type': 'application/json' },
-		      body: JSON.stringify({
-		        id: boundProfile.data.profile.id,
-		        profileAccessToken: 'invalid-profile-token-123456'
-		      })
-		    });
-		    if (wrongRecoveryToken.response.status !== 403) {
-		      throw new Error(`Profile recovery with the wrong token should be denied, got HTTP ${wrongRecoveryToken.response.status}`);
-		    }
-	    const secondBoundProfile = await createVerifiedProfile(BASE_URL, {
-	      localProfileId: 'security-profile-two',
-	      subject: '13800000001'
-	    });
-	    const thirdBoundProfile = await createVerifiedProfile(BASE_URL, {
-	      localProfileId: 'security-profile-three',
-	      subject: '13800000002'
-	    });
+    if (
+      !tokenProfileUpdate.response.ok ||
+      tokenProfileUpdate.data.profile?.id !== boundProfile.data.profile.id ||
+      !tokenProfileUpdate.data.profile?.identityBound ||
+      tokenProfileUpdate.data.profile?.creatorName !== '跨设备测试用户'
+    ) {
+      throw new Error(`Existing stable profile should update with current token: ${JSON.stringify(tokenProfileUpdate.data)}`);
+    }
+    const recoveredProfile = await fetchJson(`${BASE_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: boundProfile.data.profile.id,
+        profileAccessToken: boundProfile.data.profile.profileAccessToken
+      })
+    });
+    if (
+      !recoveredProfile.response.ok ||
+      recoveredProfile.data.profile?.homeCity !== '上海' ||
+      recoveredProfile.data.profile?.budget !== '人均 1600' ||
+      recoveredProfile.data.profile?.creatorName !== '跨设备测试用户' ||
+      !recoveredProfile.data.profile?.preferredCities?.includes('苏州') ||
+      !recoveredProfile.data.profile?.themes?.includes('建筑') ||
+      !recoveredProfile.data.profile?.identityBound
+    ) {
+      throw new Error(`Token-only profile recovery should preserve stored preferences and identity: ${JSON.stringify(recoveredProfile.data)}`);
+    }
+    const wrongRecoveryToken = await fetchJson(`${BASE_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: boundProfile.data.profile.id,
+        profileAccessToken: 'invalid-profile-token-123456'
+      })
+    });
+    if (wrongRecoveryToken.response.status !== 403) {
+      throw new Error(`Profile recovery with the wrong token should be denied, got HTTP ${wrongRecoveryToken.response.status}`);
+    }
+    const secondBoundProfile = await createVerifiedProfile(BASE_URL, {
+      localProfileId: 'security-profile-two',
+      subject: '13800000001'
+    });
+    const thirdBoundProfile = await createVerifiedProfile(BASE_URL, {
+      localProfileId: 'security-profile-three',
+      subject: '13800000002'
+    });
 
-	    const farCoordinateRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
+    const farCoordinateRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -344,7 +377,13 @@ async function main() {
     });
     const farStop = farCoordinateRoute.data.routebook?.stops?.find((stop) => stop.id === 'nyc');
     const fallbackStop = farCoordinateRoute.data.routebook?.stops?.find((stop) => stop.id === 'fallback');
-    if (!farCoordinateRoute.response.ok || !farStop?.navigationDisabled || farStop.geoConfidence >= 60 || !fallbackStop?.navigationDisabled || fallbackStop.geoConfidence >= 60) {
+    if (
+      !farCoordinateRoute.response.ok ||
+      !farStop?.navigationDisabled ||
+      farStop.geoConfidence >= 60 ||
+      !fallbackStop?.navigationDisabled ||
+      fallbackStop.geoConfidence >= 60
+    ) {
       throw new Error(`Out-of-city and missing coordinates should be fuzzy/non-navigable: ${JSON.stringify(farCoordinateRoute.data.routebook?.stops)}`);
     }
     const modelCoordinateRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
@@ -354,68 +393,73 @@ async function main() {
         ...template,
         title: '模型坐标必须降级',
         profileId: 'model-coordinate-owner',
-	        stops: template.stops.map((stop) => ({
-	          ...stop,
-	          name: `模型坐标点-${stop.id}`,
-	          coordinateSource: 'model',
+        stops: template.stops.map((stop) => ({
+          ...stop,
+          name: `模型坐标点-${stop.id}`,
+          coordinateSource: 'model',
           geoConfidence: 95
         }))
       })
     });
-	    if (!modelCoordinateRoute.response.ok || modelCoordinateRoute.data.routebook?.stops?.some((stop) => !stop.navigationDisabled || stop.geoConfidence >= 60)) {
-	      throw new Error(`Unverified model coordinates should stay fuzzy/non-navigable: ${JSON.stringify(modelCoordinateRoute.data.routebook?.stops)}`);
-	    }
-	    const forgedCoordinateProvenanceRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        ...template,
-	        title: '伪造坐标来源证明必须降级',
-	        profileId: 'forged-coordinate-provenance-owner',
-	        stops: template.stops.map((stop) => ({
-	          ...stop,
-	          name: `伪造坐标来源点-${stop.id}`,
-	          coordinateSource: 'amap-geocode',
-	          coordinatePrecision: 'exact',
-	          geoConfidence: 99,
-	          coordinateProvenance: {
-	            provider: 'amap',
-	            verified: true,
-	            signature: 'client-forged-signature'
-	          }
-	        }))
-	      })
-	    });
-	    recordTargetFailure(
-	      targetFailures,
-	      forgedCoordinateProvenanceRoute.response.ok && forgedCoordinateProvenanceRoute.data.routebook?.stops?.every((stop) => stop.navigationDisabled && stop.geoConfidence < 60),
-	      `[SR-05] Client-forged coordinate provenance should be downgraded to fuzzy/non-navigable coordinates: ${JSON.stringify(forgedCoordinateProvenanceRoute.data.routebook?.stops)}`
-	    );
-	    const unsignedImportedSourceRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        ...template,
-	        title: '未签名导入来源必须降级',
-	        profileId: 'unsigned-import-source-owner',
-	        importedSources: [{
-	          url: 'https://example.com/client-claimed-trusted-guide',
-	          platform: 'client-claimed-platform',
-	          status: 'fetched',
-	          title: '客户端声称已验证的来源',
-	          trustScore: 99,
-	          signals: ['客户端声称正文完整', '客户端声称来源可靠'],
-	          fetchedAt: new Date().toISOString()
-	        }]
-	      })
-	    });
-	    const unsignedSource = unsignedImportedSourceRoute.data.routebook?.importedSources?.[0];
-	    recordTargetFailure(
-	      targetFailures,
-	      unsignedImportedSourceRoute.response.ok && Number(unsignedSource?.trustScore) <= 50 && Number(unsignedImportedSourceRoute.data.routebook?.sourceSummary?.averageTrust) <= 50,
-	      `[SR-06] Unsigned imported source should not retain a client-claimed high trust score: ${JSON.stringify({ source: unsignedSource, sourceSummary: unsignedImportedSourceRoute.data.routebook?.sourceSummary })}`
-	    );
-	    const statusEscalation = await fetchJson(`${BASE_URL}/api/routebooks`, {
+    if (!modelCoordinateRoute.response.ok || modelCoordinateRoute.data.routebook?.stops?.some((stop) => !stop.navigationDisabled || stop.geoConfidence >= 60)) {
+      throw new Error(`Unverified model coordinates should stay fuzzy/non-navigable: ${JSON.stringify(modelCoordinateRoute.data.routebook?.stops)}`);
+    }
+    const forgedCoordinateProvenanceRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...template,
+        title: '伪造坐标来源证明必须降级',
+        profileId: 'forged-coordinate-provenance-owner',
+        stops: template.stops.map((stop) => ({
+          ...stop,
+          name: `伪造坐标来源点-${stop.id}`,
+          coordinateSource: 'amap-geocode',
+          coordinatePrecision: 'exact',
+          geoConfidence: 99,
+          coordinateProvenance: {
+            provider: 'amap',
+            verified: true,
+            signature: 'client-forged-signature'
+          }
+        }))
+      })
+    });
+    recordTargetFailure(
+      targetFailures,
+      forgedCoordinateProvenanceRoute.response.ok &&
+        forgedCoordinateProvenanceRoute.data.routebook?.stops?.every((stop) => stop.navigationDisabled && stop.geoConfidence < 60),
+      `[SR-05] Client-forged coordinate provenance should be downgraded to fuzzy/non-navigable coordinates: ${JSON.stringify(forgedCoordinateProvenanceRoute.data.routebook?.stops)}`
+    );
+    const unsignedImportedSourceRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...template,
+        title: '未签名导入来源必须降级',
+        profileId: 'unsigned-import-source-owner',
+        importedSources: [
+          {
+            url: 'https://example.com/client-claimed-trusted-guide',
+            platform: 'client-claimed-platform',
+            status: 'fetched',
+            title: '客户端声称已验证的来源',
+            trustScore: 99,
+            signals: ['客户端声称正文完整', '客户端声称来源可靠'],
+            fetchedAt: new Date().toISOString()
+          }
+        ]
+      })
+    });
+    const unsignedSource = unsignedImportedSourceRoute.data.routebook?.importedSources?.[0];
+    recordTargetFailure(
+      targetFailures,
+      unsignedImportedSourceRoute.response.ok &&
+        Number(unsignedSource?.trustScore) <= 50 &&
+        Number(unsignedImportedSourceRoute.data.routebook?.sourceSummary?.averageTrust) <= 50,
+      `[SR-06] Unsigned imported source should not retain a client-claimed high trust score: ${JSON.stringify({ source: unsignedSource, sourceSummary: unsignedImportedSourceRoute.data.routebook?.sourceSummary })}`
+    );
+    const statusEscalation = await fetchJson(`${BASE_URL}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -449,7 +493,9 @@ async function main() {
       body: JSON.stringify({ homeCity: '杭州', padding: bodyLimitProbe })
     });
     if (oversizedProfile.response.status !== 413 || oversizedProfile.data?.code !== 'PAYLOAD_TOO_LARGE') {
-      throw new Error(`Generic JSON endpoints should keep the 1 MiB limit: ${JSON.stringify({ status: oversizedProfile.response.status, data: oversizedProfile.data })}`);
+      throw new Error(
+        `Generic JSON endpoints should keep the 1 MiB limit: ${JSON.stringify({ status: oversizedProfile.response.status, data: oversizedProfile.data })}`
+      );
     }
     const largeOcrEnvelope = await fetchJson(`${BASE_URL}/api/ocr-guide`, {
       method: 'POST',
@@ -457,7 +503,9 @@ async function main() {
       body: JSON.stringify({ images: [], padding: bodyLimitProbe })
     });
     if (largeOcrEnvelope.response.status !== 400 || largeOcrEnvelope.data?.code !== 'OCR_IMAGE_REQUIRED') {
-      throw new Error(`OCR endpoint should accept its larger envelope before validating images: ${JSON.stringify({ status: largeOcrEnvelope.response.status, data: largeOcrEnvelope.data })}`);
+      throw new Error(
+        `OCR endpoint should accept its larger envelope before validating images: ${JSON.stringify({ status: largeOcrEnvelope.response.status, data: largeOcrEnvelope.data })}`
+      );
     }
     const paddedRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
       method: 'POST',
@@ -485,24 +533,29 @@ async function main() {
         profileId: 'other-profile'
       })
     });
-	    if (overwriteDenied.response.status !== 403) {
-	      throw new Error(`Cross-profile routebook overwrite should be denied, got HTTP ${overwriteDenied.response.status}`);
-	    }
-	    const spoofedCreatorRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        ...template,
-	        title: '伪造官方作者的路书',
-	        profileId: 'creator-spoof-owner',
-	        creator: { id: 'official-curation', name: '可信路书编辑部', sourceAuthorization: 'self-owned' },
-	        sourceAuthorization: 'self-owned'
-	      })
-	    });
-		    if (!spoofedCreatorRoute.response.ok || spoofedCreatorRoute.data.routebook?.creator?.id !== spoofedCreatorRoute.data.routebook?.profileId || spoofedCreatorRoute.data.routebook?.creator?.id === 'official-curation' || spoofedCreatorRoute.data.routebook?.sourceAuthorization !== 'user-generated') {
-		      throw new Error(`User route save should force creator/sourceAuthorization to profile ownership: ${JSON.stringify(spoofedCreatorRoute.data.routebook)}`);
-		    }
-	    const spoofedProfileDenied = await fetchJson(`${BASE_URL}/api/routebooks`, {
+    if (overwriteDenied.response.status !== 403) {
+      throw new Error(`Cross-profile routebook overwrite should be denied, got HTTP ${overwriteDenied.response.status}`);
+    }
+    const spoofedCreatorRoute = await fetchJson(`${BASE_URL}/api/routebooks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...template,
+        title: '伪造官方作者的路书',
+        profileId: 'creator-spoof-owner',
+        creator: { id: 'official-curation', name: '可信路书编辑部', sourceAuthorization: 'self-owned' },
+        sourceAuthorization: 'self-owned'
+      })
+    });
+    if (
+      !spoofedCreatorRoute.response.ok ||
+      spoofedCreatorRoute.data.routebook?.creator?.id !== spoofedCreatorRoute.data.routebook?.profileId ||
+      spoofedCreatorRoute.data.routebook?.creator?.id === 'official-curation' ||
+      spoofedCreatorRoute.data.routebook?.sourceAuthorization !== 'user-generated'
+    ) {
+      throw new Error(`User route save should force creator/sourceAuthorization to profile ownership: ${JSON.stringify(spoofedCreatorRoute.data.routebook)}`);
+    }
+    const spoofedProfileDenied = await fetchJson(`${BASE_URL}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -553,12 +606,12 @@ async function main() {
     if (!selfPublished.response.ok || selfPublished.data.routebook?.publishStatus !== 'published' || !selfPublished.data.shareUrl) {
       throw new Error(`Owner publish endpoint should publish draft: ${JSON.stringify(selfPublished.data)}`);
     }
-	    const ownerCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
-	      method: 'POST',
-	      headers: profileHeaders(boundProfile.data.profile),
-	      body: JSON.stringify({
-	        profileId: boundProfile.data.profile.id,
-	        routeId,
+    const ownerCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
+      method: 'POST',
+      headers: profileHeaders(boundProfile.data.profile),
+      body: JSON.stringify({
+        profileId: boundProfile.data.profile.id,
+        routeId,
         routeTitle: template.title,
         city: template.city,
         stopId: 'a',
@@ -567,46 +620,57 @@ async function main() {
         worth: '值得',
         queue: '5 分钟',
         cost: '0 元',
-	        crowd: '适中',
-	        comment: '现场可执行',
-	        photoName: 'private-arrival-evidence.jpg',
-	        gps: { lat: 30.242, lng: 120.1617, accuracy: 35 }
-	      })
-	    });
-			    if (!ownerCheckin.response.ok || !ownerCheckin.data.checkin?.arrival?.valid) {
-			      throw new Error(`Authenticated profile checkin should save a valid GPS arrival: ${JSON.stringify(ownerCheckin.data)}`);
-		    }
-		    for (const surface of ['routebook-save', 'routebook-save', 'trip-open', 'trip-open']) {
-		      const eventResult = await fetchJson(`${BASE_URL}/api/exposures`, {
-		        method: 'POST',
-		        headers: profileHeaders(boundProfile.data.profile),
-		        body: JSON.stringify({
-		          profileId: boundProfile.data.profile.id,
-		          surface,
-		          itemType: 'journey-event',
-		          itemId: routeId,
-	          routeId,
-	          routeTitle: template.title,
-	          city: template.city,
-	          travelDate: template.constraints.date
-		        })
-		      });
-		      if (!eventResult.response.ok) {
-		        throw new Error(`Journey event should be recorded: ${JSON.stringify(eventResult.data)}`);
-		      }
-		    }
-		    const journeyDashboard = await fetchJson(`${BASE_URL}/api/dashboard`, {
-		      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
-		    });
-		    const journeyFunnel = journeyDashboard.data.dashboard?.funnel;
-		    if (!journeyDashboard.response.ok || journeyFunnel?.savedRoutebooks !== 1 || journeyFunnel?.travelDateSavedRoutebooks !== 1 || journeyFunnel?.tripOpenedJourneys !== 1 || journeyFunnel?.validCheckinJourneys !== 1 || journeyFunnel?.savedTripOpenedJourneys !== 1 || journeyFunnel?.tripDayOpenRate !== 100 || journeyFunnel?.effectiveExecutedRoutebooks !== 1 || journeyFunnel?.effectiveExecutionRate !== 100 || journeyFunnel?.checkinRate !== 100) {
-		      throw new Error(`Journey funnel should deduplicate profile-route events and stay within 100%: ${JSON.stringify(journeyFunnel)}`);
-		    }
-		    recordTargetFailure(
-	      targetFailures,
-	      ownerCheckin.data.checkin?.trustState === 'profile-attested',
-	      `[SR-03] Checkin with a valid profile token should be profile-attested: ${JSON.stringify(ownerCheckin.data.checkin)}`
-	    );
+        crowd: '适中',
+        comment: '现场可执行',
+        photoName: 'private-arrival-evidence.jpg',
+        gps: { lat: 30.242, lng: 120.1617, accuracy: 35 }
+      })
+    });
+    if (!ownerCheckin.response.ok || !ownerCheckin.data.checkin?.arrival?.valid) {
+      throw new Error(`Authenticated profile checkin should save a valid GPS arrival: ${JSON.stringify(ownerCheckin.data)}`);
+    }
+    for (const surface of ['routebook-save', 'routebook-save', 'trip-open', 'trip-open']) {
+      const eventResult = await fetchJson(`${BASE_URL}/api/exposures`, {
+        method: 'POST',
+        headers: profileHeaders(boundProfile.data.profile),
+        body: JSON.stringify({
+          profileId: boundProfile.data.profile.id,
+          surface,
+          itemType: 'journey-event',
+          itemId: routeId,
+          routeId,
+          routeTitle: template.title,
+          city: template.city,
+          travelDate: template.constraints.date
+        })
+      });
+      if (!eventResult.response.ok) {
+        throw new Error(`Journey event should be recorded: ${JSON.stringify(eventResult.data)}`);
+      }
+    }
+    const journeyDashboard = await fetchJson(`${BASE_URL}/api/dashboard`, {
+      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
+    });
+    const journeyFunnel = journeyDashboard.data.dashboard?.funnel;
+    if (
+      !journeyDashboard.response.ok ||
+      journeyFunnel?.savedRoutebooks !== 1 ||
+      journeyFunnel?.travelDateSavedRoutebooks !== 1 ||
+      journeyFunnel?.tripOpenedJourneys !== 1 ||
+      journeyFunnel?.validCheckinJourneys !== 1 ||
+      journeyFunnel?.savedTripOpenedJourneys !== 1 ||
+      journeyFunnel?.tripDayOpenRate !== 100 ||
+      journeyFunnel?.effectiveExecutedRoutebooks !== 1 ||
+      journeyFunnel?.effectiveExecutionRate !== 100 ||
+      journeyFunnel?.checkinRate !== 100
+    ) {
+      throw new Error(`Journey funnel should deduplicate profile-route events and stay within 100%: ${JSON.stringify(journeyFunnel)}`);
+    }
+    recordTargetFailure(
+      targetFailures,
+      ownerCheckin.data.checkin?.trustState === 'profile-attested',
+      `[SR-03] Checkin with a valid profile token should be profile-attested: ${JSON.stringify(ownerCheckin.data.checkin)}`
+    );
     const refreshedAfterCheckin = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
     if (!refreshedAfterCheckin.response.ok || refreshedAfterCheckin.data.routebook?.feedbackSummary?.attestedCheckinCount < 1) {
       throw new Error(`Route trust feedback should include attested checkin: ${JSON.stringify(refreshedAfterCheckin.data)}`);
@@ -614,270 +678,303 @@ async function main() {
     if (!refreshedAfterCheckin.data.routebook?.trustMeta || refreshedAfterCheckin.data.routebook.trustMeta.sampleCount < 1) {
       throw new Error(`Route trust metadata should expose feedback weighting: ${JSON.stringify(refreshedAfterCheckin.data.routebook?.trustMeta)}`);
     }
-		    const poiTrust = refreshedAfterCheckin.data.routebook.stops?.find((stop) => stop.id === 'a')?.poiTrust;
-		    if (!poiTrust || poiTrust.validArrivals < 1 || !poiTrust.latestVerifiedAt) {
-		      throw new Error(`POI trust should aggregate valid checkins: ${JSON.stringify(refreshedAfterCheckin.data.routebook.stops)}`);
-		    }
-		    const publicStopAfterOneSample = refreshedAfterCheckin.data.routebook.stops?.find((stop) => stop.id === 'a');
-		    recordTargetFailure(
-		      targetFailures,
-		      refreshedAfterCheckin.data.routebook?.trustScore == null &&
-		        refreshedAfterCheckin.data.routebook?.trustMeta?.predictionScore == null &&
-		        refreshedAfterCheckin.data.routebook?.trustMeta?.feedbackScore == null &&
-		        publicStopAfterOneSample?.score == null &&
-		        publicStopAfterOneSample?.poiTrust?.score == null,
-		      `[SR-04] Public route and POI prediction scores must stay hidden below three independent valid profiles: ${JSON.stringify(refreshedAfterCheckin.data.routebook)}`
-		    );
-		    const shareAfterOneSample = await fetchJson(`${BASE_URL}/api/share/${encodeURIComponent(routeId)}`);
-		    recordTargetFailure(
-		      targetFailures,
-		      shareAfterOneSample.response.ok &&
-		        shareAfterOneSample.data.share?.trustScore == null &&
-		        shareAfterOneSample.data.routebook?.trustScore == null &&
-		        shareAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.score == null,
-		      `[SR-04] Public share serialization must hide sub-threshold scores: ${JSON.stringify(shareAfterOneSample.data)}`
-		    );
-		    const privateAfterOneSample = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`, {
-		      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
-		    });
-		    recordTargetFailure(
-		      targetFailures,
-		      privateAfterOneSample.response.ok &&
-		        Number.isFinite(privateAfterOneSample.data.routebook?.trustScore) &&
-		        Number.isFinite(privateAfterOneSample.data.routebook?.trustMeta?.predictionScore) &&
-		        Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.score) &&
-		        Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.score),
-		      `[SR-04] Private/admin reads should preserve internal prediction inputs: ${JSON.stringify(privateAfterOneSample.data.routebook)}`
-		    );
-		    const firstVerifiedAt = refreshedAfterCheckin.data.routebook.trustMeta.latestVerifiedAt;
-		    const feedbackOnlyCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
-		      method: 'POST',
-		      headers: profileHeaders(boundProfile.data.profile),
-		      body: JSON.stringify({
-		        profileId: boundProfile.data.profile.id,
-	        routeId,
-	        routeTitle: template.title,
-	        city: template.city,
-	        stopId: 'b',
-	        stopName: '灵隐寺',
-	        editToken: ownerEditToken,
-	        worth: '值得',
-	        queue: '无需排队',
-	        cost: '0 元',
-	        crowd: '适中',
-	        comment: '仅普通反馈，没有 GPS',
-	        photoName: 'private-feedback-evidence.jpg'
-		      })
-		    });
-			    if (!feedbackOnlyCheckin.response.ok || feedbackOnlyCheckin.data.checkin?.arrival?.valid) {
-			      throw new Error(`Authenticated feedback without GPS should not be a valid arrival: ${JSON.stringify(feedbackOnlyCheckin.data)}`);
-		    }
-	    recordTargetFailure(
-	      targetFailures,
-	      feedbackOnlyCheckin.data.checkin?.trustState === 'profile-attested',
-	      `[SR-03] Feedback with a valid profile token should remain profile-attested: ${JSON.stringify(feedbackOnlyCheckin.data.checkin)}`
-	    );
-	    const refreshedAfterFeedbackOnly = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
-	    const feedbackSummary = refreshedAfterFeedbackOnly.data.routebook?.feedbackSummary;
-	    const stopBTrust = refreshedAfterFeedbackOnly.data.routebook?.stops?.find((stop) => stop.id === 'b')?.poiTrust;
-	    if (!refreshedAfterFeedbackOnly.response.ok || feedbackSummary?.validArrivalCount !== 1 || refreshedAfterFeedbackOnly.data.routebook?.trustMeta?.sampleCount !== 1) {
-	      throw new Error(`Feedback-only checkins should not increase verified samples: ${JSON.stringify(refreshedAfterFeedbackOnly.data.routebook?.trustMeta)}`);
-	    }
-			    if (refreshedAfterFeedbackOnly.data.routebook?.trustMeta?.latestVerifiedAt !== firstVerifiedAt || stopBTrust?.latestVerifiedAt || stopBTrust?.sampleCount !== 0 || stopBTrust?.score != null) {
-			      throw new Error(`Latest verified timestamps should only use valid GPS arrivals: ${JSON.stringify({ trustMeta: refreshedAfterFeedbackOnly.data.routebook?.trustMeta, stopBTrust })}`);
-			    }
-	    const repeatedProfileCheckins = [];
-	    for (let index = 0; index < 2; index += 1) {
-	      repeatedProfileCheckins.push(await submitAuthenticatedCheckin(BASE_URL, {
-	        profile: boundProfile.data.profile,
-	        routeId,
-	        routeTitle: template.title,
-	        city: template.city,
-	        stopId: 'a',
-	        stopName: '柳浪闻莺',
-	        editToken: ownerEditToken,
-	        comment: `同一认证 profile 重复打卡 ${index + 2}`
-	      }));
-	    }
-	    if (repeatedProfileCheckins.some((result) => !result.response.ok || !result.data.checkin?.arrival?.valid)) {
-	      throw new Error(`Repeated authenticated profile checkins should save for deduplication testing: ${JSON.stringify(repeatedProfileCheckins.map((result) => result.data))}`);
-	    }
-	    recordTargetFailure(
-	      targetFailures,
-	      repeatedProfileCheckins.every((result) => result.data.checkin?.trustState === 'profile-attested'),
-	      `[SR-03] Repeated checkins with a valid profile token should be profile-attested: ${JSON.stringify(repeatedProfileCheckins.map((result) => result.data.checkin?.trustState))}`
-	    );
-	    const afterRepeatedProfileCheckins = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
-		    recordTargetFailure(
-		      targetFailures,
-		      afterRepeatedProfileCheckins.response.ok &&
-		        afterRepeatedProfileCheckins.data.routebook?.trustMeta?.displayScore == null &&
-		        afterRepeatedProfileCheckins.data.routebook?.trustMeta?.source === 'prediction' &&
-		        afterRepeatedProfileCheckins.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.sampleCount === 1,
-		      `[SR-04] Repeated arrivals from one authenticated profile must not unlock a verified trust number: ${JSON.stringify(afterRepeatedProfileCheckins.data.routebook?.trustMeta)}`
-		    );
+    const poiTrust = refreshedAfterCheckin.data.routebook.stops?.find((stop) => stop.id === 'a')?.poiTrust;
+    if (!poiTrust || poiTrust.validArrivals < 1 || !poiTrust.latestVerifiedAt) {
+      throw new Error(`POI trust should aggregate valid checkins: ${JSON.stringify(refreshedAfterCheckin.data.routebook.stops)}`);
+    }
+    const publicStopAfterOneSample = refreshedAfterCheckin.data.routebook.stops?.find((stop) => stop.id === 'a');
+    recordTargetFailure(
+      targetFailures,
+      refreshedAfterCheckin.data.routebook?.trustScore == null &&
+        refreshedAfterCheckin.data.routebook?.trustMeta?.predictionScore == null &&
+        refreshedAfterCheckin.data.routebook?.trustMeta?.feedbackScore == null &&
+        publicStopAfterOneSample?.score == null &&
+        publicStopAfterOneSample?.poiTrust?.score == null,
+      `[SR-04] Public route and POI prediction scores must stay hidden below three independent valid profiles: ${JSON.stringify(refreshedAfterCheckin.data.routebook)}`
+    );
+    const shareAfterOneSample = await fetchJson(`${BASE_URL}/api/share/${encodeURIComponent(routeId)}`);
+    recordTargetFailure(
+      targetFailures,
+      shareAfterOneSample.response.ok &&
+        shareAfterOneSample.data.share?.trustScore == null &&
+        shareAfterOneSample.data.routebook?.trustScore == null &&
+        shareAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.score == null,
+      `[SR-04] Public share serialization must hide sub-threshold scores: ${JSON.stringify(shareAfterOneSample.data)}`
+    );
+    const privateAfterOneSample = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`, {
+      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
+    });
+    recordTargetFailure(
+      targetFailures,
+      privateAfterOneSample.response.ok &&
+        Number.isFinite(privateAfterOneSample.data.routebook?.trustScore) &&
+        Number.isFinite(privateAfterOneSample.data.routebook?.trustMeta?.predictionScore) &&
+        Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.score) &&
+        Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.score),
+      `[SR-04] Private/admin reads should preserve internal prediction inputs: ${JSON.stringify(privateAfterOneSample.data.routebook)}`
+    );
+    const firstVerifiedAt = refreshedAfterCheckin.data.routebook.trustMeta.latestVerifiedAt;
+    const feedbackOnlyCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
+      method: 'POST',
+      headers: profileHeaders(boundProfile.data.profile),
+      body: JSON.stringify({
+        profileId: boundProfile.data.profile.id,
+        routeId,
+        routeTitle: template.title,
+        city: template.city,
+        stopId: 'b',
+        stopName: '灵隐寺',
+        editToken: ownerEditToken,
+        worth: '值得',
+        queue: '无需排队',
+        cost: '0 元',
+        crowd: '适中',
+        comment: '仅普通反馈，没有 GPS',
+        photoName: 'private-feedback-evidence.jpg'
+      })
+    });
+    if (!feedbackOnlyCheckin.response.ok || feedbackOnlyCheckin.data.checkin?.arrival?.valid) {
+      throw new Error(`Authenticated feedback without GPS should not be a valid arrival: ${JSON.stringify(feedbackOnlyCheckin.data)}`);
+    }
+    recordTargetFailure(
+      targetFailures,
+      feedbackOnlyCheckin.data.checkin?.trustState === 'profile-attested',
+      `[SR-03] Feedback with a valid profile token should remain profile-attested: ${JSON.stringify(feedbackOnlyCheckin.data.checkin)}`
+    );
+    const refreshedAfterFeedbackOnly = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
+    const feedbackSummary = refreshedAfterFeedbackOnly.data.routebook?.feedbackSummary;
+    const stopBTrust = refreshedAfterFeedbackOnly.data.routebook?.stops?.find((stop) => stop.id === 'b')?.poiTrust;
+    if (
+      !refreshedAfterFeedbackOnly.response.ok ||
+      feedbackSummary?.validArrivalCount !== 1 ||
+      refreshedAfterFeedbackOnly.data.routebook?.trustMeta?.sampleCount !== 1
+    ) {
+      throw new Error(`Feedback-only checkins should not increase verified samples: ${JSON.stringify(refreshedAfterFeedbackOnly.data.routebook?.trustMeta)}`);
+    }
+    if (
+      refreshedAfterFeedbackOnly.data.routebook?.trustMeta?.latestVerifiedAt !== firstVerifiedAt ||
+      stopBTrust?.latestVerifiedAt ||
+      stopBTrust?.sampleCount !== 0 ||
+      stopBTrust?.score != null
+    ) {
+      throw new Error(
+        `Latest verified timestamps should only use valid GPS arrivals: ${JSON.stringify({ trustMeta: refreshedAfterFeedbackOnly.data.routebook?.trustMeta, stopBTrust })}`
+      );
+    }
+    const repeatedProfileCheckins = [];
+    for (let index = 0; index < 2; index += 1) {
+      repeatedProfileCheckins.push(
+        await submitAuthenticatedCheckin(BASE_URL, {
+          profile: boundProfile.data.profile,
+          routeId,
+          routeTitle: template.title,
+          city: template.city,
+          stopId: 'a',
+          stopName: '柳浪闻莺',
+          editToken: ownerEditToken,
+          comment: `同一认证 profile 重复打卡 ${index + 2}`
+        })
+      );
+    }
+    if (repeatedProfileCheckins.some((result) => !result.response.ok || !result.data.checkin?.arrival?.valid)) {
+      throw new Error(
+        `Repeated authenticated profile checkins should save for deduplication testing: ${JSON.stringify(repeatedProfileCheckins.map((result) => result.data))}`
+      );
+    }
+    recordTargetFailure(
+      targetFailures,
+      repeatedProfileCheckins.every((result) => result.data.checkin?.trustState === 'profile-attested'),
+      `[SR-03] Repeated checkins with a valid profile token should be profile-attested: ${JSON.stringify(repeatedProfileCheckins.map((result) => result.data.checkin?.trustState))}`
+    );
+    const afterRepeatedProfileCheckins = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
+    recordTargetFailure(
+      targetFailures,
+      afterRepeatedProfileCheckins.response.ok &&
+        afterRepeatedProfileCheckins.data.routebook?.trustMeta?.displayScore == null &&
+        afterRepeatedProfileCheckins.data.routebook?.trustMeta?.source === 'prediction' &&
+        afterRepeatedProfileCheckins.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.sampleCount === 1,
+      `[SR-04] Repeated arrivals from one authenticated profile must not unlock a verified trust number: ${JSON.stringify(afterRepeatedProfileCheckins.data.routebook?.trustMeta)}`
+    );
 
-		    const skippedArrival = await submitAuthenticatedCheckin(BASE_URL, {
-		      profile: secondBoundProfile,
-		      routeId,
-		      routeTitle: template.title,
-		      city: template.city,
-		      stopId: 'a',
-		      stopName: '柳浪闻莺',
-		      status: 'skipped',
-		      comment: '跳过状态即使 GPS 有效也不能计入可信样本'
-		    });
-		    const replacedArrival = await submitAuthenticatedCheckin(BASE_URL, {
-		      profile: thirdBoundProfile,
-		      routeId,
-		      routeTitle: template.title,
-		      city: template.city,
-		      stopId: 'a',
-		      stopName: '柳浪闻莺',
-		      status: 'replaced',
-		      comment: '替换状态即使 GPS 有效也不能计入可信样本'
-		    });
-		    if (!skippedArrival.response.ok || !skippedArrival.data.checkin?.arrival?.valid || skippedArrival.data.checkin?.status !== 'skipped' ||
-		      !replacedArrival.response.ok || !replacedArrival.data.checkin?.arrival?.valid || replacedArrival.data.checkin?.status !== 'replaced') {
-		      throw new Error(`Skipped/replaced GPS rows should persist as non-trust feedback: ${JSON.stringify({ skipped: skippedArrival.data, replaced: replacedArrival.data })}`);
-		    }
-		    const afterSkippedAndReplaced = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
-		    const poiAfterSkippedAndReplaced = afterSkippedAndReplaced.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust;
-		    recordTargetFailure(
-		      targetFailures,
-		      afterSkippedAndReplaced.response.ok &&
-		        afterSkippedAndReplaced.data.routebook?.trustMeta?.sampleCount === 1 &&
-		        afterSkippedAndReplaced.data.routebook?.trustMeta?.displayScore == null &&
-		        poiAfterSkippedAndReplaced?.sampleCount === 1 &&
-		        poiAfterSkippedAndReplaced?.score == null,
-		      `[SR-04] Skipped/replaced arrivals must not affect route or POI trust samples: ${JSON.stringify(afterSkippedAndReplaced.data.routebook)}`
-		    );
+    const skippedArrival = await submitAuthenticatedCheckin(BASE_URL, {
+      profile: secondBoundProfile,
+      routeId,
+      routeTitle: template.title,
+      city: template.city,
+      stopId: 'a',
+      stopName: '柳浪闻莺',
+      status: 'skipped',
+      comment: '跳过状态即使 GPS 有效也不能计入可信样本'
+    });
+    const replacedArrival = await submitAuthenticatedCheckin(BASE_URL, {
+      profile: thirdBoundProfile,
+      routeId,
+      routeTitle: template.title,
+      city: template.city,
+      stopId: 'a',
+      stopName: '柳浪闻莺',
+      status: 'replaced',
+      comment: '替换状态即使 GPS 有效也不能计入可信样本'
+    });
+    if (
+      !skippedArrival.response.ok ||
+      !skippedArrival.data.checkin?.arrival?.valid ||
+      skippedArrival.data.checkin?.status !== 'skipped' ||
+      !replacedArrival.response.ok ||
+      !replacedArrival.data.checkin?.arrival?.valid ||
+      replacedArrival.data.checkin?.status !== 'replaced'
+    ) {
+      throw new Error(
+        `Skipped/replaced GPS rows should persist as non-trust feedback: ${JSON.stringify({ skipped: skippedArrival.data, replaced: replacedArrival.data })}`
+      );
+    }
+    const afterSkippedAndReplaced = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
+    const poiAfterSkippedAndReplaced = afterSkippedAndReplaced.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust;
+    recordTargetFailure(
+      targetFailures,
+      afterSkippedAndReplaced.response.ok &&
+        afterSkippedAndReplaced.data.routebook?.trustMeta?.sampleCount === 1 &&
+        afterSkippedAndReplaced.data.routebook?.trustMeta?.displayScore == null &&
+        poiAfterSkippedAndReplaced?.sampleCount === 1 &&
+        poiAfterSkippedAndReplaced?.score == null,
+      `[SR-04] Skipped/replaced arrivals must not affect route or POI trust samples: ${JSON.stringify(afterSkippedAndReplaced.data.routebook)}`
+    );
 
-		    const secondProfileCheckin = await submitAuthenticatedCheckin(BASE_URL, {
-	      profile: secondBoundProfile,
-	      routeId,
-	      routeTitle: template.title,
-	      city: template.city,
-	      stopId: 'a',
-	      stopName: '柳浪闻莺',
-	      comment: '第二个认证 profile 的真实到达'
-	    });
-	    if (!secondProfileCheckin.response.ok || !secondProfileCheckin.data.checkin?.arrival?.valid) {
-	      throw new Error(`Second authenticated profile checkin should save a valid arrival: ${JSON.stringify(secondProfileCheckin.data)}`);
-	    }
-	    recordTargetFailure(
-	      targetFailures,
-	      secondProfileCheckin.data.checkin?.trustState === 'profile-attested',
-	      `[SR-03] Second valid profile token should produce profile-attested feedback: ${JSON.stringify(secondProfileCheckin.data.checkin)}`
-	    );
-		    const afterTwoProfiles = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
-		    const poiAfterTwoProfiles = afterTwoProfiles.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust;
-		    recordTargetFailure(
-		      targetFailures,
-		      afterTwoProfiles.response.ok &&
-		        afterTwoProfiles.data.routebook?.trustScore == null &&
-		        afterTwoProfiles.data.routebook?.trustMeta?.predictionScore == null &&
-		        afterTwoProfiles.data.routebook?.trustMeta?.displayScore == null &&
-		        afterTwoProfiles.data.routebook?.trustMeta?.source === 'prediction' &&
-		        poiAfterTwoProfiles?.sampleCount === 2 &&
-		        poiAfterTwoProfiles?.score == null,
-		      `[SR-04] Two authenticated profiles are insufficient to display a verified trust number: ${JSON.stringify(afterTwoProfiles.data.routebook?.trustMeta)}`
-		    );
+    const secondProfileCheckin = await submitAuthenticatedCheckin(BASE_URL, {
+      profile: secondBoundProfile,
+      routeId,
+      routeTitle: template.title,
+      city: template.city,
+      stopId: 'a',
+      stopName: '柳浪闻莺',
+      comment: '第二个认证 profile 的真实到达'
+    });
+    if (!secondProfileCheckin.response.ok || !secondProfileCheckin.data.checkin?.arrival?.valid) {
+      throw new Error(`Second authenticated profile checkin should save a valid arrival: ${JSON.stringify(secondProfileCheckin.data)}`);
+    }
+    recordTargetFailure(
+      targetFailures,
+      secondProfileCheckin.data.checkin?.trustState === 'profile-attested',
+      `[SR-03] Second valid profile token should produce profile-attested feedback: ${JSON.stringify(secondProfileCheckin.data.checkin)}`
+    );
+    const afterTwoProfiles = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
+    const poiAfterTwoProfiles = afterTwoProfiles.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust;
+    recordTargetFailure(
+      targetFailures,
+      afterTwoProfiles.response.ok &&
+        afterTwoProfiles.data.routebook?.trustScore == null &&
+        afterTwoProfiles.data.routebook?.trustMeta?.predictionScore == null &&
+        afterTwoProfiles.data.routebook?.trustMeta?.displayScore == null &&
+        afterTwoProfiles.data.routebook?.trustMeta?.source === 'prediction' &&
+        poiAfterTwoProfiles?.sampleCount === 2 &&
+        poiAfterTwoProfiles?.score == null,
+      `[SR-04] Two authenticated profiles are insufficient to display a verified trust number: ${JSON.stringify(afterTwoProfiles.data.routebook?.trustMeta)}`
+    );
 
-	    const thirdProfileCheckin = await submitAuthenticatedCheckin(BASE_URL, {
-	      profile: thirdBoundProfile,
-	      routeId,
-	      routeTitle: template.title,
-	      city: template.city,
-	      stopId: 'a',
-	      stopName: '柳浪闻莺',
-	      comment: '第三个认证 profile 的真实到达'
-	    });
-	    if (!thirdProfileCheckin.response.ok || !thirdProfileCheckin.data.checkin?.arrival?.valid) {
-	      throw new Error(`Third authenticated profile checkin should save a valid arrival: ${JSON.stringify(thirdProfileCheckin.data)}`);
-	    }
-	    recordTargetFailure(
-	      targetFailures,
-	      thirdProfileCheckin.data.checkin?.trustState === 'profile-attested',
-	      `[SR-03] Third valid profile token should produce profile-attested feedback: ${JSON.stringify(thirdProfileCheckin.data.checkin)}`
-	    );
-		    const afterThreeProfiles = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
-		    const stopAfterThreeProfiles = afterThreeProfiles.data.routebook?.stops?.find((stop) => stop.id === 'a');
-		    recordTargetFailure(
-		      targetFailures,
-		      afterThreeProfiles.response.ok &&
-		        Number.isFinite(afterThreeProfiles.data.routebook?.trustScore) &&
-		        Number.isFinite(afterThreeProfiles.data.routebook?.trustMeta?.predictionScore) &&
-		        Number.isFinite(afterThreeProfiles.data.routebook?.trustMeta?.displayScore) &&
-		        afterThreeProfiles.data.routebook?.trustMeta?.source !== 'prediction' &&
-		        stopAfterThreeProfiles?.poiTrust?.sampleCount === 3 &&
-		        Number.isFinite(stopAfterThreeProfiles?.poiTrust?.score) &&
-		        Number.isFinite(stopAfterThreeProfiles?.score),
-		      `[SR-04] Three distinct authenticated profiles should unlock a verified trust number: ${JSON.stringify(afterThreeProfiles.data.routebook?.trustMeta)}`
-		    );
-		    const longStopId = 'stop-12345678-1234-1234-1234-123456789abc';
-	    const longLocalStopKey = `${longStopId}-alt-1234567890123`;
-	    // 新契约：无 token 的未注册 profileId 打卡不再被静默降级为 anonymous，
-	    // 而是返回 403 PROFILE_NOT_REGISTERED。
-	    const unregisteredCheckinDenied = await fetchJson(`${BASE_URL}/api/checkins`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        profileId: 'security-owner',
-	        routeId,
-	        routeTitle: template.title,
-	        city: template.city,
-	        stopId: 'a',
-	        stopName: '柳浪闻莺',
-	        worth: '值得'
-	      })
-	    });
-	    if (unregisteredCheckinDenied.response.status !== 403 || unregisteredCheckinDenied.data?.code !== 'PROFILE_NOT_REGISTERED') {
-	      throw new Error(`Checkin with unregistered profileId and no token should be denied: ${JSON.stringify({ status: unregisteredCheckinDenied.response.status, data: unregisteredCheckinDenied.data })}`);
-	    }
-	    const longStopCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        profileId: 'anonymous',
-	        routeId,
-	        routeTitle: template.title,
-	        city: template.city,
-	        stopId: longStopId,
-	        stopName: '行中临时替代点',
-	        localStopKey: longLocalStopKey,
-	        clientLocalId: 'security-long-stop-checkin',
-	        editToken: ownerEditToken,
-	        worth: '值得',
-	        queue: '无需排队',
-	        cost: '0 元',
-	        crowd: '适中',
-	        comment: '长 ID 和 localStopKey 应被服务端保留，避免行中新增站点完成态丢失。',
-	        target: { lat: 30.244, lng: 120.155 },
-	        gps: { lat: 30.244, lng: 120.155, accuracy: 35 }
-	      })
-	    });
-	    if (!longStopCheckin.response.ok || longStopCheckin.data.checkin?.stopId !== longStopId || longStopCheckin.data.checkin?.localStopKey !== longLocalStopKey) {
-	      throw new Error(`Checkins should preserve long dynamic stop ids/localStopKey: ${JSON.stringify(longStopCheckin.data)}`);
-	    }
-	    const duplicateLongStopCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        profileId: 'anonymous',
-	        routeId,
-	        editToken: ownerEditToken,
-	        stopId: longStopId,
-	        stopName: '行中临时替代点',
-	        localStopKey: longLocalStopKey,
-	        clientLocalId: 'security-long-stop-checkin',
-	        worth: '值得'
-	      })
-	    });
-	    if (!duplicateLongStopCheckin.response.ok || !duplicateLongStopCheckin.data.deduplicated || duplicateLongStopCheckin.data.checkin?.id !== longStopCheckin.data.checkin?.id) {
-	      throw new Error(`Repeated clientLocalId should return the original checkin: ${JSON.stringify(duplicateLongStopCheckin.data)}`);
-	    }
-	    const ownerOverwritePublished = await fetchJson(`${BASE_URL}/api/routebooks`, {
+    const thirdProfileCheckin = await submitAuthenticatedCheckin(BASE_URL, {
+      profile: thirdBoundProfile,
+      routeId,
+      routeTitle: template.title,
+      city: template.city,
+      stopId: 'a',
+      stopName: '柳浪闻莺',
+      comment: '第三个认证 profile 的真实到达'
+    });
+    if (!thirdProfileCheckin.response.ok || !thirdProfileCheckin.data.checkin?.arrival?.valid) {
+      throw new Error(`Third authenticated profile checkin should save a valid arrival: ${JSON.stringify(thirdProfileCheckin.data)}`);
+    }
+    recordTargetFailure(
+      targetFailures,
+      thirdProfileCheckin.data.checkin?.trustState === 'profile-attested',
+      `[SR-03] Third valid profile token should produce profile-attested feedback: ${JSON.stringify(thirdProfileCheckin.data.checkin)}`
+    );
+    const afterThreeProfiles = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}`);
+    const stopAfterThreeProfiles = afterThreeProfiles.data.routebook?.stops?.find((stop) => stop.id === 'a');
+    recordTargetFailure(
+      targetFailures,
+      afterThreeProfiles.response.ok &&
+        Number.isFinite(afterThreeProfiles.data.routebook?.trustScore) &&
+        Number.isFinite(afterThreeProfiles.data.routebook?.trustMeta?.predictionScore) &&
+        Number.isFinite(afterThreeProfiles.data.routebook?.trustMeta?.displayScore) &&
+        afterThreeProfiles.data.routebook?.trustMeta?.source !== 'prediction' &&
+        stopAfterThreeProfiles?.poiTrust?.sampleCount === 3 &&
+        Number.isFinite(stopAfterThreeProfiles?.poiTrust?.score) &&
+        Number.isFinite(stopAfterThreeProfiles?.score),
+      `[SR-04] Three distinct authenticated profiles should unlock a verified trust number: ${JSON.stringify(afterThreeProfiles.data.routebook?.trustMeta)}`
+    );
+    const longStopId = 'stop-12345678-1234-1234-1234-123456789abc';
+    const longLocalStopKey = `${longStopId}-alt-1234567890123`;
+    // 新契约：无 token 的未注册 profileId 打卡不再被静默降级为 anonymous，
+    // 而是返回 403 PROFILE_NOT_REGISTERED。
+    const unregisteredCheckinDenied = await fetchJson(`${BASE_URL}/api/checkins`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        profileId: 'security-owner',
+        routeId,
+        routeTitle: template.title,
+        city: template.city,
+        stopId: 'a',
+        stopName: '柳浪闻莺',
+        worth: '值得'
+      })
+    });
+    if (unregisteredCheckinDenied.response.status !== 403 || unregisteredCheckinDenied.data?.code !== 'PROFILE_NOT_REGISTERED') {
+      throw new Error(
+        `Checkin with unregistered profileId and no token should be denied: ${JSON.stringify({ status: unregisteredCheckinDenied.response.status, data: unregisteredCheckinDenied.data })}`
+      );
+    }
+    const longStopCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        profileId: 'anonymous',
+        routeId,
+        routeTitle: template.title,
+        city: template.city,
+        stopId: longStopId,
+        stopName: '行中临时替代点',
+        localStopKey: longLocalStopKey,
+        clientLocalId: 'security-long-stop-checkin',
+        editToken: ownerEditToken,
+        worth: '值得',
+        queue: '无需排队',
+        cost: '0 元',
+        crowd: '适中',
+        comment: '长 ID 和 localStopKey 应被服务端保留，避免行中新增站点完成态丢失。',
+        target: { lat: 30.244, lng: 120.155 },
+        gps: { lat: 30.244, lng: 120.155, accuracy: 35 }
+      })
+    });
+    if (
+      !longStopCheckin.response.ok ||
+      longStopCheckin.data.checkin?.stopId !== longStopId ||
+      longStopCheckin.data.checkin?.localStopKey !== longLocalStopKey
+    ) {
+      throw new Error(`Checkins should preserve long dynamic stop ids/localStopKey: ${JSON.stringify(longStopCheckin.data)}`);
+    }
+    const duplicateLongStopCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        profileId: 'anonymous',
+        routeId,
+        editToken: ownerEditToken,
+        stopId: longStopId,
+        stopName: '行中临时替代点',
+        localStopKey: longLocalStopKey,
+        clientLocalId: 'security-long-stop-checkin',
+        worth: '值得'
+      })
+    });
+    if (
+      !duplicateLongStopCheckin.response.ok ||
+      !duplicateLongStopCheckin.data.deduplicated ||
+      duplicateLongStopCheckin.data.checkin?.id !== longStopCheckin.data.checkin?.id
+    ) {
+      throw new Error(`Repeated clientLocalId should return the original checkin: ${JSON.stringify(duplicateLongStopCheckin.data)}`);
+    }
+    const ownerOverwritePublished = await fetchJson(`${BASE_URL}/api/routebooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -941,97 +1038,114 @@ async function main() {
       throw new Error(`Remote published routebook fetch failed: ${JSON.stringify(remotePublishedRoutebook.data)}`);
     }
     assertPublicRoutebookRedacted(remotePublishedRoutebook.data.routebook, 'Remote published routebook');
-	    const unauthorizedReviewExport = await fetchJson(`${BASE_URL}/api/reviews`, {
-	      method: 'POST',
-	      headers: { 'content-type': 'application/json' },
-	      body: JSON.stringify({
-	        routebookId: routeId,
-	        profileId: boundProfile.data.profile.id,
-	        checkins: [{
-	          stopId: 'b',
-	          stopName: '灵隐寺',
-	          arrival: { valid: true, confidence: 'valid' }
-	        }]
-	      })
-	    });
-	    recordTargetFailure(
-	      targetFailures,
-	      unauthorizedReviewExport.response.status === 403,
-	      `[SR-01] Review creation with profileId but without profile token should be denied, got HTTP ${unauthorizedReviewExport.response.status}`
-	    );
-	    const reviewShare = await fetchJson(`${BASE_URL}/api/reviews`, {
-	      method: 'POST',
-	      headers: profileHeaders(boundProfile.data.profile),
-	      body: JSON.stringify({
-	        routebookId: routeId,
-	        profileId: boundProfile.data.profile.id,
+    const unauthorizedReviewExport = await fetchJson(`${BASE_URL}/api/reviews`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        routebookId: routeId,
+        profileId: boundProfile.data.profile.id,
+        checkins: [
+          {
+            stopId: 'b',
+            stopName: '灵隐寺',
+            arrival: { valid: true, confidence: 'valid' }
+          }
+        ]
+      })
+    });
+    recordTargetFailure(
+      targetFailures,
+      unauthorizedReviewExport.response.status === 403,
+      `[SR-01] Review creation with profileId but without profile token should be denied, got HTTP ${unauthorizedReviewExport.response.status}`
+    );
+    const reviewShare = await fetchJson(`${BASE_URL}/api/reviews`, {
+      method: 'POST',
+      headers: profileHeaders(boundProfile.data.profile),
+      body: JSON.stringify({
+        routebookId: routeId,
+        profileId: boundProfile.data.profile.id,
         reviewId: 'client-forged-review-id',
-        routebook: { ...published.data.routebook, title: '伪造标题不应生效', stops: [{ id: 'fake', name: '伪造站点' }, ...(published.data.routebook.stops ?? [])] },
+        routebook: {
+          ...published.data.routebook,
+          title: '伪造标题不应生效',
+          stops: [{ id: 'fake', name: '伪造站点' }, ...(published.data.routebook.stops ?? [])]
+        },
         executionStops: [
           { id: 'fake', name: '伪造执行站点', day: 'Day 1', time: '08:00' },
           { ...published.data.routebook.stops?.[1], day: 'Day 1', time: '10:30', tripStatus: 'visited' },
           { ...published.data.routebook.stops?.[0], day: 'Day 1', time: '09:00', tripStatus: 'visited' }
-	        ],
-	        checkins: [{
-	          stopId: 'b',
-	          stopName: '灵隐寺',
-          status: 'visited',
-          worth: '值得',
-          arrivalConfidence: 'valid',
-          arrival: { valid: true, confidence: 'valid', label: '有效到达', distanceMeters: 80, accuracy: 30 }
-        }]
+        ],
+        checkins: [
+          {
+            stopId: 'b',
+            stopName: '灵隐寺',
+            status: 'visited',
+            worth: '值得',
+            arrivalConfidence: 'valid',
+            arrival: { valid: true, confidence: 'valid', label: '有效到达', distanceMeters: 80, accuracy: 30 }
+          }
+        ]
       })
     });
     if (!reviewShare.response.ok || !reviewShare.data.review?.publicId) {
       throw new Error(`Published review share failed: ${JSON.stringify(reviewShare.data)}`);
     }
-    if (reviewShare.data.review.routebook?.title !== published.data.routebook.title || reviewShare.data.review.routebook?.stops?.[0]?.name !== published.data.routebook.stops?.[0]?.name) {
+    if (
+      reviewShare.data.review.routebook?.title !== published.data.routebook.title ||
+      reviewShare.data.review.routebook?.stops?.[0]?.name !== published.data.routebook.stops?.[0]?.name
+    ) {
       throw new Error(`Review share should use canonical saved routebook, not request body: ${JSON.stringify(reviewShare.data.review.routebook)}`);
     }
     if (reviewShare.data.review.executionStops?.length !== 2 || reviewShare.data.review.executionStops?.some((stop) => stop.id === 'fake')) {
-      throw new Error(`Review execution route should preserve canonical order input and reject forged stops: ${JSON.stringify(reviewShare.data.review.executionStops)}`);
+      throw new Error(
+        `Review execution route should preserve canonical order input and reject forged stops: ${JSON.stringify(reviewShare.data.review.executionStops)}`
+      );
     }
-	    if (reviewShare.data.review.routebook?.editToken || reviewShare.data.review.routebook?.profileId) {
-	      throw new Error(`Review share response should not expose private route fields: ${JSON.stringify(reviewShare.data.review.routebook)}`);
-	    }
-	    recordTargetFailure(
-	      targetFailures,
-	      reviewShare.data.review?.stats?.validArrivalCount === 1 && reviewShare.data.review?.checkins?.every((checkin) => checkin.stopId !== 'b' || checkin.arrival?.valid !== true),
-	      `[SR-02] Client-supplied review checkins must not manufacture valid arrivals: ${JSON.stringify({ stats: reviewShare.data.review?.stats, checkins: reviewShare.data.review?.checkins })}`
-	    );
+    if (reviewShare.data.review.routebook?.editToken || reviewShare.data.review.routebook?.profileId) {
+      throw new Error(`Review share response should not expose private route fields: ${JSON.stringify(reviewShare.data.review.routebook)}`);
+    }
+    recordTargetFailure(
+      targetFailures,
+      reviewShare.data.review?.stats?.validArrivalCount === 1 &&
+        reviewShare.data.review?.checkins?.every((checkin) => checkin.stopId !== 'b' || checkin.arrival?.valid !== true),
+      `[SR-02] Client-supplied review checkins must not manufacture valid arrivals: ${JSON.stringify({ stats: reviewShare.data.review?.stats, checkins: reviewShare.data.review?.checkins })}`
+    );
     const reviewId = reviewShare.data.review.publicId;
     if (reviewId === 'client-forged-review-id') {
       throw new Error('Review share should ignore caller-provided reviewId');
     }
-	    const collisionReview = await fetchJson(`${BASE_URL}/api/reviews`, {
-	      method: 'POST',
-	      headers: profileHeaders(boundProfile.data.profile),
-	      body: JSON.stringify({
-	        routebookId: routeId,
-	        profileId: boundProfile.data.profile.id,
+    const collisionReview = await fetchJson(`${BASE_URL}/api/reviews`, {
+      method: 'POST',
+      headers: profileHeaders(boundProfile.data.profile),
+      body: JSON.stringify({
+        routebookId: routeId,
+        profileId: boundProfile.data.profile.id,
         reviewId,
-        checkins: [{
-          stopId: 'b',
-          stopName: '灵隐寺',
-          status: 'visited',
-          worth: '踩坑'
-        }]
+        checkins: [
+          {
+            stopId: 'b',
+            stopName: '灵隐寺',
+            status: 'visited',
+            worth: '踩坑'
+          }
+        ]
       })
     });
     if (!collisionReview.response.ok || collisionReview.data.review?.publicId === reviewId) {
       throw new Error(`Review share should not allow caller-selected id collisions: ${JSON.stringify(collisionReview.data)}`);
-	    }
-	    const publicReview = await fetchJson(`${BASE_URL}/api/reviews/${encodeURIComponent(reviewId)}`);
-	    if (!publicReview.response.ok) {
-	      throw new Error(`Public review fetch failed: ${JSON.stringify(publicReview.data)}`);
-	    }
-	    assertPublicReviewWhitelist(reviewShare.data.review, 'Review create response');
-	    assertPublicReviewWhitelist(publicReview.data.review, 'Public review response');
-	    recordTargetFailure(
-	      targetFailures,
-	      publicReview.data.review?.stats?.validArrivalCount === 1 && publicReview.data.review?.checkins?.every((checkin) => checkin.stopId !== 'b' || checkin.arrival?.valid !== true),
-	      `[SR-02] Persisted public review should contain only server-attested arrivals: ${JSON.stringify({ stats: publicReview.data.review?.stats, checkins: publicReview.data.review?.checkins })}`
-	    );
+    }
+    const publicReview = await fetchJson(`${BASE_URL}/api/reviews/${encodeURIComponent(reviewId)}`);
+    if (!publicReview.response.ok) {
+      throw new Error(`Public review fetch failed: ${JSON.stringify(publicReview.data)}`);
+    }
+    assertPublicReviewWhitelist(reviewShare.data.review, 'Review create response');
+    assertPublicReviewWhitelist(publicReview.data.review, 'Public review response');
+    recordTargetFailure(
+      targetFailures,
+      publicReview.data.review?.stats?.validArrivalCount === 1 &&
+        publicReview.data.review?.checkins?.every((checkin) => checkin.stopId !== 'b' || checkin.arrival?.valid !== true),
+      `[SR-02] Persisted public review should contain only server-attested arrivals: ${JSON.stringify({ stats: publicReview.data.review?.stats, checkins: publicReview.data.review?.checkins })}`
+    );
     const archived = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-routebook-admin-token': ADMIN_TOKEN },
@@ -1050,17 +1164,21 @@ async function main() {
     }
 
     const legacyId = 'legacy-no-token-route';
-    await appendFile(join(dataDir, 'routebooks.jsonl'), `${JSON.stringify({
-      ...template,
-      id: legacyId,
-      publicId: legacyId,
-      title: '历史无令牌草稿',
-      profileId: 'legacy-owner',
-      editToken: '',
-      publishStatus: 'draft',
-      provider: { name: 'legacy-test' },
-      updatedAt: new Date().toISOString()
-    })}\n`, 'utf8');
+    await appendFile(
+      join(dataDir, 'routebooks.jsonl'),
+      `${JSON.stringify({
+        ...template,
+        id: legacyId,
+        publicId: legacyId,
+        title: '历史无令牌草稿',
+        profileId: 'legacy-owner',
+        editToken: '',
+        publishStatus: 'draft',
+        provider: { name: 'legacy-test' },
+        updatedAt: new Date().toISOString()
+      })}\n`,
+      'utf8'
+    );
     const legacyPublishDenied = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(legacyId)}/publish`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1069,9 +1187,9 @@ async function main() {
     if (legacyPublishDenied.response.status !== 403) {
       throw new Error(`Legacy draft publish without migrated edit token should be denied, got HTTP ${legacyPublishDenied.response.status}`);
     }
-	    const migratedLegacyDraft = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(legacyId)}`, {
-	      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
-	    });
+    const migratedLegacyDraft = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(legacyId)}`, {
+      headers: { 'x-routebook-admin-token': ADMIN_TOKEN }
+    });
     if (!migratedLegacyDraft.response.ok || !migratedLegacyDraft.data.routebook?.editToken) {
       throw new Error(`Local legacy draft read should mint edit token: ${JSON.stringify(migratedLegacyDraft.data)}`);
     }
@@ -1147,12 +1265,12 @@ async function main() {
       throw new Error(`IPv6 link-local URL should be reported as unsafe: ${JSON.stringify(ipv6LinkLocalResponse.data)}`);
     }
 
-	    await assertUntrustedForwardedForCannotBypassRateLimit(dataDir);
-	    if (targetFailures.length) {
-	      throw new Error(`Target security regressions failed:\n- ${targetFailures.join('\n- ')}`);
-	    }
+    await assertUntrustedForwardedForCannotBypassRateLimit(dataDir);
+    if (targetFailures.length) {
+      throw new Error(`Target security regressions failed:\n- ${targetFailures.join('\n- ')}`);
+    }
 
-	    console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL }, null, 2));
+    console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL }, null, 2));
   } finally {
     if (originalProducts) {
       await fetchJson(`${BASE_URL}/api/products`, {
@@ -1192,34 +1310,35 @@ function assertPublicReviewWhitelist(review, label) {
   }
   for (const checkin of review?.checkins ?? []) {
     // rank13④ 刻意语义变更：回顾打卡行新增 photoId（照片本体仍走独立照片接口）。
-    assertExactKeys(checkin, [
-      'arrival',
-      'arrivalConfidence',
-      'comment',
-      'cost',
-      'crowd',
-      'localStopKey',
-      'photoId',
-      'pitfall',
-      'poiId',
-      'queue',
-      'status',
-      'stopId',
-      'stopName',
-      'worth'
-    ], `${label} checkin`);
+    assertExactKeys(
+      checkin,
+      [
+        'arrival',
+        'arrivalConfidence',
+        'comment',
+        'cost',
+        'crowd',
+        'localStopKey',
+        'photoId',
+        'pitfall',
+        'poiId',
+        'queue',
+        'status',
+        'stopId',
+        'stopName',
+        'worth'
+      ],
+      `${label} checkin`
+    );
     if (checkin.arrival) {
       assertExactKeys(checkin.arrival, ['confidence', 'label', 'valid'], `${label} arrival`);
     }
   }
-  assertExactKeys(review?.stats, [
-    'checkinCount',
-    'completionRate',
-    'feedbackCount',
-    'lowConfidenceArrivalCount',
-    'pitfallCount',
-    'validArrivalCount'
-  ], `${label} stats`);
+  assertExactKeys(
+    review?.stats,
+    ['checkinCount', 'completionRate', 'feedbackCount', 'lowConfidenceArrivalCount', 'pitfallCount', 'validArrivalCount'],
+    `${label} stats`
+  );
   const serialized = JSON.stringify(review);
   for (const field of ['photoName', 'distanceMeters', 'accuracy', 'createdAt', 'updatedAt', 'profileId', 'editToken', 'provider', 'gps']) {
     if (serialized.includes(`"${field}"`)) {
@@ -1289,7 +1408,7 @@ function createIdentityProof(type, subject) {
   const nonce = `nonce-${Date.now()}`;
   const payload = `trusted-routebook:${type}:${subject}:${issuedAt}:${nonce}`;
   const signature = createHmac('sha256', IDENTITY_ASSERTION_SECRET).update(payload).digest('hex');
-	  return { type, subject, issuedAt, nonce, signature };
+  return { type, subject, issuedAt, nonce, signature };
 }
 
 function profileHeaders(profile) {
@@ -1316,17 +1435,7 @@ async function createVerifiedProfile(baseUrl, { localProfileId, subject }) {
   return result.data.profile;
 }
 
-async function submitAuthenticatedCheckin(baseUrl, {
-  profile,
-  routeId,
-  routeTitle,
-  city,
-  stopId,
-  stopName,
-  editToken = '',
-  status = 'visited',
-  comment = ''
-}) {
+async function submitAuthenticatedCheckin(baseUrl, { profile, routeId, routeTitle, city, stopId, stopName, editToken = '', status = 'visited', comment = '' }) {
   return fetchJson(`${baseUrl}/api/checkins`, {
     method: 'POST',
     headers: profileHeaders(profile),

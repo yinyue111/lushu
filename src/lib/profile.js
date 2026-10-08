@@ -70,11 +70,13 @@ export function createProfileSyncCode(profile = getProfile()) {
   if (!isValidProfileId(profileId) || !isValidProfileToken(profileAccessToken)) {
     throw new Error('当前账号尚未完成服务端同步，无法生成恢复码');
   }
-  return `${PROFILE_SYNC_PREFIX}${encodeBase64Url(JSON.stringify({
-    version: 1,
-    profileId,
-    profileAccessToken
-  }))}`;
+  return `${PROFILE_SYNC_PREFIX}${encodeBase64Url(
+    JSON.stringify({
+      version: 1,
+      profileId,
+      profileAccessToken
+    })
+  )}`;
 }
 
 export function parseProfileSyncCode(value) {
@@ -115,7 +117,10 @@ function createProfileId() {
 
 function normalizeList(value) {
   if (Array.isArray(value)) return value.map((item) => String(item ?? '').trim()).filter(Boolean);
-  return String(value ?? '').split(/[、,\s]+/).map((item) => item.trim()).filter(Boolean);
+  return String(value ?? '')
+    .split(/[、,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function isValidProfileId(value) {
@@ -129,12 +134,16 @@ function isValidProfileToken(value) {
 function encodeBase64Url(value) {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function decodeBase64Url(value) {
-  const normalized = String(value ?? '').replace(/-/g, '+').replace(/_/g, '/');
+  const normalized = String(value ?? '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
   const binary = atob(padded);
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));

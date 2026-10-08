@@ -1,11 +1,30 @@
 // Feedback aggregation and trust scores for routebooks and stops.
-import { CHECKIN_LOG_PATH, EXPOSURE_LOG_PATH, POI_CORRECTION_LOG_PATH, REVIEW_LOG_PATH, ROUTEBOOK_LOG_PATH, PUBLIC_TRUST_SAMPLE_THRESHOLD, TRAVEL_DAY_TIME_ZONE, TRUST_FEEDBACK_SAMPLE_TARGET, POI_FEEDBACK_WINDOW_DAYS } from '../config/index.mjs';
+import {
+  CHECKIN_LOG_PATH,
+  EXPOSURE_LOG_PATH,
+  POI_CORRECTION_LOG_PATH,
+  REVIEW_LOG_PATH,
+  ROUTEBOOK_LOG_PATH,
+  PUBLIC_TRUST_SAMPLE_THRESHOLD,
+  TRAVEL_DAY_TIME_ZONE,
+  TRUST_FEEDBACK_SAMPLE_TARGET,
+  POI_FEEDBACK_WINDOW_DAYS
+} from '../config/index.mjs';
 import { readRecentJsonlRows, collectMatchingRows, readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { ROUTEBOOK_HISTORY_PROJECTION } from '../storage/projections.mjs';
 import { clampNumber, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { calculateRouteTrustScore, normalizeStopEvidence, normalizeStopFacts, normalizeImportedSources } from '../routebooks/normalize.mjs';
-import { checkinEventTime, checkinStopKey, isEligibleTrustCheckin, isPublicTrustEligibleCheckin, latestTrustedCheckinsByProfileAndPoi, latestTrustedCheckinsByProfileAndStop, localDateForTimestamp, poiCheckinKey } from './checkins.mjs';
+import {
+  checkinEventTime,
+  checkinStopKey,
+  isEligibleTrustCheckin,
+  isPublicTrustEligibleCheckin,
+  latestTrustedCheckinsByProfileAndPoi,
+  latestTrustedCheckinsByProfileAndStop,
+  localDateForTimestamp,
+  poiCheckinKey
+} from './checkins.mjs';
 import { routebookCopyCount } from '../routebooks/copies.mjs';
 import { listPoiKnowledge } from '../poi/knowledge.mjs';
 import { resolvePoiId, normalizePoiName } from '../poi/catalog.mjs';
@@ -36,13 +55,13 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
       : (!routeTitle || item?.routeTitle === routeTitle) && (!city || item?.city === city) && !item?.routeId;
   const globalEligiblePredicate = (item) => isEligibleTrustCheckin(item) && item?.serverResolvedStop === true;
   const correctionPredicate = (item) => (!routeTitle || item?.routeTitle === routeTitle) && (!city || item?.city === city);
-  const reviewPredicate = (item) => routeId
-    ? sanitizePublicId(item?.routebookId || item?.routebook?.publicId || item?.routebook?.id) === routeId
-    : item?.routebook?.title === routeTitle && (!city || item?.routebook?.city === city);
-  const historyPredicate = (item) => (routeId && sanitizePublicId(item?.publicId || item?.id) === routeId) ||
-    (!routeId && item?.title === routeTitle && item?.city === city);
-  const exposurePredicate = (item) => (routeId && sanitizePublicId(item?.routeId || item?.itemId) === routeId) ||
-    (!routeId && item?.routeTitle === routeTitle);
+  const reviewPredicate = (item) =>
+    routeId
+      ? sanitizePublicId(item?.routebookId || item?.routebook?.publicId || item?.routebook?.id) === routeId
+      : item?.routebook?.title === routeTitle && (!city || item?.routebook?.city === city);
+  const historyPredicate = (item) =>
+    (routeId && sanitizePublicId(item?.publicId || item?.id) === routeId) || (!routeId && item?.title === routeTitle && item?.city === city);
+  const exposurePredicate = (item) => (routeId && sanitizePublicId(item?.routeId || item?.itemId) === routeId) || (!routeId && item?.routeTitle === routeTitle);
   // 按 routeId/routeTitle 谓词精确反扫（匹配窗口 5000 行），替代全局尾窗 + filter：
   // 旧路径下热门路线会把冷路线的历史反馈挤出统计窗口。传入共享上下文时改为
   // 对同一份内存行数组过滤，谓词与窗口口径不变。
@@ -63,18 +82,12 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
         readMatchingJsonLines(ROUTEBOOK_LOG_PATH, historyPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW, ROUTEBOOK_HISTORY_PROJECTION),
         readMatchingJsonLines(EXPOSURE_LOG_PATH, exposurePredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW)
       ]);
-  const trustedRouteStops = [
-    ...(routebook?.stops ?? []),
-    ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])
-  ];
-  const profileAttestedCheckins = matchedCheckins.filter((item) =>
-    isPublicTrustEligibleCheckin(item) &&
-    trustedRouteStops.some((stop) => isSameCheckinStop(stop, item))
+  const trustedRouteStops = [...(routebook?.stops ?? []), ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
+  const profileAttestedCheckins = matchedCheckins.filter(
+    (item) => isPublicTrustEligibleCheckin(item) && trustedRouteStops.some((stop) => isSameCheckinStop(stop, item))
   );
   const attestedCheckins = latestTrustedCheckinsByProfileAndStop(profileAttestedCheckins);
-  const eligibleTrustCheckins = latestTrustedCheckinsByProfileAndStop(
-    profileAttestedCheckins.filter(isEligibleTrustCheckin)
-  );
+  const eligibleTrustCheckins = latestTrustedCheckinsByProfileAndStop(profileAttestedCheckins.filter(isEligibleTrustCheckin));
   const globalPoiCheckins = latestTrustedCheckinsByProfileAndPoi(globalEligibleCheckins);
   const verifiedArrivalCheckins = eligibleTrustCheckins;
   const verifiedProfileCount = new Set(verifiedArrivalCheckins.map((item) => normalizeProfileId(item.profileId)).filter((id) => id && id !== 'anonymous')).size;
@@ -87,27 +100,26 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
   const matchedCorrections = corrections;
   const shareExposureCount = matchedExposures.filter((item) => item.itemType === 'routebook' || item.surface === 'public-share').length;
   const editCount = matchedHistory.filter((item) => item.provider?.editedAt || item.activeVariantId).length;
-  const latestVerifiedAt = verifiedArrivalCheckins
-    .map((item) => item.createdAt ?? item.time)
-    .filter(Boolean)
-    .sort()
-    .at(-1) ?? null;
+  const latestVerifiedAt =
+    verifiedArrivalCheckins
+      .map((item) => item.createdAt ?? item.time)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
   const validArrivalCount = verifiedArrivalCheckins.length;
-	  const lowConfidenceArrivalCount = attestedCheckins.filter((item) => ['weak', 'invalid'].includes(item.arrival?.confidence)).length;
-	  const uniqueVisitedStops = new Set(eligibleTrustCheckins
-	    .map(checkinStopKey)
-	    .filter(Boolean));
-	  // rank27：与 uniqueVisitedStops 完全同口径，复用同一个 Set 不再重复计算。
-	  const feedbackStopCount = uniqueVisitedStops.size;
-	  const pitfallCount = eligibleTrustCheckins.filter((item) => item.worth === '踩坑' || item.pitfall).length;
-	  const positiveCount = eligibleTrustCheckins.filter((item) => item.worth === '值得').length;
-	  // skip/replaced 计数不能基于 eligibleTrustCheckins（其要求 status==='visited'，
-	  // 结构上恒为 0）；改按 profile+stop 最新态（attestedCheckins）统计终态。
-	  const skipCount = attestedCheckins.filter((item) => item?.status === 'skipped').length;
-	  const replacedCount = attestedCheckins.filter((item) => item?.status === 'replaced').length;
-	  const completeFeedbackCount = eligibleTrustCheckins.filter((item) =>
-	    item.worth && item.queue && item.cost && item.crowd && (item.comment || item.pitfall || item.arrival?.valid)
-	  ).length;
+  const lowConfidenceArrivalCount = attestedCheckins.filter((item) => ['weak', 'invalid'].includes(item.arrival?.confidence)).length;
+  const uniqueVisitedStops = new Set(eligibleTrustCheckins.map(checkinStopKey).filter(Boolean));
+  // rank27：与 uniqueVisitedStops 完全同口径，复用同一个 Set 不再重复计算。
+  const feedbackStopCount = uniqueVisitedStops.size;
+  const pitfallCount = eligibleTrustCheckins.filter((item) => item.worth === '踩坑' || item.pitfall).length;
+  const positiveCount = eligibleTrustCheckins.filter((item) => item.worth === '值得').length;
+  // skip/replaced 计数不能基于 eligibleTrustCheckins（其要求 status==='visited'，
+  // 结构上恒为 0）；改按 profile+stop 最新态（attestedCheckins）统计终态。
+  const skipCount = attestedCheckins.filter((item) => item?.status === 'skipped').length;
+  const replacedCount = attestedCheckins.filter((item) => item?.status === 'replaced').length;
+  const completeFeedbackCount = eligibleTrustCheckins.filter(
+    (item) => item.worth && item.queue && item.cost && item.crowd && (item.comment || item.pitfall || item.arrival?.valid)
+  ).length;
   const routeStopCount = Array.isArray(routebook?.stops) ? routebook.stops.length : 0;
   // 完成率改为按 profile 个体完成率取平均：跨用户站点并集会把 3 个各走 1 站的
   // 用户算成 3/N 的「共同完成」，高估执行率。原并集口径保留为 coverageRate。
@@ -120,16 +132,14 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     visited.add(stopKey);
     visitedStopsByProfile.set(itemProfileId, visited);
   }
-  const perProfileCompletion = [...visitedStopsByProfile.values()]
-    .map((visited) => (routeStopCount ? Math.min(1, visited.size / routeStopCount) : 0));
-  const completionRate = routeStopCount && perProfileCompletion.length
-    ? Math.min(100, Math.round((perProfileCompletion.reduce((sum, ratio) => sum + ratio, 0) / perProfileCompletion.length) * 100))
-    : 0;
-  const coverageRate = routeStopCount
-    ? Math.min(100, Math.round((uniqueVisitedStops.size / routeStopCount) * 100))
-    : 0;
-	  const pitfallRate = eligibleTrustCheckins.length ? Math.round((pitfallCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
-	  const positiveRate = eligibleTrustCheckins.length ? Math.round((positiveCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
+  const perProfileCompletion = [...visitedStopsByProfile.values()].map((visited) => (routeStopCount ? Math.min(1, visited.size / routeStopCount) : 0));
+  const completionRate =
+    routeStopCount && perProfileCompletion.length
+      ? Math.min(100, Math.round((perProfileCompletion.reduce((sum, ratio) => sum + ratio, 0) / perProfileCompletion.length) * 100))
+      : 0;
+  const coverageRate = routeStopCount ? Math.min(100, Math.round((uniqueVisitedStops.size / routeStopCount) * 100)) : 0;
+  const pitfallRate = eligibleTrustCheckins.length ? Math.round((pitfallCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
+  const positiveRate = eligibleTrustCheckins.length ? Math.round((positiveCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
   // 跳过率通道：按 profile + 出行日（本函数已按路线过滤）分组成「行程」，行程内
   // 有 isEligibleTrustCheckin 的有效到达锚定才计入；统计该行程内最终状态为
   // skipped/replaced 的站点占比后取行程平均。跳过打卡本身不要求 GPS。
@@ -155,7 +165,7 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
   const skipRate = anchoredJourneySkipShares.length
     ? Math.round((anchoredJourneySkipShares.reduce((sum, share) => sum + share, 0) / anchoredJourneySkipShares.length) * 1000) / 10
     : 0;
-	  const completeFeedbackRate = eligibleTrustCheckins.length ? Math.round((completeFeedbackCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
+  const completeFeedbackRate = eligibleTrustCheckins.length ? Math.round((completeFeedbackCount / eligibleTrustCheckins.length) * 1000) / 10 : 0;
   const editRate = matchedHistory.length > 1 ? Math.round((editCount / Math.max(1, matchedHistory.length - 1)) * 1000) / 10 : 0;
   const copyCount = routebookCopyCount(matchedExposures, routeId);
   const copyConversionRate = shareExposureCount ? Math.round((copyCount / shareExposureCount) * 1000) / 10 : 0;
@@ -176,15 +186,15 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     lowConfidenceArrivalCount,
     approvedCorrectionCount,
     sampleCount: verifiedArrivalCheckins.length
-	  });
+  });
   const aiPredictionScore = clampNumber(routebook?.trustScore, 45, 96, calculateRouteTrustScore(routebook?.stops ?? []));
   const trustBlend = blendRouteTrustScore(aiPredictionScore, feedbackScore, verifiedProfileCount);
   const poiTrust = buildPoiTrustByStop(routebook, globalPoiCheckins, approvedHourCorrections);
   return {
-	    checkinCount: matchedCheckins.length,
-	    attestedCheckinCount: eligibleTrustCheckins.length,
-	    ordinaryAttestedFeedbackCount: Math.max(0, attestedCheckins.length - eligibleTrustCheckins.length),
-	    untrustedCheckinCount: matchedCheckins.length - profileAttestedCheckins.length,
+    checkinCount: matchedCheckins.length,
+    attestedCheckinCount: eligibleTrustCheckins.length,
+    ordinaryAttestedFeedbackCount: Math.max(0, attestedCheckins.length - eligibleTrustCheckins.length),
+    untrustedCheckinCount: matchedCheckins.length - profileAttestedCheckins.length,
     visitedStopCount: uniqueVisitedStops.size,
     feedbackStopCount,
     completionRate,
@@ -214,7 +224,7 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     verifiedProfileCount,
     attestedProfileCount,
     lowConfidenceArrivalCount,
-	    latestFeedbackAt: latestVerifiedAt,
+    latestFeedbackAt: latestVerifiedAt,
     feedbackScore,
     aiPredictionScore,
     blendedTrustScore: trustBlend.score,
@@ -224,7 +234,7 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     trustCoverage: trustBlend.coverage,
     displayTrustScore: trustBlend.displayScore,
     poiTrust,
-	    trustDelta: Math.max(-12, Math.min(12, Math.round((completionRate - pitfallRate) / 12) + Math.min(4, validArrivalCount) - editPenalty))
+    trustDelta: Math.max(-12, Math.min(12, Math.round((completionRate - pitfallRate) / 12) + Math.min(4, validArrivalCount) - editPenalty))
   };
 }
 
@@ -276,20 +286,22 @@ function calculateFeedbackTrustScore(summary) {
   const lowConfidencePenalty = Math.min(10, clampNumber(summary.lowConfidenceArrivalCount, 0, 100, 0) * 2);
   // rank20②：路线被审核通过的纠错越多，说明既有事实越不可靠，小幅扣分（上限 6）。
   const correctionPenalty = Math.min(6, clampNumber(summary.approvedCorrectionCount, 0, 1000, 0) * 2);
-  return Math.round(clampNumber(
-    completion * 0.32 +
-      satisfaction * 0.22 +
-      lowEdit * 0.14 +
-      completeFeedback * 0.14 +
-      lowSkip * 0.08 +
-      lowPitfall * 0.10 +
-      confidenceBonus -
-      lowConfidencePenalty -
-      correctionPenalty,
-    35,
-    98,
-    60
-  ));
+  return Math.round(
+    clampNumber(
+      completion * 0.32 +
+        satisfaction * 0.22 +
+        lowEdit * 0.14 +
+        completeFeedback * 0.14 +
+        lowSkip * 0.08 +
+        lowPitfall * 0.1 +
+        confidenceBonus -
+        lowConfidencePenalty -
+        correctionPenalty,
+      35,
+      98,
+      60
+    )
+  );
 }
 
 // rank20②：营业时间/关闭类字段的已审核纠错，用于 POI 降权标记。
@@ -395,15 +407,13 @@ function trustProgressLabel(feedbackSummary) {
     return attested ? '真实打卡验证可信分' : '独立身份打卡验证可信分';
   }
   const samples = clampNumber(feedbackSummary.verifiedProfileCount, 0, 1000000, 0);
-  return samples
-    ? `预测可信度 · 已收集 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`
-    : '预测可信度 · 待首份真实打卡';
+  return samples ? `预测可信度 · 已收集 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证` : '预测可信度 · 待首份真实打卡';
 }
 
 function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCount) {
   const samples = clampNumber(sampleCount, 0, 100000, 0);
   const coverage = Math.min(1, samples / Math.max(1, TRUST_FEEDBACK_SAMPLE_TARGET));
-  const feedbackWeight = Math.round((coverage * 0.75) * 100) / 100;
+  const feedbackWeight = Math.round(coverage * 0.75 * 100) / 100;
   const aiWeight = Math.round((1 - feedbackWeight) * 100) / 100;
   const score = Math.round(clampNumber(aiPredictionScore * aiWeight + feedbackScore * feedbackWeight, 40, 98, aiPredictionScore));
   return {
@@ -419,10 +429,7 @@ function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCount) {
 function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHourCorrections = []) {
   // 键改用 resolvePoiId：stop.id（如 stop-1）会在主线与变体之间撞库，把别的
   // POI 的可信分挂错；同时覆盖变体站点，让变体也能继承跨路线 POI 反馈。
-  const stops = [
-    ...(routebook?.stops ?? []),
-    ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])
-  ];
+  const stops = [...(routebook?.stops ?? []), ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
   const sinceMs = Date.now() - POI_FEEDBACK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   const recentRows = attestedCheckins.filter((item) => {
     const time = Date.parse(item.createdAt ?? item.time ?? '');
@@ -437,37 +444,41 @@ function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHourCorre
     const stopPoiId = resolvePoiId(stop, routebook?.city);
     if (!stopPoiId || map.has(stopPoiId)) continue;
     const rows = recentRows.filter((item) => poiCheckinKey(item) === stopPoiId && isEligibleTrustCheckin(item));
-    const independentProfileCount = new Set(
-      rows.map((item) => normalizeProfileId(item.profileId)).filter((id) => id && id !== 'anonymous')
-    ).size;
+    const independentProfileCount = new Set(rows.map((item) => normalizeProfileId(item.profileId)).filter((id) => id && id !== 'anonymous')).size;
     const validRows = rows;
     const positiveRows = validRows.filter((item) => item.worth === '值得');
     const pitfallRows = validRows.filter((item) => item.worth === '踩坑' || item.pitfall);
     const skippedRows = validRows.filter((item) => item.worth === '跳过');
-    const latestVerifiedAt = validRows.map((item) => item.createdAt ?? item.time).filter(Boolean).sort().at(-1) ?? null;
-    const freshnessDays = latestVerifiedAt
-      ? Math.max(0, Math.floor((Date.now() - Date.parse(latestVerifiedAt)) / (24 * 60 * 60 * 1000)))
-      : null;
+    const latestVerifiedAt =
+      validRows
+        .map((item) => item.createdAt ?? item.time)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null;
+    const freshnessDays = latestVerifiedAt ? Math.max(0, Math.floor((Date.now() - Date.parse(latestVerifiedAt)) / (24 * 60 * 60 * 1000))) : null;
     const positiveRate = validRows.length ? Math.round((positiveRows.length / validRows.length) * 1000) / 10 : 0;
     const pitfallRate = validRows.length ? Math.round((pitfallRows.length / validRows.length) * 1000) / 10 : 0;
     const skipRate = validRows.length ? Math.round((skippedRows.length / validRows.length) * 1000) / 10 : 0;
     const freshnessScore = latestVerifiedAt ? Math.max(0, 100 - Math.floor((Date.now() - Date.parse(latestVerifiedAt)) / (24 * 60 * 60 * 1000)) * 3) : 0;
     // rank20②：近 30 天营业时间/关闭类已审核纠错对该 POI 施加降权（每条 -4，上限 -12）。
-    const recentCorrectionCount = recentHourCorrections
-      .filter((item) => isSamePoi({ ...stop, city: routebook?.city }, item)).length;
+    const recentCorrectionCount = recentHourCorrections.filter((item) => isSamePoi({ ...stop, city: routebook?.city }, item)).length;
     const correctionPenalty = Math.min(12, recentCorrectionCount * 4);
-    const score = independentProfileCount ? Math.round(clampNumber(
-      42 +
-        Math.min(24, independentProfileCount * 4) +
-        positiveRate * 0.14 +
-        freshnessScore * 0.12 -
-        pitfallRate * 0.22 -
-        skipRate * 0.12 -
-        correctionPenalty,
-      30,
-      96,
-      50
-    )) : null;
+    const score = independentProfileCount
+      ? Math.round(
+          clampNumber(
+            42 +
+              Math.min(24, independentProfileCount * 4) +
+              positiveRate * 0.14 +
+              freshnessScore * 0.12 -
+              pitfallRate * 0.22 -
+              skipRate * 0.12 -
+              correctionPenalty,
+            30,
+            96,
+            50
+          )
+        )
+      : null;
     // rank20①：近 30 天有效样本的经验聚合（人群/排队/花费/拥挤/最新反馈时间）。
     const audienceCounts = new Map();
     for (const item of validRows) {
@@ -475,12 +486,13 @@ function buildPoiTrustByStop(routebook, attestedCheckins = [], approvedHourCorre
       if (label) audienceCounts.set(label, (audienceCounts.get(label) ?? 0) + 1);
     }
     const audienceTotal = [...audienceCounts.values()].reduce((sum, count) => sum + count, 0);
-    const audienceBreakdown = audienceTotal >= 2
-      ? [...audienceCounts.entries()]
-          .map(([label, count]) => ({ label, count, share: Math.round((count / audienceTotal) * 100) }))
-          .sort((left, right) => right.count - left.count)
-          .slice(0, 6)
-      : [];
+    const audienceBreakdown =
+      audienceTotal >= 2
+        ? [...audienceCounts.entries()]
+            .map(([label, count]) => ({ label, count, share: Math.round((count / audienceTotal) * 100) }))
+            .sort((left, right) => right.count - left.count)
+            .slice(0, 6)
+        : [];
     const queueMinutesMedian = medianOf(validRows.map((item) => parseQueueMinutes(item?.queue)));
     const costMedian = medianOf(validRows.map((item) => parseCostYuan(item?.cost)));
     const crowdLevel = modeOf(validRows.map((item) => item?.crowd));
@@ -541,14 +553,13 @@ function daysAgoLabel(isoValue) {
 
 function enrichStopsWithEvidence(routebook, stops, poiKnowledge, feedbackSummary = null) {
   return stops.map((stop) => {
-    const corrections = poiKnowledge
-      .filter((item) => isSamePoi(stop, item))
-      .slice(0, 5);
+    const corrections = poiKnowledge.filter((item) => isSamePoi(stop, item)).slice(0, 5);
     // 新口径按 resolvePoiId 取 POI 可信分；stopTrustKey 仅作为读取历史
     // 已落盘 feedbackSummary（旧键）的兼容回退。
     const poiKey = resolvePoiId(stop, routebook?.city);
     const legacyKey = stopTrustKey(stop);
-    const poiTrust = feedbackSummary?.poiTrust?.[poiKey] ??
+    const poiTrust =
+      feedbackSummary?.poiTrust?.[poiKey] ??
       feedbackSummary?.poiTrust?.[legacyKey] ??
       routebook?.feedbackSummary?.poiTrust?.[poiKey] ??
       routebook?.feedbackSummary?.poiTrust?.[legacyKey] ??
@@ -592,7 +603,15 @@ function buildStopFacts(routebook, stop, corrections, evidence) {
   }));
   const fallbackFacts = [
     { id: 'fact-stay', field: '建议停留', value: stop.stay, confidence: 66, sourceLabel: 'AI 路线校验', sourceType: 'routebook', status: '需实地校准' },
-    { id: 'fact-cost', field: '费用', value: stop.cost, confidence: /\d/.test(String(stop.cost ?? '')) ? 64 : 45, sourceLabel: 'AI 预算估算', sourceType: 'routebook', status: '需出发前复核' },
+    {
+      id: 'fact-cost',
+      field: '费用',
+      value: stop.cost,
+      confidence: /\d/.test(String(stop.cost ?? '')) ? 64 : 45,
+      sourceLabel: 'AI 预算估算',
+      sourceType: 'routebook',
+      status: '需出发前复核'
+    },
     { id: 'fact-risk', field: '风险', value: stop.risk, confidence: 68, sourceLabel: 'AI 风险摘要', sourceType: 'routebook', status: '需复核' }
   ];
   const merged = [...normalizeStopFacts(stop.facts), ...correctionFacts, ...sourceFacts, ...fallbackFacts];

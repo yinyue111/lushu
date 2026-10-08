@@ -2,7 +2,16 @@ import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { envFlag, envNumber } from './server/config/env.mjs';
 import { evaluateStartupSafety } from './server/config/startup-checks.mjs';
-import { ALLOW_LOCAL_ADMIN_BYPASS, ALLOW_LOCAL_API_BYPASS, HOST, IS_PRODUCTION, PORT, PROFILE_ID_SECRET_SOURCE, PUBLIC_BASE_URL, TRUST_PROXY_HEADERS } from './server/config/index.mjs';
+import {
+  ALLOW_LOCAL_ADMIN_BYPASS,
+  ALLOW_LOCAL_API_BYPASS,
+  HOST,
+  IS_PRODUCTION,
+  PORT,
+  PROFILE_ID_SECRET_SOURCE,
+  PUBLIC_BASE_URL,
+  TRUST_PROXY_HEADERS
+} from './server/config/index.mjs';
 import { assignRequestId } from './server/http/response.mjs';
 import { consumeRateLimit } from './server/http/rate-limit.mjs';
 import { matchShareLandingPath, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';

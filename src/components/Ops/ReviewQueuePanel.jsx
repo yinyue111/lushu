@@ -11,10 +11,7 @@ export default function ReviewQueuePanel() {
   const [panelNotice, setPanelNotice] = useState('');
   const corrections = normalizeCorrections(correctionsResource.data);
   const cities = useMemo(() => [...new Set(corrections.map((item) => item.city).filter(Boolean))].sort(), [corrections]);
-  const visibleRows = corrections.filter((item) =>
-    (!filters.city || item.city === filters.city) &&
-    (!filters.status || item.status === filters.status)
-  );
+  const visibleRows = corrections.filter((item) => (!filters.city || item.city === filters.city) && (!filters.status || item.status === filters.status));
 
   async function review(item, action) {
     const id = item.id;
@@ -53,12 +50,20 @@ export default function ReviewQueuePanel() {
             <span>城市</span>
             <select className="input-field" value={filters.city} onChange={(event) => setFilters((previous) => ({ ...previous, city: event.target.value }))}>
               <option value="">全部城市</option>
-              {cities.map((city) => <option key={city} value={city}>{city}</option>)}
+              {cities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
             </select>
           </label>
           <label>
             <span>审核状态</span>
-            <select className="input-field" value={filters.status} onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}>
+            <select
+              className="input-field"
+              value={filters.status}
+              onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}
+            >
               <option value="">全部状态</option>
               <option value="pending">待审核</option>
               <option value="approved">已通过</option>
@@ -70,7 +75,9 @@ export default function ReviewQueuePanel() {
           </button>
         </div>
         <ResourceNotice resource={correctionsResource} label="审核队列" />
-        <p className="text-caption ops-live-message" role="status" aria-live="polite" aria-atomic="true">{panelNotice}</p>
+        <p className="text-caption ops-live-message" role="status" aria-live="polite" aria-atomic="true">
+          {panelNotice}
+        </p>
         {visibleRows.length ? (
           <div className="ops-review-list">
             {visibleRows.map((item) => {
@@ -81,7 +88,9 @@ export default function ReviewQueuePanel() {
                   <div className="ops-review-heading">
                     <div>
                       <strong>{textValue(item.stopName)}</strong>
-                      <span>{textValue(item.city)} · {textValue(item.field)} · {formatOpsDate(item.createdAt)}</span>
+                      <span>
+                        {textValue(item.city)} · {textValue(item.field)} · {formatOpsDate(item.createdAt)}
+                      </span>
                     </div>
                     <ReviewStatus value={item.status} />
                   </div>
@@ -100,7 +109,9 @@ export default function ReviewQueuePanel() {
                     </div>
                   </div>
                   <label className="ops-review-note">
-                    <span className="input-label"><MessageSquareText size={13} /> 审核备注</span>
+                    <span className="input-label">
+                      <MessageSquareText size={13} /> 审核备注
+                    </span>
                     <input
                       className="input-field"
                       value={notes[item.id] ?? item.reviewerNote ?? ''}
@@ -143,7 +154,7 @@ function normalizeCorrections(data) {
 
 function replaceCorrection(data, correction) {
   if (!correction) return data;
-  const rows = normalizeCorrections(data).map((item) => item.id === correction.id ? correction : item);
+  const rows = normalizeCorrections(data).map((item) => (item.id === correction.id ? correction : item));
   if (Array.isArray(data)) return rows;
   return { ...(data ?? {}), corrections: rows };
 }

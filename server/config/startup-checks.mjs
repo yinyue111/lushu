@@ -5,7 +5,9 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost', '[::1]']);
 
 /** @param {string} host */
 export function isLoopbackHost(host) {
-  const value = String(host ?? '').trim().toLowerCase();
+  const value = String(host ?? '')
+    .trim()
+    .toLowerCase();
   return LOOPBACK_HOSTS.has(value) || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(value);
 }
 
@@ -46,18 +48,18 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
 export function evaluateStartupSafety(input) {
   const errors = [];
   const warnings = [];
-  const bypasses = [
-    input.allowLocalApiBypass ? 'ALLOW_LOCAL_API_BYPASS' : '',
-    input.allowLocalAdminBypass ? 'ALLOW_LOCAL_ADMIN_BYPASS' : ''
-  ].filter(Boolean);
+  const bypasses = [input.allowLocalApiBypass ? 'ALLOW_LOCAL_API_BYPASS' : '', input.allowLocalAdminBypass ? 'ALLOW_LOCAL_ADMIN_BYPASS' : ''].filter(Boolean);
   const publicHost = !isLoopbackHost(input.host);
 
   if (bypasses.length && publicHost) {
-    const message = `${bypasses.join(' + ')} active while HOST=${input.host} is not loopback. ` +
+    const message =
+      `${bypasses.join(' + ')} active while HOST=${input.host} is not loopback. ` +
       'Any same-host reverse proxy forwards requests from 127.0.0.1, so every remote client would be treated as local' +
       (input.trustProxyHeaders ? ' when the proxy omits X-Forwarded-For.' : ' (TRUST_PROXY_HEADERS is not enabled).');
     if (input.isProduction && !input.allowBypassOnPublicHost) {
-      errors.push(`${message} Refusing to start in production; unset the bypass flags, bind HOST=127.0.0.1, or set ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST=true if you really mean it.`);
+      errors.push(
+        `${message} Refusing to start in production; unset the bypass flags, bind HOST=127.0.0.1, or set ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST=true if you really mean it.`
+      );
     } else {
       warnings.push(`${message} Use HOST=127.0.0.1 or set ALLOW_LOCAL_API_BYPASS=false / ALLOW_LOCAL_ADMIN_BYPASS=false.`);
     }
@@ -69,11 +71,15 @@ export function evaluateStartupSafety(input) {
     errors.push('PROFILE_ID_SECRET must be set in production, or provide ROUTEBOOK_ADMIN_TOKEN/ROUTEBOOK_API_TOKEN as a (deprecated) fallback secret.');
   } else if (input.profileSecretSource === 'legacy-admin-token' || input.profileSecretSource === 'legacy-api-token') {
     const fallbackName = input.profileSecretSource === 'legacy-admin-token' ? 'ROUTEBOOK_ADMIN_TOKEN' : 'ROUTEBOOK_API_TOKEN';
-    warnings.push(`DEPRECATED: PROFILE_ID_SECRET is not set, so ${fallbackName} is reused as the profile HMAC secret. ` +
-      `Set PROFILE_ID_SECRET to the current value of ${fallbackName} to keep existing profile ids/tokens valid, ` +
-      'then you can rotate the token independently (README: PROFILE_ID_SECRET 迁移).');
+    warnings.push(
+      `DEPRECATED: PROFILE_ID_SECRET is not set, so ${fallbackName} is reused as the profile HMAC secret. ` +
+        `Set PROFILE_ID_SECRET to the current value of ${fallbackName} to keep existing profile ids/tokens valid, ` +
+        'then you can rotate the token independently (README: PROFILE_ID_SECRET 迁移).'
+    );
   } else if (input.profileSecretSource === 'dev-default' && publicHost) {
-    warnings.push('PROFILE_ID_SECRET is not set and the public development default is in use on a non-loopback HOST; profile tokens are forgeable. Set PROFILE_ID_SECRET.');
+    warnings.push(
+      'PROFILE_ID_SECRET is not set and the public development default is in use on a non-loopback HOST; profile tokens are forgeable. Set PROFILE_ID_SECRET.'
+    );
   }
 
   if (input.isProduction && !input.publicBaseUrl) {

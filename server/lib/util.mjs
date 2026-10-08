@@ -2,7 +2,10 @@
 import { createHash } from 'node:crypto';
 
 export function sanitizePublicId(value) {
-  return String(value ?? '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+  return String(value ?? '')
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '')
+    .slice(0, 80);
 }
 
 export function stablePublicId(value, prefix = 'id') {
@@ -19,7 +22,10 @@ export function stablePublicId(value, prefix = 'id') {
 export function parseMoney(value) {
   const matches = String(value ?? '').match(/\d+/g);
   if (!matches?.length) return 0;
-  return matches.map(Number).filter(Number.isFinite).reduce((sum, item) => sum + item, 0);
+  return matches
+    .map(Number)
+    .filter(Number.isFinite)
+    .reduce((sum, item) => sum + item, 0);
 }
 
 export function distanceMeters(a, b) {
@@ -116,11 +122,16 @@ export function safeDecodePathSegment(value) {
 }
 
 export function hashText(value) {
-  return createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(String(value ?? ''))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 export function truncateString(value, maxLength) {
-  return String(value ?? '').trim().slice(0, maxLength);
+  return String(value ?? '')
+    .trim()
+    .slice(0, maxLength);
 }
 
 export function normalizeCityName(value) {

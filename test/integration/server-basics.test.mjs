@@ -3,8 +3,12 @@ import { after, before, test } from 'node:test';
 import { fetchJson, startServer } from '../helpers/server.mjs';
 
 let server;
-before(async () => { server = await startServer(); });
-after(async () => { await server?.stop(); });
+before(async () => {
+  server = await startServer();
+});
+after(async () => {
+  await server?.stop();
+});
 
 test('live and ready endpoints respond with hermetic fake model config', async () => {
   const live = await fetchJson(`${server.baseUrl}/api/live`);

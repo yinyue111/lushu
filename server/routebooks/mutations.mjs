@@ -3,7 +3,15 @@ import { createHttpError, truncateString, sanitizePublicId, normalizeCityName, c
 import { ROUTEBOOK_STATUSES, EXPOSURE_LOG_PATH, ROUTEBOOK_LOG_PATH } from '../config/index.mjs';
 import { sanitizeEditToken, createRouteEditToken, normalizeProfileId, safeTokenEqual } from '../auth/tokens.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
-import { normalizeCreator, normalizeRoutebookForStorage, getResolvableRoutebook, isCuratedRouteId, normalizeRouteVariant, normalizeRouteVariants, routebookValidationContext } from './normalize.mjs';
+import {
+  normalizeCreator,
+  normalizeRoutebookForStorage,
+  getResolvableRoutebook,
+  isCuratedRouteId,
+  normalizeRouteVariant,
+  normalizeRouteVariants,
+  routebookValidationContext
+} from './normalize.mjs';
 import { appendVersionedRoutebook, routebookMutationMetadata, currentRoutebookVersion, assertExpectedRoutebookVersion } from './versions.mjs';
 import { appendJsonLine, readJsonLines, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
 import { copyActorKey, isRoutebookCopyExposure } from './copies.mjs';
@@ -27,19 +35,22 @@ export async function updateRoutebookStatus(publicId, input) {
     actorType: 'admin'
   });
   const creator = input?.creator ? normalizeCreator(input.creator) : normalizeCreator(routebook.creator);
-	  const updated = normalizeRoutebookForStorage({
-	    ...routebook,
-	    ...versionMetadata,
-	    editToken: sanitizeEditToken(routebook.editToken),
-	    publishStatus: nextStatus,
-    sourceAuthorization: truncateString(input?.sourceAuthorization || creator.sourceAuthorization || routebook.sourceAuthorization, 40),
-    creator,
-    opsNote: truncateString(input?.opsNote, 400),
-    provider: {
-      ...(routebook.provider ?? {}),
-      statusUpdatedAt: new Date().toISOString()
-    }
-  }, routebook.publicId || routebook.id);
+  const updated = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      editToken: sanitizeEditToken(routebook.editToken),
+      publishStatus: nextStatus,
+      sourceAuthorization: truncateString(input?.sourceAuthorization || creator.sourceAuthorization || routebook.sourceAuthorization, 40),
+      creator,
+      opsNote: truncateString(input?.opsNote, 400),
+      provider: {
+        ...(routebook.provider ?? {}),
+        statusUpdatedAt: new Date().toISOString()
+      }
+    },
+    routebook.publicId || routebook.id
+  );
   const opsNote = truncateString(input?.opsNote, 400);
   await appendVersionedRoutebook(updated, 'status-changed', {
     previousStatus: routebook.publishStatus || 'draft',
@@ -57,8 +68,7 @@ export async function copyRoutebook(publicId, input = {}) {
   }
   const routeId = sanitizePublicId(routebook.publicId || routebook.id);
   const actorKey = copyActorKey(input);
-  const copyEvents = (await readJsonLines(EXPOSURE_LOG_PATH, 50000))
-    .filter((event) => isRoutebookCopyExposure(event, routeId));
+  const copyEvents = (await readJsonLines(EXPOSURE_LOG_PATH, 50000)).filter((event) => isRoutebookCopyExposure(event, routeId));
   const countedActors = new Set(copyEvents.map(copyActorKey).filter(Boolean));
   if (actorKey && !countedActors.has(actorKey)) {
     await appendJsonLine(EXPOSURE_LOG_PATH, {
@@ -83,15 +93,18 @@ export async function copyRoutebook(publicId, input = {}) {
 function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
   const profileId = normalizeProfileId(input?.profileId || existingRoutebook?.profileId);
   const hardenedInput = hardenDraftCoordinateProvenance(input, existingRoutebook);
-  return normalizeRoutebookForStorage({
-    ...hardenedInput,
-    profileId,
-    creator: normalizeUserRouteCreator(hardenedInput, profileId),
-    sourceAuthorization: 'user-generated',
-    editToken: sanitizeEditToken(hardenedInput?.editToken) || sanitizeEditToken(existingRoutebook?.editToken) || createRouteEditToken(),
-    publishStatus: 'draft',
-    copyCount: existingRoutebook ? (existingRoutebook.copyCount ?? hardenedInput?.copyCount ?? 0) : 0
-  }, existingRoutebook ? (existingRoutebook.publicId || existingRoutebook.id) : '');
+  return normalizeRoutebookForStorage(
+    {
+      ...hardenedInput,
+      profileId,
+      creator: normalizeUserRouteCreator(hardenedInput, profileId),
+      sourceAuthorization: 'user-generated',
+      editToken: sanitizeEditToken(hardenedInput?.editToken) || sanitizeEditToken(existingRoutebook?.editToken) || createRouteEditToken(),
+      publishStatus: 'draft',
+      copyCount: existingRoutebook ? (existingRoutebook.copyCount ?? hardenedInput?.copyCount ?? 0) : 0
+    },
+    existingRoutebook ? existingRoutebook.publicId || existingRoutebook.id : ''
+  );
 }
 
 /**
@@ -141,9 +154,7 @@ function hardenDraftStops(stops, existingStops, city) {
     // 站点改名后不回填旧 provenance：按 id+坐标命中但名称已变的站点，旧
     // geoConfidence/coordinateSource 描述的是旧 POI。新名字已在上方走过
     // coordinateForName（可信 POI 匹配），未命中则落入下方低置信降级分支。
-    const existingNameMatches = existing
-      ? normalizePoiName(existing?.name) === normalizePoiName(name) && Boolean(normalizePoiName(name))
-      : false;
+    const existingNameMatches = existing ? normalizePoiName(existing?.name) === normalizePoiName(name) && Boolean(normalizePoiName(name)) : false;
     if (existing && existingNameMatches && coordinatesMatch(stop, existing)) {
       return {
         ...stop,
@@ -171,10 +182,12 @@ function coordinatesMatch(left, right) {
   const leftLng = Number(left?.lng);
   const rightLat = Number(right?.lat);
   const rightLng = Number(right?.lng);
-  return isValidCoordinate(leftLat, leftLng) &&
+  return (
+    isValidCoordinate(leftLat, leftLng) &&
     isValidCoordinate(rightLat, rightLng) &&
     Math.abs(leftLat - rightLat) < 0.000001 &&
-    Math.abs(leftLng - rightLng) < 0.000001;
+    Math.abs(leftLng - rightLng) < 0.000001
+  );
 }
 
 export function normalizeUserRouteCreator(input = {}, profileId = '') {
@@ -209,18 +222,21 @@ export async function ensureDraftEditToken(routebook) {
       return latest;
     }
     const currentVersion = await currentRoutebookVersion(id);
-    const updated = normalizeRoutebookDraftForStorage({
-      ...latest,
-      schemaVersion: positiveInteger(latest.schemaVersion, currentVersion ? 2 : 1),
-      version: currentVersion || 1,
-      parentVersion: positiveInteger(latest.parentVersion),
-      editToken: createRouteEditToken(),
-      editReason: '补发历史草稿编辑令牌',
-      provider: {
-        ...(latest.provider ?? {}),
-        tokenMigratedAt: new Date().toISOString()
-      }
-    }, latest);
+    const updated = normalizeRoutebookDraftForStorage(
+      {
+        ...latest,
+        schemaVersion: positiveInteger(latest.schemaVersion, currentVersion ? 2 : 1),
+        version: currentVersion || 1,
+        parentVersion: positiveInteger(latest.parentVersion),
+        editToken: createRouteEditToken(),
+        editReason: '补发历史草稿编辑令牌',
+        provider: {
+          ...(latest.provider ?? {}),
+          tokenMigratedAt: new Date().toISOString()
+        }
+      },
+      latest
+    );
     await appendJsonLine(ROUTEBOOK_LOG_PATH, updated);
     return updated;
   });
@@ -274,19 +290,22 @@ export async function publishOwnRoutebook(publicId, input = {}) {
   }
   const profileId = normalizeProfileId(routebook.profileId || input?.profileId);
   const creator = normalizeUserRouteCreator(routebook, profileId);
-	  const updated = normalizeRoutebookForStorage({
-	    ...routebook,
-	    ...versionMetadata,
-	    profileId,
-	    editToken: sanitizeEditToken(routebook.editToken),
-	    publishStatus: 'published',
-    sourceAuthorization: 'user-generated',
-    creator,
-    provider: {
-      ...(routebook.provider ?? {}),
-      userPublishedAt: new Date().toISOString()
-    }
-  }, routebook.publicId || routebook.id);
+  const updated = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      profileId,
+      editToken: sanitizeEditToken(routebook.editToken),
+      publishStatus: 'published',
+      sourceAuthorization: 'user-generated',
+      creator,
+      provider: {
+        ...(routebook.provider ?? {}),
+        userPublishedAt: new Date().toISOString()
+      }
+    },
+    routebook.publicId || routebook.id
+  );
   await appendVersionedRoutebook(updated, 'published', {
     previousStatus: routebook.publishStatus || 'draft'
   });
@@ -310,32 +329,30 @@ export async function saveRoutebookVariant(publicId, input) {
   // coordinateSource / navigationDisabled 不再原样落库，按「可信 POI 命中 >
   // 服务端已存快照（同名同坐标）> 低置信降级」重新推导，堵住变体绕过缺口。
   const variantInput = input?.variant ?? input;
-  const existingVariantsByKey = new Map(
-    (routebook.variants ?? []).map((item) => [String(item?.id || item?.mode || ''), item])
-  );
+  const existingVariantsByKey = new Map((routebook.variants ?? []).map((item) => [String(item?.id || item?.mode || ''), item]));
   const existingVariant = existingVariantsByKey.get(String(variantInput?.id || variantInput?.mode || ''));
   const hardenedVariantInput = Array.isArray(variantInput?.stops)
     ? {
         ...variantInput,
-        stops: hardenDraftStops(
-          variantInput.stops,
-          existingVariant?.stops ?? routebook.stops ?? [],
-          normalizeCityName(routebook.city)
-        )
+        stops: hardenDraftStops(variantInput.stops, existingVariant?.stops ?? routebook.stops ?? [], normalizeCityName(routebook.city))
       }
     : variantInput;
   const variant = normalizeRouteVariant(hardenedVariantInput, 0, routebook.city, routebook.stops ?? [], routebookValidationContext(routebook));
   if (!variant) throw createHttpError('路线变体至少需要 2 个站点', 400, 'VARIANT_TOO_SHORT');
-  const existingVariants = normalizeRouteVariants(routebook.variants, routebook.city, routebook.stops ?? [], routebookValidationContext(routebook))
-    .filter((item) => item.id !== variant.id && item.mode !== variant.mode);
-	  const updatedRoutebook = normalizeRoutebookForStorage({
-	    ...routebook,
-	    ...versionMetadata,
-	    editToken: sanitizeEditToken(routebook.editToken),
-	    variants: [variant, ...existingVariants].slice(0, 8),
-    activeVariantId: variant.id,
-    editReason: `${variant.mode}变体`
-  }, routebook.publicId || routebook.id);
+  const existingVariants = normalizeRouteVariants(routebook.variants, routebook.city, routebook.stops ?? [], routebookValidationContext(routebook)).filter(
+    (item) => item.id !== variant.id && item.mode !== variant.mode
+  );
+  const updatedRoutebook = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      editToken: sanitizeEditToken(routebook.editToken),
+      variants: [variant, ...existingVariants].slice(0, 8),
+      activeVariantId: variant.id,
+      editReason: `${variant.mode}变体`
+    },
+    routebook.publicId || routebook.id
+  );
   await appendVersionedRoutebook(updatedRoutebook, 'variant-saved', {
     variantId: variant.id,
     variantMode: variant.mode

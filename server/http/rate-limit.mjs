@@ -1,5 +1,14 @@
 // In-memory fixed-window rate limiting per client and category.
-import { RATE_LIMIT_CORE_WRITE_MAX, RATE_LIMIT_MAP_TILE_MAX, RATE_LIMIT_MAX, RATE_LIMIT_PUBLIC_CONFIG_MAX, RATE_LIMIT_PUBLIC_READ_MAX, RATE_LIMIT_TELEMETRY_MAX, RATE_LIMIT_BUCKET_SWEEP_SIZE, RATE_LIMIT_WINDOW_MS } from '../config/index.mjs';
+import {
+  RATE_LIMIT_CORE_WRITE_MAX,
+  RATE_LIMIT_MAP_TILE_MAX,
+  RATE_LIMIT_MAX,
+  RATE_LIMIT_PUBLIC_CONFIG_MAX,
+  RATE_LIMIT_PUBLIC_READ_MAX,
+  RATE_LIMIT_TELEMETRY_MAX,
+  RATE_LIMIT_BUCKET_SWEEP_SIZE,
+  RATE_LIMIT_WINDOW_MS
+} from '../config/index.mjs';
 import { requestClientKey } from '../auth/request-access.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { requestIdHeaders, securityHeaders } from './response.mjs';
@@ -11,13 +20,19 @@ const rateLimitBuckets = new Map();
 // 其余写与未标注类别的调用沿用默认配额。桶按「客户端 key + 类别」隔离。
 function rateLimitQuotaForCategory(category) {
   switch (category) {
-    case 'telemetry': return RATE_LIMIT_TELEMETRY_MAX;
-    case 'core-write': return RATE_LIMIT_CORE_WRITE_MAX;
-    case 'map-tile': return RATE_LIMIT_MAP_TILE_MAX;
-    case 'public-read': return RATE_LIMIT_PUBLIC_READ_MAX;
-    case 'public-config': return RATE_LIMIT_PUBLIC_CONFIG_MAX;
+    case 'telemetry':
+      return RATE_LIMIT_TELEMETRY_MAX;
+    case 'core-write':
+      return RATE_LIMIT_CORE_WRITE_MAX;
+    case 'map-tile':
+      return RATE_LIMIT_MAP_TILE_MAX;
+    case 'public-read':
+      return RATE_LIMIT_PUBLIC_READ_MAX;
+    case 'public-config':
+      return RATE_LIMIT_PUBLIC_CONFIG_MAX;
     case 'ai':
-    default: return RATE_LIMIT_MAX;
+    default:
+      return RATE_LIMIT_MAX;
   }
 }
 

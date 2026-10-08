@@ -15,7 +15,7 @@ test('invalid code points become U+FFFD instead of throwing or producing lone su
 });
 
 test('named entities decode in a single pass (no double decoding)', () => {
-  assert.equal(decodeHtmlEntities('a &amp; b &lt;c&gt; &quot;d&quot; &#39;e&#39; &apos;f&apos;'), 'a & b <c> "d" \'e\' \'f\'');
+  assert.equal(decodeHtmlEntities('a &amp; b &lt;c&gt; &quot;d&quot; &#39;e&#39; &apos;f&apos;'), "a & b <c> \"d\" 'e' 'f'");
   assert.equal(decodeHtmlEntities('&amp;lt;script&amp;gt;'), '&lt;script&gt;');
   assert.equal(decodeHtmlEntities('&unknown; & plain'), '&unknown; & plain');
   assert.equal(decodeHtmlEntities('&nbsp;&middot;&hellip;'), '\u00a0·…');

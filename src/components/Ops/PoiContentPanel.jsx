@@ -10,10 +10,9 @@ const MAX_IMPORT_FILE_BYTES = 750 * 1024;
 export default function PoiContentPanel() {
   const [filters, setFilters] = useState({ city: '', reviewStatus: '', freshnessState: '' });
   const coverageResource = useOpsResource((signal) => getPoiCoverage(signal));
-  const poisResource = useOpsResource(
-    (signal) => getPois({ ...filters, limit: 200 }, signal),
-    { dependencies: [filters.city, filters.reviewStatus, filters.freshnessState] }
-  );
+  const poisResource = useOpsResource((signal) => getPois({ ...filters, limit: 200 }, signal), {
+    dependencies: [filters.city, filters.reviewStatus, filters.freshnessState]
+  });
   const [content, setContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileError, setFileError] = useState('');
@@ -24,8 +23,8 @@ export default function PoiContentPanel() {
   const coverage = normalizeCoverage(coverageResource.data);
   const pois = normalizePois(poisResource.data);
   const validationRows = Array.isArray(validation.data?.rows) ? validation.data.rows : [];
-  const canCommit = validation.status === 'ready' && validation.data?.canCommit === true &&
-    Boolean(validation.data?.batchId) && Boolean(validation.data?.commitToken);
+  const canCommit =
+    validation.status === 'ready' && validation.data?.canCommit === true && Boolean(validation.data?.batchId) && Boolean(validation.data?.commitToken);
   const importSummary = validation.data?.summary ?? null;
 
   async function handleFile(event) {
@@ -101,24 +100,71 @@ export default function PoiContentPanel() {
         <ResourceNotice resource={coverageResource} label="内容覆盖" />
         <div className="stats-grid ops-content-stats">
           <CoverageStat label="POI 总数" value={coverageValue(coverage.totals, ['poiCount', 'totalPois', 'total'])} />
-          <CoverageStat label="事实完整" value={coverageRate(coverage.totals, ['verifiedCoveragePercent', 'factCoverageRate', 'requiredFactCoverageRate', 'completeFactRate'], ['verifiedPois', 'completePoiCount', 'completeFacts'])} />
-          <CoverageStat label="有效证据" value={coverageRate(coverage.totals, ['evidenceCoveragePercent', 'evidenceCoverageRate', 'approvedEvidenceRate'], ['evidenceBackedPois', 'evidenceCount', 'approvedEvidenceCount'])} />
-          <CoverageStat label="已过期事实" tone="danger" value={coverageValue(coverage.totals, ['staleFacts', 'staleFactCount', 'expiredFactCount', 'stale'])} />
-          <CoverageStat label="待审核" tone="warning" value={coverageValue(coverage.totals, ['pendingReview', 'pendingReviewCount', 'pendingCount', 'pending'])} />
+          <CoverageStat
+            label="事实完整"
+            value={coverageRate(
+              coverage.totals,
+              ['verifiedCoveragePercent', 'factCoverageRate', 'requiredFactCoverageRate', 'completeFactRate'],
+              ['verifiedPois', 'completePoiCount', 'completeFacts']
+            )}
+          />
+          <CoverageStat
+            label="有效证据"
+            value={coverageRate(
+              coverage.totals,
+              ['evidenceCoveragePercent', 'evidenceCoverageRate', 'approvedEvidenceRate'],
+              ['evidenceBackedPois', 'evidenceCount', 'approvedEvidenceCount']
+            )}
+          />
+          <CoverageStat
+            label="已过期事实"
+            tone="danger"
+            value={coverageValue(coverage.totals, ['staleFacts', 'staleFactCount', 'expiredFactCount', 'stale'])}
+          />
+          <CoverageStat
+            label="待审核"
+            tone="warning"
+            value={coverageValue(coverage.totals, ['pendingReview', 'pendingReviewCount', 'pendingCount', 'pending'])}
+          />
         </div>
         {coverage.cities.length ? (
           <div className="ops-table-scroll">
             <table className="ops-data-table ops-coverage-table">
               <thead>
-                <tr><th>城市</th><th>POI</th><th>事实完整</th><th>有效证据</th><th>新鲜</th><th>临期</th><th>过期</th><th>待审</th></tr>
+                <tr>
+                  <th>城市</th>
+                  <th>POI</th>
+                  <th>事实完整</th>
+                  <th>有效证据</th>
+                  <th>新鲜</th>
+                  <th>临期</th>
+                  <th>过期</th>
+                  <th>待审</th>
+                </tr>
               </thead>
               <tbody>
                 {coverage.cities.map((item) => (
                   <tr key={item.city}>
-                    <td><button className="ops-table-link" type="button" onClick={() => setFilters((previous) => ({ ...previous, city: item.city }))}>{item.city}</button></td>
+                    <td>
+                      <button className="ops-table-link" type="button" onClick={() => setFilters((previous) => ({ ...previous, city: item.city }))}>
+                        {item.city}
+                      </button>
+                    </td>
                     <td>{coverageValue(item, ['poiCount', 'totalPois', 'total'])}</td>
-                    <td>{coverageRate(item, ['verifiedCoveragePercent', 'factCoverageRate', 'requiredFactCoverageRate'], ['verifiedPois', 'completePoiCount', 'completeFacts'])}</td>
-                    <td>{coverageRate(item, ['evidenceCoveragePercent', 'evidenceCoverageRate', 'approvedEvidenceRate'], ['evidenceBackedPois', 'evidenceCount', 'approvedEvidenceCount'])}</td>
+                    <td>
+                      {coverageRate(
+                        item,
+                        ['verifiedCoveragePercent', 'factCoverageRate', 'requiredFactCoverageRate'],
+                        ['verifiedPois', 'completePoiCount', 'completeFacts']
+                      )}
+                    </td>
+                    <td>
+                      {coverageRate(
+                        item,
+                        ['evidenceCoveragePercent', 'evidenceCoverageRate', 'approvedEvidenceRate'],
+                        ['evidenceBackedPois', 'evidenceCount', 'approvedEvidenceCount']
+                      )}
+                    </td>
                     <td>{coverageValue(item, ['freshFacts', 'freshFactCount', 'freshCount', 'fresh'])}</td>
                     <td>{coverageValue(item, ['expiringSoonFacts', 'expiringFactCount', 'expiringCount', 'expiring'])}</td>
                     <td className="ops-cell-danger">{coverageValue(item, ['staleFacts', 'staleFactCount', 'expiredFactCount', 'stale'])}</td>
@@ -147,12 +193,20 @@ export default function PoiContentPanel() {
             <span>城市</span>
             <select className="input-field" value={filters.city} onChange={(event) => setFilters((previous) => ({ ...previous, city: event.target.value }))}>
               <option value="">全部城市</option>
-              {TRUSTED_CITIES.map((city) => <option key={city} value={city}>{city}</option>)}
+              {TRUSTED_CITIES.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
             </select>
           </label>
           <label>
             <span>审核状态</span>
-            <select className="input-field" value={filters.reviewStatus} onChange={(event) => setFilters((previous) => ({ ...previous, reviewStatus: event.target.value }))}>
+            <select
+              className="input-field"
+              value={filters.reviewStatus}
+              onChange={(event) => setFilters((previous) => ({ ...previous, reviewStatus: event.target.value }))}
+            >
               <option value="">全部状态</option>
               <option value="pending">待审核</option>
               <option value="approved">已通过</option>
@@ -161,7 +215,11 @@ export default function PoiContentPanel() {
           </label>
           <label>
             <span>新鲜度</span>
-            <select className="input-field" value={filters.freshnessState} onChange={(event) => setFilters((previous) => ({ ...previous, freshnessState: event.target.value }))}>
+            <select
+              className="input-field"
+              value={filters.freshnessState}
+              onChange={(event) => setFilters((previous) => ({ ...previous, freshnessState: event.target.value }))}
+            >
               <option value="">全部新鲜度</option>
               <option value="fresh">新鲜</option>
               <option value="expiringSoon">临期</option>
@@ -174,16 +232,34 @@ export default function PoiContentPanel() {
         {pois.length ? (
           <div className="ops-table-scroll">
             <table className="ops-data-table">
-              <thead><tr><th>城市</th><th>POI</th><th>事实</th><th>证据</th><th>新鲜度</th><th>审核</th><th>更新时间</th><th>操作</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>城市</th>
+                  <th>POI</th>
+                  <th>事实</th>
+                  <th>证据</th>
+                  <th>新鲜度</th>
+                  <th>审核</th>
+                  <th>更新时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
               <tbody>
                 {pois.map((poi, index) => (
                   <tr key={poi.id || `${poi.city}-${poi.name}-${index}`}>
                     <td>{textValue(poi.city)}</td>
-                    <td><strong>{textValue(poi.name)}</strong>{poi.poiId && <small>{poi.poiId}</small>}</td>
+                    <td>
+                      <strong>{textValue(poi.name)}</strong>
+                      {poi.poiId && <small>{poi.poiId}</small>}
+                    </td>
                     <td>{countCollection(poi.facts, firstValue(poi.factCount, poi.factsCount))}</td>
                     <td>{countCollection(poi.evidence, firstValue(poi.evidenceCount, poi.approvedEvidenceCount))}</td>
-                    <td><FreshnessBadge value={poi.freshnessState} /></td>
-                    <td><ReviewBadge value={poi.reviewStatus} /></td>
+                    <td>
+                      <FreshnessBadge value={poi.freshnessState} />
+                    </td>
+                    <td>
+                      <ReviewBadge value={poi.reviewStatus} />
+                    </td>
                     <td>{formatOpsDate(firstValue(poi.updatedAt, poi.reviewedAt, poi.createdAt))}</td>
                     <td>
                       <button className="btn btn-secondary btn-sm" type="button" onClick={() => setEditingPoi(poi)}>
@@ -206,7 +282,9 @@ export default function PoiContentPanel() {
             <h2 id="poi-import-title">批量导入</h2>
             <p className="text-caption">先校验，确认无误后再写入内容库</p>
           </div>
-          <span className="badge badge-blue"><Database size={12} /> dry-run</span>
+          <span className="badge badge-blue">
+            <Database size={12} /> dry-run
+          </span>
         </div>
         <div className="ops-import-toolbar">
           <label className="btn btn-secondary btn-sm ops-file-button">
@@ -214,7 +292,11 @@ export default function PoiContentPanel() {
             <input className="sr-only" type="file" accept=".json,.jsonl,application/json,application/x-ndjson" onChange={handleFile} />
           </label>
           {fileName && <span className="text-caption">{fileName}</span>}
-          {fileError && <span className="text-caption ops-error-text" role="alert">{fileError}</span>}
+          {fileError && (
+            <span className="text-caption ops-error-text" role="alert">
+              {fileError}
+            </span>
+          )}
         </div>
         <label>
           <span className="input-label">导入内容</span>
@@ -237,11 +319,15 @@ export default function PoiContentPanel() {
         <div className="ops-live-message" role="status" aria-live="polite" aria-atomic="true">
           {validation.status === 'error' && <span className="ops-error-text">校验失败：{formatApiError(validation.error)}</span>}
           {validation.status === 'ready' && (
-            <span>{validation.data.canCommit ? '校验通过，可以写入。' : '校验未通过，请修正错误行。'} 批次 {validation.data.batchId || '—'}</span>
+            <span>
+              {validation.data.canCommit ? '校验通过，可以写入。' : '校验未通过，请修正错误行。'} 批次 {validation.data.batchId || '—'}
+            </span>
           )}
           {commit.status === 'error' && <span className="ops-error-text">写入失败：{formatApiError(commit.error)}</span>}
           {commit.status === 'ready' && (
-            <span>{commit.data?.replayed ? '该批次已写入，本次返回幂等结果。' : '批量写入完成。'} {summaryText(commit.data?.summary)}</span>
+            <span>
+              {commit.data?.replayed ? '该批次已写入，本次返回幂等结果。' : '批量写入完成。'} {summaryText(commit.data?.summary)}
+            </span>
           )}
         </div>
         {importSummary && <ImportSummary summary={importSummary} />}
@@ -272,14 +358,16 @@ function normalizeCoverage(data) {
 
 function normalizePois(data) {
   const rows = data?.pois ?? data?.items ?? data?.rows ?? [];
-  return Array.isArray(rows) ? rows.map((item) => ({
-    ...item,
-    id: item.id || item.poiId,
-    poiId: item.poiId || item.id,
-    name: item.name || item.stopName || item.title,
-    reviewStatus: item.reviewStatus || item.status,
-    freshnessState: item.freshnessState || item.freshness?.state
-  })) : [];
+  return Array.isArray(rows)
+    ? rows.map((item) => ({
+        ...item,
+        id: item.id || item.poiId,
+        poiId: item.poiId || item.id,
+        name: item.name || item.stopName || item.title,
+        reviewStatus: item.reviewStatus || item.status,
+        freshnessState: item.freshnessState || item.freshness?.state
+      }))
+    : [];
 }
 
 function CoverageStat({ label, value, tone = '' }) {
@@ -307,9 +395,7 @@ function coverageRate(source, rateKeys, countKeys) {
 }
 
 function formatFileSize(bytes) {
-  return bytes >= 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.ceil(bytes / 1024)} KB`;
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
 }
 
 function countCollection(collection, fallback) {
@@ -353,7 +439,12 @@ function ImportSummary({ summary }) {
   if (!metrics.length) return null;
   return (
     <div className="ops-import-summary">
-      {metrics.map(([label, value]) => <span key={label}><b>{Number(value)}</b>{label}</span>)}
+      {metrics.map(([label, value]) => (
+        <span key={label}>
+          <b>{Number(value)}</b>
+          {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -362,31 +453,38 @@ function ValidationPreview({ rows }) {
   return (
     <div className="ops-table-scroll">
       <table className="ops-data-table">
-        <thead><tr><th>行</th><th>动作</th><th>城市</th><th>POI</th><th>校验结果</th></tr></thead>
+        <thead>
+          <tr>
+            <th>行</th>
+            <th>动作</th>
+            <th>城市</th>
+            <th>POI</th>
+            <th>校验结果</th>
+          </tr>
+        </thead>
         <tbody>
           {rows.map((row, index) => {
             const errors = normalizeRowErrors(row);
             const warnings = normalizeRowWarnings(row);
             const action = row.action || row.operation || row.status || (errors.length ? 'invalid' : 'valid');
-            const actionTone = errors.length || action === 'conflict' || action === 'error'
-              ? 'badge-red'
-              : action === 'new' || action === 'create'
-                ? 'badge-green'
-                : action === 'update'
-                  ? 'badge-orange'
-                  : 'badge-blue';
+            const actionTone =
+              errors.length || action === 'conflict' || action === 'error'
+                ? 'badge-red'
+                : action === 'new' || action === 'create'
+                  ? 'badge-green'
+                  : action === 'update'
+                    ? 'badge-orange'
+                    : 'badge-blue';
             return (
               <tr key={row.rowNumber || row.line || index}>
                 <td>{firstValue(row.rowNumber, row.line, index + 1)}</td>
-                <td><span className={`badge ${actionTone}`}>{actionLabel(action)}</span></td>
+                <td>
+                  <span className={`badge ${actionTone}`}>{actionLabel(action)}</span>
+                </td>
                 <td>{textValue(row.normalized?.city || row.city || row.value?.city || row.poi?.city)}</td>
                 <td>{textValue(row.normalized?.name || row.name || row.value?.name || row.poi?.name)}</td>
                 <td>
-                  {errors.length
-                    ? <span className="ops-error-text">{errors.join('；')}</span>
-                    : warnings.length
-                      ? <span>{warnings.join('；')}</span>
-                      : '通过'}
+                  {errors.length ? <span className="ops-error-text">{errors.join('；')}</span> : warnings.length ? <span>{warnings.join('；')}</span> : '通过'}
                 </td>
               </tr>
             );
@@ -399,16 +497,26 @@ function ValidationPreview({ rows }) {
 
 function normalizeRowErrors(row) {
   const values = Array.isArray(row.errors) ? row.errors : row.error ? [row.error] : [];
-  return values.map((item) => typeof item === 'string' ? item : [item.path || item.field, item.message || item.code].filter(Boolean).join('：')).filter(Boolean);
+  return values
+    .map((item) => (typeof item === 'string' ? item : [item.path || item.field, item.message || item.code].filter(Boolean).join('：')))
+    .filter(Boolean);
 }
 
 function normalizeRowWarnings(row) {
   const values = Array.isArray(row.warnings) ? row.warnings : row.warning ? [row.warning] : [];
-  return values.map((item) => typeof item === 'string' ? item : [item.path || item.field, item.message || item.code].filter(Boolean).join('：')).filter(Boolean);
+  return values
+    .map((item) => (typeof item === 'string' ? item : [item.path || item.field, item.message || item.code].filter(Boolean).join('：')))
+    .filter(Boolean);
 }
 
 function actionLabel(value) {
-  return ({ new: '新增', create: '新增', update: '更新', unchanged: '无变化', noop: '无变化', error: '错误', invalid: '错误', valid: '有效', conflict: '冲突' })[value] || value || '有效';
+  return (
+    { new: '新增', create: '新增', update: '更新', unchanged: '无变化', noop: '无变化', error: '错误', invalid: '错误', valid: '有效', conflict: '冲突' }[
+      value
+    ] ||
+    value ||
+    '有效'
+  );
 }
 
 function summaryText(summary) {
