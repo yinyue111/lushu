@@ -14,6 +14,7 @@ export const buttonVariants = cva(
         soft: 'bg-canvas text-ink hover:bg-line',
         outline: 'border border-line-strong bg-white text-ink hover:border-ink/40',
         ghost: 'bg-transparent text-ink hover:bg-canvas',
+        glass: 'border border-white/35 bg-white/15 text-white backdrop-blur hover:bg-white/25',
         danger: 'bg-white text-danger border border-danger/30 hover:bg-primary-soft'
       },
       size: {

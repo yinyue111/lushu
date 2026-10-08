@@ -5,6 +5,9 @@ import { Chip } from './ui/chip';
 import { cn } from './ui/cn';
 import { inputClass } from './ui/field';
 import { RouteCard } from './cards/RouteCard';
+import { SectionHeading } from './ui/section-heading';
+import { CityBackdrop } from './visual/CityBackdrop';
+import { hasCityPhotos } from './visual/theme';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, trustedCities } from '../lib/content';
 import { getCmsConfig } from '../lib/api';
 import { getProfile } from '../lib/profile';
@@ -100,10 +103,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
   return (
     <div className="bg-white pb-16 text-ink">
-      <link rel="preload" as="image" href={story.image} />
       {/* Hero: city photo + import composer */}
       <section className="relative isolate overflow-hidden">
-        <img src={story.image} alt="" className="absolute inset-0 -z-20 size-full object-cover object-[center_60%]" fetchPriority="high" />
+        <CityBackdrop city={city} />
         <div
           className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.35)_0%,rgba(10,12,16,.15)_40%,rgba(10,12,16,.7)_100%)]"
           aria-hidden="true"
@@ -292,7 +294,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
         {/* Destination feature */}
         <section
-          className="mt-10 grid gap-4 overflow-hidden rounded-panel bg-ink p-5 text-white lg:mt-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-8"
+          className={cn(
+            'mt-10 grid gap-4 overflow-hidden rounded-panel bg-ink p-5 text-white lg:mt-14 lg:p-8',
+            hasCityPhotos(city) && 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]'
+          )}
           aria-labelledby="home-destination-title"
         >
           <div className="flex flex-col justify-center">
@@ -314,7 +319,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </Button>
           </div>
           <div className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 lg:mx-0 lg:grid lg:grid-cols-2 lg:px-0" aria-label={`${city} 美图灵感`}>
-            {cityPhotos.slice(0, 4).map((photo) => (
+            {(hasCityPhotos(city) ? cityPhotos : []).slice(0, 4).map((photo) => (
               <figure
                 key={`${photo.city}-${photo.poi}-${photo.title}`}
                 className="relative isolate aspect-[4/5] w-56 shrink-0 snap-start overflow-hidden rounded-card lg:aspect-[4/3] lg:w-auto"
@@ -365,21 +370,6 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           )}
         </section>
       </div>
-    </div>
-  );
-}
-
-/** @param {Record<string, any>} props */
-function SectionHeading({ id, kicker, title, action }) {
-  return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <span className="text-xs font-extrabold tracking-[0.08em] text-primary-strong">{kicker}</span>
-        <h2 id={id} className="mt-1 text-2xl font-extrabold tracking-tight lg:text-[28px]">
-          {title}
-        </h2>
-      </div>
-      {action}
     </div>
   );
 }
