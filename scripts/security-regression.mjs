@@ -4,6 +4,7 @@ import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hermeticServerEnv } from './lib/hermetic-env.mjs';
 
 const PORT = Number(process.env.SECURITY_TEST_PORT ?? 5199);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -68,7 +69,7 @@ async function main() {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
-      ...process.env,
+      ...hermeticServerEnv(),
       NODE_ENV: 'production',
       PORT: String(PORT),
       HOST: '127.0.0.1',
@@ -1358,7 +1359,7 @@ async function assertUntrustedForwardedForCannotBypassRateLimit(dataDir) {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
-      ...process.env,
+      ...hermeticServerEnv(),
       PORT: String(port),
       HOST: '127.0.0.1',
       ROUTEBOOK_DATA_DIR: dataDir,

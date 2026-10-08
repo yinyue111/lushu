@@ -13,6 +13,8 @@ import { curatedRoutes, curatedRouteToRoutebook, cityStories, defaultCityImage, 
 
 const PORT = Number(process.env.PORT ?? 5173);
 const HOST = process.env.HOST ?? '127.0.0.1';
+// `--production` lets `npm start` work on every OS (no POSIX `NODE_ENV=... node` syntax).
+if (process.argv.includes('--production')) process.env.NODE_ENV = 'production';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const PROJECT_ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(PROJECT_ROOT, 'dist');

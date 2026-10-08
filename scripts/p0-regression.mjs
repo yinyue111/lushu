@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getRouteTrustPresentation } from '../src/lib/trust.js';
+import { hermeticServerEnv } from './lib/hermetic-env.mjs';
 
 const APP_ID = 'trusted-routebook';
 const ADMIN_TOKEN = 'p0-regression-admin';
@@ -272,7 +273,7 @@ async function assertNotReadyEndpoint(projectRoot, dataDir) {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: projectRoot,
     env: {
-      ...process.env,
+      ...hermeticServerEnv(),
       NODE_ENV: 'production',
       PORT: String(port),
       HOST: '127.0.0.1',
@@ -315,7 +316,7 @@ async function main() {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: projectRoot,
     env: {
-      ...process.env,
+      ...hermeticServerEnv(),
       NODE_ENV: 'production',
       PORT: String(port),
       HOST: '127.0.0.1',

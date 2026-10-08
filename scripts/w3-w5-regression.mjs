@@ -5,6 +5,7 @@ import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hermeticServerEnv } from './lib/hermetic-env.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ADMIN_TOKEN = 'w3-w5-admin-token';
@@ -251,7 +252,7 @@ async function main() {
   await writeFile(routebookAuditLogPath, `${legacyAudits.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
 
   const serverEnv = {
-    ...process.env,
+    ...hermeticServerEnv(),
     NODE_ENV: 'production',
     HOST: '127.0.0.1',
     PORT: String(port),

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: routebook_ci
+          POSTGRES_PASSWORD: routebook_ci
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U routebook_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Throwaway CI-only database credentials for the schema regression.
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: routebook_ci
+      PGPASSWORD: routebook_ci
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: npm
+      - run: npm ci
+      - name: Verify (syntax, build, node:test, regression scripts)
+        run: npm run verify
+      - name: Ensure PostgreSQL client tools
+        run: command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: PostgreSQL schema regression
+        run: npm run test:postgres-schema
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
