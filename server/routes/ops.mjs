@@ -10,6 +10,7 @@ import { paginateRows } from '../ops/paging.mjs';
 import { applyCheckinOpsOverlay, buildImportOperationsView, buildOpsAuditContext, createOpsAuditEvent, listOpsAuditEvents } from '../ops/audit.mjs';
 import { listReviewQueue } from '../ops/reviewQueue.mjs';
 import { decideModeration, listModerationQueue } from '../moderation/index.mjs';
+import { shadowAgreementSummary } from '../shadow/index.mjs';
 import { listPoiDuplicateQueue, listPoiMergeDecisions, recordPoiMergeDecision } from '../poi/merges.mjs';
 
 // Upper bound for one ops check-in scan; readJsonLines treats non-finite limits as 50.
@@ -91,6 +92,17 @@ export const opsRoutes = [
       ...(await createOpsAuditEvent(req, 'import-source', sanitizePublicId(safeDecodePathSegment(params.id)), await readJsonBody(req)))
     });
   }),
+  // Jev shadow pilot: agreement / order-consistency summary only (no raw states).
+  route(
+    'GET',
+    '/api/ops/shadow-judgments',
+    async ({ req, res }) => {
+      enforceRateLimit(req, 'ops-read');
+      verifyAdminAccess(req);
+      return sendJson(res, 200, { ok: true, ...(await shadowAgreementSummary()) });
+    },
+    NO_POI_CATALOG
+  ),
   route('GET', '/api/ops/poi-duplicates', async ({ req, res, url }) => {
     enforceRateLimit(req, 'ops-read');
     verifyAdminAccess(req);

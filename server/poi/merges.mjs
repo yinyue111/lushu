@@ -8,7 +8,9 @@ import { createHttpError, sanitizePublicId, truncateString } from '../lib/util.m
 import { cryptoRandomId } from '../auth/tokens.mjs';
 import { opsActorForRequest, validateOpsAuditInput } from '../ops/audit.mjs';
 import { listMergedPois, refreshPoiCatalog } from './catalog.mjs';
-import { POI_MERGE_DECISIONS, findPoiDuplicateCandidates, poiPairKey, replayPoiMergeDecisions } from './mergeRules.mjs';
+import { POI_MERGE_DECISIONS, findPoiDuplicateCandidates, poiCoordinate, poiPairKey, replayPoiMergeDecisions } from './mergeRules.mjs';
+import { distanceMeters } from '../lib/util.mjs';
+import { scheduleShadowJudgment } from '../shadow/index.mjs';
 
 async function readMergeState() {
   return replayPoiMergeDecisions((await readJsonLines(POI_MERGE_LOG_PATH, Number.POSITIVE_INFINITY)).reverse());
@@ -87,6 +89,18 @@ export async function recordPoiMergeDecision(req, input) {
       createdAt: new Date().toISOString()
     };
     await appendJsonLine(POI_MERGE_LOG_PATH, row);
+    if (decision !== 'unmerge') {
+      // Shadow mode: the human decision is the label Jev is compared against. Only public
+      // catalogue fields are sent; the actor and reason never leave the server.
+      const a = poiCoordinate(canonical);
+      const b = poiCoordinate(duplicate);
+      scheduleShadowJudgment('poi-duplicate', {
+        a: canonical,
+        b: duplicate,
+        distanceMeters: a && b ? Math.round(distanceMeters(a, b)) : null,
+        humanDecision: decision
+      });
+    }
     await refreshPoiCatalog({ force: true });
     return { decision: row, merges: mergeView(await readMergeState()) };
   });

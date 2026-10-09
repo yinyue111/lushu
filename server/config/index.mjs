@@ -217,3 +217,13 @@ export const MODERATION_KEYWORDS_FILE = String(process.env.MODERATION_KEYWORDS_F
 export const MODERATION_API_URL = String(process.env.MODERATION_API_URL ?? '').trim();
 export const MODERATION_API_KEY = String(process.env.MODERATION_API_KEY ?? '').trim();
 export const MODERATION_TIMEOUT_MS = envNumber('MODERATION_TIMEOUT_MS', 3000, { min: 200, max: 20000 });
+
+// Jev (TypeSafe System One) shadow mode — off by default, never changes behaviour
+// (docs/jev-pilot.md). Enabled only when JEV_SHADOW_ENABLED=true and TYPESAFE_API_KEY is set.
+export const TYPESAFE_API_KEY = String(process.env.TYPESAFE_API_KEY ?? '').trim();
+export const JEV_SHADOW_ENABLED = process.env.JEV_SHADOW_ENABLED === 'true';
+export const JEV_API_URL = String(process.env.JEV_API_URL ?? '').trim() || 'https://api.typesafe.ai/v1/systemone';
+export const JEV_MODEL = String(process.env.JEV_MODEL ?? '').trim() || 'jev-latest';
+export const JEV_SHADOW_TIMEOUT_MS = envNumber('JEV_SHADOW_TIMEOUT_MS', 800, { min: 100, max: 10000 });
+export const JEV_SHADOW_SAMPLE_RATE = envNumber('JEV_SHADOW_SAMPLE_RATE', 1, { min: 0, max: 1, integer: false });
+export const JEV_SHADOW_MAX_IN_FLIGHT = envNumber('JEV_SHADOW_MAX_IN_FLIGHT', 8, { min: 1, max: 64 });

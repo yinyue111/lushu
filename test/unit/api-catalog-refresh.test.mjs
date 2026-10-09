@@ -68,6 +68,7 @@ test('the production route table only opts out health/tiles/cities and read-only
     'GET /api/map-tiles/*',
     'GET /api/ops/audits',
     'GET /api/ops/review-queue',
+    'GET /api/ops/shadow-judgments',
     'GET /api/ready'
   ]);
 });

@@ -36,6 +36,7 @@ import { geocodePoiWithAmap } from '../geo/amap.mjs';
 import { attachServerRouteLegs } from '../routing/service.mjs';
 import { estimateModelCost, normalizeModelUsage, summarizeModelUsage } from '../analytics/aiObservability.mjs';
 import { createUntrustedFence, fenceImportedSources } from './untrusted.mjs';
+import { scheduleShadowJudgment } from '../shadow/index.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -443,11 +444,22 @@ function normalizeRoutebook(routebook, payload, runtime) {
   };
 }
 
+/** Shadow mode: Jev picks among the same AMap candidates; coordinates are never sent. */
+function shadowGeocodeChoice({ city, name, candidates, choice }) {
+  if (!candidates?.length) return;
+  scheduleShadowJudgment('geocode-choice', {
+    stopName: name,
+    city,
+    candidates: candidates.map((candidate) => ({ id: candidate.id, name: candidate.name, address: candidate.address, typecode: candidate.typecode })),
+    ruleChosenId: choice?.chosen?.id ?? null
+  });
+}
+
 async function geocodeGeneratedRoutebook(routebook, signal) {
   if (!AMAP_GEOCODE_KEY || !routebook?.stops?.length) return routebook;
   const stops = await mapWithConcurrency(routebook.stops, 4, async (stop) => {
     if (stop.coordinateSource === 'known-poi') return stop;
-    const geocoded = await geocodePoiWithAmap(routebook.city, stop.name, signal).catch(() => null);
+    const geocoded = await geocodePoiWithAmap(routebook.city, stop.name, signal, { onCandidates: shadowGeocodeChoice }).catch(() => null);
     if (!geocoded) return stop;
     // The candidate choice is audit detail for the server, not a stop field clients may echo back.
     const { geocodeChoice: _choice, ...fields } = geocoded;

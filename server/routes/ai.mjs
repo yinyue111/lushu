@@ -16,6 +16,7 @@ import { enforceGenerationQuota, withGenerationDedup } from '../ai/generationGua
 import { appendVersionedRoutebook } from '../routebooks/versions.mjs';
 import { normalizeUserRouteCreator } from '../routebooks/mutations.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
+import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { buildAiObservabilitySummary, normalizeAiGenerationStages, normalizeCostEstimate, normalizeStoredModelUsage } from '../analytics/aiObservability.mjs';
 
 function guideLogMeta(payload) {
@@ -186,6 +187,11 @@ export const aiRoutes = [
       sources
     };
     await appendJsonLine(IMPORT_LOG_PATH, importLog);
+    // Shadow mode (off by default): ask Jev the same gate question; the response is unaffected.
+    const shadowCity = truncateString(body?.city, 40);
+    for (const source of sources) {
+      scheduleShadowJudgment('import-gate', { source, city: shadowCity, ruleUsable: isUsableImportedSource(source) });
+    }
     return sendJson(res, 200, {
       ok: true,
       importId: importLog.id,
@@ -217,3 +223,9 @@ export const aiRoutes = [
     });
   })
 ];
+
+/** Mirrors the builder's gate (BuilderFlow hasActionableGuideInput) plus the low-trust threshold. */
+export function isUsableImportedSource(source) {
+  if (source?.status !== 'fetched' || Number(source?.trustScore) < 45) return false;
+  return [source.description, source.excerpt].some((value) => String(value ?? '').trim().length >= 20);
+}

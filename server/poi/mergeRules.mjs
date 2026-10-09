@@ -68,7 +68,7 @@ export function canonicalPoiIdFrom(redirects, poiId) {
   return current;
 }
 
-function poiCoordinate(poi) {
+export function poiCoordinate(poi) {
   const lat = Number(poi?.location?.lat ?? poi?.lat);
   const lng = Number(poi?.location?.lng ?? poi?.lng);
   return isValidCoordinate(lat, lng) ? { lat, lng } : null;

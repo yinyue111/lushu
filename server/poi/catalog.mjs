@@ -56,6 +56,11 @@ const TRUSTED_POI_CATALOG = [
 ];
 
 const OPERATIONAL_POI_CITIES = ['杭州', '上海', '苏州'];
+
+/** Read-only copy of the built-in seed POIs (labeling kits, reports). */
+export function seedPoiCatalog() {
+  return TRUSTED_POI_CATALOG.map((poi) => ({ ...poi, aliases: [...poi.aliases] }));
+}
 export const OPERATIONAL_POI_CITY_SET = new Set(OPERATIONAL_POI_CITIES);
 export const POI_REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected']);
 const POI_SOURCE_TYPES = new Set(['official', 'first-party', 'editorial', 'field-check', 'user-report', 'derived', 'ai', 'fallback']);

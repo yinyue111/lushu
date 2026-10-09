@@ -5,7 +5,7 @@ import { join } from 'node:path';
 // Variables that change server behaviour. Tests must never inherit them from the
 // developer's shell (real model keys, local bypass flags, secrets...).
 const INHERITED_RUNTIME_KEYS =
-  /^(OPENAI_|AI_|CODEX_|AMAP_|GEOCODE_|ROUTEBOOK_|PROFILE_|ALLOW_|REQUIRE_LOCAL_|TRUST_|TRUSTED_|RATE_LIMIT_|DATABASE_|STORAGE_BACKEND$|PUBLIC_BASE_URL$|MAX_|CHECKIN_|IMPORT_|MAP_TILE_|TIANDITU_|HOST$|PORT$|NODE_ENV$|VITE_)/;
+  /^(OPENAI_|AI_|CODEX_|AMAP_|JEV_|TYPESAFE_|MODERATION_|GEOCODE_|ROUTEBOOK_|PROFILE_|ALLOW_|REQUIRE_LOCAL_|TRUST_|TRUSTED_|RATE_LIMIT_|DATABASE_|STORAGE_BACKEND$|PUBLIC_BASE_URL$|MAX_|CHECKIN_|IMPORT_|MAP_TILE_|TIANDITU_|HOST$|PORT$|NODE_ENV$|VITE_)/;
 
 /**
  * Builds an isolated environment for spawning server.mjs in tests.
