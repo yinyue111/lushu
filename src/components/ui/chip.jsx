@@ -29,6 +29,18 @@ export const chipVariants = cva('inline-flex items-center gap-1.5 rounded-chip f
 });
 
 /** @param {Record<string, any>} props */
-export function Chip({ className, tone, size, ...props }) {
-  return <span className={cn(chipVariants({ tone, size }), tone === 'quiet' && 'h-auto px-0', className)} {...props} />;
+export function Chip({ className, tone, size, wrap = false, ...props }) {
+  return (
+    <span
+      className={cn(
+        chipVariants({ tone, size }),
+        tone === 'quiet' && 'h-auto px-0',
+        // Long or user-controlled text (CMS kicker, season note) wraps instead of widening the page
+        // at 320px or with a large system font.
+        wrap && 'h-auto min-h-7 max-w-full py-1 leading-snug whitespace-normal',
+        className
+      )}
+      {...props}
+    />
+  );
 }

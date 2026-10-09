@@ -110,9 +110,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.35)_0%,rgba(10,12,16,.15)_40%,rgba(10,12,16,.7)_100%)]"
           aria-hidden="true"
         />
-        <div className="mx-auto grid max-w-[1376px] gap-8 px-4 pt-10 pb-8 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-end lg:px-8 lg:pt-20 lg:pb-14">
+        <div className="mx-auto grid max-w-[1376px] grid-cols-[minmax(0,1fr)] gap-8 px-4 pt-10 pb-8 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-end lg:px-8 lg:pt-20 lg:pb-14">
           <div className="text-white">
-            <Chip tone="lemon">
+            <Chip tone="lemon" wrap>
               <MapPin /> {story.kicker}
             </Chip>
             <h1 className="mt-4 text-display-md leading-[1.15] font-extrabold tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,.25)] lg:text-display-xl">
@@ -124,10 +124,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               {cmsConfig?.heroTitle || '粘贴小红书、抖音、X 链接或收藏地点，AI 帮你排好顺序；走过的人用 GPS 打卡帮你验证。'}
             </p>
             <div className="mt-5 flex flex-wrap gap-2" aria-label={`${city} 路线数据`}>
-              <Chip tone="glass">
+              <Chip tone="glass" wrap>
                 <ShieldCheck /> 真实打卡才出可信分
               </Chip>
-              <Chip tone="glass">
+              <Chip tone="glass" wrap>
                 <Clock3 /> {seasonNoteFor(story)}
               </Chip>
             </div>

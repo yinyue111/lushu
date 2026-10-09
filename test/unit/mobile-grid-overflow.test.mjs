@@ -4,7 +4,14 @@ import { readFileSync } from 'node:fs';
 
 // An implicit grid track is sized to max-content: one long unbreakable child widened the 390px trip page to 414px.
 // Mobile page grids therefore pin their single column to minmax(0,1fr).
-const PAGES = ['src/components/Trip/TripView.jsx', 'src/components/Route/PublicSharePage.jsx', 'src/components/My/MyPage.jsx'];
+const PAGES = [
+  'src/components/Trip/TripView.jsx',
+  'src/components/Route/PublicSharePage.jsx',
+  'src/components/My/MyPage.jsx',
+  // The home hero grid let a long kicker chip widen the page under large text settings.
+  'src/components/HomePage.jsx',
+  'src/components/Layout/AppFallbacks.jsx'
+];
 
 test('mobile page grids use a shrinkable single column', () => {
   for (const file of PAGES) {

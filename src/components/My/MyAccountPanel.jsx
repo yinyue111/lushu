@@ -27,7 +27,7 @@ export function MyAccountPanel({
   const set = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value }));
   const setList = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value.split(/[、,\s]+/).filter(Boolean) }));
   return (
-    <form className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" onSubmit={onSave}>
+    <form className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" onSubmit={onSave}>
       <section className="rounded-panel border border-line bg-white p-5 shadow-card">
         <div className="flex items-start justify-between gap-3">
           <div>

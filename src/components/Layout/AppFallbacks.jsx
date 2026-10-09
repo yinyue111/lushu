@@ -5,7 +5,7 @@ import { EmptyArt } from '../visual/EmptyArt';
 
 /** @param {Record<string, any>} props */
 function Skeleton({ className }) {
-  return <div className={`animate-pulse rounded-card bg-line/70 ${className}`} />;
+  return <div className={`rounded-card bg-line/70 motion-safe:animate-pulse ${className}`} aria-hidden="true" />;
 }
 
 /** @param {Record<string, any>} props */
@@ -30,18 +30,39 @@ function CenteredMessage({ icon: Icon, title, text, children, art = false }) {
 /** @param {Record<string, any>} props */
 export function RouteLoadFallback({ state, onBack, onRetry }) {
   if (state.loading) {
+    // Mirrors the real route page (photo hero, stat tiles, stop cards, map column) so the
+    // content lands where the eye already is instead of jumping around.
     return (
-      <div
-        className="page-enter mx-auto grid max-w-[1400px] gap-4 px-4 pt-4 lg:grid-cols-[minmax(0,1fr)_480px] lg:px-8"
-        aria-busy="true"
-        aria-label="路书加载中"
-      >
-        <Skeleton className="h-64 lg:h-[70vh]" />
-        <div className="grid content-start gap-3">
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
+      <div className="page-enter" aria-busy="true" aria-label="路书加载中">
+        <div className="relative h-[300px] bg-line/60 motion-safe:animate-pulse lg:h-[360px]" aria-hidden="true">
+          <div className="absolute inset-x-4 bottom-6 mx-auto grid max-w-[1376px] gap-3 lg:inset-x-8">
+            <div className="h-6 w-40 rounded-full bg-white/60" />
+            <div className="h-9 w-3/4 max-w-xl rounded-tile bg-white/70" />
+            <div className="h-4 w-1/2 max-w-md rounded-full bg-white/50" />
+          </div>
+        </div>
+        <div className="mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)] gap-6 px-4 pt-5 lg:grid-cols-[minmax(0,1fr)_480px] lg:px-8">
+          <div className="grid content-start gap-3">
+            <p role="status" className="text-sm font-semibold text-muted">
+              正在打开路书…
+            </p>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 rounded-tile" />
+              ))}
+            </div>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex gap-3 rounded-card border border-line bg-white p-3" aria-hidden="true">
+                <Skeleton className="size-[88px] shrink-0 rounded-tile" />
+                <div className="grid flex-1 content-start gap-2 pt-1">
+                  <Skeleton className="h-5 w-1/2 rounded-full" />
+                  <Skeleton className="h-3.5 w-1/3 rounded-full" />
+                  <Skeleton className="h-3.5 w-5/6 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <Skeleton className="hidden h-[70vh] lg:block" />
         </div>
       </div>
     );
