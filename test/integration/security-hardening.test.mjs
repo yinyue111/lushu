@@ -28,6 +28,9 @@ test('M3: invalid numeric env values fall back to defaults instead of blocking r
       body: JSON.stringify({ urls: ['http://127.0.0.1:1/private'] })
     });
     assert.equal(result.status, 200, JSON.stringify(result.data));
+    // The guide text users see shows the import status in Chinese, never the raw enum.
+    assert.match(result.data.guideText, /｜抓取失败/);
+    assert.doesNotMatch(result.data.guideText, /｜failed/);
     assert.match(server.output.join(''), /RATE_LIMIT_MAX="abc" is not a valid integer/);
   } finally {
     await server.stop();

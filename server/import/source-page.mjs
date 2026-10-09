@@ -134,6 +134,25 @@ function scoreImportedSource({ platform, status, title, description, text, fetch
   };
 }
 
+// Pages that answer 200 but carry no guide: deleted notes, login walls, anti-bot checks.
+const UNAVAILABLE_PAGE =
+  /页面不见了|页面不存在|内容不存在|笔记不存在|作品不存在|视频不存在|内容已删除|已被删除|已删除|无法查看|暂时无法浏览|登录后查看|请先登录|登录后即可|扫码登录|安全验证|滑块验证|验证码|访问异常|page not found|not found|captcha|verify you are human/i;
+
+/** @returns {string} a short reason when the fetched page is a dead/blocked shell, else '' */
+export function detectUnavailablePage({ title = '', description = '', text = '' }) {
+  const head = `${title} ${description}`;
+  const match = head.match(UNAVAILABLE_PAGE) || (String(text).length < 1200 ? String(text).match(UNAVAILABLE_PAGE) : null);
+  return match ? match[0] : '';
+}
+
+/** Network/abort errors from node are English; users get a Chinese reason. */
+export function describeFetchError(error) {
+  const message = String(error?.message ?? '');
+  if (/[\u4e00-\u9fa5]/.test(message)) return message;
+  if (error?.name === 'AbortError' || /abort/i.test(message)) return `公开页面 ${Math.round(IMPORT_TIMEOUT_MS / 1000)} 秒内没有响应`;
+  return '无法连接到该网页（网络或证书错误）';
+}
+
 async function fetchPublicPage(url, signal) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPORT_TIMEOUT_MS);
@@ -165,13 +184,31 @@ export async function analyzeSourceUrl(rawUrl, signal) {
   try {
     fetched = await fetchPublicPage(url, signal);
   } catch (error) {
-    fetchError = error.message ?? '页面无法公开抓取';
+    fetchError = describeFetchError(error);
   }
 
   const html = fetched?.html ?? '';
   const title = extractTitle(html).slice(0, 120);
   const description = extractDescription(html).slice(0, 260);
   const text = stripHtmlToText(html).slice(0, 2800);
+  const unavailableReason = fetched ? detectUnavailablePage({ title, description, text }) : '';
+  if (unavailableReason) {
+    // A deleted note / login wall is not guide content: no excerpt, low trust, not usable.
+    return {
+      url: rawUrl,
+      finalUrl: fetched?.finalUrl ?? url.toString(),
+      platform: platform.name,
+      platformId: platform.id,
+      status: 'unavailable',
+      title: title || `${platform.name} 分享链接`,
+      description: '',
+      excerpt: '',
+      trustScore: 20,
+      signals: ['仅完成链接来源识别'],
+      warnings: [`页面显示「${unavailableReason}」，没有可用的公开正文（可能已删除或需要登录），请粘贴正文或上传截图`, platform.note],
+      fetchedAt: new Date().toISOString()
+    };
+  }
   const analysis = scoreImportedSource({
     platform,
     status: fetched ? 'fetched' : 'metadata-only',

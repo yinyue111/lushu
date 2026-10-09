@@ -36,3 +36,14 @@ export function budgetHint(budget) {
   const scoped = /全程|每日|每天|日均|总预算/.test(value);
   return `当前预算：${value}${scoped ? '' : '（没写全程还是每日，系统会按全程计算）'}。`;
 }
+
+const IMPORT_STATUS_LABELS = {
+  fetched: '已读取公开内容',
+  'metadata-only': '只识别到链接',
+  unavailable: '页面已删除或需登录',
+  failed: '抓取失败'
+};
+
+export function importStatusLabel(status) {
+  return IMPORT_STATUS_LABELS[status] ?? '状态待补充';
+}

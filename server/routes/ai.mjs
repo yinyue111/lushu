@@ -28,6 +28,8 @@ function guideLogMeta(payload) {
   };
 }
 
+const IMPORT_STATUS_TEXT = { fetched: '已读取公开内容', 'metadata-only': '只识别到链接', unavailable: '页面已删除或需登录', failed: '抓取失败' };
+
 export const aiRoutes = [
   route('POST', '/api/ocr-guide', async ({ req, res }) => {
     enforceRateLimit(req, 'ai');
@@ -201,7 +203,7 @@ export const aiRoutes = [
       guideText: sources
         .map((source, index) =>
           [
-            `来源 ${index + 1}｜${source.platform}｜可信 ${source.trustScore}｜${source.status}`,
+            `来源 ${index + 1}｜${source.platform}｜可信 ${source.trustScore}｜${IMPORT_STATUS_TEXT[source.status] ?? source.status}`,
             `标题：${source.title}`,
             source.description ? `摘要：${source.description}` : '',
             source.excerpt ? `公开正文摘录：${source.excerpt}` : '',
