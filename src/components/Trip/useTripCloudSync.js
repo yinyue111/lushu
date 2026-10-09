@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTripSessionRemote, saveTripSessionRemote } from '../../lib/tripApi.js';
 import { readTripSession, restoreTripSession, tripRoutebookId } from '../../lib/tripSession.js';
+import { tripSyncErrorMessage } from '../../lib/tripSyncMessages.js';
 
 // Execution plans are private owner data. CAS prevents two devices from silently
 // replacing each other's reordered/alternative stops; conflicts require a choice.
@@ -45,7 +46,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
           if (error.code === 'TRIP_SESSION_CONFLICT') {
             conflictRef.current = { revision: error.currentVersion };
             setState({ status: 'conflict', message: '另一台设备更新了行中计划；本机修改已保留，请选择使用哪一份' });
-          } else setState({ status: 'error', message: `行中计划仅保存在本机：${error.message}` });
+          } else setState({ status: 'error', message: tripSyncErrorMessage(error) });
         }
       });
   }, [routeId]);
@@ -81,7 +82,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
         else setState({ status: 'synced', message: '继续行程后将自动同步执行计划' });
       })
       .catch((error) => {
-        if (!controller.signal.aborted) setState({ status: 'error', message: `行中计划仅保存在本机：${error.message}` });
+        if (!controller.signal.aborted) setState({ status: 'error', message: tripSyncErrorMessage(error) });
       });
     const reconnect = () => setRefresh((value) => value + 1);
     window.addEventListener('online', reconnect);
