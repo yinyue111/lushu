@@ -99,7 +99,8 @@ async function startInstance(label) {
     if (child.exitCode != null) throw new Error(`${label} exited: ${state.logs}`);
     try {
       const result = await request(base, '/health', { admin: true });
-      if (result.status === 200 && result.data.ready) return state;
+      // `ready` is per-caller (needs model access); this instance has no API token, so wait on the model runtime.
+      if (result.status === 200 && result.data.modelReady) return state;
     } catch {
       /* Starting local process. */
     }
