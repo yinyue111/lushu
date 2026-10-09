@@ -68,22 +68,26 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
       >
         <StopThumb stop={stop} number={index + 1} color={theme.ink} className="aspect-square self-start sm:aspect-[4/3.4]" />
         <div className="min-w-0 py-1 pr-1.5">
-          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-            <h3 className="text-lead leading-snug font-extrabold sm:text-xl">
-              <button
-                type="button"
-                className="text-left"
-                aria-pressed={selected}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handlers.select(stop.id);
-                }}
-              >
-                {stop.name}
-              </button>
-            </h3>
-            {stop.area && <span className="text-meta text-muted sm:text-sm">{stop.area}</span>}
-            <div className="ml-auto flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+          {/* Name + area on the left, actions pinned top-right: long names wrap beside the buttons
+              instead of pushing them onto a row of their own. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+            <div className="min-w-0">
+              <h3 className="inline text-lead leading-snug font-extrabold [overflow-wrap:anywhere] sm:text-xl">
+                <button
+                  type="button"
+                  className="text-left"
+                  aria-pressed={selected}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handlers.select(stop.id);
+                  }}
+                >
+                  {stop.name}
+                </button>
+              </h3>
+              {stop.area && <span className="ml-2 inline-block text-meta text-muted sm:text-sm">{stop.area}</span>}
+            </div>
+            <div className="-mt-0.5 flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
               <Button variant="ghost" size="icon-sm" onClick={() => handlers.detail(stop)} aria-label={`查看${stop.name}详情`}>
                 <Info />
               </Button>

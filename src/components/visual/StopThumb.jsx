@@ -12,6 +12,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
   const photo = stopPhoto(stop);
   const category = stopCategory(stop);
   const Icon = category.icon;
+  const variant = sceneVariant(stop);
   return (
     <div
       className={cn('@container relative isolate overflow-hidden rounded-tile', className)}
@@ -27,6 +28,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
             alt={`${category.label}类地点示意图（AI 生成）`}
             sizes="(min-width: 1024px) 360px, 60vw"
             className="absolute inset-0 -z-10 size-full object-cover"
+            style={variant}
             fallback={
               !compact && (
                 <span className="absolute inset-x-2 top-1/2 line-clamp-2 -translate-y-1/2 text-center text-meta leading-tight font-bold text-white/95 drop-shadow-sm">
@@ -65,4 +67,18 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
       )}
     </div>
   );
+}
+
+// Only ~8 bundled scene images exist, so two street stops in a row looked identical. A stable
+// per-stop crop + mirror gives each tile its own framing without new assets.
+const SCENE_FRAMES = [
+  { objectPosition: '50% 50%' },
+  { objectPosition: '18% 55%', transform: 'scaleX(-1)' },
+  { objectPosition: '82% 45%' },
+  { objectPosition: '40% 30%', transform: 'scaleX(-1)' }
+];
+function sceneVariant(stop) {
+  let hash = 0;
+  for (const char of String(stop?.name ?? stop?.id ?? '')) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return SCENE_FRAMES[Math.abs(hash) % SCENE_FRAMES.length];
 }

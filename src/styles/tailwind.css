@@ -228,6 +228,7 @@
     top: 100%;
     transform: translateX(-50%);
     margin-top: 2px;
+    display: flex;
     white-space: nowrap;
     padding: 2px 10px;
     border-radius: 999px;
@@ -236,6 +237,12 @@
     font-size: 13px;
     font-weight: 700;
     box-shadow: var(--shadow-card);
+  }
+  /* Long POI names must not run off the map edge. */
+  .rb-pin-name {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .rb-dot {
     width: 14px;

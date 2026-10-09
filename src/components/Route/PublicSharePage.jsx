@@ -172,7 +172,14 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                 <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
               </span>
             </div>
-            <h1 className="mt-3 text-3xl leading-tight font-black tracking-tight lg:text-5xl">{routebook.title}</h1>
+            <h1
+              className={cn(
+                'mt-3 leading-tight font-black tracking-tight [overflow-wrap:anywhere]',
+                String(routebook.title ?? '').length > 26 ? 'text-2xl lg:text-4xl' : 'text-3xl lg:text-5xl'
+              )}
+            >
+              {routebook.title}
+            </h1>
             {routebook.summary && (
               <>
                 <p id="share-summary" className={cn('mt-2 max-w-2xl text-copy text-white/90', !summaryOpen && 'max-sm:line-clamp-3')}>

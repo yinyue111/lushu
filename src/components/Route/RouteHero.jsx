@@ -104,7 +104,13 @@ export default function RouteHero({
               </Chip>
             )}
           </div>
-          <h1 className="max-w-[860px] text-display-sm leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:text-display-lg lg:leading-[1.18]">
+          <h1
+            className={cn(
+              'max-w-[860px] leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:leading-[1.18]',
+              // Long (user/model written) titles step down a size so they don't fill the photo.
+              String(routebook.title ?? '').length > 26 ? 'text-title lg:text-display' : 'text-display-sm lg:text-display-lg'
+            )}
+          >
             {routebook.title}
           </h1>
           {routebook.summary && (

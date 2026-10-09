@@ -147,7 +147,10 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
 
 function pinIcon(stop, index, color, active, approximate) {
   const photo = stopPhoto(stop);
-  const label = active ? `<span class="rb-pin-label">${escapeHtml(stop.name)}${approximate ? ' · 位置待确认' : ''}</span>` : '';
+  // The name truncates; the 位置待确认 note never does.
+  const label = active
+    ? `<span class="rb-pin-label" title="${escapeHtml(stop.name)}"><span class="rb-pin-name">${escapeHtml(stop.name)}</span>${approximate ? '<span>&nbsp;· 位置待确认</span>' : ''}</span>`
+    : '';
   const classes = ['rb-pin', active ? 'active' : '', approximate ? 'approx' : '', photo ? 'has-photo' : ''].filter(Boolean).join(' ');
   const dot = photo
     ? `<span class="rb-pin-dot" style="background-image:url('${escapeHtml(photo)}')"></span><b class="rb-pin-badge">${index + 1}</b>`
