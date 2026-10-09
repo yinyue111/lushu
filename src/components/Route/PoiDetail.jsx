@@ -14,6 +14,7 @@ import { StopProvenanceDetail } from './StopProvenance';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
+import { buildPoiRealFeedback } from './poiFeedbackModel';
 
 /** @param {Record<string, any>} props */
 export default function PoiDetail({ stop, routebook, onClose }) {
@@ -554,57 +555,3 @@ function buildPoiTrustState(stop, city) {
 // / crowdLevel / latestFeedbackAt / recentCorrectionCount。
 // share 契约固定为 0-100 的整数百分比，这里只做 clamp，不再做小数/百分比启发式换算。
 // 无任何真实数据时 hasData=false，页面只展示「待真实打卡验证」，不编造占比。
-function buildPoiRealFeedback(stop) {
-  const trust = stop?.poiTrust && typeof stop.poiTrust === 'object' ? stop.poiTrust : {};
-
-  const rawAudience = Array.isArray(trust.audienceBreakdown) ? trust.audienceBreakdown : [];
-  const audience = rawAudience
-    .map((item) => ({
-      label: typeof item?.label === 'string' ? item.label.trim() : '',
-      count: Number.isFinite(Number(item?.count)) && Number(item.count) > 0 ? Math.round(Number(item.count)) : 0,
-      share: Number(item?.share)
-    }))
-    .filter((item) => item.label)
-    .slice(0, 4);
-  const countTotal = audience.reduce((sum, item) => sum + item.count, 0);
-  const audienceText = audience
-    .map((item) => {
-      let percent = null;
-      if (Number.isFinite(item.share)) {
-        percent = item.share;
-      } else if (countTotal > 0) {
-        percent = (item.count / countTotal) * 100;
-      }
-      if (!Number.isFinite(percent)) return item.label;
-      return `${item.label} ${Math.max(0, Math.min(100, Math.round(percent)))}%`;
-    })
-    .join(' · ');
-  const sampleCount = Number.isInteger(trust.sampleCount) && trust.sampleCount > 0 ? trust.sampleCount : 0;
-  const feedbackCount = countTotal > 0 ? countTotal : sampleCount;
-
-  const queueRaw = Number(trust.queueMinutesMedian);
-  const queueMinutes = Number.isFinite(queueRaw) && queueRaw >= 0 ? Math.round(queueRaw) : null;
-  const costRaw = Number(trust.costMedian);
-  const costMedian = Number.isFinite(costRaw) && costRaw >= 0 ? Math.round(costRaw) : null;
-
-  const crowdLabelMap = { low: '较宽松', medium: '一般', moderate: '一般', high: '拥挤', 'very-high': '非常拥挤' };
-  const crowdRaw = typeof trust.crowdLevel === 'string' ? trust.crowdLevel.trim() : '';
-  const crowdLabel = crowdRaw ? (crowdLabelMap[crowdRaw.toLowerCase()] ?? crowdRaw.slice(0, 12)) : '';
-
-  const latestTimestamp = Date.parse(trust.latestFeedbackAt ?? '');
-  const latestDaysAgo = Number.isFinite(latestTimestamp) ? Math.max(0, Math.floor((Date.now() - latestTimestamp) / 86400000)) : null;
-
-  const correctionRaw = Number(trust.recentCorrectionCount);
-  const correctionCount = Number.isInteger(correctionRaw) && correctionRaw > 0 ? correctionRaw : 0;
-
-  return {
-    hasData: Boolean(audienceText) || queueMinutes != null || costMedian != null || Boolean(crowdLabel) || latestDaysAgo != null,
-    audienceText,
-    feedbackCount,
-    queueMinutes,
-    costMedian,
-    crowdLabel,
-    latestDaysAgo,
-    correctionCount
-  };
-}
