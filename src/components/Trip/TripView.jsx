@@ -634,7 +634,10 @@ export default function TripView({ routebook, onBack, onReview }) {
 
           <details className="group rounded-card bg-white shadow-card">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5">
-              <span className="text-copy font-bold">附近替代点与设施</span>
+              <span className="min-w-0">
+                <span className="block text-copy font-bold">{current?.name ? `「${current.name}」附近的替代点与设施` : '附近替代点与设施'}</span>
+                <span className="block text-meta text-muted">以当前计划站点为中心，不是你的实时位置</span>
+              </span>
               <span className="text-meta text-muted">{nearbyItems.length} 个</span>
             </summary>
             <div className="flex flex-wrap gap-2 border-t border-line p-3" aria-label="附近地点筛选">

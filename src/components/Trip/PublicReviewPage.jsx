@@ -51,6 +51,8 @@ export default function PublicReviewPage({ publicId, onBack }) {
   const latestByStop = latestCheckinsByStop(checkins);
   const displayStats = computePublicStats(checkins, stops);
   // 服务端 publicCheckin 序列化透出 photoId 时展示照片墙；没有则不显示。
+  // F20: reviews are only served while the original route is public, so linking back is safe.
+  const originalRouteId = routebook?.publicId || state.review.routebookId || '';
   const photoCheckins = [...latestByStop.values()].filter((item) => String(item?.photoId ?? '').trim());
 
   return (
@@ -75,6 +77,18 @@ export default function PublicReviewPage({ publicId, onBack }) {
           <HeroStat label="定位存疑" value={displayStats.lowConfidenceArrivalCount} />
         </dl>
       </section>
+
+      {originalRouteId && (
+        <nav aria-label="原路线" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-card bg-white p-4 shadow-card">
+          <p className="text-copy text-ink-2">这次旅程按公开路线《{routebook.title}》走的，可以查看原路线、作者和复制到自己的路书。</p>
+          <a
+            href={`/share/${encodeURIComponent(originalRouteId)}`}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <MapPin className="size-4" aria-hidden="true" /> 查看原路线
+          </a>
+        </nav>
+      )}
 
       <section className="mt-8" aria-labelledby="public-review-timeline">
         <h2 id="public-review-timeline" className="text-xl font-extrabold">

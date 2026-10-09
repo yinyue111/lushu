@@ -9,7 +9,7 @@ export const cityStories = {
     kicker: '西湖、寺院、茶山与夜游',
     headline: '把收藏夹里的杭州周末，排成一条真的能走完的路',
     summary: '适合第一次来杭州的朋友、情侣和轻松 Citywalk 用户。核心判断是少绕路、避开高峰、把茶歇和夜景留到体力最合适的时间。',
-    season: '梅雨季优先室内茶馆与湖滨短线',
+    seasonNotes: [{ months: [6, 7], text: '梅雨季优先室内茶馆与湖滨短线' }],
     image: localImage('/assets/hangzhou-west-lake.webp'),
     palette: 'warm'
   },
@@ -18,7 +18,7 @@ export const cityStories = {
     kicker: '街区漫游、展览、咖啡与夜景',
     headline: '从武康路走到安福路，不再被同款攻略带着绕圈',
     summary: '适合半日到一日的街区漫游。把拍照、咖啡、展览和晚餐放在同一条动线上，减少来回折返。',
-    season: '暴晒天气建议午后进展馆',
+    seasonNotes: [{ months: [7, 8], text: '暴晒天气建议午后进展馆' }],
     image: localImage('/assets/shanghai-street.webp'),
     palette: 'urban'
   },
@@ -27,7 +27,7 @@ export const cityStories = {
     kicker: '园林、平江路、评弹与夜游',
     headline: '园林不赶场，平江路不踩点，晚上还能顺路看水巷',
     summary: '适合周末轻旅行和亲子慢游。重点校验门票、闭园时间、排队和晚间回酒店动线。',
-    season: '暑期建议上午园林、傍晚水巷',
+    seasonNotes: [{ months: [7, 8], text: '暑期建议上午园林、傍晚水巷' }],
     image: localImage('/assets/suzhou-garden.webp'),
     palette: 'garden'
   }
@@ -316,6 +316,20 @@ export const productCards = [
 ];
 
 export const defaultCityImage = localImage('/assets/city-aerial.webp');
+
+export const DEFAULT_SEASON_NOTE = '出发前查看当天天气、开放时间与预约要求';
+
+/**
+ * F21: seasonal copy is month-scoped; outside its months we fall back to a
+ * neutral reminder instead of showing e.g. 梅雨季 in October.
+ * @param {{ season?: string, seasonNotes?: { months: number[], text: string }[] }} story
+ */
+export function seasonNoteFor(story, date = new Date()) {
+  if (story?.season) return story.season;
+  const month = date.getMonth() + 1;
+  const note = (story?.seasonNotes ?? []).find((item) => item.months.includes(month));
+  return note?.text ?? DEFAULT_SEASON_NOTE;
+}
 
 export function getCityStory(city) {
   if (cityStories[city]) return cityStories[city];

@@ -8,7 +8,7 @@ import { RouteCard } from './cards/RouteCard';
 import { SectionHeading } from './ui/section-heading';
 import { CityBackdrop } from './visual/CityBackdrop';
 import { hasCityPhotos, smallImage } from './visual/theme';
-import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, trustedCities } from '../lib/content';
+import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, seasonNoteFor, trustedCities } from '../lib/content';
 import { getCmsConfig } from '../lib/api';
 import { getProfile } from '../lib/profile';
 
@@ -128,7 +128,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <ShieldCheck /> 真实打卡才出可信分
               </Chip>
               <Chip tone="glass">
-                <Clock3 /> {story.season}
+                <Clock3 /> {seasonNoteFor(story)}
               </Chip>
             </div>
             {cmsConfig?.announcements?.length > 0 && (

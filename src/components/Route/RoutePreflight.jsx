@@ -173,13 +173,13 @@ export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop
   );
 }
 
-/** "顺路可订" — product cards (analytics preserved via onClick). */
+/** External search entries (F18: not verified products) — product cards (analytics preserved via onClick). */
 export function RouteProducts({ products, onClick }) {
   if (!products.length) return null;
   return (
     <section aria-labelledby="products-title">
       <h2 id="products-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:text-2xl">
-        顺路可订
+        顺路搜索入口（未核验）
       </h2>
       <div className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:px-0">
         {products.map((item, index) => (

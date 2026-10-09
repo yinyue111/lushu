@@ -245,6 +245,8 @@ export default function App() {
       const nextPath = publicPathForView(nextView, options);
       if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
     }
+    // F21: in-app navigation starts the next page at the top (back/forward keeps the browser's restoration).
+    if (options.preserveScroll !== true && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
   }, []);
 
   const handleGenerated = useCallback(
