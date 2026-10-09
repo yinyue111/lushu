@@ -12,6 +12,7 @@ import { safeSourceUrl } from '../lib/urls.mjs';
 import { normalizeRoutebookForStorage, signImportedSource } from '../routebooks/normalize.mjs';
 import { analyzeGuideImages, generateRoutebook, generationFailureReason, normalizeOcrImage, sanitizePayload } from '../ai/generate.mjs';
 import { enrichRoutebook } from '../trust/feedback.mjs';
+import { enforceGenerationQuota, withGenerationDedup } from '../ai/generationGuard.mjs';
 import { appendVersionedRoutebook } from '../routebooks/versions.mjs';
 import { normalizeUserRouteCreator } from '../routebooks/mutations.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
@@ -47,70 +48,80 @@ export const aiRoutes = [
     let observability = null;
     let persistenceStartedAt = null;
     let persistenceCompleted = false;
-    try {
-      const routebook = await generateRoutebook(payload, bindRequestAbortSignal(req));
-      observability = routebook.observability;
-      const profileId = normalizeProfileId(payload.profileId);
-      const storedRoutebook = normalizeRoutebookForStorage(
-        {
-          ...routebook,
-          schemaVersion: 2,
-          version: 1,
-          parentVersion: null,
-          changeReason: 'AI 生成初始草稿',
-          actorType: 'user',
+    // Phase 2: identical requests reuse one result; registered profiles have a quota.
+    const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
+      await enforceGenerationQuota(normalizeProfileId(payload.profileId));
+      return generateAndStore();
+    });
+    return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
+
+    async function generateAndStore() {
+      try {
+        const routebook = await generateRoutebook(payload, bindRequestAbortSignal(req));
+        observability = routebook.observability;
+        const profileId = normalizeProfileId(payload.profileId);
+        const storedRoutebook = normalizeRoutebookForStorage(
+          {
+            ...routebook,
+            schemaVersion: 2,
+            version: 1,
+            parentVersion: null,
+            changeReason: 'AI 生成初始草稿',
+            actorType: 'user',
+            profileId,
+            creator: normalizeUserRouteCreator(payload, profileId),
+            sourceAuthorization: 'user-generated',
+            editToken: sanitizeEditToken(payload.editToken) || createRouteEditToken()
+          },
+          routebook.publicId
+        );
+        persistenceStartedAt = Date.now();
+        await appendVersionedRoutebook(storedRoutebook, 'generated');
+        persistenceCompleted = true;
+        observability.stages.persistence = { durationMs: Date.now() - persistenceStartedAt, status: 'completed', timedOut: false };
+        await appendJsonLine(AI_LOG_PATH, {
+          requestId,
+          kind: 'generate-routebook',
+          status: 'ok',
+          city: payload.city,
           profileId,
-          creator: normalizeUserRouteCreator(payload, profileId),
-          sourceAuthorization: 'user-generated',
-          editToken: sanitizeEditToken(payload.editToken) || createRouteEditToken()
-        },
-        routebook.publicId
-      );
-      persistenceStartedAt = Date.now();
-      await appendVersionedRoutebook(storedRoutebook, 'generated');
-      persistenceCompleted = true;
-      observability.stages.persistence = { durationMs: Date.now() - persistenceStartedAt, status: 'completed', timedOut: false };
-      await appendJsonLine(AI_LOG_PATH, {
-        requestId,
-        kind: 'generate-routebook',
-        status: 'ok',
-        city: payload.city,
-        profileId,
-        provider: routebook.provider,
-        ...inputMeta,
-        ...observability,
-        outputTitle: storedRoutebook.title,
-        trustScore: storedRoutebook.trustScore,
-        stopCount: storedRoutebook.stops.length,
-        publicId: storedRoutebook.publicId,
-        durationMs: Date.now() - startedAt,
-        createdAt: new Date().toISOString()
-      });
-      return sendJson(res, 200, { ...(await enrichRoutebook(storedRoutebook)), shareUrl: '' });
-    } catch (error) {
-      observability = error.observability ?? observability;
-      if (observability && persistenceStartedAt != null && !persistenceCompleted) {
-        observability = {
+          provider: routebook.provider,
+          ...inputMeta,
           ...observability,
-          failureStage: 'persistence',
-          stages: { ...observability.stages, persistence: { durationMs: Date.now() - persistenceStartedAt, status: 'failed', timedOut: false } }
-        };
+          outputTitle: storedRoutebook.title,
+          trustScore: storedRoutebook.trustScore,
+          stopCount: storedRoutebook.stops.length,
+          publicId: storedRoutebook.publicId,
+          durationMs: Date.now() - startedAt,
+          createdAt: new Date().toISOString()
+        });
+        return { ...(await enrichRoutebook(storedRoutebook)), shareUrl: '' };
+      } catch (error) {
+        observability = error.observability ?? observability;
+        if (observability && persistenceStartedAt != null && !persistenceCompleted) {
+          observability = {
+            ...observability,
+            failureStage: 'persistence',
+            stages: { ...observability.stages, persistence: { durationMs: Date.now() - persistenceStartedAt, status: 'failed', timedOut: false } }
+          };
+        }
+        await appendJsonLine(AI_LOG_PATH, {
+          requestId,
+          kind: 'generate-routebook',
+          status: 'error',
+          city: payload.city,
+          profileId: normalizeProfileId(payload.profileId),
+          ...inputMeta,
+          ...(observability ?? {}),
+          code: error.code ?? 'MODEL_ERROR',
+          failureReason: generationFailureReason(error),
+          upstreamStatus: error.upstreamStatus,
+          upstreamDetail: truncateString(error.upstreamDetail, 400),
+          durationMs: Date.now() - startedAt,
+          createdAt: new Date().toISOString()
+        });
+        throw error;
       }
-      await appendJsonLine(AI_LOG_PATH, {
-        requestId,
-        kind: 'generate-routebook',
-        status: 'error',
-        city: payload.city,
-        ...inputMeta,
-        ...(observability ?? {}),
-        code: error.code ?? 'MODEL_ERROR',
-        failureReason: generationFailureReason(error),
-        upstreamStatus: error.upstreamStatus,
-        upstreamDetail: truncateString(error.upstreamDetail, 400),
-        durationMs: Date.now() - startedAt,
-        createdAt: new Date().toISOString()
-      });
-      throw error;
     }
   }),
   route('GET', '/api/logs', async ({ req, res, url }) => {

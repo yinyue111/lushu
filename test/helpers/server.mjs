@@ -47,6 +47,9 @@ export async function startServer(options = {}) {
     RATE_LIMIT_CORE_WRITE_MAX: '1000',
     RATE_LIMIT_PUBLIC_READ_MAX: '1000',
     RATE_LIMIT_OPS_READ_MAX: '1000',
+    // Existing suites repeat identical generations on purpose; the guard has its own suite.
+    GENERATION_DEDUP_TTL_MS: '0',
+    GENERATION_QUOTA_PER_PROFILE: '0',
     ...(options.env ?? {})
   });
   for (const [key, value] of Object.entries(env)) {

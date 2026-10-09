@@ -61,9 +61,11 @@ function sendApiError(req, res, error) {
   } else if ((error.statusCode ?? 500) >= 500) {
     console.error(`[server] requestId=${req.requestId ?? 'unknown'} status=${error.statusCode ?? 500} code=${error.code ?? 'SERVER_ERROR'}`);
   }
+  if (Number.isFinite(error.retryAfterSeconds) && !res.headersSent) res.setHeader('Retry-After', String(error.retryAfterSeconds));
   return sendJson(res, error.statusCode ?? 500, {
     error: error.statusCode ? (error.message ?? '服务器错误') : '服务器暂时不可用，请稍后重试',
     code: error.code ?? 'SERVER_ERROR',
-    ...(error.currentVersion != null ? { currentVersion: error.currentVersion } : {})
+    ...(error.currentVersion != null ? { currentVersion: error.currentVersion } : {}),
+    ...(Number.isFinite(error.retryAfterSeconds) ? { retryAfterSeconds: error.retryAfterSeconds } : {})
   });
 }

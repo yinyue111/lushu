@@ -74,6 +74,11 @@ export const RATE_LIMIT_PUBLIC_READ_MAX = envNumber('RATE_LIMIT_PUBLIC_READ_MAX'
 // L9: cheap public config reads (cities/cms/products) get their own, larger bucket.
 // Read-only ops listings (review queue, check-ins, imports, audits) per admin client.
 export const RATE_LIMIT_OPS_READ_MAX = envNumber('RATE_LIMIT_OPS_READ_MAX', 120, { min: 1 });
+// Phase 2 generation guard: identical requests within the TTL reuse the result
+// (0 disables); registered profiles get N model generations per rolling window (0 disables).
+export const GENERATION_DEDUP_TTL_MS = envNumber('GENERATION_DEDUP_TTL_MS', 10 * 60 * 1000, { min: 0 });
+export const GENERATION_QUOTA_PER_PROFILE = envNumber('GENERATION_QUOTA_PER_PROFILE', 30, { min: 0 });
+export const GENERATION_QUOTA_WINDOW_MS = envNumber('GENERATION_QUOTA_WINDOW_MS', 24 * 60 * 60 * 1000, { min: 60 * 1000 });
 export const RATE_LIMIT_PUBLIC_CONFIG_MAX = envNumber('RATE_LIMIT_PUBLIC_CONFIG_MAX', 240, { min: 1 });
 export const RATE_LIMIT_BUCKET_SWEEP_SIZE = 10000;
 

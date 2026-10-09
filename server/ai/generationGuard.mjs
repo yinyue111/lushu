@@ -1,0 +1,96 @@
+// Phase 2: generation de-duplication and per-profile quota.
+//
+// - Identical requests (same profile + normalized input) share one in-flight
+//   model call, and within GENERATION_DEDUP_TTL_MS reuse the previous response
+//   instead of calling the model again. The cache is per process (in memory);
+//   with several instances a duplicate may still reach the model once per instance.
+// - Registered profiles get GENERATION_QUOTA_PER_PROFILE model generations per
+//   rolling GENERATION_QUOTA_WINDOW_MS, counted from ai-logs (so it survives
+//   restarts and is shared across instances). The shared 'anonymous' identity is
+//   left to the per-IP 'ai' rate limit, otherwise one user could lock out everyone.
+import { createHash } from 'node:crypto';
+import { AI_LOG_PATH, GENERATION_DEDUP_TTL_MS, GENERATION_QUOTA_PER_PROFILE, GENERATION_QUOTA_WINDOW_MS } from '../config/index.mjs';
+import { createHttpError } from '../lib/util.mjs';
+import { readMatchingJsonLines } from '../storage/jsonl.mjs';
+
+const MAX_CACHE_ENTRIES = 200;
+const resultCache = new Map();
+const inFlight = new Map();
+
+function stable(value) {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stable(value[key])])
+    );
+  }
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : value;
+}
+
+export function generationInputHash(payload) {
+  const input = {
+    profileId: payload?.profileId ?? '',
+    city: payload?.city ?? '',
+    guide: payload?.guide ?? '',
+    constraints: payload?.constraints ?? {},
+    sources: (payload?.importedSources ?? []).map((source) => [source?.url ?? '', source?.fetchedAt ?? '', source?.status ?? ''])
+  };
+  return createHash('sha256')
+    .update(JSON.stringify(stable(input)))
+    .digest('hex');
+}
+
+/**
+ * Run `generate` unless an identical request is in flight or cached.
+ * @template T
+ * @param {any} payload
+ * @param {() => Promise<T>} generate
+ * @param {{ ttlMs?: number, nowMs?: number }} [options]
+ * @returns {Promise<{ result: T, deduplicated: boolean }>}
+ */
+export async function withGenerationDedup(payload, generate, { ttlMs = GENERATION_DEDUP_TTL_MS, nowMs = Date.now() } = {}) {
+  if (!ttlMs) return { result: await generate(), deduplicated: false };
+  const key = generationInputHash(payload);
+  const cached = resultCache.get(key);
+  if (cached && cached.expiresAt > nowMs) return { result: cached.result, deduplicated: true };
+  if (cached) resultCache.delete(key);
+  const pending = inFlight.get(key);
+  if (pending) return { result: await pending, deduplicated: true };
+  const promise = generate();
+  inFlight.set(key, promise);
+  try {
+    const result = await promise;
+    resultCache.set(key, { result, expiresAt: Date.now() + ttlMs });
+    while (resultCache.size > MAX_CACHE_ENTRIES) resultCache.delete(resultCache.keys().next().value);
+    return { result, deduplicated: false };
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+export function clearGenerationDedupCache() {
+  resultCache.clear();
+}
+
+/** Throws 429 GENERATION_QUOTA_EXCEEDED when the profile used its window quota. */
+export async function enforceGenerationQuota(
+  profileId,
+  { quota = GENERATION_QUOTA_PER_PROFILE, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}
+) {
+  if (!quota || !profileId || profileId === 'anonymous') return { limited: false, used: 0, quota };
+  const since = nowMs - windowMs;
+  const rows = await readMatchingJsonLines(
+    AI_LOG_PATH,
+    (row) => row?.kind === 'generate-routebook' && row?.profileId === profileId && row?.deduplicated !== true && Date.parse(row?.createdAt ?? '') >= since,
+    quota,
+    50000
+  );
+  if (rows.length < quota) return { limited: false, used: rows.length, quota };
+  const oldest = Math.min(...rows.map((row) => Date.parse(row.createdAt)));
+  const retryAfterSeconds = Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000));
+  const error = createHttpError(`生成次数已达上限（每 ${Math.round(windowMs / 3600000) || 1} 小时 ${quota} 次），请稍后再试`, 429, 'GENERATION_QUOTA_EXCEEDED');
+  /** @type {any} */ (error).retryAfterSeconds = retryAfterSeconds;
+  throw error;
+}
