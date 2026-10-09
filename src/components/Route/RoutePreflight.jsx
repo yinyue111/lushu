@@ -20,6 +20,7 @@ import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
 import { cn } from '../ui/cn';
 import { predictionAverage, productLinkLabel } from './routebookModel';
+import { useVisibleOnce } from '../../lib/useVisibleOnce';
 
 const OK_STATES = /通过|可执行|已更新|已应用|充足|正常|低/;
 const WARN_STATES = /复核|偏紧|缓冲|无数据|偏远|待|超|风险|高|未|冲突|不满足/;
@@ -174,7 +175,7 @@ export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop
 }
 
 /** External search entries (F18: not verified products) — product cards (analytics preserved via onClick). */
-export function RouteProducts({ products, onClick }) {
+export function RouteProducts({ products, onClick, onVisible = undefined }) {
   if (!products.length) return null;
   return (
     <section aria-labelledby="products-title">
@@ -183,20 +184,33 @@ export function RouteProducts({ products, onClick }) {
       </h2>
       <div className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:px-0">
         {products.map((item, index) => (
-          <button
+          <RouteProductCard
             key={item.id || item.url || `${item.provider}-${item.title}-${index}`}
-            type="button"
+            item={item}
             onClick={() => onClick(item)}
-            className="w-64 shrink-0 rounded-card border border-line bg-white p-3.5 text-left shadow-card transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-0.5 sm:w-auto"
-          >
-            <Chip size="sm" tone="sky">
-              <Ticket /> {item.type}
-            </Chip>
-            <b className="mt-2 line-clamp-2 block text-copy leading-snug">{item.title}</b>
-            <small className="mt-1 block text-meta text-muted">{[item.poi, item.price, productLinkLabel(item)].filter(Boolean).join(' · ')}</small>
-          </button>
+            onVisible={onVisible ? () => onVisible(item, index) : undefined}
+          />
         ))}
       </div>
     </section>
+  );
+}
+
+/** @param {{ item: any, onClick: () => void, onVisible?: () => void }} props */
+function RouteProductCard({ item, onClick, onVisible }) {
+  const ref = useVisibleOnce(() => onVisible?.());
+  return (
+    <button
+      ref={/** @type {any} */ (ref)}
+      type="button"
+      onClick={onClick}
+      className="w-64 shrink-0 rounded-card border border-line bg-white p-3.5 text-left shadow-card transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-0.5 sm:w-auto"
+    >
+      <Chip size="sm" tone="sky">
+        <Ticket /> {item.type}
+      </Chip>
+      <b className="mt-2 line-clamp-2 block text-copy leading-snug">{item.title}</b>
+      <small className="mt-1 block text-meta text-muted">{[item.poi, item.price, productLinkLabel(item)].filter(Boolean).join(' · ')}</small>
+    </button>
   );
 }

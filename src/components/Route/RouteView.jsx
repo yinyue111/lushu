@@ -103,10 +103,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     }
   }, [activeDay, days, stops]);
 
-  useEffect(() => {
-    const exposureRouteId = routebook.publicId || routebook.id || routebook.title;
-    routeProducts.forEach((item, index) => {
+  // F19: exposure is recorded when a product card is actually on screen, once per session/route/product.
+  const recordProductVisible = useCallback(
+    (item, index) => {
       if (!item.analyticsReady) return;
+      const exposureRouteId = routebook.publicId || routebook.id || routebook.title;
       const productId = item.id || `${item.provider}-${item.title}`;
       const key = `${exposureRouteId}:${productId}`;
       if (exposureRef.current.has(key)) return;
@@ -124,8 +125,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         creatorId: routebook.creator?.id,
         sourcePosition: `product-${index + 1}`
       }).catch(() => {});
-    });
-  }, [profile.id, routeProducts, routebook]);
+    },
+    [profile.id, routebook]
+  );
 
   // Full-screen map on phones locks page scroll; leaving desktop width resets it.
   const mapMode = !isDesktop && mobileView === 'map';
@@ -233,7 +235,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           )}
 
           <RoutePreflight routebook={routebook} />
-          <RouteProducts products={routeProducts} onClick={actions.recordProductClick} />
+          <RouteProducts products={routeProducts} onClick={actions.recordProductClick} onVisible={recordProductVisible} />
 
           <TrustExplanation routebook={routebook} />
         </main>
