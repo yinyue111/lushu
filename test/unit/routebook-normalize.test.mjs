@@ -62,7 +62,8 @@ test('budget validation states full-trip, daily and per-person semantics without
   }).find((item) => item.id === 'edit-budget');
   assert.equal(daily.state, '区间待复核');
   assert.match(daily.detail, /每日预算/);
-  assert.match(daily.detail, /按 2 天折算/);
+  assert.match(daily.detail, /每日预算 500 元 × 2 天 = 全程约 1,000 元/);
+  assert.doesNotMatch(daily.detail, /每日预算 约 1,000/);
 
   const fullTrip = buildRoutebookValidations([stop('A', '80-120 元'), stop('B', '1,200 元')], [], '测试', {
     city: '未知城市',
@@ -143,4 +144,15 @@ test('constraint validation surfaces missing must-go and included avoid terms', 
   assert.equal(constraint.state, '未完全满足');
   assert.match(constraint.detail, /法喜寺/);
   assert.match(constraint.detail, /灵隐寺/);
+});
+
+test('E2E 2026-10-09: 每人每日 300 over 2 days never reads as 每日 600', () => {
+  const stops = [stop('A', '免费', 'Day 1'), stop('B', '免费', 'Day 2')];
+  const budget = buildRoutebookValidations(stops, [], '测试', {
+    city: '成都',
+    travelDate: '2026-10-17',
+    constraints: { budget: '每人每日 300 元左右' }
+  }).find((item) => item.id === 'edit-budget');
+  assert.match(budget.detail, /每日人均预算 300 元 × 2 天 = 全程约 600 元/);
+  assert.doesNotMatch(budget.detail, /每日人均预算 约 600/);
 });

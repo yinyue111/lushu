@@ -563,7 +563,7 @@ function buildBudgetValidation(budgetSummary, constraints, stops) {
       id: 'edit-budget',
       label: '预算风险',
       state: '待补充',
-      detail: `${semanticsLabel}预算约 ${formatMoneyAmount(parsed.min)}${parsed.isRange ? `–${formatMoneyAmount(parsed.max)}` : ''} 元（${parsed.scope === 'daily' ? `按 ${dayCount} 天折算` : '按全程'}），站点费用均未知，不能判断是否超支。`
+      detail: `${semanticsLabel}预算约 ${formatMoneyAmount(parsed.min)}${parsed.isRange ? `–${formatMoneyAmount(parsed.max)}` : ''} 元（${parsed.scope === 'daily' ? `每天，共 ${dayCount} 天` : '全程'}），站点费用均未知，不能判断是否超支。`
     };
   }
   const definitelyOver = budgetSummary.min > thresholdMax;
@@ -573,7 +573,13 @@ function buildBudgetValidation(budgetSummary, constraints, stops) {
   const routeText = formatBudgetSummary(budgetSummary);
   const thresholdText =
     thresholdMin === thresholdMax ? `约 ${formatMoneyAmount(threshold)} 元` : `${formatMoneyAmount(thresholdMin)}–${formatMoneyAmount(thresholdMax)} 元`;
-  const detail = `${semanticsLabel}预算 ${thresholdText}（${parsed.scope === 'daily' ? `按 ${dayCount} 天折算` : '全程'}），站点费用${routeText}。${definitelyOver ? '按已知最低费用也已超预算，建议替换高价站点。' : definitelyWithin ? '已知费用在预算范围内，实际价格仍需出发前复核。' : '费用区间与预算重叠，需核对价格或补充缺失费用。'}`;
+  // Daily budgets: state the per-day amount the user picked, then the full-trip total it was
+  // multiplied into ("每日人均预算 300 元 × 2 天 = 全程约 600 元"), never "每日 600".
+  const budgetText =
+    parsed.scope === 'daily'
+      ? `${semanticsLabel}预算 ${formatMoneyAmount(parsed.min)}${parsed.isRange ? `–${formatMoneyAmount(parsed.max)}` : ''} 元 × ${dayCount} 天 = 全程${thresholdText}`
+      : `${semanticsLabel}预算 ${thresholdText}（全程）`;
+  const detail = `${budgetText}，站点费用${routeText}。${definitelyOver ? '按已知最低费用也已超预算，建议替换高价站点。' : definitelyWithin ? '已知费用在预算范围内，实际价格仍需出发前复核。' : '费用区间与预算重叠，需核对价格或补充缺失费用。'}`;
   return { id: 'edit-budget', label: '预算风险', state, detail };
 }
 
