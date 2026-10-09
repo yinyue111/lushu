@@ -12,7 +12,7 @@ export const CANDIDATE_RULES = Object.freeze({
 });
 
 const PLACE_SUFFIX =
-  /(?:路|街|巷|弄|寺|庙|观|宫|园|馆|湖|山|峰|塔|桥|镇|村|坞|埠|堤|岛|洞|泉|溪|潭|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|夜市|书店|咖啡馆|老街|故居|遗址|大厦|中心|车站|东站|西站|南站|北站)$/;
+  /(?:路|街|巷|弄|寺|庙|观|宫|园|馆|湖|山|峰|塔|桥|镇|村|坞|埠|堤|岛|洞|泉|溪|潭|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|夜市|祠|院|草堂|基地|古镇|步行街|阁|楼|谷|书店|咖啡馆|老街|故居|遗址|大厦|中心|车站|东站|西站|南站|北站)$/;
 // Leading intent/verb words stripped before judging a clause.
 const LEADING_INTENT =
   /^(?:我|我们|他们|还|也|再|就|先|然后|最后|顺便|一定要|必须|必|想要|想|希望|打算|准备|计划|去|逛逛|逛|游览|游|看看|看|到|打卡|推荐|可以|和|还有|以及|喝|吃|拍)+/;
@@ -22,6 +22,10 @@ const PREFERENCE_CLAUSE =
 const STOP_WORDS =
   /^(?:这个|那个|这里|那里|今天|明天|周末|我们|他们|攻略|路线|推荐|打卡|地方|景点|美食|东西|一下|一些|很多|附近|周边|市区|城市|杭州|上海|苏州|北京|咖啡|喝茶|茶|小吃|夜景|日落|日出|拍照|照片|晚饭|午饭|早饭|吃饭|特产|散步|骑行|坐船|划船)$/;
 const AVOID_INTENT = /^(?:不想去|不要去|别去|避开|不去)/;
+// Itinerary labels that prefix a clause in real guides: "DAY1：", "D2", "第一天：", "Day 3 -", "P4".
+const DAY_LABEL = /^(?:(?:day|d)\s*\d{1,2}|第[一二三四五六七八九十\d]{1,3}[天日站]|[上下中]午|傍晚|晚上|p\d{1,2})\s*[:：.、-]?\s*/i;
+// Route separators used by 小红书 / 抖音 / X itineraries ("春熙路—大慈寺", "A → B", "A➡️B", "A-->B", "A | B").
+const ROUTE_SEPARATOR = /\s*(?:-{1,2}>|=>|[—–→⇒➡►▶>＞|｜/／~～]|\s-\s)\s*/;
 
 /** Same normalization as the stored place keys (NFKC, no spaces/punctuation, lowercase). */
 export function normalizeCandidateKey(value) {
@@ -38,6 +42,8 @@ function cleanName(value) {
     .trim();
   if (text.length < 2 || text.length > 18) return '';
   if (STOP_WORDS.test(text)) return '';
+  // Guide titles ("成都旅游攻略", "杭州三日游") are not places.
+  if (/(?:攻略|游记|行程|路线|指南|合集|日游|旅游|旅行|citywalk)$/i.test(text)) return '';
   if (!/[\u4e00-\u9fa5A-Za-z]/.test(text)) return '';
   return text;
 }
@@ -72,9 +78,15 @@ export function extractPlaceCandidates(text, { knownPlaces = [] } = {}) {
   }
 
   // 2) Clause by clause: strip intent words, skip preferences, then judge the rest.
-  const clauses = value.split(/[，,。.；;、\n\r!！?？]+|(?:还有|以及|然后|和|跟|再去|再到|顺便|之后|喝|吃|拍)/);
+  const clauses = value
+    .replace(/\uFE0F/g, '')
+    .split(/[，,。.；;、\n\r!！?？]+|(?:还有|以及|然后|和|跟|再去|再到|顺便|之后|喝|吃|拍)/)
+    .flatMap((part) => String(part ?? '').split(ROUTE_SEPARATOR));
   for (const rawClause of clauses) {
-    const clause = rawClause.trim();
+    const clause = String(rawClause ?? '')
+      .trim()
+      .replace(DAY_LABEL, '')
+      .trim();
     if (!clause) continue;
     const intent = AVOID_INTENT.test(clause) ? 'avoid' : 'visit';
     const stripped = clause.replace(AVOID_INTENT, '').replace(LEADING_INTENT, '').trim();

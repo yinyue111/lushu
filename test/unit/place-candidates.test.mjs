@@ -55,3 +55,18 @@ test('candidates from other origins survive text edits', () => {
   const list = reconcileTextCandidates(imported, extractPlaceCandidates(''));
   assert.deepEqual(names(list), ['武康路']);
 });
+
+test('real itinerary formats: day labels and dash/arrow separators (X post, 2026-04)', () => {
+  // Verbatim public X post https://x.com/wang_hao541621/status/2043102263716225305 (first two days).
+  const text = '成都旅游攻略\nDAY1：春熙路—IFS国金中心—大慈寺—人民公园—宽窄巷子—奎星楼街\nDAY2：熊猫基地—青羊宫—东郊记忆—建设路—武侯祠—锦里古街';
+  const found = names(extractPlaceCandidates(text));
+  for (const name of ['春熙路', 'IFS国金中心', '大慈寺', '人民公园', '宽窄巷子', '奎星楼街', '熊猫基地', '青羊宫', '建设路', '武侯祠', '锦里古街']) {
+    assert.ok(found.includes(name), `${name} in ${found.join(',')}`);
+  }
+  assert.ok(!found.some((name) => /DAY|攻略/.test(name)), found.join(','));
+});
+
+test('arrow emoji, ASCII arrows and 第N天 labels split into places', () => {
+  const found = names(extractPlaceCandidates('第一天：断桥残雪➡️白堤→平湖秋月 --> 雷峰塔\n第二天 灵隐寺 | 法喜寺 / 龙井村'));
+  for (const name of ['断桥残雪', '白堤', '平湖秋月', '雷峰塔', '灵隐寺', '法喜寺', '龙井村']) assert.ok(found.includes(name), `${name} in ${found.join(',')}`);
+});
