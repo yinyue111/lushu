@@ -5,6 +5,8 @@ import { clickStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { getProfile } from '../../lib/profile';
 import { isExternalSearchEntry } from '../../lib/products';
 import { PUBLIC_TRUST_SAMPLE_THRESHOLD, formatVerifiedDate, getRouteTrustPresentation } from '../../lib/trust';
+import { coordinateVerificationLevel, routeEvidenceScore } from '../../lib/trustSignals';
+import { sumStopCosts } from '../../lib/cost';
 
 export function currentRoutebookVersion(routebook) {
   const version = Number(routebook?.version ?? routebook?.currentVersion ?? routebook?.revision);
@@ -241,7 +243,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
     tone: 'prediction',
     badgeClass: 'badge-blue',
     label: trust.label,
-    shortLabel: '预测可信度',
+    shortLabel: '资料核验',
     value: '待验证',
     note: `独立有效样本 ${Math.min(trust.sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD}，暂不输出验证分。`
   };
@@ -267,7 +269,7 @@ export function createDraftStop(routebook, activeDay) {
     cost: '待估算',
     verify: '新增站点，需真实打卡验证',
     risk: '需复核营业时间和交通',
-    score: 72,
+    provenance: { origin: 'user-added', name: '' },
     lat: center.lat,
     lng: center.lng,
     geoConfidence: 45,
@@ -299,40 +301,21 @@ export function stopKey(value) {
 }
 
 export function buildEditedMetrics(stops, existingMetrics = []) {
-  const avg = stops.length ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stops.length) : 78;
-  const lowGeo = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const budget = summarizeEditedBudget(stops);
+  const evidence = routeEvidenceScore(stops);
+  const lowGeo = stops.filter((stop) => coordinateVerificationLevel(stop) !== 'verified').length;
+  const budget = sumStopCosts(stops);
+  const budgetText = !budget.knownCount
+    ? '待补充'
+    : `约 ${budget.min === budget.max ? budget.min : `${budget.min}–${budget.max}`} 元${budget.unknownCount ? `（另有 ${budget.unknownCount} 处待补充）` : ''}`;
   const calculated = [
     { label: '道路核验', value: '编辑后待重新核验' },
     { label: '道路距离', value: '待道路服务核验' },
     { label: '道路耗时', value: '待道路服务核验' },
-    { label: '站点预测均分', value: `${avg}` },
+    { label: '资料核验分', value: evidence.score == null ? '—' : `${evidence.score}` },
     { label: '定位待复核', value: lowGeo ? `${lowGeo} 处` : '0 处' },
-    { label: '预算估算', value: budget ? `约 ${budget} 元` : '待验证' },
-    { label: '平均修改', value: '本次已编辑' }
+    { label: '预算估算', value: budgetText }
   ];
   return [...calculated, ...(existingMetrics ?? []).filter((item) => !calculated.some((next) => next.label === item.label))].slice(0, 6);
-}
-
-function summarizeEditedBudget(stops) {
-  const ranges = stops
-    .map((stop) => {
-      const values = [
-        ...String(stop?.cost ?? '')
-          .replace(/[,，]/g, '')
-          .matchAll(/\d+(?:\.\d+)?/g)
-      ].map((match) => Number(match[0]));
-      if (!values.length || values.some((value) => !Number.isFinite(value))) return null;
-      const min = Math.min(...values);
-      const max = values.length > 1 ? Math.max(...values) : min;
-      return { min, max };
-    })
-    .filter(Boolean);
-  if (!ranges.length) return '';
-  const min = ranges.reduce((sum, range) => sum + range.min, 0);
-  const max = ranges.reduce((sum, range) => sum + range.max, 0);
-  const format = (value) => (Number.isInteger(value) ? value.toLocaleString('zh-CN') : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 }));
-  return min === max ? format(min) : `${format(min)}–${format(max)}`;
 }
 
 export function buildEditedValidations(stops, existingValidations = [], reason = '编辑') {
@@ -403,10 +386,7 @@ export function distanceMeters(a, b) {
   return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
+/** Local (pre-save) evidence score; the server recomputes it from the catalog on save. */
 export function calculateLocalTrustScore(stops) {
-  if (!stops.length) return 60;
-  const avg = stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stops.length;
-  const lowGeoPenalty = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length * 3;
-  const missingCostPenalty = stops.filter((stop) => !/\d/.test(String(stop.cost ?? ''))).length * 1.5;
-  return Math.round(Math.max(45, Math.min(96, avg - lowGeoPenalty - missingCostPenalty)));
+  return routeEvidenceScore(stops).score ?? 0;
 }

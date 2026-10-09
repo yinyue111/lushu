@@ -22,11 +22,15 @@ import {
   buildRoutebookValidations,
   buildSourceSummary,
   calculateRouteTrustScore,
+  normalizeAiNotes,
   normalizeCreator,
-  normalizeLogs,
   normalizeRouteConstraints,
-  normalizeTravelDate
+  normalizeTravelDate,
+  serverProcessLogs
 } from '../routebooks/normalize.mjs';
+import { deriveStopProvenance } from '../trust/provenance.mjs';
+import { routeEvidenceScore } from '../../src/lib/trustSignals.js';
+import { formatCostInfo, normalizeCostInfo, parseCostText } from '../../src/lib/cost.js';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
 import { attachServerRouteLegs } from '../routing/service.mjs';
@@ -89,14 +93,18 @@ function normalizeOcrResult(result, images, runtime) {
   };
 }
 
+const NULLABLE_NUMBER = { type: ['number', 'null'] };
+
+// The model returns content only. Trust scores, process logs, metrics and
+// pass/fail checks are computed by server code; the model's risk hints are kept
+// as `riskNotes` and shown as unverified "AI 提示".
 const RESPONSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'summary', 'trustScore', 'days', 'stops', 'assets', 'validations', 'metrics', 'logs'],
+  required: ['title', 'summary', 'days', 'stops', 'assets', 'riskNotes'],
   properties: {
     title: { type: 'string' },
     summary: { type: 'string' },
-    trustScore: { type: 'number' },
     days: { type: 'array', items: { type: 'string' } },
     stops: {
       type: 'array',
@@ -105,7 +113,7 @@ const RESPONSE_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['day', 'time', 'name', 'area', 'stay', 'cost', 'verify', 'risk', 'score', 'lat', 'lng', 'geoConfidence', 'coordinateSystem'],
+        required: ['day', 'time', 'name', 'area', 'stay', 'cost', 'costInfo', 'verify', 'risk', 'lat', 'lng', 'geoConfidence', 'coordinateSystem'],
         properties: {
           day: { type: 'string' },
           time: { type: 'string' },
@@ -113,9 +121,23 @@ const RESPONSE_SCHEMA = {
           area: { type: 'string' },
           stay: { type: 'string' },
           cost: { type: 'string' },
+          costInfo: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['amount', 'min', 'max', 'unit', 'per', 'free', 'reservationRequired', 'note'],
+            properties: {
+              amount: NULLABLE_NUMBER,
+              min: NULLABLE_NUMBER,
+              max: NULLABLE_NUMBER,
+              unit: { type: ['string', 'null'], enum: ['ticket', 'meal', 'transport', 'experience', 'other', null] },
+              per: { type: ['string', 'null'], enum: ['person', 'group', 'item', null] },
+              free: { type: 'boolean' },
+              reservationRequired: { type: 'boolean' },
+              note: { type: 'string' }
+            }
+          },
           verify: { type: 'string' },
           risk: { type: 'string' },
-          score: { type: 'number' },
           lat: { type: 'number' },
           lng: { type: 'number' },
           geoConfidence: { type: 'number' },
@@ -138,49 +160,16 @@ const RESPONSE_SCHEMA = {
         }
       }
     },
-    validations: {
+    riskNotes: {
       type: 'array',
-      minItems: 4,
-      maxItems: 8,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['id', 'label', 'state', 'detail'],
-        properties: {
-          id: { type: 'string' },
-          label: { type: 'string' },
-          state: { type: 'string' },
-          detail: { type: 'string' }
-        }
-      }
-    },
-    metrics: {
-      type: 'array',
-      minItems: 4,
       maxItems: 6,
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['label', 'value'],
+        required: ['label', 'detail'],
         properties: {
           label: { type: 'string' },
-          value: { type: 'string' }
-        }
-      }
-    },
-    logs: {
-      type: 'array',
-      minItems: 4,
-      maxItems: 8,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['stage', 'input', 'result', 'status'],
-        properties: {
-          stage: { type: 'string' },
-          input: { type: 'string' },
-          result: { type: 'string' },
-          status: { type: 'string' }
+          detail: { type: 'string' }
         }
       }
     }
@@ -206,13 +195,14 @@ function systemPrompt() {
     '路线必须服务 MVP 闭环：攻略导入、POI 提取、分日路书、可执行校验、行中打卡反哺可信分、商业点击验证。',
     '不要搬运第三方攻略原文；只提取 POI、约束、风险、执行顺序和验证理由。',
     '如果用户提供小红书、抖音、X 或普通网页链接，只能基于公开可访问信息和用户粘贴内容分析；不能假设已绕过登录墙或反爬。',
-    '必须显式降低低可信来源、商业推广、过时信息、仅元数据页面的权重，并把需要复核的事实写入 validations 或 stop.risk。',
+    '必须显式降低低可信来源、商业推广、过时信息、仅元数据页面的权重，并把需要复核的事实写入 riskNotes 或 stop.risk。',
     '支持中国大陆和港澳台常见旅行目的地；热门城市可直接使用城市中心，非热门城市必须基于用户攻略和地点线索生成，并显式提示需要复核定位。',
-    '每个 stop 必须包含 0-100 的 score，以及真实地图可用的 lat/lng。',
+    '不要给路线或站点打可信分，也不要声称任何检查已经通过；可信度由平台根据来源、坐标和真实打卡计算。',
+    '每个 stop 必须包含真实地图可用的 lat/lng。',
+    'stop.costInfo 用结构化字段表示费用：amount 为确定金额（元），有区间时填 min/max，per 表示按人/组/份计价，free 表示免费，reservationRequired 表示需预约；不知道时金额填 null，不要编造价格。stop.cost 是给用户看的简短文字。',
     'lat/lng 使用 WGS84，经纬度必须落在对应城市附近；无法精确定位时返回街区级近似坐标并降低 geoConfidence。',
     '每个 stop 的 coordinateSystem 固定返回 WGS84，geoConfidence 为 0-100。',
-    'validations 必须覆盖开放时间、步行强度、预算风险、拥挤风险。',
-    'logs 必须体现链接导入、来源可信度分析、POI 提取、约束过滤、路线编排、可执行校验。',
+    'riskNotes 只写需要用户出发前注意的提示（如可能需预约、可能拥挤），不写“通过”之类的结论。',
     '如果输入携带 approvedPoiCandidates（运营已审核 POI 候选），优先从候选中选点并直接使用候选给出的坐标与营业时间；不在候选中的自创点位必须显式降低 geoConfidence（<60）并在 stop.risk 标注需实地复核。'
   ].join('\n');
 }
@@ -268,7 +258,8 @@ export function sanitizePayload(payload) {
     importedSources: normalizeImportedSources(payload?.importedSources),
     constraints: {
       duration: truncateString(constraints.duration, 30) || '2 天 1 晚',
-      budget: truncateString(constraints.budget, 30) || '人均 900',
+      // No silent default: an unset budget means "no budget constraint".
+      budget: truncateString(constraints.budget, 30),
       tempo: truncateString(constraints.tempo, 30) || '松弛但不空',
       companion: truncateString(constraints.companion, 30) || '朋友',
       date: truncateString(constraints.date, 30),
@@ -289,7 +280,7 @@ function userPrompt(payload) {
       guide: payload.guide,
       constraints: {
         duration: constraints.duration ?? '2 天 1 晚',
-        budget: constraints.budget ?? '人均 900',
+        budget: constraints.budget || '未设置（无预算约束，不要按预算筛选）',
         tempo: constraints.tempo ?? '松弛但不空',
         companion: constraints.companion ?? '朋友',
         date: constraints.date ?? '',
@@ -306,7 +297,7 @@ function userPrompt(payload) {
         'importedSources 是公开链接导入与可信度分析结果，不代表平台已验证全部事实。',
         '优先使用 trustScore 高、status=fetched、signals 多的来源；对 warnings 中的商业推广、页面不可抓取、正文过短等信号降权。',
         '不要复制原攻略文字；只提炼地点、时间、预算、风险、适合人群和验证理由。',
-        '如果链接只能拿到元数据，必须在 stop.verify 或 validations 里提示“需用户补充原文/出发前复核”。',
+        '如果链接只能拿到元数据，必须在 stop.verify 或 riskNotes 里提示“需用户补充原文/出发前复核”。',
         '个人攻略必须服从用户 constraints，而不是照搬任一平台作者路线。'
       ],
       requiredOutputShape: RESPONSE_SCHEMA
@@ -354,6 +345,10 @@ function normalizeRoutebook(routebook, payload, runtime) {
   const stops = (Array.isArray(routebook.stops) ? routebook.stops : []).map((stop, index) => {
     const name = String(stop.name ?? `站点 ${index + 1}`).slice(0, 32);
     const coordinate = normalizeCoordinate({ ...stop, name, coordinateSource: stop.coordinateSource || 'model' }, payload.city, index);
+    const costText = String(stop.cost ?? '').slice(0, 20);
+    const structuredCost = normalizeCostInfo(stop.costInfo, 'model');
+    const costInfo = structuredCost?.known || structuredCost?.reservationRequired ? structuredCost : parseCostText(costText);
+    const displayCost = costText || formatCostInfo(costInfo);
     return {
       id: index + 1,
       day: normalizeDayLabel(stop.day, index, days),
@@ -361,10 +356,10 @@ function normalizeRoutebook(routebook, payload, runtime) {
       name,
       area: String(stop.area ?? '待确认').slice(0, 24),
       stay: String(stop.stay ?? '60 分钟').slice(0, 18),
-      cost: String(stop.cost ?? '待估算').slice(0, 20),
+      cost: displayCost,
+      costInfo: { ...costInfo, text: displayCost },
       verify: String(stop.verify ?? '需通过真实打卡继续验证').slice(0, 60),
       risk: String(stop.risk ?? '需出发前复核').slice(0, 60),
-      score: clampNumber(stop.score, 60, 98, 82),
       lat: coordinate.lat,
       lng: coordinate.lng,
       geoConfidence:
@@ -376,7 +371,11 @@ function normalizeRoutebook(routebook, payload, runtime) {
       coordinatePrecision: coordinate.precision,
       coordinateRadiusMeters:
         coordinate.fallback || coordinate.navigationDisabled === true ? (coordinate.radiusMeters ?? 1500) : (coordinate.radiusMeters ?? 0),
-      navigationDisabled: coordinate.navigationDisabled === true
+      navigationDisabled: coordinate.navigationDisabled === true,
+      provenance: deriveStopProvenance(
+        { name },
+        { city: payload.city, guideText: payload.guide, mustGo: payload.constraints?.mustGo, importedSources: payload.importedSources }
+      )
     };
   });
 
@@ -386,7 +385,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
 
   const id = cryptoRandomId();
   const sourceSummary = buildSourceSummary(payload.importedSources);
-  const baseValidations = buildRoutebookValidations(stops, routebook.validations, 'AI 生成', {
+  const baseValidations = buildRoutebookValidations(stops, [], 'AI 生成', {
     city: payload.city,
     constraints: payload.constraints,
     travelDate: normalizeTravelDate(payload.constraints?.date)
@@ -403,7 +402,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
           ...baseValidations
         ].slice(0, 8)
       : baseValidations;
-  const routebookMetrics = buildRoutebookMetrics(stops, routebook.metrics);
+  const routebookMetrics = buildRoutebookMetrics(stops);
   return {
     id,
     publicId: id,
@@ -418,10 +417,11 @@ function normalizeRoutebook(routebook, payload, runtime) {
     trustScore: calculateRouteTrustScore(stops),
     days,
     stops,
-    assets: normalizeArray(routebook.assets, 'assets'),
+    assets: normalizeArray(routebook.assets),
     validations: routebookValidations,
     metrics: routebookMetrics,
-    logs: normalizeLogs(routebook.logs, now),
+    // Model-written hints, shown as unverified "AI 提示"; legacy outputs used `validations`.
+    aiNotes: normalizeAiNotes(Array.isArray(routebook.riskNotes) ? routebook.riskNotes : routebook.validations),
     importedSources: payload.importedSources ?? [],
     sourceSummary,
     constraints: normalizeRouteConstraints(payload.constraints),
@@ -453,8 +453,50 @@ async function geocodeGeneratedRoutebook(routebook, signal) {
       constraints: routebook.constraints,
       travelDate: routebook.provider?.travelDate || routebook.travelDate
     }),
-    metrics: buildRoutebookMetrics(stops, routebook.metrics)
+    metrics: buildRoutebookMetrics(stops)
   };
+}
+
+/**
+ * Process log written by the server from what actually ran. Stages that did
+ * not run are reported as 未执行, never as passed.
+ */
+function buildServerProcessLog(routebook, stages, { geocodingConfigured }) {
+  const stops = routebook.stops ?? [];
+  const evidence = routeEvidenceScore(stops).breakdown;
+  const legs = routebook.routeLegs ?? [];
+  const verifiedLegs = legs.filter((leg) => leg.status === 'verified').length;
+  const at = new Date().toISOString();
+  const duration = (name) => (stages[name]?.durationMs != null ? `${Math.round(stages[name].durationMs / 100) / 10}s` : '');
+  return serverProcessLogs([
+    { stage: '模型生成', input: '你的攻略与约束', result: `返回 ${stops.length} 个站点 ${duration('model')}`.trim(), status: '完成', time: at },
+    {
+      stage: '站点来源比对',
+      input: '攻略原文、导入来源、已审核 POI',
+      result: `攻略 ${evidence.origins['user-guide']} · 导入来源 ${evidence.origins['imported-source']} · AI 补充 ${evidence.origins.model} · 命中已审核 POI ${evidence.reviewedPoiCount}`,
+      status: '完成',
+      time: at
+    },
+    geocodingConfigured
+      ? {
+          stage: '地图定位',
+          input: '站点名称',
+          result: `${evidence.verifiedCoordinateCount}/${stops.length} 个站点精确定位 ${duration('geocoding')}`.trim(),
+          status: evidence.verifiedCoordinateCount === stops.length ? '完成' : '需复核',
+          time: at
+        }
+      : { stage: '地图定位', input: '站点名称', result: '未配置地图服务密钥，未执行；非已审核 POI 的坐标为近似值', status: '未执行', time: at },
+    legs.length
+      ? {
+          stage: '道路核验',
+          input: '同日相邻站点',
+          result: `${verifiedLegs}/${legs.length} 段已核验`,
+          status: verifiedLegs === legs.length ? '完成' : '需复核',
+          time: at
+        }
+      : { stage: '道路核验', input: '同日相邻站点', result: '未执行（未配置道路服务或无同日转场）', status: '未执行', time: at },
+    { stage: '系统检查', input: '路线与约束', result: `${(routebook.validations ?? []).length} 项由系统重新计算`, status: '完成', time: at }
+  ]);
 }
 
 const MAX_GENERATED_ROUTE_DAYS = 10;
@@ -484,47 +526,19 @@ function normalizeDayLabel(value, index, days) {
   return days[Math.min(Math.floor(index / stopCountPerDay), days.length - 1)] ?? 'Day 1';
 }
 
-function normalizeArray(items, type) {
+function normalizeArray(items) {
   const source = Array.isArray(items) ? items : [];
-  if (type === 'assets') {
-    const fallback = [
-      { label: '核心 POI', type: '地点', confidence: 78 },
-      { label: '时间约束', type: '约束', confidence: 74 },
-      { label: '预算约束', type: '约束', confidence: 72 }
-    ];
-    const normalized = source.slice(0, 12).map((item, index) => ({
-      label: String(item.label ?? `资产 ${index + 1}`).slice(0, 18),
-      type: String(item.type ?? 'POI').slice(0, 18),
-      confidence: clampNumber(item.confidence, 50, 99, 78)
-    }));
-    return [...normalized, ...fallback].slice(0, Math.max(3, normalized.length));
-  }
-  if (type === 'validations') {
-    const fallback = [
-      { id: 'hours', label: '开放时间', state: '需复核', detail: '出发前需要二次确认开放时间。' },
-      { id: 'walk', label: '步行强度', state: '适中', detail: '路线强度会在真实打卡后校准。' },
-      { id: 'budget', label: '预算风险', state: '可控', detail: '预算估算仍需结合现场消费。' },
-      { id: 'crowd', label: '拥挤风险', state: '中', detail: '热门点位建议错峰执行。' }
-    ];
-    const normalized = source.slice(0, 8).map((item, index) => ({
-      id: String(item.id ?? `validation-${index + 1}`).replace(/\s+/g, '-'),
-      label: String(item.label ?? '校验项').slice(0, 18),
-      state: String(item.state ?? '需复核').slice(0, 12),
-      detail: String(item.detail ?? '需要结合真实打卡继续校准。').slice(0, 80)
-    }));
-    return [...normalized, ...fallback].slice(0, Math.max(4, normalized.length));
-  }
   const fallback = [
-    { label: '保存后打卡率', value: '待验证' },
-    { label: '主线完成率', value: '待验证' },
-    { label: '平均修改', value: '待验证' },
-    { label: '踩坑反馈', value: '待验证' }
+    { label: '核心 POI', type: '地点', confidence: 78 },
+    { label: '时间约束', type: '约束', confidence: 74 },
+    { label: '预算约束', type: '约束', confidence: 72 }
   ];
-  const normalized = source.slice(0, 6).map((item, index) => ({
-    label: String(item.label ?? `指标 ${index + 1}`).slice(0, 18),
-    value: String(item.value ?? '-').slice(0, 18)
+  const normalized = source.slice(0, 12).map((item, index) => ({
+    label: String(item.label ?? `资产 ${index + 1}`).slice(0, 18),
+    type: String(item.type ?? 'POI').slice(0, 18),
+    confidence: clampNumber(item.confidence, 50, 99, 78)
   }));
-  return [...normalized, ...fallback].slice(0, Math.max(4, normalized.length));
+  return [...normalized, ...fallback].slice(0, Math.max(3, normalized.length));
 }
 
 function isStructuredOutputUnsupported(error) {
@@ -926,7 +940,7 @@ export async function generateRoutebook(payload, signal) {
     const routed = await runStage('routing', () => attachServerRouteLegs(geocoded, signal));
     if ((routed.routeLegs ?? []).some((leg) => leg.status !== 'verified')) stages.routing.status = 'degraded';
     if ((routed.routeLegs ?? []).some((leg) => /timeout/i.test(String(leg.error?.code || '')))) stages.routing.timedOut = true;
-    return { ...routed, observability: observability() };
+    return { ...routed, ...buildServerProcessLog(routed, stages, { geocodingConfigured: Boolean(AMAP_GEOCODE_KEY) }), observability: observability() };
   } catch (error) {
     error.observability = { ...observability(), failureStage: activeStage };
     throw error;

@@ -717,7 +717,10 @@ async function main() {
       privateAfterOneSample.response.ok &&
         Number.isFinite(privateAfterOneSample.data.routebook?.trustScore) &&
         Number.isFinite(privateAfterOneSample.data.routebook?.trustMeta?.predictionScore) &&
-        Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.score) &&
+        // Phase 1: stop self-scores are no longer stored; the evidence inputs are provenance + breakdown.
+        privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.score === undefined &&
+        Boolean(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.provenance?.origin) &&
+        Number.isFinite(privateAfterOneSample.data.routebook?.trustMeta?.evidenceScore) &&
         Number.isFinite(privateAfterOneSample.data.routebook?.stops?.find((stop) => stop.id === 'a')?.poiTrust?.score),
       `[SR-04] Private/admin reads should preserve internal prediction inputs: ${JSON.stringify(privateAfterOneSample.data.routebook)}`
     );
@@ -907,7 +910,7 @@ async function main() {
         afterThreeProfiles.data.routebook?.trustMeta?.source !== 'prediction' &&
         stopAfterThreeProfiles?.poiTrust?.sampleCount === 3 &&
         Number.isFinite(stopAfterThreeProfiles?.poiTrust?.score) &&
-        Number.isFinite(stopAfterThreeProfiles?.score),
+        stopAfterThreeProfiles?.score == null,
       `[SR-04] Three distinct authenticated profiles should unlock a verified trust number: ${JSON.stringify(afterThreeProfiles.data.routebook?.trustMeta)}`
     );
     const longStopId = 'stop-12345678-1234-1234-1234-123456789abc';

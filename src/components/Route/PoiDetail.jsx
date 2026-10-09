@@ -8,7 +8,9 @@ import { clickStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { coordinateReviewLabel, isNavigableCoordinate } from '../../lib/coordinates';
 import { trustedCities } from '../../lib/content';
 import { PUBLIC_TRUST_SAMPLE_THRESHOLD, evaluatePoiTrustSample } from '../../lib/trust';
+import { coordinateVerificationLevel } from '../../lib/trustSignals';
 import { Sheet } from '../ui/sheet';
+import { StopProvenanceDetail } from './StopProvenance';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
@@ -17,7 +19,7 @@ import { cn } from '../ui/cn';
 export default function PoiDetail({ stop, routebook, onClose }) {
   const profile = useMemo(() => getProfile(), []);
   const [showCorrection, setShowCorrection] = useState(false);
-  const [correction, setCorrection] = useState({ field: '开放时间/价格', suggestedValue: '', reason: '' });
+  const [correction, setCorrection] = useState({ field: '开放时间', suggestedValue: '', reason: '' });
   const [message, setMessage] = useState('');
   const [knowledge, setKnowledge] = useState([]);
   const exposureRef = useRef(new Set());
@@ -138,7 +140,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       });
       setMessage('已提交纠错，运营台会进入待审核队列');
       setShowCorrection(false);
-      setCorrection({ field: '开放时间/价格', suggestedValue: '', reason: '' });
+      setCorrection({ field: '开放时间', suggestedValue: '', reason: '' });
     } catch (error) {
       setMessage(`提交失败：${error.message}`);
     }
@@ -289,10 +291,14 @@ export default function PoiDetail({ stop, routebook, onClose }) {
             />
           </div>
           <div className="mt-2 flex justify-between text-xs text-muted">
-            <span>地理精度 {stop.geoConfidence ?? 72}%</span>
+            <span>
+              坐标
+              {{ verified: '已精确定位', approximate: '为近似位置', none: '缺失' }[coordinateVerificationLevel(stop)]}
+            </span>
             <span>坐标系 {stop.coordinateSystem ?? 'WGS84'}</span>
           </div>
         </div>
+        <StopProvenanceDetail stop={stop} />
       </Section>
 
       {relatedProducts.length > 0 && (
@@ -331,7 +337,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         <form className="mt-3 grid gap-3 rounded-tile bg-canvas p-4" onSubmit={submitCorrection}>
           <Field label="哪里不对">
             <select className={inputClass} value={correction.field} onChange={(event) => setCorrection((prev) => ({ ...prev, field: event.target.value }))}>
-              {['开放时间/价格', '位置坐标', '排队/拥挤', '闭店/暂停', '适合人群', '其他'].map((item) => (
+              {['开放时间', '价格', '闭店/暂停', '位置坐标', '排队/拥挤', '适合人群', '其他'].map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>

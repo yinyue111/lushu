@@ -5,7 +5,7 @@ const PROFILE_REGISTRATION_KEY = 'trusted-routebook:profile-registration:v1';
 const defaultProfile = {
   homeCity: '杭州',
   preferredCities: ['杭州', '上海', '苏州'],
-  budget: '人均 900',
+  budget: '',
   companion: '朋友',
   tempo: '松弛但不空',
   transport: '步行 + 打车',

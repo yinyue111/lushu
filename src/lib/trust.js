@@ -16,7 +16,7 @@ export function getRouteTrustPresentation(routebook) {
     displayScore >= 0 &&
     displayScore <= 100;
   const metaLabel = typeof meta.label === 'string' && meta.label.trim() ? meta.label.trim() : '';
-  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '预测可信度 · 待真实验证';
+  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '资料核验 · 待真实验证';
   const sampleProgressText = verified ? '' : `已收集 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`;
 
   return {

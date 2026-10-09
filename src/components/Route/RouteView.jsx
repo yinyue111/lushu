@@ -19,6 +19,7 @@ import RouteStats from './RouteStats';
 import DayStrip from './DayStrip';
 import StopList, { MiniStopCard } from './StopList';
 import { EditToolbar, RoutePreflight, RouteProducts } from './RoutePreflight';
+import TrustExplanation from './TrustExplanation';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
 
@@ -234,9 +235,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <RoutePreflight routebook={routebook} />
           <RouteProducts products={routeProducts} onClick={actions.recordProductClick} />
 
-          <p className="mt-8 text-meta leading-relaxed text-muted">
-            可信分怎么算：近 30 天有效 GPS 到达、改动和踩坑反馈都会计入；AI 新生成的路线先显示预测，等真实打卡够了再出分。
-          </p>
+          <TrustExplanation routebook={routebook} />
         </main>
 
         {(isDesktop || mapMode) && (

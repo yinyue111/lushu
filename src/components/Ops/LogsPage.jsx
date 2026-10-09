@@ -13,7 +13,8 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
   const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
-  const logs = routebook?.logs?.length ? routebook.logs : serverLogs.map(normalizeServerLog);
+  // Only server-written (signed) process logs are shown; older model-written logs are ignored.
+  const logs = routebook?.logsSource === 'server' && routebook?.logs?.length ? routebook.logs : serverLogs.map(normalizeServerLog);
 
   useEffect(() => {
     const ctrl = new AbortController();

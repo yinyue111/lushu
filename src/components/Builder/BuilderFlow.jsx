@@ -7,11 +7,14 @@ import { adoptServerProfile } from '../../lib/profileSync';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGenerate, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
-import { sourcePredictionValue } from './builderModel';
+import { BUDGET_OPTIONS } from './builderModel';
+import { extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
+import { knownPoiCoordinates } from '../../lib/coordinates';
 
 const defaultConstraints = {
   duration: '2 天 1 晚',
-  budget: '人均 900',
+  // No silent default: an empty budget means "no budget constraint".
+  budget: '',
   tempo: '松弛但不空',
   companion: '朋友',
   date: '',
@@ -22,7 +25,8 @@ const defaultConstraints = {
   avoid: ''
 };
 const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
-const budgets = ['人均 500', '人均 900', '人均 1500'];
+// Labels say whether the amount is per person for the whole trip or per day.
+const budgets = BUDGET_OPTIONS.map((option) => option.label);
 const tempos = ['少走路', '松弛但不空', '高密度打卡'];
 const companions = ['独行', '情侣', '朋友', '亲子'];
 const transports = ['步行 + 打车', '地铁优先', '少换乘', '亲子少走路'];
@@ -208,7 +212,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             guideRef.current = next;
             return next;
           });
-        addCandidatePlaces(extractCandidatePlacesFromSources(data.sources ?? []));
+        addCandidatePlaces(extractCandidatePlacesFromSources(data.sources ?? [], knownPlacesForCity(city)));
         return true;
       })
       .catch((e) => {
@@ -405,9 +409,13 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         (data.places ?? []).map((place) => ({
           name: place.name,
           source: '截图 OCR',
-          confidence: place.confidence,
+          origin: 'ocr',
+          // OCR "confidence" is the model's own guess; it is not shown as a score.
+          confidence: null,
+          reason: 'OCR 识别，请核对名称',
           note: [place.time, place.price, place.note].filter(Boolean).join(' · '),
-          included: true,
+          included: false,
+          decided: false,
           mustGo: false
         }))
       );
@@ -442,13 +450,20 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         const key = normalizePlaceKey(place.name);
         if (!key) continue;
         const existing = map.get(key);
+        // A decision the user already made (checked/unchecked/必去) is never overridden by a new source.
+        const keepDecision = existing?.decided === true;
         map.set(key, {
-          name: place.name,
-          source: place.source || '手动补充',
-          confidence: Number(place.confidence ?? 62),
+          ...existing,
+          name: existing?.name ?? place.name,
+          source: existing?.source && existing.source !== place.source ? `${existing.source}、${place.source}` : place.source || '手动补充',
+          // Once another source confirms a guide-text candidate it is no longer removed with the text.
+          origin: existing && existing.origin !== place.origin ? 'multiple' : place.origin || 'manual',
+          confidence: place.confidence ?? existing?.confidence ?? null,
+          reason: place.reason || existing?.reason || '',
           note: place.note || existing?.note || '',
-          included: place.included ?? existing?.included ?? true,
-          mustGo: place.mustGo ?? existing?.mustGo ?? false
+          included: keepDecision ? existing.included : (place.included ?? existing?.included ?? false),
+          decided: keepDecision || place.decided === true,
+          mustGo: keepDecision ? existing.mustGo : (place.mustGo ?? existing?.mustGo ?? false)
         });
       }
       const next = [...map.values()].slice(0, 24);
@@ -460,7 +475,12 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function handleGuideChange(value) {
     guideRef.current = value;
     setGuide(value);
-    addCandidatePlaces(extractCandidatePlacesFromText(value));
+    // Re-derive text candidates from the whole text: removed text removes its candidates.
+    setCandidatePlaces((prev) => {
+      const next = reconcileTextCandidates(prev, extractPlaceCandidates(value, { knownPlaces: knownPlacesForCity(city) }));
+      candidatePlacesRef.current = next;
+      return next;
+    });
   }
 
   function resumeSavedDraft() {
@@ -491,12 +511,16 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function addManualPlace() {
     const name = manualPlace.trim();
     if (!name) return;
-    addCandidatePlaces([{ name, source: '手动补充', confidence: 90, included: true, mustGo: true }]);
+    addCandidatePlaces([{ name, source: '手动补充', origin: 'manual', confidence: null, reason: '你手动添加', included: true, decided: true, mustGo: true }]);
     setManualPlace('');
   }
 
   function updateCandidate(index, patch) {
-    setCandidatePlaces((prev) => prev.map((place, currentIndex) => (currentIndex === index ? { ...place, ...patch } : place)));
+    setCandidatePlaces((prev) => {
+      const next = prev.map((place, currentIndex) => (currentIndex === index ? { ...place, ...patch, decided: true } : place));
+      candidatePlacesRef.current = next;
+      return next;
+    });
   }
 
   const nextDisabled = draftResolution === 'pending' || !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
@@ -678,11 +702,12 @@ function builderDraftKey(profileId) {
 
 function buildCandidateGuide(candidatePlaces) {
   const included = candidatePlaces.filter((place) => place.included);
-  const excluded = candidatePlaces.filter((place) => !place.included);
+  // Unreviewed candidates are neither confirmed nor excluded; only explicit unchecks are exclusions.
+  const excluded = candidatePlaces.filter((place) => !place.included && place.decided === true);
   if (!included.length && !excluded.length) return '';
   return [
     included.length
-      ? `用户确认进入路线的候选 POI：${included.map((place) => `${place.mustGo ? '必去-' : ''}${place.name}（${place.source || '候选来源'}，来源参考分 ${place.confidence ?? '待计算'}${place.note ? `，${place.note}` : ''}）`).join('；')}`
+      ? `用户确认进入路线的候选 POI：${included.map((place) => `${place.mustGo ? '必去-' : ''}${place.name}（${place.source || '候选来源'}${place.note ? `，${place.note}` : ''}）`).join('；')}`
       : '',
     excluded.length ? `用户已排除的 POI：${excluded.map((place) => place.name).join('、')}` : ''
   ]
@@ -691,7 +716,7 @@ function buildCandidateGuide(candidatePlaces) {
 }
 
 function hasActionableGuideInput({ guide = '', sources = [], candidates = [], ocrPlaces = [] } = {}) {
-  if (Array.isArray(candidates) && candidates.length > 0) return true;
+  if (Array.isArray(candidates) && candidates.some((place) => place.included)) return true;
   if (Array.isArray(ocrPlaces) && ocrPlaces.length > 0) return true;
   if (
     Array.isArray(sources) &&
@@ -715,27 +740,21 @@ function hasActionableGuideInput({ guide = '', sources = [], candidates = [], oc
   return text.length >= 8;
 }
 
-function extractCandidatePlacesFromSources(sources) {
+function extractCandidatePlacesFromSources(sources, knownPlaces = []) {
   const rows = [];
   for (const source of sources) {
-    const text = `${source.title ?? ''} ${source.description ?? ''} ${source.excerpt ?? ''}`;
-    const candidates = [
-      ...Array.from(
-        text.matchAll(
-          /[「“]?([\u4e00-\u9fa5A-Za-z0-9·]{2,18}(?:路|街|巷|寺|园|馆|湖|山|塔|桥|镇|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|咖啡|夜市))[」”]?/g
-        )
-      ).map((match) => match[1]),
-      ...Array.from(text.matchAll(/(?:POI|地点|路线|打卡|必去|推荐)[:：\s]*([\u4e00-\u9fa5A-Za-z0-9·]{2,18})/gi)).map((match) => match[1])
-    ];
-    for (const name of candidates) {
-      const cleaned = cleanPlaceName(name);
-      if (!cleaned) continue;
+    const text = `${source.title ?? ''}\n${source.description ?? ''}\n${source.excerpt ?? ''}`;
+    for (const place of extractPlaceCandidates(text, { knownPlaces })) {
+      if (place.intent === 'avoid') continue;
       rows.push({
-        name: cleaned,
+        name: place.name,
         source: source.platform || '导入来源',
-        confidence: sourcePredictionValue(source) ?? 55,
-        note: source.warnings?.[0] || source.status || '',
-        included: (sourcePredictionValue(source) ?? 50) >= 35,
+        origin: 'source',
+        confidence: place.confidence,
+        reason: place.reason,
+        note: source.warnings?.[0] || '',
+        included: false,
+        decided: false,
         mustGo: false
       });
     }
@@ -743,21 +762,10 @@ function extractCandidatePlacesFromSources(sources) {
   return rows.slice(0, 18);
 }
 
-function extractCandidatePlacesFromText(text) {
-  const value = String(text ?? '');
-  const candidates = [
-    ...Array.from(
-      value.matchAll(
-        /[「“]?([\u4e00-\u9fa5A-Za-z0-9·]{2,18}(?:路|街|巷|寺|园|馆|湖|山|塔|桥|镇|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|咖啡|夜市))[」”]?/g
-      )
-    ).map((match) => match[1]),
-    ...Array.from(value.matchAll(/(?:去|逛|游|看|到|打卡|必去|推荐)\s*([\u4e00-\u9fa5A-Za-z0-9·]{2,18})/g)).map((match) => match[1])
-  ];
-  return candidates
-    .map(cleanPlaceName)
-    .filter(Boolean)
-    .slice(0, 18)
-    .map((name) => ({ name, source: '用户正文', confidence: 90, included: true, mustGo: false }));
+function knownPlacesForCity(city) {
+  return Object.entries(knownPoiCoordinates)
+    .filter(([, entry]) => !city || entry.city === String(city).replace(/市$/u, ''))
+    .map(([name]) => name);
 }
 
 function extractGuideUrls(value) {

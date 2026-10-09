@@ -35,7 +35,8 @@ export function normalizeProfile(input = {}) {
     preferredCities: Array.isArray(input?.preferredCities)
       ? [...new Set(input.preferredCities.map((city) => normalizeCityName(city)).filter(Boolean))].slice(0, 12)
       : [],
-    budget: truncateString(input?.budget, 40) || '人均 900',
+    // No silent default budget: empty means no budget constraint.
+    budget: truncateString(input?.budget, 40),
     companion: truncateString(input?.companion, 40) || '朋友',
     tempo: truncateString(input?.tempo, 40) || '松弛但不空',
     transport: truncateString(input?.transport, 60) || '步行 + 打车',

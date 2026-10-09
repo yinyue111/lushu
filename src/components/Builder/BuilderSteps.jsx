@@ -3,7 +3,7 @@ import { trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
-import { averageSourcePrediction, sourcePredictionTone, sourcePredictionValue } from './builderModel';
+import { averageSourcePrediction, budgetHint, budgetValueForLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
 
 const TONES = {
   sky: 'bg-sky-soft text-sky-ink',
@@ -263,7 +263,9 @@ export function StepGuide(props) {
                   <span className="min-w-0">
                     <strong className="block truncate text-copy font-bold">{place.name}</strong>
                     <span className="block truncate text-xs text-muted">
-                      {place.source || '候选来源'} · 参考分 {place.confidence ?? '待计算'}
+                      {place.source || '候选来源'}
+                      {place.reason ? ` · ${place.reason}` : ''}
+                      {place.confidence != null ? `（把握 ${place.confidence}）` : ''}
                       {place.note ? ` · ${place.note}` : ''}
                     </span>
                   </span>
@@ -291,9 +293,7 @@ export function StepGuide(props) {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-muted">
-            导入链接、上传截图或手动添加后，在这里勾选哪些地点排进路线。参考分低的来源只用于你的个人路书，不会自动公开。
-          </p>
+          <p className="mt-3 text-sm text-muted">输入攻略、导入链接、上传截图或手动添加后，识别出的地点会列在这里；默认都不勾选，勾选的才会排进路线。</p>
         )}
       </div>
 
@@ -306,9 +306,7 @@ export function StepGuide(props) {
           <ul className="mt-2 grid gap-1.5">
             {ocrState.places.slice(0, 6).map((place, i) => (
               <li key={`${place.name}-${i}`} className="flex items-center gap-2 text-sm text-ink-2">
-                <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', place.confidence >= 70 ? TONES.sky : TONES.warn)}>
-                  识别 {place.confidence ?? '待计算'}
-                </span>
+                <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', TONES.warn)}>待核对</span>
                 {place.name} · {place.time || '时间待核对'} · {place.price || '价格待核对'}
               </li>
             ))}
@@ -390,7 +388,15 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options })
       </div>
       <div className="mt-6 grid gap-5">
         <ToggleChips legend="玩几天" options={options.durations} {...pick('duration')} />
-        <ToggleChips legend="预算" options={options.budgets} {...pick('budget')} />
+        <div>
+          <ToggleChips
+            legend="预算（每人）"
+            options={options.budgets}
+            isActive={(label) => budgetValueForLabel(label) === (constraints.budget ?? '')}
+            onToggle={(label) => setConstraints((p) => ({ ...p, budget: budgetValueForLabel(label) }))}
+          />
+          <p className="mt-1.5 text-meta text-muted">{budgetHint(constraints.budget)}</p>
+        </div>
         <ToggleChips legend="节奏" options={options.tempos} {...pick('tempo')} />
         <ToggleChips legend="和谁一起" options={options.companions} {...pick('companion')} />
         <ToggleChips legend="交通偏好" icon={Train} options={options.transports} {...pick('transport')} />

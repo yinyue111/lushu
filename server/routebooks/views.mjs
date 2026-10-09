@@ -62,7 +62,7 @@ export function publicRoutebookView(routebook) {
     metrics: Array.isArray(routebook.metrics)
       ? routebook.metrics.slice(0, 10).map((item) => ({
           label: truncateString(item?.label, 60),
-          value: !routeTrustVisible && item?.label === '站点均分' ? '待验证' : truncateString(item?.value, 80)
+          value: !routeTrustVisible && ['站点均分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
         }))
       : [],
     feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
@@ -84,9 +84,38 @@ export function publicRoutebookView(routebook) {
   };
 }
 
+const PUBLIC_STOP_ORIGINS = new Set(['user-guide', 'imported-source', 'user-added', 'model', 'unknown']);
+
+// matchedText/proof are omitted: matchedText quotes the owner's private guide text.
+function publicStopProvenance(provenance) {
+  if (!provenance || typeof provenance !== 'object') return null;
+  return {
+    origin: PUBLIC_STOP_ORIGINS.has(provenance.origin) ? provenance.origin : 'unknown',
+    reviewedPoi: provenance.reviewedPoi === true,
+    verifiedFactCount: clampNumber(provenance.verifiedFactCount, 0, 20, 0)
+  };
+}
+
+function publicCostInfo(costInfo) {
+  if (!costInfo || typeof costInfo !== 'object') return null;
+  const money = (value) => (value == null || !Number.isFinite(Number(value)) ? null : clampNumber(value, 0, 1000000, 0));
+  return {
+    amount: money(costInfo.amount),
+    min: money(costInfo.min),
+    max: money(costInfo.max),
+    currency: truncateString(costInfo.currency, 8),
+    unit: truncateString(costInfo.unit, 24),
+    per: truncateString(costInfo.per, 24),
+    free: costInfo.free === true,
+    reservationRequired: costInfo.reservationRequired === true,
+    known: costInfo.known === true,
+    source: truncateString(costInfo.source, 32),
+    text: truncateString(costInfo.text, 32)
+  };
+}
+
 export function publicRoutebookStop(stop = {}) {
   const poiTrust = publicPoiTrust(stop.poiTrust);
-  const poiTrustVisible = poiTrust?.score != null;
   return {
     id: typeof stop.id === 'number' ? stop.id : sanitizePublicId(stop.id),
     poiId: sanitizePublicId(stop.poiId),
@@ -98,7 +127,10 @@ export function publicRoutebookStop(stop = {}) {
     cost: truncateString(stop.cost, 32),
     verify: truncateString(stop.verify, 120),
     risk: truncateString(stop.risk, 120),
-    score: poiTrustVisible && stop.score != null ? clampNumber(stop.score, 0, 100, 0) : null,
+    // Model self-scores are no longer part of the trust model; legacy values are never exposed.
+    score: null,
+    provenance: publicStopProvenance(stop.provenance),
+    costInfo: publicCostInfo(stop.costInfo),
     lat: Number.isFinite(Number(stop.lat)) ? Number(stop.lat) : null,
     lng: Number.isFinite(Number(stop.lng)) ? Number(stop.lng) : null,
     geoConfidence: stop.geoConfidence == null ? null : clampNumber(stop.geoConfidence, 0, 100, 0),
@@ -156,7 +188,7 @@ function publicRouteVariant(variant = {}) {
     metrics: Array.isArray(variant.metrics)
       ? variant.metrics.slice(0, 10).map((item) => ({
           label: truncateString(item?.label, 60),
-          value: item?.label === '站点均分' ? '待验证' : truncateString(item?.value, 80)
+          value: ['站点均分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
         }))
       : [],
     validations: Array.isArray(variant.validations)

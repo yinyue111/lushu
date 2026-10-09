@@ -14,3 +14,25 @@ export function sourcePredictionTone(score) {
   if (score == null || score >= 70) return 'sky';
   return score >= 45 ? 'warn' : 'bad';
 }
+
+// Budget choices state both the basis (每人) and the scope (全程/每日) so the
+// server-side budget check knows what it is comparing against. '' = 不设预算.
+export const BUDGET_OPTIONS = Object.freeze([
+  { label: '不设预算', value: '' },
+  { label: '全程 500 元内', value: '每人全程 500 元内' },
+  { label: '全程 900 元左右', value: '每人全程 900 元左右' },
+  { label: '全程 1500 元左右', value: '每人全程 1500 元左右' },
+  { label: '每日 300 元左右', value: '每人每日 300 元左右' }
+]);
+
+export function budgetValueForLabel(label) {
+  return BUDGET_OPTIONS.find((option) => option.label === label)?.value ?? '';
+}
+
+export function budgetHint(budget) {
+  const value = String(budget ?? '').trim();
+  if (!value) return '不设预算：生成时不按预算筛选，路书里只汇总已知费用。';
+  if (BUDGET_OPTIONS.some((option) => option.value === value)) return '按每人计算；“全程”是整趟行程合计，“每日”会按天数折算。';
+  const scoped = /全程|每日|每天|日均|总预算/.test(value);
+  return `当前预算：${value}${scoped ? '' : '（没写全程还是每日，系统会按全程计算）'}。`;
+}

@@ -68,7 +68,7 @@ export function useRoutebookActions({
         predictionScore: calculateLocalTrustScore(normalizedStops),
         displayScore: null,
         source: 'prediction',
-        label: '预测可信度 · 待真实验证',
+        label: '资料核验 · 待真实验证',
         sampleCount: base.trustMeta?.sampleCount ?? 0,
         aiWeight: 1,
         feedbackWeight: 0
@@ -148,7 +148,8 @@ export function useRoutebookActions({
     const prepared = {
       ...nextStop,
       id: preparedId,
-      score: Number(nextStop.score) || 78,
+      // A stop the user adds or renames is theirs; the server keeps this unless it is renamed again.
+      ...(isNew || renamed ? { provenance: { origin: 'user-added', name: String(nextStop?.name ?? '').trim() } } : {}),
       lat: Number(nextStop.lat) || cityCenters[routebook.city]?.lat || 35.8617,
       lng: Number(nextStop.lng) || cityCenters[routebook.city]?.lng || 104.1954,
       geoConfidence: coordinatesEdited ? 45 : Number(nextStop.geoConfidence) || 55,

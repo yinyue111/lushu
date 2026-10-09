@@ -9,6 +9,7 @@ import {
   Repeat2,
   Route as RouteIcon,
   ShieldCheck,
+  Sparkles,
   Ticket,
   Umbrella,
   Wallet,
@@ -46,7 +47,8 @@ export function RoutePreflight({ routebook }) {
   const checks = (routebook.validations ?? []).slice(0, 6);
   const source = routebook.sourceSummary?.sourceCount > 0 ? routebook.sourceSummary : null;
   const feedback = routebook.feedbackSummary;
-  if (!checks.length && !source && !feedback) return null;
+  const aiNotes = Array.isArray(routebook.aiNotes) ? routebook.aiNotes.slice(0, 6) : [];
+  if (!checks.length && !source && !feedback && !aiNotes.length) return null;
   return (
     <section aria-labelledby="preflight-title">
       <h2 id="preflight-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:mb-3.5 lg:text-2xl">
@@ -73,6 +75,25 @@ export function RoutePreflight({ routebook }) {
           </CheckTile>
         )}
       </div>
+      {aiNotes.length > 0 && (
+        <div className="mt-3 rounded-card border border-dashed border-line-strong p-3.5" role="group" aria-labelledby="ai-notes-title">
+          <h3 id="ai-notes-title" className="flex items-center gap-2 text-base font-extrabold">
+            <Sparkles className="size-[18px]" aria-hidden="true" /> AI 提示
+            <Chip size="sm" tone="warn" className="h-6 text-meta">
+              未核验
+            </Chip>
+          </h3>
+          <p className="mt-0.5 text-meta text-muted">由 AI 生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
+          <ul className="mt-2 grid gap-1.5 text-sm text-ink-2">
+            {aiNotes.map((note) => (
+              <li key={`${note.label}-${note.detail}`}>
+                <b className="font-bold">{note.label}：</b>
+                {note.detail}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

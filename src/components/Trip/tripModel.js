@@ -221,7 +221,7 @@ export function buildAlternatives(current, routebook, activeStops, latestByStop,
       if (a.sameArea !== b.sameArea) return a.sameArea ? -1 : 1;
       const distanceA = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
       const distanceB = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
-      return distanceA - distanceB || Number(b.stop.score ?? 0) - Number(a.stop.score ?? 0);
+      return distanceA - distanceB || String(a.stop.name ?? '').localeCompare(String(b.stop.name ?? ''), 'zh-CN');
     });
 
   const combined = [];

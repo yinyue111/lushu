@@ -45,8 +45,8 @@ export function MyAccountPanel({
           <Field label="常去城市">
             <input className={inputClass} value={(profile.preferredCities ?? []).join('、')} onChange={setList('preferredCities')} />
           </Field>
-          <Field label="预算">
-            <input className={inputClass} value={profile.budget ?? ''} onChange={set('budget')} />
+          <Field label="默认预算（每人）">
+            <input className={inputClass} value={profile.budget ?? ''} onChange={set('budget')} placeholder="例如：每人全程 900 元；留空 = 不设预算" />
           </Field>
           <Field label="主题偏好">
             <input className={inputClass} value={(profile.themes ?? []).join('、')} onChange={setList('themes')} />

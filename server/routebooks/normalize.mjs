@@ -5,7 +5,6 @@ import {
   truncateString,
   clampNumber,
   parseMoneyRange,
-  sumMoneyRanges,
   isValidCoordinate,
   positiveInteger,
   normalizeRoutebookActorType,
@@ -30,6 +29,9 @@ import { getSavedRoutebook } from '../storage/records.mjs';
 import { normalizeStoredRouteLegs, normalizeStopTransportMode } from '../routing/provenance.mjs';
 import { routeExecutionMetricRows, routeExecutionValidationRows, summarizeRouteExecution } from '../routing/routeExecution.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
+import { normalizeStopProvenance } from '../trust/provenance.mjs';
+import { coordinateVerificationLevel, normalizePlaceText, placeNameVariants, routeEvidenceScore } from '../../src/lib/trustSignals.js';
+import { formatCostInfo, stopCostInfo, sumStopCosts } from '../../src/lib/cost.js';
 
 export function normalizeCreator(input = {}) {
   return {
@@ -75,18 +77,51 @@ function hasValidImportedSourceProof(source = {}) {
 export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = []) {
   const metrics = Array.isArray(existingMetrics) ? existingMetrics : [];
   const stopCount = stops.length;
-  const lowGeoCount = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const avgScore = stopCount ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stopCount) : 78;
-  const budgetSummary = sumMoneyRanges(stops.map((stop) => stop.cost));
+  const lowGeoCount = stops.filter((stop) => coordinateVerificationLevel(stop) !== 'verified').length;
+  const evidence = routeEvidenceScore(stops);
+  const budgetSummary = sumStopCosts(stops);
   const calculated = [
     ...routeExecutionMetricRows(summarizeRouteExecution(stops, routeLegs)),
-    { label: '站点均分', value: `${avgScore}` },
+    { label: '资料核验分', value: stopCount ? `${evidence.score}` : '—' },
     { label: '定位待复核', value: lowGeoCount ? `${lowGeoCount} 处` : '0 处' },
     { label: '预算估算', value: formatBudgetSummary(budgetSummary) },
     { label: '编辑校验', value: '已重算' }
   ];
-  const merged = [...calculated, ...metrics.filter((item) => !calculated.some((next) => next.label === item.label))];
-  return merged.slice(0, 9);
+  // Only system-computed metrics are kept; model-written metrics are dropped.
+  void metrics;
+  return calculated.slice(0, 9);
+}
+
+/** Metric labels the server computes itself (see buildRoutebookMetrics / mergeSourceMetrics). */
+const SYSTEM_METRIC_LABELS = new Set(['道路核验', '道路距离', '道路耗时', '资料核验分', '定位待复核', '预算估算', '编辑校验', '导入来源', '来源均分']);
+
+/** Hides model-written metrics on routebooks saved before they were dropped. */
+export function systemMetrics(metrics) {
+  return (Array.isArray(metrics) ? metrics : []).filter((item) => SYSTEM_METRIC_LABELS.has(String(item?.label ?? '')));
+}
+
+/** Validation ids produced by server code; anything else was written by a model. */
+const CLIENT_ACTION_VALIDATION_ID = /^(?:mode-\d+|variant-apply-[a-z0-9-]+)$/i;
+
+export const SYSTEM_VALIDATION_IDS = new Set([
+  'edit-routing',
+  'edit-tempo',
+  'edit-detour',
+  'edit-budget',
+  'edit-hours',
+  'edit-constraints',
+  'edit-geo',
+  'source-trust',
+  'day-count-compressed'
+]);
+
+/** Hides model-written validation rows (e.g. "拥挤风险：通过") on older routebooks. */
+export function systemValidations(validations) {
+  // Client action notes ("已按…重排", "已应用变体") describe what the user did, not a check result.
+  return (Array.isArray(validations) ? validations : []).filter((item) => {
+    const id = String(item?.id ?? '');
+    return SYSTEM_VALIDATION_IDS.has(id) || CLIENT_ACTION_VALIDATION_ID.test(id);
+  });
 }
 
 export function buildSourceSummary(sources = []) {
@@ -142,25 +177,14 @@ function mergeSourceValidations(validations, sourceSummary) {
   return [sourceValidation, ...validations.filter((item) => item.id !== 'source-trust')].slice(0, 8);
 }
 
+/**
+ * Evidence score (0-100) from verifiable per-stop signals only: provenance,
+ * reviewed-catalog match, coordinate verification and reviewed facts with
+ * evidence and expiry (see src/lib/trustSignals.js). The model's own `score`
+ * is ignored. Routes without stops score 0.
+ */
 export function calculateRouteTrustScore(stops) {
-  if (!stops.length) return 60;
-  const avgPoiScore = stops.reduce((sum, stop) => sum + clampNumber(stop.score, 40, 99, 78), 0) / stops.length;
-  const lowGeoPenalty = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length * 3;
-  const missingCostPenalty = stops.filter((stop) => !/\d/.test(String(stop.cost ?? ''))).length * 1.5;
-  const denseDayPenalty =
-    Math.max(
-      0,
-      Math.max(
-        ...Object.values(
-          stops.reduce((acc, stop) => {
-            const day = stop.day || 'Day 1';
-            acc[day] = (acc[day] ?? 0) + 1;
-            return acc;
-          }, {})
-        )
-      ) - 6
-    ) * 2;
-  return Math.round(clampNumber(avgPoiScore - lowGeoPenalty - missingCostPenalty - denseDayPenalty, 45, 96, 78));
+  return routeEvidenceScore(stops).score ?? 0;
 }
 
 export function hasPreciseCoordinate(stop) {
@@ -274,8 +298,8 @@ export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = D
     return {
       id: 'edit-hours',
       label: '营业时间',
-      state: '需填出行日期',
-      detail: '填写出行日期后可自动检查闭馆冲突；到达时段和最晚入场仍需有有效营业事实才能判断。'
+      state: '未核验',
+      detail: '没有出行日期，系统没有检查闭馆冲突；填写日期后可检查。到达时段和最晚入场仍需有有效营业事实才能判断。'
     };
   }
   if (closures.length) {
@@ -301,8 +325,8 @@ export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = D
     return {
       id: 'edit-hours',
       label: '营业时间',
-      state: '无数据',
-      detail: `${unknownStops} 个站点没有已核验的营业时间数据，出发前需逐个复核到达时段和最晚入场。`
+      state: '未核验',
+      detail: `${unknownStops} 个站点没有带证据的营业时间数据，系统没有核对开放时段；出发前需逐个确认到达时段和最晚入场。`
     };
   }
   if (staleStops || evidenceMissingStops) {
@@ -394,37 +418,63 @@ function splitConstraintTerms(value) {
   ].slice(0, 12);
 }
 
-function stopMatchesTerm(stop, term) {
-  const name = String(stop?.name ?? '')
-    .trim()
-    .toLocaleLowerCase('zh-CN');
-  const normalized = String(term ?? '')
-    .trim()
-    .toLocaleLowerCase('zh-CN');
-  return Boolean(normalized && name && (name.includes(normalized) || normalized.includes(name)));
+// Words that name a kind of place or activity rather than a place. They cannot
+// be checked against stop names, so the validation says so instead of
+// reporting them as satisfied.
+const CATEGORY_TERM =
+  /^(?:网红(?:店|景点|打卡点)?|购物|商场|商业街|景区|寺庙|博物馆|美术馆|展览|爬山|登山|徒步|排队|人多|夜店|酒吧|夜市|小吃街|古镇|游乐园|主题乐园|动物园|海边|室内|室外|收费景点|门票贵的|太远的|远的)$/;
+
+function placeVariantsForStop(stop, city) {
+  const trusted = findTrustedPoi(stop, city);
+  return { trusted, variants: placeNameVariants(stop?.name, trusted ? [trusted.name, ...(trusted.aliases ?? [])] : []) };
 }
 
-function buildConstraintValidation(stops, constraints = {}) {
+/**
+ * Alias-aware, normalized match between a constraint term and a stop:
+ * equal catalog POI, or one name variant containing the other (so "柳浪闻莺公园"
+ * matches the stop "柳浪闻莺" and "龙井茶园" matches the term "龙井茶园").
+ */
+export function stopMatchesTerm(stop, term, city = '') {
+  const termKey = normalizePlaceText(term);
+  if (termKey.length < 2) return false;
+  const { trusted, variants } = placeVariantsForStop(stop, city);
+  const termTrusted = findTrustedPoi({ name: term }, city);
+  if (trusted && termTrusted && trusted.poiId === termTrusted.poiId) return true;
+  const termVariants = placeNameVariants(term, termTrusted ? [termTrusted.name, ...(termTrusted.aliases ?? [])] : []);
+  return variants.some((variant) => termVariants.some((candidate) => variant.includes(candidate) || (variant.length >= 2 && candidate.includes(variant))));
+}
+
+export function isCategoryConstraintTerm(term) {
+  return CATEGORY_TERM.test(String(term ?? '').trim());
+}
+
+export function buildConstraintValidation(stops, constraints = {}, city = '') {
   const mustGo = splitConstraintTerms(constraints?.mustGo);
-  const avoid = splitConstraintTerms(constraints?.avoid);
-  if (!mustGo.length && !avoid.length) {
+  const avoidTerms = splitConstraintTerms(constraints?.avoid);
+  const avoidCategories = avoidTerms.filter(isCategoryConstraintTerm);
+  const avoid = avoidTerms.filter((term) => !isCategoryConstraintTerm(term));
+  const mustGoCategories = mustGo.filter(isCategoryConstraintTerm);
+  const mustGoPlaces = mustGo.filter((term) => !isCategoryConstraintTerm(term));
+  if (!mustGo.length && !avoidTerms.length) {
     return { id: 'edit-constraints', label: '必去与避开', state: '未设置', detail: '可填写必去地点和想避开的内容，生成后会在这里显示是否满足。' };
   }
-  const missingMustGo = mustGo.filter((term) => !stops.some((stop) => stopMatchesTerm(stop, term)));
-  const includedAvoid = avoid.filter((term) => stops.some((stop) => stopMatchesTerm(stop, term)));
+  const missingMustGo = mustGoPlaces.filter((term) => !stops.some((stop) => stopMatchesTerm(stop, term, city)));
+  const includedAvoid = avoid.filter((term) => stops.some((stop) => stopMatchesTerm(stop, term, city)));
+  const categories = [...mustGoCategories, ...avoidCategories];
   const detail = [
-    mustGo.length ? (missingMustGo.length ? `必去未找到：${missingMustGo.join('、')}。` : `已纳入 ${mustGo.length} 个必去地点。`) : '',
-    avoid.length ? (includedAvoid.length ? `路线仍包含想避开：${includedAvoid.join('、')}。` : `未在站点名称中发现 ${avoid.length} 个避开项。`) : '',
-    missingMustGo.length || includedAvoid.length ? '请编辑站点或调整约束后再出发。' : '仍需核对语义相近地点与实际路线。'
+    mustGoPlaces.length
+      ? missingMustGo.length
+        ? `必去未找到：${missingMustGo.join('、')}。`
+        : `已按名称（含别名）找到 ${mustGoPlaces.length} 个必去地点。`
+      : '',
+    avoid.length ? (includedAvoid.length ? `路线仍包含想避开：${includedAvoid.join('、')}。` : `站点名称（含别名）中没有 ${avoid.length} 个避开项。`) : '',
+    categories.length ? `“${categories.join('、')}”是类别词，系统无法按名称核对，请自己看一遍站点。` : '',
+    missingMustGo.length || includedAvoid.length ? '请编辑站点或调整约束后再出发。' : ''
   ]
     .filter(Boolean)
     .join(' ');
-  return {
-    id: 'edit-constraints',
-    label: '必去与避开',
-    state: missingMustGo.length || includedAvoid.length ? '未完全满足' : '已纳入',
-    detail
-  };
+  const state = missingMustGo.length || includedAvoid.length ? '未完全满足' : categories.length ? '需人工确认' : '已纳入';
+  return { id: 'edit-constraints', label: '必去与避开', state, detail };
 }
 
 function buildBudgetValidation(budgetSummary, constraints, stops) {
@@ -469,28 +519,33 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
   }, new Map());
   const crowdedDay = [...groupedByDay.entries()].find(([, count]) => count > 6);
   const missingCoordinate = stops.filter((stop) => !isValidCoordinate(Number(stop.lat), Number(stop.lng))).length;
-  const lowConfidence = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const budget = sumMoneyRanges(stops.map((stop) => stop.cost));
+  const lowConfidence = stops.filter((stop) => coordinateVerificationLevel(stop) !== 'verified').length;
+  const budget = sumStopCosts(stops);
   const execution = summarizeRouteExecution(stops, context.routeLegs);
   const calculated = [
     ...routeExecutionValidationRows(execution, { reason, crowdedDay, missingCoordinate }),
     buildBudgetValidation(budget, context.constraints, stops),
     buildOpeningHoursValidation(stops, context.city, context.travelDate),
-    buildConstraintValidation(stops, context.constraints),
+    buildConstraintValidation(stops, context.constraints, context.city),
     {
       id: 'edit-geo',
       label: '定位可信',
       state: lowConfidence ? '需复核' : '通过',
-      detail: lowConfidence ? `${lowConfidence} 个站点为低置信定位，仅展示街区/城市级范围，不开放一键导航。` : '站点定位置信度满足当前展示要求。'
+      detail: lowConfidence
+        ? `${lowConfidence} 个站点的坐标没有经过已审核 POI 或地图服务精确定位，出发前请核对位置。`
+        : '全部站点坐标来自已审核 POI 或地图服务精确定位。'
     }
   ];
-  const merged = [...calculated, ...validations.filter((item) => !calculated.some((next) => next.id === item.id))];
+  // Only server-computed rows survive; model-written rows (e.g. "拥挤风险：通过") are dropped.
+  const merged = [...calculated, ...systemValidations(validations).filter((item) => !calculated.some((next) => next.id === item.id))];
   return merged.slice(0, 8);
 }
 
-function normalizeRoutebookStop(stop, index, city) {
+function normalizeRoutebookStop(stop, index, city, context = {}) {
   const coordinate = normalizeCoordinate(stop, city, index);
   const name = truncateString(stop?.name, 48) || `站点 ${index + 1}`;
+  const costText = truncateString(stop?.cost, 32);
+  const costInfo = stopCostInfo({ ...stop, cost: costText });
   const poiId = resolvePoiId({ ...stop, name }, city);
   const existingId = stop?.id;
   const stableStopId = typeof existingId === 'number' && Number.isFinite(existingId) ? existingId : sanitizePublicId(existingId) || `stop-${index + 1}`;
@@ -502,10 +557,10 @@ function normalizeRoutebookStop(stop, index, city) {
     name,
     area: truncateString(stop?.area, 40) || '待确认',
     stay: truncateString(stop?.stay, 24) || '60 分钟',
-    cost: truncateString(stop?.cost, 32) || '待估算',
+    cost: costText || (costInfo.known ? formatCostInfo(costInfo) : '待估算'),
+    costInfo: { ...costInfo, text: costText || (costInfo.known ? formatCostInfo(costInfo) : '待估算') },
     verify: truncateString(stop?.verify, 120) || '需通过真实打卡继续验证',
     risk: truncateString(stop?.risk, 120) || '需出发前复核',
-    score: clampNumber(stop?.score, 40, 99, 78),
     lat: coordinate.lat,
     lng: coordinate.lng,
     geoConfidence:
@@ -522,7 +577,8 @@ function normalizeRoutebookStop(stop, index, city) {
     navigationDisabled: stop?.navigationDisabled === true || coordinate.navigationDisabled === true,
     transportMode: normalizeStopTransportMode(stop?.transportMode),
     sourceEvidence: normalizeStopEvidence(stop?.sourceEvidence),
-    facts: normalizeStopFacts(stop?.facts)
+    facts: normalizeStopFacts(stop?.facts),
+    provenance: normalizeStopProvenance(stop, name, { city, importedSources: context.importedSources })
   };
 }
 
@@ -576,7 +632,9 @@ export function routebookValidationContext(routebook) {
 export function normalizeRouteVariant(variant, index, city, fallbackStops = [], context = {}) {
   const mode = truncateString(variant?.mode, 24) || '自定义';
   const sourceStops = Array.isArray(variant?.stops) && variant.stops.length ? variant.stops : fallbackStops;
-  const stops = sourceStops.slice(0, MAX_ROUTEBOOK_STOPS).map((stop, stopIndex) => normalizeRoutebookStop(stop, stopIndex, city));
+  const stops = sourceStops
+    .slice(0, MAX_ROUTEBOOK_STOPS)
+    .map((stop, stopIndex) => normalizeRoutebookStop(stop, stopIndex, city, { importedSources: context?.importedSources }));
   if (stops.length < 2) return null;
   const id = sanitizePublicId(variant?.id) || cryptoRandomId();
   const days = [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
@@ -632,7 +690,10 @@ function routebookVersionMetadata(input, now, publishStatus) {
 export function normalizeRoutebookForStorage(input, existingId = '') {
   const city = normalizeCityName(input?.city);
   const now = new Date();
-  const stops = (Array.isArray(input?.stops) ? input.stops : []).slice(0, MAX_ROUTEBOOK_STOPS).map((stop, index) => normalizeRoutebookStop(stop, index, city));
+  const importedSources = normalizeImportedSources(input?.importedSources).slice(0, MAX_IMPORT_URLS);
+  const stops = (Array.isArray(input?.stops) ? input.stops : [])
+    .slice(0, MAX_ROUTEBOOK_STOPS)
+    .map((stop, index) => normalizeRoutebookStop(stop, index, city, { importedSources }));
   if (stops.length < 2) {
     throw createHttpError('路书至少需要 2 个站点才能保存', 400, 'ROUTEBOOK_TOO_SHORT');
   }
@@ -690,12 +751,15 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
       : [],
     validations,
     metrics,
-    logs: normalizeLogs(input?.logs, now),
-    importedSources: normalizeImportedSources(input?.importedSources).slice(0, MAX_IMPORT_URLS),
+    // Process logs are only kept when the server wrote them (logsSource 'server');
+    // model-written "logs" from older routebooks are dropped on the next save.
+    ...normalizeProcessLogs(input),
+    aiNotes: normalizeAiNotes(input?.aiNotes),
+    importedSources,
     sourceSummary,
     constraints: normalizeRouteConstraints(input?.constraints),
     travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate),
-    variants: normalizeRouteVariants(input?.variants, city, stops, validationContext),
+    variants: normalizeRouteVariants(input?.variants, city, stops, { ...validationContext, importedSources }),
     activeVariantId: sanitizePublicId(input?.activeVariantId),
     provider: normalizeStoredProvider(input?.provider, {
       travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate),
@@ -844,20 +908,58 @@ export function normalizeImportedSources(sources) {
     .filter((source) => source.url || source.excerpt || source.title);
 }
 
-export function normalizeLogs(logs, now) {
-  const fallback = [
-    { stage: '意图识别', input: '用户攻略与约束', result: '已提取城市、天数与偏好', status: '通过' },
-    { stage: 'POI 提取', input: '攻略文本', result: '已识别候选地点', status: '通过' },
-    { stage: '路线编排', input: '候选地点', result: '已按分日顺序编排', status: '通过' },
-    { stage: '可执行校验', input: '路线与约束', result: '已标记需复核风险', status: '需复核' }
-  ];
-  const source = Array.isArray(logs) && logs.length ? logs : fallback;
-  const normalized = source.slice(0, 8).map((log, index) => ({
-    time: new Date(now.getTime() + index * 1000).toLocaleTimeString('zh-CN', { hour12: false }),
-    input: String(log.input ?? '用户攻略与约束').slice(0, 32),
-    stage: String(log.stage ?? `阶段 ${index + 1}`).slice(0, 18),
-    result: String(log.result ?? '已完成').slice(0, 72),
-    status: String(log.status ?? '通过').slice(0, 12)
+const PROCESS_LOG_STATUSES = new Set(['完成', '跳过', '未执行', '需复核', '失败']);
+
+/**
+ * Server-written process log (stage events recorded by code during generation,
+ * geocoding and routing). Older routebooks carried model-written "logs" that
+ * claimed checks the system never ran; those are not kept.
+ * @param {any} input
+ */
+export function normalizeProcessLogs(input) {
+  if (input?.logsSource !== 'server' || !Array.isArray(input?.logs)) return { logs: [], logsSource: 'server' };
+  const logs = sanitizeProcessLogs(input.logs);
+  // Logs are signed when the server writes them; a client cannot inject "checks" on save.
+  if (!safeEqualHex(String(input?.logsProof ?? ''), signProcessLogs(logs))) return { logs: [], logsSource: 'server' };
+  return { logs, logsSource: 'server', logsProof: signProcessLogs(logs) };
+}
+
+function sanitizeProcessLogs(logs) {
+  return logs.slice(0, 12).map((log, index) => ({
+    stage: truncateString(log?.stage, 18) || `阶段 ${index + 1}`,
+    input: truncateString(log?.input, 32),
+    result: truncateString(log?.result, 72),
+    status: PROCESS_LOG_STATUSES.has(log?.status) ? log.status : '完成',
+    time: truncateString(log?.time, 40)
   }));
-  return normalized.length >= 4 ? normalized : [...normalized, ...fallback].slice(0, 4);
+}
+
+export function signProcessLogs(logs) {
+  return createHmac('sha256', PROFILE_ID_SECRET)
+    .update(`process-logs|${JSON.stringify(logs)}`)
+    .digest('hex');
+}
+
+/** Builds a signed, server-written process log. */
+export function serverProcessLogs(entries) {
+  const logs = sanitizeProcessLogs(entries);
+  return { logs, logsSource: 'server', logsProof: signProcessLogs(logs) };
+}
+
+/** Logs safe to display: server-written only (older model-written logs are hidden). */
+export function displayableProcessLogs(routebook) {
+  return routebook?.logsSource === 'server' && Array.isArray(routebook?.logs) ? routebook.logs : [];
+}
+
+/**
+ * Model-written risk hints. Always shown as "AI 提示（未核验）" and never with a
+ * pass/fail state, so they cannot read as system checks.
+ * @param {any} notes
+ */
+export function normalizeAiNotes(notes) {
+  if (!Array.isArray(notes)) return [];
+  return notes
+    .slice(0, 6)
+    .map((note) => ({ label: truncateString(note?.label, 18), detail: truncateString(note?.detail, 100) }))
+    .filter((note) => note.label && note.detail);
 }

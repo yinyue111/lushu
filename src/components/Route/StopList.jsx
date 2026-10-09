@@ -22,6 +22,7 @@ import { cn } from '../ui/cn';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/menu';
 import { StopThumb } from '../visual/StopThumb';
 import { sourceEvidencePrediction, stopKey } from './routebookModel';
+import { StopProvenanceChips } from './StopProvenance';
 
 export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [] }) {
   return (
@@ -154,6 +155,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
                 <MapPinned /> 位置待确认
               </Chip>
             )}
+            <StopProvenanceChips stop={stop} className="sm:h-7 sm:text-sm" />
           </div>
           {stop.verify && <p className="text-sm text-ink-2 sm:text-copy">{stop.verify}</p>}
           {stop.risk && (

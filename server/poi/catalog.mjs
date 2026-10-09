@@ -688,6 +688,8 @@ function buildTrustedPoiLookup(pois) {
       lat: Number(poi?.location?.lat),
       lng: Number(poi?.location?.lng),
       openHours: operationalOpenHoursFromFacts(poi),
+      facts: Array.isArray(poi.facts) ? poi.facts : [],
+      evidence: Array.isArray(poi.evidence) ? poi.evidence : [],
       sourceKind: 'operational'
     });
   }
@@ -880,6 +882,18 @@ function derivePoiOperationalState(poi, nowMs = Date.now()) {
             : 'collecting';
   const freshnessState = counts.freshFacts > 0 ? 'fresh' : counts.expiringSoonFacts > 0 ? 'expiringSoon' : counts.staleFacts > 0 ? 'stale' : 'pending';
   return { ...counts, evidenceBacked, currentlyVerified, trustState, freshnessState };
+}
+
+// Number of reviewed facts on a trusted POI entry that currently count as
+// verified: approved, backed by approved non-derived evidence, and inside their
+// validity window. Seed entries carry no evidence and therefore count 0.
+export function countVerifiedPoiFacts(trusted, nowMs = Date.now()) {
+  if (!trusted || trusted.sourceKind !== 'operational') return 0;
+  const evidenceById = new Map((trusted.evidence ?? []).map((evidence) => [evidence.id, evidence]));
+  return (trusted.facts ?? []).filter((fact) => {
+    const state = poiFactFreshnessState(fact, evidenceById, nowMs);
+    return state === 'fresh' || state === 'expiringSoon';
+  }).length;
 }
 
 export function publicOperationalPoiView(poi, nowMs = Date.now()) {

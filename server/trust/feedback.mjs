@@ -14,7 +14,16 @@ import { readRecentJsonlRows, collectMatchingRows, readMatchingJsonLines } from 
 import { ROUTEBOOK_HISTORY_PROJECTION } from '../storage/projections.mjs';
 import { clampNumber, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
-import { calculateRouteTrustScore, normalizeStopEvidence, normalizeStopFacts, normalizeImportedSources } from '../routebooks/normalize.mjs';
+import {
+  displayableProcessLogs,
+  normalizeStopEvidence,
+  normalizeStopFacts,
+  normalizeImportedSources,
+  systemMetrics,
+  systemValidations
+} from '../routebooks/normalize.mjs';
+import { routebookEvidence } from './provenance.mjs';
+import { TRUST_SCORE_EXPLANATION } from '../../src/lib/trustSignals.js';
 import {
   checkinEventTime,
   checkinStopKey,
@@ -26,7 +35,7 @@ import {
   poiCheckinKey
 } from './checkins.mjs';
 import { routebookCopyCount } from '../routebooks/copies.mjs';
-import { listPoiKnowledge } from '../poi/knowledge.mjs';
+import { isHoursOrClosureCorrection, listPoiKnowledge } from '../poi/knowledge.mjs';
 import { resolvePoiId, normalizePoiName } from '../poi/catalog.mjs';
 import { applyCheckinOpsOverlay, buildOpsAuditContext } from '../ops/audit.mjs';
 import { applyImportSourceOpsToRoutebook } from '../ops/sources.mjs';
@@ -195,8 +204,11 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     approvedCorrectionCount,
     sampleCount: verifiedArrivalCheckins.length
   });
-  const aiPredictionScore = clampNumber(routebook?.trustScore, 45, 96, calculateRouteTrustScore(routebook?.stops ?? []));
-  const trustBlend = blendRouteTrustScore(aiPredictionScore, feedbackScore, verifiedProfileCount);
+  // Evidence score from verifiable stop signals (recomputed on read: reviewed
+  // facts expire). The stored routebook.trustScore and any model self-score are ignored.
+  const evidence = routebookEvidence(routebook);
+  const evidenceScore = evidence.score ?? 0;
+  const trustBlend = blendRouteTrustScore(evidenceScore, feedbackScore, verifiedProfileCount);
   const poiTrust = buildPoiTrustByStop(routebook, globalPoiCheckins, approvedHourCorrections);
   return {
     checkinCount: matchedCheckins.length,
@@ -234,7 +246,10 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
     lowConfidenceArrivalCount,
     latestFeedbackAt: latestVerifiedAt,
     feedbackScore,
-    aiPredictionScore,
+    evidenceScore,
+    evidenceBreakdown: evidence.breakdown,
+    // Kept for older clients; now equals evidenceScore (no model self-assessment).
+    aiPredictionScore: evidenceScore,
     blendedTrustScore: trustBlend.score,
     aiWeight: trustBlend.aiWeight,
     feedbackWeight: trustBlend.feedbackWeight,
@@ -259,15 +274,29 @@ export async function enrichRoutebook(routebook, feedbackContext = null) {
     ...variant,
     stops: enrichStopsWithEvidence(routebook, variant.stops ?? [], poiKnowledge, feedbackSummary)
   }));
-  const dynamicTrustScore = feedbackSummary.blendedTrustScore ?? routebook.trustScore ?? 78;
+  const dynamicTrustScore = feedbackSummary.blendedTrustScore ?? 0;
+  const { stops: evidenceStops } = routebookEvidence({ ...routebook, stops });
   return {
     ...routebook,
-    stops,
-    variants,
+    stops: evidenceStops,
+    variants: variants.map((variant) => ({
+      ...variant,
+      stops: routebookEvidence({ city: routebook.city, stops: variant.stops }).stops,
+      validations: systemValidations(variant.validations),
+      metrics: systemMetrics(variant.metrics)
+    })),
+    // Older routebooks stored model-written checks, metrics and "logs"; only
+    // server-computed rows and signed server process logs are returned.
+    validations: systemValidations(routebook.validations),
+    logs: displayableProcessLogs(routebook),
+    logsProof: undefined,
     copyCount: feedbackSummary.copyCount,
     trustScore: dynamicTrustScore,
     trustMeta: {
-      predictionScore: feedbackSummary.aiPredictionScore,
+      predictionScore: feedbackSummary.evidenceScore,
+      evidenceScore: feedbackSummary.evidenceScore,
+      evidenceBreakdown: feedbackSummary.evidenceBreakdown,
+      explanation: TRUST_SCORE_EXPLANATION,
       feedbackScore: feedbackSummary.feedbackScore,
       score: dynamicTrustScore,
       displayScore: feedbackSummary.displayTrustScore,
@@ -281,7 +310,7 @@ export async function enrichRoutebook(routebook, feedbackContext = null) {
       latestVerifiedAt: feedbackSummary.latestFeedbackAt
     },
     feedbackSummary,
-    metrics: mergeFeedbackMetrics(routebook.metrics ?? [], feedbackSummary)
+    metrics: mergeFeedbackMetrics(systemMetrics(routebook.metrics), feedbackSummary)
   };
 }
 
@@ -312,12 +341,6 @@ function calculateFeedbackTrustScore(summary) {
       60
     )
   );
-}
-
-// rank20②：营业时间/关闭类字段的已审核纠错，用于 POI 降权标记。
-function isHoursOrClosureCorrection(correction) {
-  const field = String(correction?.field ?? '');
-  return /营业|开放|闭馆|闭园|闭店|关闭|停业|歇业|休息|暂停/.test(field);
 }
 
 const TIME_OF_DAY_FORMATTER = new Intl.DateTimeFormat('en-GB', {
@@ -417,15 +440,15 @@ function trustProgressLabel(feedbackSummary) {
     return attested ? '真实打卡验证可信分' : '独立身份打卡验证可信分';
   }
   const samples = clampNumber(feedbackSummary.verifiedProfileCount, 0, 1000000, 0);
-  return samples ? `预测可信度 · 已收集 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证` : '预测可信度 · 待首份真实打卡';
+  return samples ? `资料核验 · 已收集 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证` : '资料核验 · 待首份真实打卡';
 }
 
-function blendRouteTrustScore(aiPredictionScore, feedbackScore, sampleCount) {
+function blendRouteTrustScore(evidenceScore, feedbackScore, sampleCount) {
   const samples = clampNumber(sampleCount, 0, 100000, 0);
   const coverage = Math.min(1, samples / Math.max(1, TRUST_FEEDBACK_SAMPLE_TARGET));
   const feedbackWeight = Math.round(coverage * 0.75 * 100) / 100;
   const aiWeight = Math.round((1 - feedbackWeight) * 100) / 100;
-  const score = Math.round(clampNumber(aiPredictionScore * aiWeight + feedbackScore * feedbackWeight, 40, 98, aiPredictionScore));
+  const score = Math.round(clampNumber(evidenceScore * aiWeight + feedbackScore * feedbackWeight, 0, 100, evidenceScore));
   return {
     score,
     displayScore: samples >= PUBLIC_TRUST_SAMPLE_THRESHOLD ? score : null,
