@@ -225,7 +225,8 @@ export default function App() {
     setRoutebookRefreshNotice('');
     const ctrl = new AbortController();
     setRouteLoadState({ loading: !fallbackBook, error: '' });
-    getRoutebookRemote(routeId, ctrl.signal)
+    // Guest drafts have no cloud profile: the stored edit token lets the owner read the private copy (incl. warnings).
+    getRoutebookRemote(routeId, ctrl.signal, { editToken: fallbackBook?.editToken })
       .then((data) => {
         if (ctrl.signal.aborted) return;
         // 不使用请求发起时的 cached：用户可能在 GET 等待期间已经保存了编辑。
@@ -634,7 +635,13 @@ function mergeRemoteRoutebook(remote, local, profileId) {
   const localId = local.publicId || local.id;
   const localOwned = local.profileId === profileId || local.creator?.id === profileId;
   const localEditToken = validEditToken(local.editToken);
-  if (remoteId !== localId || !localOwned) return remote;
+  if (remoteId !== localId) return remote;
+  if (!localOwned) {
+    // The server only verifies owner access when our edit token matched: keep the token so a guest stays the owner.
+    return remote.ownerAccessVerified === true && localEditToken && !validEditToken(remote.editToken) ? { ...remote, editToken: localEditToken } : remote;
+  }
+  // Guest drafts are stored server-side as "anonymous"; the local copy keeps this device's profile as owner.
+  if (remote.ownerAccessVerified === true && (!remote.profileId || remote.profileId === 'anonymous')) remote = { ...remote, profileId: local.profileId };
   const remoteVersion = routebookVersion(remote);
   const localVersion = routebookVersion(local);
   const localIsNewer =

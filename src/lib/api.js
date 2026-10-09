@@ -119,9 +119,16 @@ export async function saveRoutebookVariant(publicId, payload, signal) {
   return postJson(`/routebooks/${encodeURIComponent(publicId)}/variants`, body, signal, ownerHeaders(body.profileId));
 }
 
-export async function getRoutebookRemote(publicId, signal) {
+/**
+ * @param {string} publicId
+ * @param {AbortSignal} [signal]
+ * @param {{ editToken?: string }} [options] guests (no cloud profile) prove ownership with the draft's edit token
+ */
+export async function getRoutebookRemote(publicId, signal, { editToken = '' } = {}) {
   const profile = getProfile();
-  return getJson(`/routebooks/${encodeURIComponent(publicId)}`, signal, ownerHeaders(profile.id));
+  const token = String(editToken ?? '').trim();
+  const headers = { ...ownerHeaders(profile.id), ...(/^[\w-]{16,96}$/.test(token) ? { 'x-routebook-edit-token': token } : {}) };
+  return getJson(`/routebooks/${encodeURIComponent(publicId)}`, signal, headers);
 }
 
 /**
