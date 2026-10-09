@@ -446,7 +446,10 @@ async function geocodeGeneratedRoutebook(routebook, signal) {
   const stops = await mapWithConcurrency(routebook.stops, 4, async (stop) => {
     if (stop.coordinateSource === 'known-poi') return stop;
     const geocoded = await geocodePoiWithAmap(routebook.city, stop.name, signal).catch(() => null);
-    return geocoded ? { ...stop, ...geocoded } : stop;
+    if (!geocoded) return stop;
+    // The candidate choice is audit detail for the server, not a stop field clients may echo back.
+    const { geocodeChoice: _choice, ...fields } = geocoded;
+    return { ...stop, ...fields };
   });
   return {
     ...routebook,

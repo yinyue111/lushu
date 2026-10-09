@@ -10,6 +10,7 @@ import {
   CHECKIN_TRUSTED_ACCURACY_METERS
 } from '../config/index.mjs';
 import { gcj02ToWgs84 } from '../geo/coordinates.mjs';
+import { arrivalRadiusExtraMeters } from '../geo/geocodeChooser.mjs';
 import { normalizeCheckinCoordinateSystem } from './checkins.mjs';
 
 export async function findStopForCheckin(body) {
@@ -123,7 +124,10 @@ export function buildArrivalEvidence(body, targetStop) {
   // accuracy is self-reported, so it can only widen the radius up to a plausible GPS
   // error. A wildly large value now reads as a bad fix instead of buying 900m of slack.
   const reportedAccuracy = gps.accuracy || 0;
-  const threshold = Math.max(250, Math.round(Math.min(reportedAccuracy, CHECKIN_TRUSTED_ACCURACY_METERS) + 180));
+  // A coordinate resolved by name match or address (rather than an exact POI) can sit a
+  // little off the entrance, so its arrival radius widens by a small, capped amount.
+  const precisionExtra = arrivalRadiusExtraMeters(targetStop.coordinatePrecision);
+  const threshold = Math.max(250, Math.round(Math.min(reportedAccuracy, CHECKIN_TRUSTED_ACCURACY_METERS) + 180)) + precisionExtra;
   const accuracyImplausible = reportedAccuracy > CHECKIN_MAX_REPORTED_ACCURACY_METERS;
   const distanceConfidence = distance <= threshold ? 'valid' : distance <= Math.max(1000, threshold * 2) ? 'weak' : 'invalid';
   const confidence = accuracyImplausible && distanceConfidence === 'valid' ? 'weak' : distanceConfidence;
@@ -149,6 +153,7 @@ export function buildArrivalEvidence(body, targetStop) {
       : {}),
     accuracy: gps.accuracy,
     thresholdMeters: threshold,
+    ...(precisionExtra ? { coordinatePrecision: truncateString(targetStop.coordinatePrecision, 40), precisionRadiusExtraMeters: precisionExtra } : {}),
     targetStopId: truncateString(targetStop.id, 80),
     targetStopName: truncateString(targetStop.name, 80)
   };
