@@ -86,7 +86,7 @@ npm run smoke:api            # 需要真实模型密钥，会真正调用模型
 本次本地改动的保留/舍弃清单与验收边界见 [本地择取验收记录](docs/local-merge-acceptance-2026-10-09.md)。
 
 - JSONL 使用独占运行写租约，适合本地演示和单进程内测。PostgreSQL 迁移必须停写、回填、一致性核对再切换，禁止双写或数据库失败后静默回退 JSONL。见下方存储说明。
-- 用户发布操作现在是送审 `pending_review`，不直接获得公开链接。管理员公开发布要求导入来源已授权、同日道路段全部核验；道路例外须二次确认并填写至少 8 字原因，记录在版本审计中。来源授权不可用道路例外绕过。
+- 接口契约变化（自 4ded5b3 起，详见 [CHANGELOG](CHANGELOG.md)）：用户发布操作现在是送审 `pending_review`，不直接获得公开链接；车主读取接口不再返回 `editToken`（改为 `ownerAccessVerified`）；同日道路段未全部核验的路书不能直接公开发布。管理员公开发布要求导入来源已授权、同日道路段全部核验；道路例外须二次确认并填写至少 8 字原因，记录在版本审计中。来源授权不可用道路例外绕过。
 - 旧路书中没有服务器签名的道路结果不自动视为真实核验。配置 `AMAP_ROUTING_KEY` 后在运营台重新核验；未配置时仍可编辑和送审，不会伪造距离、耗时或道路几何。
 - 未配置高德地理编码密钥时，低置信度模型坐标会保持模糊状态，不用于精确导航。
 - 地图底图通过同源代理 `/api/map-tiles` 加载，按 `MAP_TILE_PROVIDERS` 顺序回退，并自动识别以 HTTP 200 返回的占位图（如 CARTO 的 “API KEY REQUIRED”）。不配置任何密钥时使用 OpenStreetMap 镜像（仅适合开发和演示）；生产环境请配置 `TIANDITU_KEY`（天地图服务端密钥，WGS-84 坐标，与路书坐标一致），或使用高德（`MAP_TILE_PROVIDERS=amap`，可选 `AMAP_TILE_KEY`，GCJ-02，前端会自动偏移标记，商用需高德授权）。当前底图信息见 `GET /api/map-tiles/config`。
@@ -110,7 +110,11 @@ npm run postgres:backfill -- --data-dir ./data --apply
 npm run postgres:parity -- --data-dir ./data --mark-ready
 ```
 
-核对成功后才将 `.env` 的 `STORAGE_BACKEND` 改为 `postgres` 并启动。`server/migrations` 是运行时 schema（当前 v5）；原 `migrations/` 是早期关系型设计，不能用它代替运行时迁移。照片仍位于 `ROUTEBOOK_DATA_DIR/photos`，多实例必须共享该目录，并单独纳入备份。
+核对成功后才将 `.env` 的 `STORAGE_BACKEND` 改为 `postgres` 并启动。
+
+**哪套 schema 是权威的**：`server/migrations/`（`event_rows` 事件表，当前 schema v6）是唯一的运行时 schema，由 `npm run postgres:migrate` 和服务启动时的检查使用。仓库根目录的 `migrations/0001_content_routebook_foundation.sql` 是早期的关系型设计稿，只被 `npm run test:postgres-schema` 用来回归该设计，**不要**把它应用到生产库，也不能用它代替运行时迁移。
+
+迁移 `0006_event_row_entity_keys` 为 `event_rows` 增加 `entity_key` 列和 `(stream, entity_key, ordinal desc)` 部分索引，按实体取最新一行改为索引 `LIMIT 1` 查询（含 profile 的 `registrationCredentialHash` 表达式索引）。该迁移是加列，不需要停服重建：旧行的 `entity_key` 为 `NULL`，查询会把这些行在内存中一起比对，结果与全表扫描一致；服务启动时会分批回填（运行账号需要对 `event_rows.entity_key` 的 `UPDATE` 权限，没有权限时只打印告警，功能不受影响，只是旧行仍走慢路径）。照片仍位于 `ROUTEBOOK_DATA_DIR/photos`，多实例必须共享该目录，并单独纳入备份。
 
 配置强随机 `BACKUP_ENCRYPTION_KEY`（至少 16 UTF-8 字节，密钥与备份分开保管）后，可在服务停止时备份 JSONL 数据目录；数据库部署应先导出一致性快照到独立目录，并连同已停止写入的照片目录备份：
 
