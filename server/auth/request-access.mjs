@@ -126,6 +126,21 @@ export function verifyApiAccess(req) {
   }
 }
 
+/**
+ * Whether this caller could actually use the model endpoints right now.
+ * - open: local bypass, or the public proxy is enabled and the access code matches
+ * - needs-access-code: the public proxy is enabled but no/invalid access code was sent
+ * - disabled: remote callers cannot generate on this deployment at all
+ * @param {import('node:http').IncomingMessage} req
+ * @returns {'open' | 'needs-access-code' | 'disabled'}
+ */
+export function apiAccessState(req) {
+  if (isLocalRequest(req) && ALLOW_LOCAL_API_BYPASS) return 'open';
+  if (!PUBLIC_MODEL_PROXY_ALLOWED || !API_TOKEN) return 'disabled';
+  const providedToken = String(req.headers['x-routebook-token'] ?? '').trim();
+  return safeTokenEqual(providedToken, API_TOKEN) ? 'open' : 'needs-access-code';
+}
+
 export function verifyAdminAccess(req) {
   if (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) return;
 

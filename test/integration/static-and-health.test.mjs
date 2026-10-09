@@ -4,7 +4,7 @@ import { request } from 'node:http';
 import { join } from 'node:path';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { after, before, test } from 'node:test';
-import { adminHeaders, fetchJson, startServer } from '../helpers/server.mjs';
+import { API_TOKEN, adminHeaders, fetchJson, startServer } from '../helpers/server.mjs';
 
 const DIST = join(process.cwd(), 'dist');
 const hasDist = existsSync(join(DIST, 'index.html'));
@@ -30,9 +30,10 @@ after(async () => {
 });
 
 test('L5: production /api/health hides provider details from anonymous callers', async () => {
-  const anonymous = await fetchJson(`${server.baseUrl}/api/health`);
+  const anonymous = await fetchJson(`${server.baseUrl}/api/health`, { headers: { 'x-routebook-token': API_TOKEN } });
   assert.equal(anonymous.status, 200);
   assert.equal(anonymous.data.ready, true);
+  assert.equal(anonymous.data.access, 'open');
   for (const key of ['provider', 'model', 'wireApi', 'baseUrl', 'geocoder']) assert.equal(anonymous.data[key], undefined, key);
   const admin = await fetchJson(`${server.baseUrl}/api/health`, { headers: adminHeaders() });
   assert.equal(admin.data.model, 'test-fake-model');
@@ -94,4 +95,24 @@ test('map tiles: /api/map-tiles/config describes the basemap without keys; bad p
   assert.equal(labels.status, 404);
   const bad = await rawGet(server.baseUrl, '/api/map-tiles/30/1/2.png');
   assert.equal(bad.status, 400);
+});
+
+test('/api/health "ready" reflects whether this caller can generate (access code), not just the model', async (t) => {
+  const noCode = await fetchJson(`${server.baseUrl}/api/health`);
+  assert.equal(noCode.data.ready, false, 'production without the access code is not ready');
+  assert.equal(noCode.data.modelReady, true);
+  assert.equal(noCode.data.access, 'needs-access-code');
+  assert.match(noCode.data.reason, /访问码/);
+  const wrongCode = await fetchJson(`${server.baseUrl}/api/health`, { headers: { 'x-routebook-token': 'wrong' } });
+  assert.equal(wrongCode.data.access, 'needs-access-code');
+  const closed = await startServer({ env: { ALLOW_PUBLIC_MODEL_PROXY: 'false' } });
+  t.after(closed.stop);
+  const disabled = await fetchJson(`${closed.baseUrl}/api/health`, { headers: { 'x-routebook-token': API_TOKEN } });
+  assert.equal(disabled.data.ready, false);
+  assert.equal(disabled.data.access, 'disabled');
+  const local = await startServer({ env: { ALLOW_LOCAL_API_BYPASS: 'true' } });
+  t.after(local.stop);
+  const bypass = await fetchJson(`${local.baseUrl}/api/health`);
+  assert.equal(bypass.data.ready, true);
+  assert.equal(bypass.data.access, 'open');
 });

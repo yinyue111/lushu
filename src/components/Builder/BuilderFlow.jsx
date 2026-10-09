@@ -13,6 +13,7 @@ import { trustedCities } from '../../lib/content';
 import { createRouteEditToken, getProfile, profileRoutebookFields, updateProfile } from '../../lib/profile';
 import { adoptServerProfile } from '../../lib/profileSync';
 import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
 import { GenerationProgress } from './GenerationProgress';
@@ -384,6 +385,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     failGeneration(job.error ?? {});
   }
 
+  function refreshModelHealth() {
+    checkHealth()
+      .then((health) => {
+        if (mountedRef.current) onModelHealth?.(health);
+      })
+      .catch(() => {});
+  }
+
   function failGeneration(e) {
     setLoading(false);
     setGenerationOutcome('failed');
@@ -639,6 +648,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     });
   }
 
+  const needsAccessCode = modelHealth?.access === 'needs-access-code' && modelHealth?.modelReady !== false;
   const nextDisabled = draftResolution === 'pending' || !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
 
   return (
@@ -647,8 +657,15 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
         </Button>
-        <details className="group relative text-sm">
-          <summary className="cursor-pointer list-none rounded-full px-3 py-1.5 font-semibold text-muted hover:bg-canvas">高级设置</summary>
+        <details className="group relative text-sm" open={needsAccessCode || undefined}>
+          <summary
+            className={cn(
+              'cursor-pointer list-none rounded-full px-3 py-1.5 font-semibold hover:bg-canvas',
+              needsAccessCode ? 'bg-lemon-soft text-lemon-ink' : 'text-muted'
+            )}
+          >
+            高级设置{needsAccessCode ? ' · 需要访问码' : ''}
+          </summary>
           <div className="absolute right-0 z-20 mt-2 w-72 rounded-card border border-line bg-white p-4 shadow-pop">
             <Field label="平台访问码" hint="远程部署启用模型代理时填写">
               <input
@@ -657,10 +674,20 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 type="password"
                 value={apiTokenInput}
                 onChange={(event) => setApiTokenInput(event.target.value)}
-                onBlur={() => setApiToken(apiTokenInput)}
+                onBlur={() => {
+                  setApiToken(apiTokenInput);
+                  refreshModelHealth();
+                }}
                 placeholder="本地使用可留空"
+                aria-invalid={needsAccessCode || undefined}
+                aria-describedby={needsAccessCode ? 'builder-api-token-hint' : undefined}
               />
             </Field>
+            {needsAccessCode && (
+              <p id="builder-api-token-hint" className="mt-2 text-xs font-semibold text-lemon-ink">
+                这个部署需要平台访问码才能生成。填写后离开输入框会自动重新检查。
+              </p>
+            )}
           </div>
         </details>
       </div>
@@ -754,7 +781,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {step === 2 && !modelHealth?.ready && (
         <Notice role="alert" className="mt-6">
-          模型暂未就绪：{modelHealth?.reason || '请确认模型服务的 base URL 和 API key 可用'}。表单内容会保留，模型恢复后可以直接生成。
+          {needsAccessCode
+            ? '需要平台访问码：请在右上角「高级设置」填写访问码。表单内容会保留，填写后即可生成。'
+            : `模型暂未就绪：${modelHealth?.reason || '请确认模型服务的 base URL 和 API key 可用'}。表单内容会保留，模型恢复后可以直接生成。`}
         </Notice>
       )}
 

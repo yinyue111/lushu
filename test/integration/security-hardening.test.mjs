@@ -112,7 +112,8 @@ test('H6: production ignores ~/.codex unless AI_RUNTIME_FROM_CODEX=true and expl
   const optedIn = await startServer({ env: { ...env, AI_RUNTIME_FROM_CODEX: 'true' } });
   try {
     const health = await fetchJson(`${optedIn.baseUrl}/api/health`, { headers: adminHeaders() });
-    assert.equal(health.data.ready, true, JSON.stringify(health.data));
+    // `ready` also requires the caller's API access code; this checks model readiness only.
+    assert.equal(health.data.modelReady, true, JSON.stringify(health.data));
   } finally {
     await optedIn.stop();
   }

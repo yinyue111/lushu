@@ -2,6 +2,7 @@ import { Compass, Link2, MapPin, UserRound } from 'lucide-react';
 import { useMemo } from 'react';
 import { getProfile } from '../../lib/profile';
 import { cn } from '../ui/cn';
+import { modelStatusLabel } from '../../lib/modelStatus';
 
 const navItems = [
   { id: 'home', label: '发现', icon: Compass },
@@ -10,6 +11,7 @@ const navItems = [
 ];
 
 export default function TopNav({ view, onNavigate, modelHealth, hidden = false }) {
+  const modelStatus = modelStatusLabel(modelHealth);
   const profile = useMemo(() => getProfile(), []);
   if (hidden) return null;
   const name = String(profile?.creatorName || '').trim();
@@ -51,9 +53,15 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex">
-            <span className={cn('size-2 rounded-full', modelHealth?.ready ? 'bg-success' : 'bg-line-strong')} aria-hidden="true" />
-            {modelHealth?.ready ? 'AI 已就绪' : 'AI 暂不可用'}
+          <span
+            className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex"
+            title={modelHealth?.ready ? undefined : modelHealth?.reason || undefined}
+          >
+            <span
+              className={cn('size-2 rounded-full', modelStatus.tone === 'ok' ? 'bg-success' : modelStatus.tone === 'warn' ? 'bg-lemon' : 'bg-line-strong')}
+              aria-hidden="true"
+            />
+            {modelStatus.label}
           </span>
           <button type="button" onClick={() => onNavigate('my')} className="flex items-center gap-2.5 text-copy font-semibold" aria-label="我的">
             <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-copy font-extrabold text-ink shadow-card">

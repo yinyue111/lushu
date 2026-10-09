@@ -44,7 +44,8 @@ async function waitForHealth(baseUrl, timeoutMs = 30000) {
   let lastError = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      const result = await fetchJson(`${baseUrl}/api/health`);
+      // `ready` also requires the caller's API access code in production.
+      const result = await fetchJson(`${baseUrl}/api/health`, { headers: { 'x-routebook-token': PUBLIC_TOKEN } });
       if (result.response.ok && result.data.appId === APP_ID && result.data.ready) return;
       lastError = new Error(`health response: ${JSON.stringify(result.data)}`);
     } catch (error) {
