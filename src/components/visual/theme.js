@@ -119,8 +119,10 @@ const CATEGORIES = [
 const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0' };
 
 export function stopCategory(stop) {
-  const text = `${stop?.name ?? ''} ${stop?.area ?? ''}`;
-  return CATEGORIES.find((item) => item.test.test(text)) ?? CATEGORIES.find((item) => item.test.test(`${stop?.verify ?? ''}`)) ?? FALLBACK_CATEGORY;
+  // The stop's own name decides first: district names (锦江区, 西湖区) must not turn a
+  // shopping street into a 「湖河」 scene. Area and notes are only fallbacks.
+  const match = (text) => CATEGORIES.find((item) => item.test.test(String(text ?? '')));
+  return match(stop?.name) ?? match(stop?.area) ?? match(stop?.verify) ?? FALLBACK_CATEGORY;
 }
 
 /** A real photo for the stop, only when the data actually carries one. */

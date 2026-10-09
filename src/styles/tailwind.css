@@ -34,6 +34,14 @@
   --color-success-ink: #157a51;
   --color-success-soft: #e4f6ee;
   --color-danger: #b42318;
+  /* Semantic roles (polish pass): reminders are amber, explanations blue-grey;
+     red stays reserved for the brand / actions / real errors. */
+  --color-warn: #c98a12;
+  --color-warn-ink: #6f4e05;
+  --color-warn-soft: #fbf5e6;
+  --color-info: #5b6b82;
+  --color-info-ink: #34445a;
+  --color-info-soft: #eef2f6;
 
   /* Type scale (B). Font-size only: line-height stays inherited or set via leading-*,
      matching the previous arbitrary text-[Npx] values exactly. */
@@ -57,7 +65,7 @@
   --radius-card: 20px;
   --radius-panel: 28px;
 
-  --shadow-card: 0 2px 8px rgba(22, 24, 29, 0.06);
+  --shadow-card: 0 1px 2px rgba(22, 24, 29, 0.04), 0 4px 14px rgba(22, 24, 29, 0.05);
   --shadow-pop: 0 12px 32px rgba(22, 24, 29, 0.14), 0 2px 8px rgba(22, 24, 29, 0.06);
   --shadow-cta: 0 10px 24px rgba(232, 85, 61, 0.42);
 

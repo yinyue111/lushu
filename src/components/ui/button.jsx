@@ -8,7 +8,8 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-primary-strong text-white shadow-cta hover:-translate-y-0.5 hover:bg-[#a83623]',
+        primary:
+          'bg-primary-strong text-white shadow-cta hover:-translate-y-0.5 hover:bg-[#a83623] disabled:bg-line-strong disabled:text-ink-2 disabled:opacity-100 disabled:shadow-none',
         dark: 'bg-ink text-white shadow-pop hover:-translate-y-0.5',
         light: 'bg-white/95 text-ink shadow-card hover:-translate-y-0.5',
         soft: 'bg-canvas text-ink hover:bg-line',
@@ -18,11 +19,11 @@ export const buttonVariants = cva(
         danger: 'bg-white text-danger border border-danger/30 hover:bg-primary-soft'
       },
       size: {
-        sm: 'h-9 rounded-chip px-3.5 text-sm [&_svg]:size-4',
+        sm: "relative h-9 rounded-chip px-3.5 text-sm after:absolute after:-inset-1 after:content-[''] [&_svg]:size-4",
         md: 'h-11 rounded-chip px-5 text-copy [&_svg]:size-[18px]',
         lg: 'h-14 rounded-chip px-6 text-lg [&_svg]:size-[22px]',
         icon: 'size-11 rounded-full [&_svg]:size-5',
-        'icon-sm': 'size-9 rounded-full [&_svg]:size-4'
+        'icon-sm': "relative size-9 rounded-full after:absolute after:-inset-1 after:content-[''] [&_svg]:size-4"
       }
     },
     defaultVariants: { variant: 'soft', size: 'md' }
