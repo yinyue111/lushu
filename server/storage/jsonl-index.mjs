@@ -10,6 +10,7 @@
 import { open, stat } from 'node:fs/promises';
 import { usesPostgresStorage, getPostgresStorage } from './runtime.mjs';
 import { eventStreamNameForPath } from './contract.mjs';
+import { entityKeyFunctionForStream } from './entityKeys.mjs';
 
 const NEWLINE = 0x0a;
 const CHUNK_BYTES = 1024 * 1024;
@@ -118,7 +119,13 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
      */
     async get(key) {
       if (!key) return null;
-      if (usesPostgresStorage()) return getPostgresStorage().findLatestJsonLine(eventStreamNameForPath(filePath), (row) => keyFn(row) === String(key));
+      if (usesPostgresStorage()) {
+        const stream = eventStreamNameForPath(filePath);
+        const storage = getPostgresStorage();
+        // Index-backed when this index uses the stream's canonical entity key.
+        if (keyFn === entityKeyFunctionForStream(stream)) return storage.findLatestByEntityKey(stream, String(key));
+        return storage.findLatestJsonLine(stream, (row) => keyFn(row) === String(key));
+      }
       for (let attempt = 0; attempt < 3; attempt += 1) {
         if (!(await ensureSynced())) return null;
         const snapshot = state;

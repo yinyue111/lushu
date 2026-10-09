@@ -12,6 +12,7 @@ import { createPostgresPool, redactPostgresError } from '../server/storage/postg
 import { jsonSha256 } from '../server/storage/jsonCanonical.mjs';
 import { hashRoutebookEditToken } from '../server/storage/routebookCredentials.mjs';
 import { buildStorageSnapshot, compareStorageSnapshots } from '../server/storage/snapshot.mjs';
+import { encodeEntityKey, publicIdEntityKey } from '../server/storage/entityKeys.mjs';
 
 const databaseName = `trusted_routebook_store_${process.pid}_${Date.now().toString(36)}`;
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'trusted-routebook-postgres-'));
@@ -74,10 +75,13 @@ try {
     '0002_routebook_version_cas.sql',
     '0003_profile_secret_fingerprint.sql',
     '0004_ops_audits_stream.sql',
-    '0005_trip_sessions_identity_nonces.sql'
+    '0005_trip_sessions_identity_nonces.sql',
+    '0006_event_row_entity_keys.sql'
   ]);
   assert.deepEqual(firstMigration.skipped, ['0001_event_rows.sql']);
-  assert.equal(secondMigration.skipped.length, 5);
+  assert.equal(secondMigration.skipped.length, 6);
+  const legacyKeyState = await pool.query(`select count(*)::int as pending from trusted_routebook.event_rows where entity_key is null`);
+  assert.equal(legacyKeyState.rows[0].pending, historicalCredentialRows.length, 'rows written before 0006 keep NULL entity keys until backfilled');
 
   const migratedCredentialRows = await pool.query(
     `
@@ -156,7 +160,7 @@ try {
   assert.equal(cutover.markedReady, true);
   const readiness = await adapter.checkReadiness();
   assert.equal(readiness.ready, true);
-  assert.equal(readiness.schemaVersion, 5);
+  assert.equal(readiness.schemaVersion, 6);
   const wrongSecretAdapter = createPostgresAdapter({
     pool,
     profileIdSecret: 'postgres-storage-regression-wrong-secret'
@@ -436,6 +440,102 @@ try {
     where singleton_id = 1
   `);
 
+  // --- Migration 0006: entity keys -------------------------------------------
+  // Snapshot backfill and runtime appends compute entity_key in JS.
+  const unkeyedAfterBackfill = await pool.query(`select count(*)::int as pending from trusted_routebook.event_rows where entity_key is null`);
+  assert.equal(unkeyedAfterBackfill.rows[0].pending, 0, 'snapshot backfill and appends must store entity keys');
+  const keyedRoutebook = await pool.query(
+    `select entity_key from trusted_routebook.event_rows where stream = 'routebooks' and payload->>'id' = $1 order by ordinal desc limit 1`,
+    [routebookId]
+  );
+  assert.equal(keyedRoutebook.rows[0].entity_key, routebookId);
+
+  // Simulate rows written by a binary that predates 0006 (entity_key NULL):
+  // lookups must still see them before the backfill runs.
+  const legacyAppend = async (stream, payload) => {
+    await pool.query(
+      `insert into trusted_routebook.event_rows (stream, ordinal, payload, payload_sha256)
+       select $1, coalesce(max(ordinal), 0) + 1, $2::jsonb, $3 from trusted_routebook.event_rows where stream = $1`,
+      [stream, JSON.stringify(payload), jsonSha256(payload)]
+    );
+  };
+  const legacyRoutebookId = 'entity-key-legacy-routebook';
+  await adapter.appendJsonLine('routebooks', { id: legacyRoutebookId, publicId: legacyRoutebookId, title: '键控前写入 v1', publishStatus: 'draft' });
+  await legacyAppend('routebooks', { id: legacyRoutebookId, publicId: legacyRoutebookId, title: '旧二进制写入 v2', publishStatus: 'draft' });
+  await legacyAppend('profiles', { id: 'p_entity_key_legacy', registrationCredentialHash: 'legacy-registration-hash' });
+  assert.equal((await adapter.findLatestByEntityKey('routebooks', legacyRoutebookId)).title, '旧二进制写入 v2', 'NULL-key rows are evaluated in JS');
+  assert.equal((await adapter.findLatestByEntityKey('profiles', 'p_entity_key_legacy')).registrationCredentialHash, 'legacy-registration-hash');
+  assert.equal(await adapter.findLatestByEntityKey('routebooks', 'entity-key-missing'), null);
+  const fullScanReference = async () =>
+    adapter.readLatestUniqueJsonLines(
+      'routebooks',
+      (row) => publicIdEntityKey(row),
+      1000,
+      50000,
+      (row) => row.publishStatus !== 'archived'
+    );
+  const keyedListBeforeBackfill = await adapter.readLatestUniqueJsonLines(
+    'routebooks',
+    publicIdEntityKey,
+    1000,
+    50000,
+    (row) => row.publishStatus !== 'archived'
+  );
+  assert.deepEqual(keyedListBeforeBackfill, await fullScanReference(), 'pending keys fall back to the exact full scan');
+
+  const entityKeyBackfill = await adapter.backfillEntityKeys({ batchSize: 2 });
+  assert.equal(entityKeyBackfill.updated, 2);
+  assert.equal((await adapter.backfillEntityKeys()).updated, 0, 'backfill is idempotent');
+  assert.equal((await adapter.findLatestByEntityKey('routebooks', legacyRoutebookId)).title, '旧二进制写入 v2');
+  // Latest-per-key wins even when the predicate rejects it (same as JSONL H4).
+  await adapter.appendJsonLine('routebooks', { id: legacyRoutebookId, publicId: legacyRoutebookId, title: '已归档 v3', publishStatus: 'archived' });
+  const keyedList = await adapter.readLatestUniqueJsonLines('routebooks', publicIdEntityKey, 1000, 50000, (row) => row.publishStatus !== 'archived');
+  assert.deepEqual(keyedList, await fullScanReference(), 'index-backed latest-unique list equals the full scan');
+  assert.equal(
+    keyedList.some((row) => publicIdEntityKey(row) === legacyRoutebookId),
+    false,
+    'an archived latest snapshot must hide older versions'
+  );
+  assert.deepEqual(
+    (await adapter.readLatestUniqueJsonLines('routebooks', publicIdEntityKey, 1)).map(publicIdEntityKey),
+    [legacyRoutebookId],
+    'limit applies after per-key de-duplication, newest first'
+  );
+
+  // Secondary key: registration credential hash (latest row wins).
+  await adapter.appendJsonLine('profiles', { id: 'p_entity_key_registered', registrationCredentialHash: 'registration-hash-a', revision: 1 });
+  await adapter.appendJsonLine('profiles', { id: 'p_entity_key_registered', registrationCredentialHash: 'registration-hash-a', revision: 2 });
+  assert.equal((await adapter.findLatestBySecondaryKey('profiles', 'registrationCredentialHash', 'registration-hash-a')).revision, 2);
+  assert.equal((await adapter.findLatestBySecondaryKey('profiles', 'registrationCredentialHash', 'legacy-registration-hash')).id, 'p_entity_key_legacy');
+  assert.equal(await adapter.findLatestBySecondaryKey('profiles', 'registrationCredentialHash', 'unknown-hash'), null);
+  await assert.rejects(() => adapter.findLatestBySecondaryKey('profiles', 'payload', 'x'), { code: 'SECONDARY_KEY_UNSUPPORTED' });
+
+  // Over-long keys are stored hashed and still resolve exactly.
+  const longNonceKey = `nonce:${'x'.repeat(400)}`;
+  await adapter.appendJsonLine('identity-nonces', { key: longNonceKey, consumedAt: 'now' });
+  assert.equal((await adapter.findLatestByEntityKey('identity-nonces', longNonceKey)).key, longNonceKey);
+  const longKeyRow = await pool.query(`select entity_key from trusted_routebook.event_rows where stream = 'identity-nonces' order by ordinal desc limit 1`);
+  assert.equal(longKeyRow.rows[0].entity_key, encodeEntityKey(longNonceKey));
+  assert.match(longKeyRow.rows[0].entity_key, /^sha256:[0-9a-f]{64}$/);
+
+  // The planner can serve keyed lookups from the new indexes.
+  const planClient = await pool.connect();
+  try {
+    await planClient.query('set enable_seqscan = off');
+    const keyedPlan = await planClient.query(
+      `explain select payload from trusted_routebook.event_rows where stream = 'routebooks' and entity_key = $1 order by ordinal desc limit 1`,
+      [legacyRoutebookId]
+    );
+    assert.match(keyedPlan.rows.map((row) => row['QUERY PLAN']).join('\n'), /event_rows_stream_entity_key_idx/);
+    const registrationPlan = await planClient.query(
+      `explain select payload from trusted_routebook.event_rows where stream = 'profiles' and payload->>'registrationCredentialHash' = $1 order by ordinal desc limit 1`,
+      ['registration-hash-a']
+    );
+    assert.match(registrationPlan.rows.map((row) => row['QUERY PLAN']).join('\n'), /event_rows_profile_registration_hash_idx/);
+  } finally {
+    planClient.release();
+  }
+
   process.stdout.write(
     `${JSON.stringify({
       ok: true,
@@ -449,6 +549,8 @@ try {
       entityMutationPoolCapacityProtected: true,
       repeatableReadSnapshot: true,
       historicalDuplicateVersionsPreserved: true,
+      entityKeyLookups: true,
+      entityKeyLegacyRowsBackfilled: entityKeyBackfill.updated,
       exportManifestSha256: exportedSnapshot.manifestSha256
     })}\n`
   );

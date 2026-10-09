@@ -1,20 +1,16 @@
-// Latest-record-by-id lookups backed by the in-memory offset index (H5).
-import { createJsonlKeyIndex } from './jsonl-index.mjs';
+// Latest-record-by-id lookups backed by the in-memory offset index (H5) in JSONL
+// mode and by event_rows.entity_key (migration 0006) in PostgreSQL mode.
+import { entityKeyIndexFor } from './keyedLookup.mjs';
 import { sanitizePublicId } from '../lib/util.mjs';
 import { ROUTEBOOK_LOG_PATH, PROFILE_LOG_PATH, REVIEW_LOG_PATH, POI_CORRECTION_LOG_PATH } from '../config/index.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 
 // H5: id → latest-row indexes for the unbounded "latest snapshot by id" lookups.
-const routebookIndex = createJsonlKeyIndex({ filePath: ROUTEBOOK_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
-const profileIndex = createJsonlKeyIndex({
-  filePath: PROFILE_LOG_PATH,
-  keyFn: (row) => {
-    const id = normalizeProfileId(row?.id || row?.profileId);
-    return id === 'anonymous' ? '' : id;
-  }
-});
-const reviewIndex = createJsonlKeyIndex({ filePath: REVIEW_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id || row?.publicId) });
-export const poiCorrectionIndex = createJsonlKeyIndex({ filePath: POI_CORRECTION_LOG_PATH, keyFn: (row) => sanitizePublicId(row?.id) });
+// Key functions live in entityKeys.mjs so both backends agree on them.
+const routebookIndex = entityKeyIndexFor(ROUTEBOOK_LOG_PATH);
+const profileIndex = entityKeyIndexFor(PROFILE_LOG_PATH);
+const reviewIndex = entityKeyIndexFor(REVIEW_LOG_PATH);
+export const poiCorrectionIndex = entityKeyIndexFor(POI_CORRECTION_LOG_PATH);
 
 export async function getSavedRoutebook(publicId) {
   const id = sanitizePublicId(publicId);

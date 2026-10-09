@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { CHECKIN_LOG_PATH, IMPORT_LOG_PATH, OPS_AUDIT_LOG_PATH, PROFILE_ID_SECRET } from '../config/index.mjs';
-import { appendJsonLine, findLatestJsonLine, readJsonLines } from '../storage/jsonl.mjs';
+import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
+import { findLatestByEntityKey } from '../storage/keyedLookup.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { cryptoRandomId } from '../auth/tokens.mjs';
@@ -82,7 +83,7 @@ export async function createOpsAuditEvent(req, entityType, entityId, input = {})
     let state;
     if (entityType === 'checkin') {
       if (!CHECKIN_ACTIONS.has(action)) throw createHttpError('打卡处置动作不在允许范围内', 400, 'OPS_CHECKIN_ACTION_INVALID');
-      const checkin = await findLatestJsonLine(CHECKIN_LOG_PATH, (row) => sanitizePublicId(row.id) === entityId, Number.POSITIVE_INFINITY);
+      const checkin = await findLatestByEntityKey(CHECKIN_LOG_PATH, entityId);
       if (!checkin || checkin.deleted === true) throw createHttpError('打卡记录不存在', 404, 'OPS_CHECKIN_NOT_FOUND');
       const previous = context.checkinOverlays.get(entityId)?.state ?? { excluded: false, commercialIncentive: false };
       state = {

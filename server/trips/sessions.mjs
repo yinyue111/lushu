@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { MAX_ROUTEBOOK_STOPS, TRIP_SESSION_LOG_PATH } from '../config/index.mjs';
 import { createHttpError, sanitizePublicId, truncateString } from '../lib/util.mjs';
-import { appendJsonLine, findLatestJsonLine } from '../storage/jsonl.mjs';
+import { appendJsonLine } from '../storage/jsonl.mjs';
+import { findLatestByEntityKey } from '../storage/keyedLookup.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { withActiveProfileMutation } from '../auth/profile-lifecycle.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
@@ -24,7 +25,7 @@ export async function requireTripSessionRouteAccess(routeId, profileId) {
 
 export async function getTripSessionSnapshot(routeId, profileId) {
   const key = sessionKey(routeId, profileId);
-  const row = await findLatestJsonLine(TRIP_SESSION_LOG_PATH, (candidate) => candidate.sessionKey === key, Infinity);
+  const row = await findLatestByEntityKey(TRIP_SESSION_LOG_PATH, key);
   return row?.tombstone || row?.deletedAt ? null : row;
 }
 

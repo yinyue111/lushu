@@ -13,7 +13,8 @@ import {
 } from './tokens.mjs';
 import { APP_ID, PROFILE_ID_SECRET, PROFILE_LOG_PATH, PROFILE_IDENTITY_ASSERTION_SECRET, IDENTITY_NONCE_LOG_PATH } from '../config/index.mjs';
 import { createNonceStore } from './nonce-store.mjs';
-import { appendJsonLine, readJsonLines, findLatestJsonLine } from '../storage/jsonl.mjs';
+import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
+import { findLatestByEntityKey, findLatestBySecondaryKey } from '../storage/keyedLookup.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { consumeProfileRecoveryProof } from './recovery-proof.mjs';
@@ -129,7 +130,7 @@ async function consumeIdentityAssertion(input = {}) {
   const assertion = verifiedProfileIdentity(input?.identity ?? input);
   if (!assertion) return;
   await withStorageEntityLock('identity-nonce', assertion.nonceKey, async () => {
-    const persisted = await findLatestJsonLine(IDENTITY_NONCE_LOG_PATH, (row) => row.key === assertion.nonceKey, Infinity);
+    const persisted = await findLatestByEntityKey(IDENTITY_NONCE_LOG_PATH, assertion.nonceKey);
     if (persisted || !(await identityNonceStore.consume(assertion.nonceKey, assertion.expiresAt))) {
       throw createHttpError('身份断言已被使用，请重新登录获取新的断言', 409, 'IDENTITY_ASSERTION_REPLAYED');
     }
@@ -152,7 +153,7 @@ export async function buildStoredProfile(input = {}) {
   const registrationHash = registrationSecret ? hmacText(registrationSecret, `${PROFILE_ID_SECRET}:profile-registration`) : '';
   let registrationReplay = null;
   if (registrationHash && !requestedToken && !normalizedProfile.identityBound) {
-    const candidate = await findLatestJsonLine(PROFILE_LOG_PATH, (row) => row.registrationCredentialHash === registrationHash, Infinity);
+    const candidate = await findLatestBySecondaryKey(PROFILE_LOG_PATH, 'registrationCredentialHash', registrationHash);
     if (candidate) {
       registrationReplay = await getSavedProfile(candidate.id);
       normalizedProfile = { ...normalizedProfile, id: candidate.id, previousLocalId: requestedId !== candidate.id ? requestedId : '' };
@@ -251,7 +252,7 @@ export async function profileMutationKey(input = {}) {
   const secret = String(input.pendingRegistrationSecret ?? '');
   if (/^preg_[A-Za-z0-9_-]{43}$/.test(secret)) {
     const hash = hmacText(secret, `${PROFILE_ID_SECRET}:profile-registration`);
-    const candidate = await findLatestJsonLine(PROFILE_LOG_PATH, (row) => row.registrationCredentialHash === hash, Infinity);
+    const candidate = await findLatestBySecondaryKey(PROFILE_LOG_PATH, 'registrationCredentialHash', hash);
     if (candidate) return candidate.id;
   }
   return normalizeProfile(input).id || 'anonymous';

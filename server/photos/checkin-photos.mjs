@@ -14,6 +14,7 @@ import {
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { distanceMeters, isValidCoordinate, sanitizePublicId, truncateString, createHttpError } from '../lib/util.mjs';
 import { appendJsonLine, findLatestJsonLine, readLatestUniqueJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
+import { findLatestByEntityKey } from '../storage/keyedLookup.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { checkinPhotoExtension, detectImageMimeType, extractJpegExif, stripImageMetadata } from './image-metadata.mjs';
 import { requestIdHeaders, securityHeaders } from '../http/response.mjs';
@@ -166,12 +167,12 @@ async function photoHasPublicWitness(photo) {
 }
 
 export async function sendCheckinPhotoFile(req, res, photoId) {
-  const initial = await findLatestJsonLine(CHECKIN_PHOTO_LOG_PATH, (row) => row?.id === photoId, Infinity);
+  const initial = await findLatestByEntityKey(CHECKIN_PHOTO_LOG_PATH, photoId);
   if (!initial || initial.tombstone || initial.deletedAt || initial.deleted) return false;
   return withProfileMutationLock(initial.profileId, async () => {
     // Re-read metadata under the same owner lock used by deletion/upload. The
     // delete endpoint cannot finish while this authorised response is reading.
-    const photo = await findLatestJsonLine(CHECKIN_PHOTO_LOG_PATH, (row) => row?.id === photoId, Infinity);
+    const photo = await findLatestByEntityKey(CHECKIN_PHOTO_LOG_PATH, photoId);
     if (!photo || photo.tombstone || photo.deletedAt || photo.deleted || photo.profileId !== initial.profileId) return false;
     const profile = await getSavedProfile(photo.profileId);
     if (!profile || isUnavailableProfile(profile)) return false;

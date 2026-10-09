@@ -4,6 +4,7 @@ import { cryptoRandomId, normalizeProfileId } from '../auth/tokens.mjs';
 import { resolveTravelDate } from '../routebooks/normalize.mjs';
 import { CLICK_LOG_PATH, EXPOSURE_LOG_PATH } from '../config/index.mjs';
 import { appendJsonLine, findLatestJsonLine } from '../storage/jsonl.mjs';
+import { findLatestByEntityKey } from '../storage/keyedLookup.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { productExposureMatchesClick } from './productFunnel.mjs';
 
@@ -16,7 +17,7 @@ export function normalizeProductTelemetryId(value) {
 
 export async function persistProductExposure(row) {
   return withStorageEntityLock('product-exposure', row.exposureId, async () => {
-    const existing = await findLatestJsonLine(EXPOSURE_LOG_PATH, (item) => String(item?.exposureId ?? item?.id ?? '') === row.exposureId, Infinity);
+    const existing = await findLatestByEntityKey(EXPOSURE_LOG_PATH, row.exposureId);
     if (existing) {
       if (!productExposureMatchesClick(existing, row)) throw createHttpError('exposureId 已绑定到其他商品曝光上下文', 409, 'PRODUCT_EXPOSURE_CONFLICT');
       return { exposure: existing, deduplicated: true };
@@ -33,7 +34,7 @@ export async function persistProductClick(row) {
     return { click, deduplicated: false };
   }
   return withStorageEntityLock('product-exposure', row.exposureId, async () => {
-    const exposure = await findLatestJsonLine(EXPOSURE_LOG_PATH, (item) => String(item?.exposureId ?? item?.id ?? '') === row.exposureId, Infinity);
+    const exposure = await findLatestByEntityKey(EXPOSURE_LOG_PATH, row.exposureId);
     if (!exposure) throw createHttpError('商品点击缺少同会话曝光，未记录归因', 400, 'PRODUCT_EXPOSURE_REQUIRED');
     if (!productExposureMatchesClick(exposure, row)) throw createHttpError('商品点击与曝光上下文不一致，未记录归因', 400, 'PRODUCT_EXPOSURE_MISMATCH');
     const existing = await findLatestJsonLine(

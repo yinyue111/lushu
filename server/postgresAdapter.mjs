@@ -13,6 +13,7 @@ import { jsonSha256, normalizeJsonObject } from './storage/jsonCanonical.mjs';
 import { createPostgresPool, withPostgresTransaction } from './storage/postgresConnection.mjs';
 import { profileIdSecretFingerprint } from './storage/routebookCredentials.mjs';
 import { buildStorageSnapshot, compareStorageSnapshots } from './storage/snapshot.mjs';
+import { encodeEntityKey, entityKeyFunctionForStream, secondaryKeyFunction, storedEntityKey } from './storage/entityKeys.mjs';
 
 export { configDocumentNameForPath, eventStreamNameForPath, requirePostgresStorageBackend } from './storage/contract.mjs';
 
@@ -25,6 +26,8 @@ const ROUTEBOOK_ENTITY_LOCK_NAMESPACE = 1937018151;
 const ENTITY_MUTATION_LOCK_NAMESPACE = 1937018152;
 const ROUTEBOOK_VERSION_UNIQUE_INDEX = 'event_rows_routebook_entity_version_uidx';
 const INSERT_BATCH_SIZE = 500;
+const ENTITY_KEY_BACKFILL_BATCH_SIZE = 1000;
+const LATEST_UNIQUE_PAGE_SIZE = 200;
 const ENTITY_MUTATION_SEMAPHORES = new WeakMap();
 
 function entityMutationSemaphoreForPool(pool) {
@@ -77,6 +80,15 @@ export async function initializePostgresRuntime(options = {}) {
   const adapter = createPostgresAdapter(options);
   try {
     await adapter.assertReady({ refresh: true });
+    if (options.backfillEntityKeys !== false) {
+      // Lookups are correct without it (NULL keys are evaluated in JS); the
+      // backfill only restores index-backed performance for legacy rows.
+      await adapter.backfillEntityKeys().catch((error) => {
+        process.stderr.write(
+          `${JSON.stringify({ level: 'warn', event: 'postgres_entity_key_backfill_skipped', code: typeof error?.code === 'string' ? error.code : 'BACKFILL_FAILED' })}\n`
+        );
+      });
+    }
     return adapter;
   } catch (error) {
     await adapter.close().catch(() => {});
@@ -262,13 +274,13 @@ export class PostgresEventRowsAdapter {
       await lockEventStream(client, stream);
       const result = await client.query(
         `
-        insert into ${POSTGRES_SCHEMA}.event_rows (stream, ordinal, payload, payload_sha256)
-        select $1, coalesce(max(ordinal), 0) + 1, $2::jsonb, $3
+        insert into ${POSTGRES_SCHEMA}.event_rows (stream, ordinal, payload, payload_sha256, entity_key)
+        select $1, coalesce(max(ordinal), 0) + 1, $2::jsonb, $3, $4
         from ${POSTGRES_SCHEMA}.event_rows
         where stream = $1
         returning ordinal, inserted_at
       `,
-        [stream, JSON.stringify(normalized), payloadSha256]
+        [stream, JSON.stringify(normalized), payloadSha256, storedEntityKey(stream, normalized)]
       );
       return {
         stream,
@@ -309,13 +321,13 @@ export class PostgresEventRowsAdapter {
       try {
         result = await client.query(
           `
-          insert into ${POSTGRES_SCHEMA}.event_rows (stream, ordinal, payload, payload_sha256)
-          select 'routebooks', coalesce(max(ordinal), 0) + 1, $1::jsonb, $2
+          insert into ${POSTGRES_SCHEMA}.event_rows (stream, ordinal, payload, payload_sha256, entity_key)
+          select 'routebooks', coalesce(max(ordinal), 0) + 1, $1::jsonb, $2, $3
           from ${POSTGRES_SCHEMA}.event_rows
           where stream = 'routebooks'
           returning ordinal, inserted_at
         `,
-          [JSON.stringify(normalized), payloadSha256]
+          [JSON.stringify(normalized), payloadSha256, storedEntityKey('routebooks', normalized)]
         );
         await client.query('release savepoint append_versioned_routebook');
       } catch (error) {
@@ -412,6 +424,10 @@ export class PostgresEventRowsAdapter {
     const safeLimit = boundedPositiveInteger(limit, 100, 1_000_000);
     void scanLimit;
     await this.assertReady();
+    if (keyFn === entityKeyFunctionForStream(stream)) {
+      const keyed = await this.#readLatestUniqueByEntityKey(stream, safeLimit, predicate);
+      if (keyed) return keyed;
+    }
     const rows = await withRuntimeStorageRead(this.pool, this.profileSecretFingerprint, (client) => this.#readEventRows(client, stream, { order: 'newest' }));
     const latestByKey = new Map();
     const seen = new Set();
@@ -424,6 +440,109 @@ export class PostgresEventRowsAdapter {
       if (latestByKey.size >= safeLimit) break;
     }
     return [...latestByKey.values()];
+  }
+
+  /**
+   * Latest row whose stream entity key (entityKeys.mjs) equals `key`.
+   * Index probe + LIMIT 1, plus any rows whose key is not computed yet.
+   */
+  async findLatestByEntityKey(streamName, key) {
+    const stream = assertEventStreamName(streamName);
+    const keyFn = entityKeyFunctionForStream(stream);
+    if (!keyFn) throw storageContractError('ENTITY_KEY_UNSUPPORTED', `Stream ${stream} has no entity key`);
+    const rawKey = String(key ?? '');
+    if (!rawKey) return null;
+    await this.assertReady();
+    return withRuntimeStorageRead(this.pool, this.profileSecretFingerprint, async (client) => {
+      const result = await client.query(
+        `
+        (select ordinal, payload, payload_sha256
+          from ${POSTGRES_SCHEMA}.event_rows
+          where stream = $1 and entity_key = $2
+          order by ordinal desc
+          limit 1)
+        union all
+        (select ordinal, payload, payload_sha256
+          from ${POSTGRES_SCHEMA}.event_rows
+          where stream = $1 and entity_key is null)
+      `,
+        [stream, encodeEntityKey(rawKey)]
+      );
+      let best = null;
+      for (const row of result.rows) {
+        const payload = verifyStoredObject(row.payload, row.payload_sha256, `${stream} event row ${row.ordinal}`);
+        if (keyFn(payload) !== rawKey) continue;
+        const ordinal = Number(row.ordinal);
+        if (!best || ordinal > best.ordinal) best = { ordinal, payload };
+      }
+      return best?.payload ?? null;
+    });
+  }
+
+  /** Latest row in `stream` whose secondary `field` equals `value` (expression index). */
+  async findLatestBySecondaryKey(streamName, field, value) {
+    const stream = assertEventStreamName(streamName);
+    const keyFn = secondaryKeyFunction(stream, field);
+    if (!keyFn) throw storageContractError('SECONDARY_KEY_UNSUPPORTED', `Stream ${stream} has no secondary key ${field}`);
+    const expected = String(value ?? '');
+    if (!expected) return null;
+    await this.assertReady();
+    return withRuntimeStorageRead(this.pool, this.profileSecretFingerprint, async (client) => {
+      // field is whitelisted by secondaryKeyFunction; the literal is quoted.
+      const result = await client.query(
+        `
+        select ordinal, payload, payload_sha256
+        from ${POSTGRES_SCHEMA}.event_rows
+        where stream = $1 and payload->>'${field.replace(/'/g, "''")}' = $2
+        order by ordinal desc
+        limit 1
+      `,
+        [stream, expected]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      const payload = verifyStoredObject(row.payload, row.payload_sha256, `${stream} event row ${row.ordinal}`);
+      return keyFn(payload) === expected ? payload : null;
+    });
+  }
+
+  /**
+   * Computes entity_key for rows written before migration 0006 (or by an older
+   * binary). Idempotent and safe to run concurrently; requires UPDATE on
+   * event_rows (column-level `update (entity_key)` is enough).
+   */
+  async backfillEntityKeys({ batchSize = ENTITY_KEY_BACKFILL_BATCH_SIZE } = {}) {
+    await this.assertReady();
+    const size = boundedPositiveInteger(batchSize, ENTITY_KEY_BACKFILL_BATCH_SIZE, 10_000);
+    let updated = 0;
+    let afterId = 0;
+    for (;;) {
+      const pending = await this.pool.query(
+        `
+        select id, stream, payload
+        from ${POSTGRES_SCHEMA}.event_rows
+        where entity_key is null and id > $1
+        order by id
+        limit $2
+      `,
+        [afterId, size]
+      );
+      if (!pending.rowCount) break;
+      const assignments = pending.rows.map((row) => ({ id: String(row.id), entity_key: storedEntityKey(row.stream, row.payload) }));
+      const result = await this.pool.query(
+        `
+        update ${POSTGRES_SCHEMA}.event_rows as event_row
+        set entity_key = assignment.entity_key
+        from jsonb_to_recordset($1::jsonb) as assignment (id bigint, entity_key text)
+        where event_row.id = assignment.id and event_row.entity_key is null
+      `,
+        [JSON.stringify(assignments)]
+      );
+      updated += result.rowCount;
+      afterId = Number(pending.rows[pending.rows.length - 1].id);
+      if (pending.rowCount < size) break;
+    }
+    return { updated };
   }
 
   async streamFingerprint(streamName) {
@@ -723,6 +842,51 @@ export class PostgresEventRowsAdapter {
     if (this.ownsPool) await this.pool.end();
   }
 
+  /**
+   * Latest row per entity key, newest first, filtered by `predicate` on that
+   * latest row (same semantics as the JSONL reverse scan: a key is "seen" at
+   * its newest row even when the predicate rejects it). Returns null when the
+   * stream still has rows without a computed key, so the caller falls back to
+   * the exact full scan.
+   */
+  async #readLatestUniqueByEntityKey(stream, limit, predicate) {
+    return withRuntimeStorageRead(this.pool, this.profileSecretFingerprint, async (client) => {
+      const pending = await client.query(`select 1 from ${POSTGRES_SCHEMA}.event_rows where stream = $1 and entity_key is null limit 1`, [stream]);
+      if (pending.rowCount) return null;
+      const output = [];
+      let beforeOrdinal = null;
+      for (;;) {
+        const page = await client.query(
+          `
+          select latest.ordinal, latest.payload, latest.payload_sha256
+          from ${POSTGRES_SCHEMA}.event_rows as latest
+          where latest.stream = $1
+            and latest.entity_key is not null
+            and latest.entity_key <> ''
+            and ($2::bigint is null or latest.ordinal < $2::bigint)
+            and not exists (
+              select 1
+              from ${POSTGRES_SCHEMA}.event_rows as newer
+              where newer.stream = latest.stream
+                and newer.entity_key = latest.entity_key
+                and newer.ordinal > latest.ordinal
+            )
+          order by latest.ordinal desc
+          limit $3
+        `,
+          [stream, beforeOrdinal, LATEST_UNIQUE_PAGE_SIZE]
+        );
+        for (const row of page.rows) {
+          const payload = verifyStoredObject(row.payload, row.payload_sha256, `${stream} event row ${row.ordinal}`);
+          if (!predicate || predicate(payload)) output.push(payload);
+          if (output.length >= limit) return output;
+        }
+        if (page.rowCount < LATEST_UNIQUE_PAGE_SIZE) return output;
+        beforeOrdinal = page.rows[page.rows.length - 1].ordinal;
+      }
+    });
+  }
+
   async #readEventRows(queryable, stream, { order = 'newest', limit = undefined } = {}) {
     const direction = order === 'oldest' ? 'asc' : 'desc';
     const parameters = [stream];
@@ -785,7 +949,8 @@ async function insertEventRows(client, streamName, rows) {
         ordinal,
         payload: normalized,
         payload_sha256: jsonSha256(normalized),
-        routebook_version_enforced: !versionKey || lastOrdinalByVersionKey.get(versionKey) === ordinal
+        routebook_version_enforced: !versionKey || lastOrdinalByVersionKey.get(versionKey) === ordinal,
+        entity_key: storedEntityKey(stream, normalized)
       };
     });
     await client.query(
@@ -795,14 +960,16 @@ async function insertEventRows(client, streamName, rows) {
         ordinal,
         payload,
         payload_sha256,
-        routebook_version_enforced
+        routebook_version_enforced,
+        entity_key
       )
-      select $1, rows.ordinal, rows.payload, rows.payload_sha256, rows.routebook_version_enforced
+      select $1, rows.ordinal, rows.payload, rows.payload_sha256, rows.routebook_version_enforced, rows.entity_key
       from jsonb_to_recordset($2::jsonb) as rows (
         ordinal bigint,
         payload jsonb,
         payload_sha256 text,
-        routebook_version_enforced boolean
+        routebook_version_enforced boolean,
+        entity_key text
       )
       order by rows.ordinal
     `,
