@@ -267,3 +267,13 @@ test('a walk-only transit leg is labelled as a walk, not 公共交通', async ()
   assert.match(roadLegLabel({ mode: 'transit', walkingOnly: true, distanceMeters: 190, durationSeconds: 160 }), /^步行（距离近，无需乘车） 0\.2 km/);
   assert.match(roadLegLabel({ mode: 'transit', distanceMeters: 3563, durationSeconds: 1732 }), /^公共交通 3\.6 km/);
 });
+
+test('builder transport preferences map to the right per-leg routing mode', async () => {
+  const { normalizeStopTransportMode } = await import('../../server/routing/provenance.mjs');
+  assert.equal(normalizeStopTransportMode('步行 + 打车'), 'walking');
+  assert.equal(normalizeStopTransportMode('亲子少走路'), 'driving');
+  assert.equal(normalizeStopTransportMode('地铁优先'), 'transit');
+  assert.equal(normalizeStopTransportMode('打车'), 'driving');
+  assert.equal(normalizeStopTransportMode('步行'), 'walking');
+  assert.equal(normalizeStopTransportMode('少换乘'), '');
+});

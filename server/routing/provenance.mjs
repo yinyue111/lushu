@@ -11,6 +11,11 @@ export function normalizeStopTransportMode(value) {
     .trim()
     .toLowerCase();
   if (['walking', 'driving', 'transit', 'bicycling'].includes(mode)) return mode;
+  // "少走路"/"亲子少走路" asks for less walking, so it is not a walking preference.
+  if (/少走路|少步行|不想走路/.test(mode)) return 'driving';
+  // Mixed preferences such as the builder default "步行 + 打车": walking is the per-leg default and a taxi is the
+  // fallback for long hops — verifying every 200 m citywalk hop as a car route misstates the plan.
+  if (/步行|走路|walking|\bwalk\b/.test(mode) && /[+＋/、和与或]|打车|出租|地铁|公交/.test(mode)) return 'walking';
   if (/骑行|单车|自行车|bike|bicycl/.test(mode)) return 'bicycling';
   if (/自驾|驾车|开车|打车|出租|网约车|driv|taxi|\bcar\b/.test(mode)) return 'driving';
   if (/公交|地铁|公共交通|巴士|transit|metro|subway|\bbus\b/.test(mode)) return 'transit';
