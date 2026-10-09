@@ -85,6 +85,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   const days = routebook.days ?? ['Day 1'];
   const trustState = getRouteTrustBadgeState(routebook);
   const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 6);
+  // Metrics without data yet collapse into one quiet line instead of a grid of "待验证" tiles.
+  const isPendingMetric = (metric) => /^(待验证|待复核|暂无|—|-|)$/.test(String(metric.value ?? '').trim());
+  const filledMetrics = visibleMetrics.filter((metric) => !isPendingMetric(metric));
+  const pendingMetrics = visibleMetrics.filter(isPendingMetric);
 
   async function copyShareText() {
     setActionState((current) => ({ ...current, message: '', isError: false }));
@@ -248,14 +252,22 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           {visibleMetrics.length > 0 && (
             <section className="rounded-panel border border-line bg-white p-4">
               <h2 className="text-copy font-extrabold">可信依据</h2>
-              <dl className="mt-3 grid grid-cols-2 gap-2">
-                {visibleMetrics.map((metric) => (
-                  <div key={metric.label} className="rounded-tile bg-canvas p-2.5">
-                    <dt className="text-xs text-muted">{metric.label}</dt>
-                    <dd className="num text-base font-extrabold">{metric.value}</dd>
-                  </div>
-                ))}
-              </dl>
+              {filledMetrics.length > 0 && (
+                <dl className="mt-3 grid grid-cols-2 gap-2">
+                  {filledMetrics.map((metric) => (
+                    <div key={metric.label} className="rounded-tile bg-canvas p-2.5">
+                      <dt className="text-xs text-muted">{metric.label}</dt>
+                      <dd className="num text-base font-extrabold">{metric.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {pendingMetrics.length > 0 && (
+                <p className="mt-2.5 text-meta leading-relaxed text-muted">
+                  <span className="mr-1.5 inline-block size-1.5 rounded-full bg-warn align-middle" aria-hidden="true" />
+                  待验证：{pendingMetrics.map((metric) => metric.label).join('、')}（有人走过并打卡后显示）
+                </p>
+              )}
             </section>
           )}
           {(routebook.validations ?? []).length > 0 && (
@@ -264,7 +276,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               <ul className="mt-2 grid gap-2.5">
                 {(routebook.validations ?? []).slice(0, 6).map((item) => (
                   <li key={item.id} className="text-sm">
-                    <span className="mr-1.5 rounded-full bg-lemon-soft px-2 py-0.5 text-xs font-bold text-lemon-ink">{item.state}</span>
+                    <span className="mr-1.5 rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold text-warn-ink">{item.state}</span>
                     <strong className="font-bold">{item.label}</strong>
                     {item.detail && <p className="mt-0.5 text-meta text-muted">{item.detail}</p>}
                   </li>
