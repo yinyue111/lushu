@@ -93,7 +93,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
         </div>
       </section>
 
-      <main className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-10">
+      <div className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-10">
         <SectionHeading
           kicker="路线合集"
           title={`${creator.name || '达人'} 的路线`}
@@ -133,7 +133,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
             <p className="mt-2 text-sm text-muted">这位达人还没有公开路线。</p>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

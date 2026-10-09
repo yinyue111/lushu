@@ -98,7 +98,7 @@ export default function OpsPage() {
         })}
       </nav>
 
-      <main id={`ops-panel-${activeTab}`} className="ops-workspace" role="tabpanel" aria-labelledby={`ops-tab-${activeTab}`} tabIndex={0}>
+      <section id={`ops-panel-${activeTab}`} className="ops-workspace" role="tabpanel" aria-labelledby={`ops-tab-${activeTab}`} tabIndex={0}>
         {activeTab === 'overview' && <OpsOverview />}
         {activeTab === 'content' && <PoiContentPanel />}
         {activeTab === 'poi-dedup' && <PoiDedupPanel />}
@@ -110,7 +110,7 @@ export default function OpsPage() {
         {activeTab === 'versions' && <RoutebookVersionsPanel />}
         {activeTab === 'logs' && <LogsPage embedded />}
         {activeTab === 'config' && <OpsConfigPanel />}
-      </main>
+      </section>
     </div>
   );
 }

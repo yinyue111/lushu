@@ -197,7 +197,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       />
 
       <div className="mx-auto max-w-[1376px] items-start lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] lg:gap-8 lg:px-8 lg:pt-7 lg:pb-20">
-        <main className="relative z-[3] -mt-[26px] min-w-0 rounded-t-[26px] bg-white px-4 pt-[18px] pb-10 lg:mt-0 lg:rounded-none lg:p-0">
+        <div className="relative z-[3] -mt-[26px] min-w-0 rounded-t-[26px] bg-white px-4 pt-[18px] pb-10 lg:mt-0 lg:rounded-none lg:p-0">
           <RouteStats routebook={routebook} trust={trust} trustState={trustState} />
 
           {canEdit && (
@@ -242,7 +242,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <RouteProducts products={routeProducts} onClick={actions.recordProductClick} onVisible={recordProductVisible} />
 
           <TrustExplanation routebook={routebook} />
-        </main>
+        </div>
 
         {(isDesktop || mapMode) && (
           <aside className={cn(mapMode ? 'fixed inset-0 z-[1100]' : 'sticky top-[84px] h-[calc(100dvh-104px)] min-h-[520px]')} aria-label="地图">

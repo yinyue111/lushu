@@ -76,7 +76,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
         </div>
       </section>
 
-      <main className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-12">
+      <div className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-12">
         {error && (
           <p role="status" className="mb-4 rounded-tile bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink">
             服务端路线暂时读不到，先展示编辑精选。（{error}）
@@ -182,7 +182,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
             </div>
           </section>
         )}
-      </main>
+      </div>
     </div>
   );
 }

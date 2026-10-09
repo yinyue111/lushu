@@ -29,9 +29,9 @@ export default function ShareVisibility({
 
   return (
     <section aria-labelledby={headingId} className="mb-4 grid gap-2.5" data-testid="share-visibility">
-      <h4 id={headingId} className="text-base font-extrabold">
+      <h3 id={headingId} className="text-base font-extrabold">
         谁能看到这条路书
-      </h4>
+      </h3>
       {publication?.imported && (
         <p className="flex items-start gap-2 rounded-tile bg-lemon-soft px-3 py-2.5 text-sm font-semibold text-lemon-ink">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -115,7 +115,7 @@ function Option({ icon: Icon, title, active, badge = '', muted = false, children
       <div className="min-w-0 flex-1 text-sm text-ink-2">
         <p className="flex flex-wrap items-center gap-2">
           <strong className="text-copy font-extrabold text-ink">{title}</strong>
-          {active && <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-white">当前</span>}
+          {active && <span className="rounded-full bg-primary-strong px-2 py-0.5 text-xs font-bold text-white">当前</span>}
           {badge && !active && <span className="rounded-full bg-canvas px-2 py-0.5 text-xs font-bold text-ink-2">{badge}</span>}
         </p>
         <div className="mt-1">{children}</div>
