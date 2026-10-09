@@ -35,6 +35,7 @@ import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
 import { attachServerRouteLegs } from '../routing/service.mjs';
 import { estimateModelCost, normalizeModelUsage, summarizeModelUsage } from '../analytics/aiObservability.mjs';
+import { createUntrustedFence, fenceImportedSources } from './untrusted.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -270,12 +271,16 @@ export function sanitizePayload(payload) {
   };
 }
 
-function userPrompt(payload) {
+/** Builds the user message; untrusted text is fenced (see ./untrusted.mjs). */
+export function buildUserPrompt(payload, fence = createUntrustedFence()) {
   const constraints = payload.constraints ?? {};
-  return JSON.stringify(
+  const guide = fence.wrap('GUIDE', payload.guide);
+  const sources = fenceImportedSources(payload.importedSources ?? [], fence);
+  const prompt = JSON.stringify(
     {
+      untrustedContentPolicy: fence.instruction,
       city: payload.city,
-      guide: payload.guide,
+      guide: guide.text,
       constraints: {
         duration: constraints.duration ?? '2 天 1 晚',
         budget: constraints.budget || '未设置（无预算约束，不要按预算筛选）',
@@ -288,7 +293,7 @@ function userPrompt(payload) {
         mustGo: constraints.mustGo ?? '',
         avoid: constraints.avoid ?? ''
       },
-      importedSources: payload.importedSources ?? [],
+      importedSources: sources.sources,
       // rank12③：运营已审核 POI 候选（名称|坐标|开放|建议停留|适合），无候选时省略。
       ...(Array.isArray(payload.poiCandidates) && payload.poiCandidates.length ? { approvedPoiCandidates: payload.poiCandidates } : {}),
       sourcePolicy: [
@@ -303,6 +308,7 @@ function userPrompt(payload) {
     null,
     2
   );
+  return { prompt, injectionMarkersRemoved: guide.removed + sources.removed, fence };
 }
 
 function extractTextFromResponse(data) {
@@ -550,21 +556,23 @@ function isStructuredOutputUnsupported(error) {
  * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number }} [options]
  */
 async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS } = {}) {
+  const { prompt: userMessage, fence } = buildUserPrompt(payload);
+  const system = `${systemPrompt()}\n${fence.instruction}`;
   const requestBody =
     runtime.wireApi === 'chat_completions'
       ? {
           model: runtime.model,
           messages: [
-            { role: 'system', content: systemPrompt() },
-            { role: 'user', content: userPrompt(payload) }
+            { role: 'system', content: system },
+            { role: 'user', content: userMessage }
           ],
           max_tokens: maxOutputTokens
         }
       : {
           model: runtime.model,
           input: [
-            { role: 'system', content: [{ type: 'input_text', text: systemPrompt() }] },
-            { role: 'user', content: [{ type: 'input_text', text: userPrompt(payload) }] }
+            { role: 'system', content: [{ type: 'input_text', text: system }] },
+            { role: 'user', content: [{ type: 'input_text', text: userMessage }] }
           ],
           store: false,
           max_output_tokens: maxOutputTokens
