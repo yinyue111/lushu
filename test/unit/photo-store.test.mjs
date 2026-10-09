@@ -25,3 +25,23 @@ test('F09: without IndexedDB the caller falls back to inlining', async () => {
   assert.equal(await stashCheckinPhoto('local-3', DATA_URL), false);
   setPhotoBackendForTests(undefined);
 });
+
+test('F09: stashing never fetches the data URL (blocked by the production CSP connect-src)', async () => {
+  const map = new Map();
+  setPhotoBackendForTests({ put: async (id, value) => void map.set(id, value), get: async (id) => map.get(id), delete: async (id) => void map.delete(id) });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new TypeError('Refused to connect: CSP connect-src');
+  };
+  try {
+    assert.equal(await stashCheckinPhoto('local-csp', DATA_URL), true);
+    const blob = map.get('local-csp');
+    assert.ok(blob instanceof Blob);
+    assert.equal(blob.type, 'image/jpeg');
+    assert.equal(await loadCheckinPhoto('local-csp'), DATA_URL, 'bytes survive the round trip');
+    assert.equal(await stashCheckinPhoto('local-bad', 'not-a-data-url'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    setPhotoBackendForTests(undefined);
+  }
+});

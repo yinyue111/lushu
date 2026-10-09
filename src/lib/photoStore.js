@@ -59,9 +59,18 @@ export function photoStoreAvailable() {
   return Boolean(backend());
 }
 
-async function dataUrlToBlob(dataUrl) {
-  if (typeof fetch !== 'function' || typeof Blob === 'undefined') return dataUrl;
-  return (await fetch(dataUrl)).blob();
+// Decoded locally: fetch(data:) is blocked by the production CSP (connect-src has no
+// data:), which silently pushed every queued photo back into localStorage.
+function dataUrlToBlob(dataUrl) {
+  if (typeof Blob === 'undefined' || typeof atob !== 'function') return dataUrl;
+  const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(String(dataUrl));
+  if (!match) throw new Error('not a data URL');
+  const [, mimeType, base64, payload] = match;
+  if (!base64) return new Blob([decodeURIComponent(payload)], { type: mimeType || 'application/octet-stream' });
+  const binary = atob(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
 }
 
 async function blobToDataUrl(value) {
@@ -78,7 +87,7 @@ export async function stashCheckinPhoto(id, dataUrl) {
   const store = backend();
   if (!store || !id || !dataUrl) return false;
   try {
-    await store.put(String(id), await dataUrlToBlob(dataUrl));
+    await store.put(String(id), dataUrlToBlob(dataUrl));
     return true;
   } catch {
     return false;
