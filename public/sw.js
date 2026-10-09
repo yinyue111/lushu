@@ -3,9 +3,15 @@ const CACHE_PREFIX = 'trusted-routebook-pwa-';
 // 开发环境直接服务该文件时保持有效 JS，仅缓存固定 App Shell。
 const CACHE_VERSION = '__PWA_CACHE_VERSION__';
 const BUILD_PRECACHE_MANIFEST = /* __PWA_PRECACHE_MANIFEST__ */ [];
+// 其他带 hash 的构建产物（字体、被 JS 引用的图片等）：内容寻址，可永久缓存优先。
+const BUILD_HASHED_ASSETS = /* __PWA_HASHED_ASSETS__ */ [];
 const SHELL_CACHE = `${CACHE_PREFIX}shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `${CACHE_PREFIX}static-${CACHE_VERSION}`;
-const CURRENT_CACHES = new Set([SHELL_CACHE, STATIC_CACHE]);
+// public/ 下的图片文件名不带 hash，替换图片不会改变构建版本号；因此单独一个
+// 跨版本保留的缓存，用 stale-while-revalidate 保持新鲜，并按条目数封顶。
+const IMAGE_CACHE = `${CACHE_PREFIX}images-v1`;
+const IMAGE_CACHE_MAX_ENTRIES = 60;
+const CURRENT_CACHES = new Set([SHELL_CACHE, STATIC_CACHE, IMAGE_CACHE]);
 const SCOPE_URL = new URL(self.registration.scope);
 const SCOPE_PATH = SCOPE_URL.pathname.endsWith('/') ? SCOPE_URL.pathname : `${SCOPE_URL.pathname}/`;
 const APP_SHELL_URL = new URL('./', SCOPE_URL).href;
@@ -16,6 +22,9 @@ const PRECACHE_URLS = [
   new URL('icons/routebook-512.svg', SCOPE_URL).href,
   ...BUILD_PRECACHE_MANIFEST.map((entry) => new URL(entry.url, SCOPE_URL).href)
 ];
+const HASHED_BUILD_PATHS = new Set(
+  [...BUILD_PRECACHE_MANIFEST.map((entry) => entry.url), ...BUILD_HASHED_ASSETS].map((url) => new URL(url, SCOPE_URL).pathname)
+);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -50,7 +59,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(navigationResponse(request));
     return;
   }
-  if (isBuildStaticAsset(url)) event.respondWith(staticAssetResponse(request));
+  if (HASHED_BUILD_PATHS.has(url.pathname)) {
+    event.respondWith(hashedAssetResponse(request));
+    return;
+  }
+  if (isPublicStaticFile(url)) event.respondWith(staleWhileRevalidate(event, request));
 });
 
 async function navigationResponse(request) {
@@ -66,15 +79,48 @@ async function navigationResponse(request) {
   }
 }
 
-async function staticAssetResponse(request) {
+// 内容寻址的构建产物：URL 变了内容才会变，缓存优先永远安全。
+async function hashedAssetResponse(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok && response.type === 'basic') {
+  if (isCacheableResponse(response)) {
     const cache = await caches.open(STATIC_CACHE);
     await cache.put(request, response.clone());
   }
   return response;
+}
+
+// 不带 hash 的 public 静态文件（/assets 图片、图标、manifest）：先返回缓存，
+// 同时后台更新；离线时用缓存兜底。
+async function staleWhileRevalidate(event, request) {
+  const cache = await caches.open(IMAGE_CACHE);
+  const cached = (await cache.match(request)) || (await caches.match(request));
+  const network = fetch(request)
+    .then(async (response) => {
+      if (isCacheableResponse(response)) {
+        await cache.put(request, response.clone());
+        await trimCache(cache, IMAGE_CACHE_MAX_ENTRIES);
+      }
+      return response;
+    })
+    .catch(() => null);
+  if (cached) {
+    event.waitUntil(network);
+    return cached;
+  }
+  return (await network) || Response.error();
+}
+
+// Cache.put 会把已存在的条目移到末尾，所以 keys() 的顺序近似“最近写入”，删最旧的。
+async function trimCache(cache, maxEntries) {
+  const keys = await cache.keys();
+  const excess = keys.length - maxEntries;
+  for (let index = 0; index < excess; index += 1) await cache.delete(keys[index]);
+}
+
+function isCacheableResponse(response) {
+  return Boolean(response) && response.ok && response.status === 200 && response.type === 'basic';
 }
 
 function isApiRequest(url) {
@@ -84,7 +130,7 @@ function isApiRequest(url) {
     url.pathname.startsWith(`${SCOPE_PATH}api/`);
 }
 
-function isBuildStaticAsset(url) {
+function isPublicStaticFile(url) {
   return url.pathname.startsWith(`${SCOPE_PATH}assets/`) ||
     url.pathname.startsWith(`${SCOPE_PATH}icons/`) ||
     url.pathname === `${SCOPE_PATH}manifest.webmanifest`;

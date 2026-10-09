@@ -32,17 +32,26 @@ export function pwaPrecachePlugin() {
           .digest('hex')
           .slice(0, 16)
       }));
+      // Every other file Vite emitted into the bundle is content-hashed too
+      // (fonts, imported images). public/ files never appear in `bundle`.
+      const precached = new Set(entries.map((entry) => entry.url));
+      const hashedAssets = Object.values(bundle)
+        .filter((item) => item.type === 'asset' && !precached.has(item.fileName) && !/\.html$/i.test(item.fileName) && item.fileName !== 'sw.js')
+        .map((item) => item.fileName)
+        .sort();
       const revision = createHash('sha256')
         .update(template)
         .update(JSON.stringify(entries))
         .update(JSON.stringify(fixedAssetRevisions))
+        .update(JSON.stringify(hashedAssets))
         .digest('hex')
         .slice(0, 16);
       const source = template
         .replace("'__PWA_CACHE_VERSION__'", JSON.stringify(`build-${revision}`))
-        .replace('/* __PWA_PRECACHE_MANIFEST__ */ []', JSON.stringify(entries));
+        .replace('/* __PWA_PRECACHE_MANIFEST__ */ []', JSON.stringify(entries))
+        .replace('/* __PWA_HASHED_ASSETS__ */ []', JSON.stringify(hashedAssets));
 
-      if (source.includes('__PWA_CACHE_VERSION__') || source.includes('__PWA_PRECACHE_MANIFEST__')) {
+      if (source.includes('__PWA_CACHE_VERSION__') || source.includes('__PWA_PRECACHE_MANIFEST__') || source.includes('__PWA_HASHED_ASSETS__')) {
         this.error('PWA service-worker template placeholders were not fully replaced.');
       }
       this.emitFile({ type: 'asset', fileName: 'sw.js', source });
