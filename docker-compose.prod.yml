@@ -1,0 +1,82 @@
+# Production stack: app (127.0.0.1:3080, behind host Caddy) + PostgreSQL 16.
+# Usage and the env list: docs/deploy.md. Secrets live in .env (never committed).
+name: lushu
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lushu}
+      POSTGRES_USER: ${POSTGRES_USER:-lushu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    command: ["postgres", "-c", "shared_buffers=96MB", "-c", "max_connections=30", "-c", "work_mem=4MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 384m
+    networks: [backend]
+
+  app:
+    build: .
+    image: lushu-app:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3080"
+      ROUTEBOOK_DATA_DIR: /data
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
+      # Requests reach the container from the compose network gateway (docker-proxy for the
+      # 127.0.0.1:3080 publish). Trust X-Forwarded-For from that hop only.
+      TRUST_PROXY_HEADERS: "true"
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.80.1,127.0.0.1,::1}
+    ports:
+      - "127.0.0.1:3080:3080"
+    volumes:
+      - appdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 640m
+    stop_grace_period: 30s
+    networks: [backend]
+
+  # One-shot schema migration / first-time readiness: `docker compose -f docker-compose.prod.yml run --rm migrate`
+  migrate:
+    image: lushu-app:latest
+    profiles: ["tools"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      ROUTEBOOK_DATA_DIR: /data
+      DATABASE_URL: postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
+    volumes:
+      - appdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        node scripts/postgres-migrate.mjs &&
+        node scripts/postgres-backfill.mjs --data-dir /data --apply &&
+        node scripts/postgres-parity.mjs --data-dir /data --mark-ready
+    networks: [backend]
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.80.0/24
+          gateway: 172.30.80.1
+
+volumes:
+  pgdata:
+  appdata:
