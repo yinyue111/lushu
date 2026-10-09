@@ -338,7 +338,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           ))}
         </Tabs.List>
 
-        <Tabs.Content value="routebooks" className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Tabs.Content value="routebooks" className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section aria-labelledby="my-books">
             <h2 id="my-books" className="mb-3 text-lg font-extrabold">
               我的路书 <span className="num text-muted">{books.length}</span>

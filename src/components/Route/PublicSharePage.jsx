@@ -175,7 +175,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-[1200px] gap-6 px-4 pt-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-[minmax(0,1fr)] gap-6 px-4 pt-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8">
         <section aria-labelledby="share-structure">
           <h2 id="share-structure" className="text-xl font-extrabold">
             路线安排

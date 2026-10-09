@@ -502,7 +502,7 @@ export default function TripView({ routebook, onBack, onReview }) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1180px] gap-5 px-4 pt-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8 lg:px-8 lg:pt-8">
+      <div className="mx-auto grid max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-5 px-4 pt-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8 lg:px-8 lg:pt-8">
         <main className="flex min-w-0 flex-col gap-4">
           {(tripCloud.state.status === 'error' || tripCloud.state.status === 'conflict') && (
             <section className="rounded-card bg-lemon-soft px-4 py-3 text-sm text-lemon-ink" aria-label="行中计划同步">
