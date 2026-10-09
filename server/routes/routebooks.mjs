@@ -1,5 +1,6 @@
 // Routebook, share, creator and favorite API routes.
 import { clampNumber, createHttpError, normalizeCityName, positiveInteger, safeDecodePathSegment, sanitizePublicId, truncateString } from '../lib/util.mjs';
+import { compareRowsDesc, decodeCursor, encodeCursor, isAfterCursor } from '../ops/paging.mjs';
 import { ALLOW_LOCAL_ADMIN_BYPASS, FAVORITE_LOG_PATH, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { appendJsonLine, readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
@@ -48,13 +49,21 @@ export const routebookRoutes = [
       verifyAdminAccess(req);
     }
     // H4: filter while scanning so `limit` counts matching routebooks, not the global window.
-    const filtered = await listSavedRoutebooks(
-      clampNumber(url.searchParams.get('limit'), 1, 200, 100),
+    // F17: optional keyset cursor over (updatedAt, id) of each routebook's latest row.
+    const pageLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 100);
+    const position = decodeCursor(url.searchParams.get('cursor') || '');
+    const scanned = await listSavedRoutebooks(
+      pageLimit + 1,
       (routebook) =>
         (!city || routebook.city === city) &&
         (!profileId || normalizeProfileId(routebook.profileId) === profileId) &&
-        (!statuses.length || statuses.includes(routebook.publishStatus || 'draft'))
+        (!statuses.length || statuses.includes(routebook.publishStatus || 'draft')) &&
+        isAfterCursor({ ...routebook, id: routebook.publicId || routebook.id }, position)
     );
+    const ordered = scanned.sort((left, right) => compareRowsDesc({ ...left, id: left.publicId || left.id }, { ...right, id: right.publicId || right.id }));
+    const filtered = ordered.slice(0, pageLimit);
+    const lastRow = filtered.at(-1);
+    const nextCursor = ordered.length > pageLimit && lastRow ? encodeCursor({ ...lastRow, id: lastRow.publicId || lastRow.id }) : '';
     // rank23①：列表路径先一次性读齐 5 份 JSONL，逐路书 enrich 时传引用复用。
     const feedbackContext = filtered.length ? await buildRouteFeedbackContext() : null;
     const enrichedRoutebooks = await Promise.all(filtered.map((routebook) => enrichRoutebook(routebook, feedbackContext)));
@@ -63,7 +72,9 @@ export const routebookRoutes = [
       ok: true,
       routebooks: publicList
         ? enrichedRoutebooks.map(publicRoutebookView)
-        : enrichedRoutebooks.map((routebook) => ({ ...routebook, ownerAccessVerified: Boolean(profileId) }))
+        : enrichedRoutebooks.map((routebook) => ({ ...routebook, ownerAccessVerified: Boolean(profileId) })),
+      nextCursor,
+      hasMore: Boolean(nextCursor)
     });
   }),
   route('GET', '/api/dashboard', async ({ req, res, url }) => {

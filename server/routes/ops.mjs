@@ -4,9 +4,14 @@ import { verifyAdminAccess } from '../auth/request-access.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { CHECKIN_LOG_PATH } from '../config/index.mjs';
 import { readJsonLines } from '../storage/jsonl.mjs';
-import { clampNumber, safeDecodePathSegment, sanitizePublicId } from '../lib/util.mjs';
+import { clampNumber, createHttpError, safeDecodePathSegment, sanitizePublicId } from '../lib/util.mjs';
+import { CHECKIN_OPS_FILTERS, checkinMatchesOpsFilter } from '../../src/lib/checkinOpsFilter.js';
+import { paginateRows } from '../ops/paging.mjs';
 import { applyCheckinOpsOverlay, buildImportOperationsView, buildOpsAuditContext, createOpsAuditEvent, listOpsAuditEvents } from '../ops/audit.mjs';
 import { listReviewQueue } from '../ops/reviewQueue.mjs';
+
+// Upper bound for one ops check-in scan; readJsonLines treats non-finite limits as 50.
+const OPS_CHECKIN_SCAN_LIMIT = 200000;
 
 export const opsRoutes = [
   route(
@@ -32,11 +37,17 @@ export const opsRoutes = [
     // Ops listings scan whole streams; throttle before auth so token guessing is bounded too.
     enforceRateLimit(req, 'ops-read');
     verifyAdminAccess(req);
-    const [rows, context] = await Promise.all([
-      readJsonLines(CHECKIN_LOG_PATH, clampNumber(url.searchParams.get('limit') ?? 100, 1, 200, 100)),
-      buildOpsAuditContext()
-    ]);
-    return sendJson(res, 200, { ok: true, checkins: rows.map((row) => applyCheckinOpsOverlay(row, context)) });
+    // F17: filter + keyset paging run on the server over the whole stream.
+    const filter = String(url.searchParams.get('filter') || 'all');
+    if (!CHECKIN_OPS_FILTERS.includes(filter)) throw createHttpError('打卡筛选不支持', 400, 'INVALID_CHECKIN_FILTER');
+    const [rows, context] = await Promise.all([readJsonLines(CHECKIN_LOG_PATH, OPS_CHECKIN_SCAN_LIMIT), buildOpsAuditContext()]);
+    const matching = rows.map((row) => applyCheckinOpsOverlay(row, context)).filter((row) => checkinMatchesOpsFilter(row, filter));
+    const { page, total, nextCursor, hasMore } = paginateRows(matching, {
+      limit: clampNumber(url.searchParams.get('limit') ?? 100, 1, 200, 100),
+      cursor: url.searchParams.get('cursor') || '',
+      fields: ['createdAt']
+    });
+    return sendJson(res, 200, { ok: true, checkins: page, total, filter, nextCursor, hasMore });
   }),
   route('GET', '/api/ops/imports', async ({ req, res, url }) => {
     // Ops listings scan whole streams; throttle before auth so token guessing is bounded too.

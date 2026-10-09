@@ -252,10 +252,18 @@ export async function withSingleProcessKeyLock(lockMap, key, operation) {
   }
 }
 
+function jsonlReadLimit(value, fallback) {
+  if (Number(value) === Number.POSITIVE_INFINITY) return Number.MAX_SAFE_INTEGER;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(1, Math.floor(number)) : fallback;
+}
+
 export async function readJsonLines(filePath, limit = 50) {
   if (usesPostgresStorage()) return getPostgresStorage().readJsonLines(eventStreamNameForPath(filePath), limit);
   if (!existsSync(filePath)) return [];
-  const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
+  // Number.POSITIVE_INFINITY means "read everything", matching the PostgreSQL adapter.
+  // (Previously any non-finite limit silently fell back to 50 rows in JSONL mode.)
+  const safeLimit = jsonlReadLimit(limit, 50);
   const rows = await readRecentJsonlRows(filePath, safeLimit);
   return rows.slice(0, safeLimit);
 }
@@ -392,8 +400,9 @@ export async function readMatchingJsonLines(filePath, predicate, limit = 50, sca
     return projection?.project ? rows.map(projection.project) : rows;
   }
   if (!existsSync(filePath)) return [];
-  const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
-  const safeScanLimit = Number.isFinite(scanLimit) && scanLimit > 0 ? Math.floor(scanLimit) : 50000;
+  const safeLimit = jsonlReadLimit(limit, 50);
+  const safeScanLimit =
+    scanLimit === Number.POSITIVE_INFINITY ? Number.MAX_SAFE_INTEGER : Number.isFinite(scanLimit) && scanLimit > 0 ? Math.floor(scanLimit) : 50000;
   const rows = await readRecentJsonlRows(filePath, safeScanLimit, projection);
   return collectMatchingRows(rows, predicate, safeLimit, safeScanLimit);
 }

@@ -3,11 +3,14 @@ import { Filter, RefreshCw, ShieldAlert } from 'lucide-react';
 import { CheckinPhoto } from '../visual/CheckinPhoto';
 import { getOpsCheckins } from '../../lib/opsApi';
 import OpsAuditDialog from './OpsAuditDialog';
+import OpsPager, { nextCursorStack, previousCursorStack } from './OpsPager';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
 
 // 与 server/config/index.mjs CHECKIN_MAX_REPORTED_ACCURACY_METERS 默认值保持一致；
 // 仅用于列表侧的异常提示，不参与服务端判定。
 const ACCURACY_LIMIT_METERS = 500;
+
+const PAGE_SIZE = 100;
 
 const FILTERS = [
   { id: 'all', label: '全部' },
@@ -20,11 +23,15 @@ const FILTERS = [
 
 // 处置由追加审计驱动，保留原始打卡并实时投影至可信度与公开回顾。
 export default function CheckinAuditPanel() {
-  const checkinsResource = useOpsResource((signal) => getOpsCheckins(200, signal));
   const [filter, setFilter] = useState('all');
+  const [cursorStack, setCursorStack] = useState(['']);
+  const pageCursor = cursorStack.at(-1) || '';
+  // F17: filtering and paging happen on the server over the whole check-in stream.
+  const checkinsResource = useOpsResource((signal) => getOpsCheckins(PAGE_SIZE, signal, { filter, cursor: pageCursor }), {
+    dependencies: [filter, pageCursor]
+  });
   const [selected, setSelected] = useState(null);
-  const rows = normalizeCheckins(checkinsResource.data);
-  const visibleRows = rows.filter((row) => matchesFilter(row, filter));
+  const visibleRows = normalizeCheckins(checkinsResource.data);
   const listReady = checkinsResource.status === 'ready' || checkinsResource.status === 'empty' || checkinsResource.status === 'refreshing';
 
   return (
@@ -36,14 +43,21 @@ export default function CheckinAuditPanel() {
             <p className="text-caption">核对定位与照片；排除、恢复及商业激励标记均需填写原因并保留审计</p>
           </div>
           <span className="badge badge-orange">
-            <ShieldAlert size={12} /> {checkinsResource.data ? `${visibleRows.length} 条` : '—'}
+            <ShieldAlert size={12} /> {checkinsResource.data ? `${checkinsResource.data.total ?? visibleRows.length} 条` : '—'}
           </span>
         </div>
         <div className="ops-filter-bar" aria-label="打卡筛选">
           <Filter size={15} aria-hidden="true" />
           <label>
             <span>风控筛选</span>
-            <select className="input-field" value={filter} onChange={(event) => setFilter(event.target.value)}>
+            <select
+              className="input-field"
+              value={filter}
+              onChange={(event) => {
+                setFilter(event.target.value);
+                setCursorStack(['']);
+              }}
+            >
               {FILTERS.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
@@ -135,6 +149,18 @@ export default function CheckinAuditPanel() {
         ) : listReady ? (
           <EmptyState>{filter === 'all' ? '暂无打卡记录。' : '当前筛选条件下没有打卡记录。'}</EmptyState>
         ) : null}
+        {checkinsResource.data && (
+          <OpsPager
+            page={cursorStack.length}
+            count={visibleRows.length}
+            total={checkinsResource.data.total ?? null}
+            canPrevious={cursorStack.length > 1}
+            canNext={Boolean(checkinsResource.data.nextCursor)}
+            busy={checkinsResource.status === 'refreshing'}
+            onPrevious={() => setCursorStack(previousCursorStack)}
+            onNext={() => setCursorStack((stack) => nextCursorStack(stack, checkinsResource.data?.nextCursor))}
+          />
+        )}
         <p className="text-caption mt-2.5">
           异常判定：到达无效、上报定位误差超过 {ACCURACY_LIMIT_METERS}m、照片与 GPS
           不一致（photoEvidence=gps-mismatch）或移动速度异常。部分字段（照片证据、纠偏标记）随服务端本波落库后才会出现。
@@ -202,15 +228,6 @@ function buildAnomalies(arrival, accuracy, photoEvidence, fraudSignal) {
   if (photoEvidence === 'gps-mismatch') reasons.push('照片与 GPS 不一致');
   if (String(fraudSignal ?? '') === 'implausible-speed' && !reasons.some((reason) => reason.includes('速度'))) reasons.push('移动速度异常');
   return reasons;
-}
-
-function matchesFilter(row, filter) {
-  if (filter === 'weak') return ['weak', 'unverified'].includes(row.confidence);
-  if (filter === 'invalid') return row.arrivalValid === false;
-  if (filter === 'correction') return row.usedCoordinateCorrection;
-  if (filter === 'skipped') return ['skipped', 'replaced'].includes(String(row.status ?? ''));
-  if (filter === 'excluded') return row.opsDisposition?.excluded || row.opsDisposition?.commercialIncentive;
-  return true;
 }
 
 function shortProfileId(profileId) {

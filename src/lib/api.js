@@ -102,8 +102,8 @@ export async function getShareRoutebook(publicId, signal) {
   return getJson(`/share/${encodeURIComponent(publicId)}`, signal);
 }
 
-export async function getRoutebooks(limit = 100, signal) {
-  return getJson(`/routebooks?limit=${limit}`, signal, adminHeaders());
+export async function getRoutebooks(limit = 100, signal, cursor = '') {
+  return getJson(`/routebooks?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal, adminHeaders());
 }
 
 export async function getMyRoutebooks(profileId, limit = 100, signal) {

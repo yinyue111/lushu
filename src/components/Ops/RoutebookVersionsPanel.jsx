@@ -6,6 +6,7 @@ import { EmptyState, ResourceNotice, firstValue, formatApiError, formatOpsDate, 
 import { sourceAuthorizationLabel } from '../ui/labels';
 import { submitRoutebookStatusWithRoutingGate } from './routebookPublication';
 import { recheckRoutebookRouting } from '../../lib/routingApi';
+import OpsPager, { nextCursorStack, previousCursorStack } from './OpsPager';
 
 const ROUTE_STATUSES = [
   ['draft', '草稿'],
@@ -15,8 +16,13 @@ const ROUTE_STATUSES = [
   ['archived', '已归档']
 ];
 
+const PAGE_SIZE = 50;
+
 export default function RoutebookVersionsPanel() {
-  const routebooksResource = useOpsResource((signal) => getRoutebooks(120, signal));
+  const [cursorStack, setCursorStack] = useState(['']);
+  const pageCursor = cursorStack.at(-1) || '';
+  // F17: server-side keyset paging instead of a fixed latest-120 window.
+  const routebooksResource = useOpsResource((signal) => getRoutebooks(PAGE_SIZE, signal, pageCursor), { dependencies: [pageCursor] });
   const persistedRoutes = normalizeRoutebooks(routebooksResource.data);
   const builtInRoutes = useMemo(() => curatedRoutes.map((route) => ({ ...route, publishStatus: 'featured', builtIn: true })), []);
   const [selectedId, setSelectedId] = useState('');
@@ -210,6 +216,17 @@ export default function RoutebookVersionsPanel() {
             </tbody>
           </table>
         </div>
+        {routebooksResource.data && (cursorStack.length > 1 || routebooksResource.data.nextCursor) && (
+          <OpsPager
+            page={cursorStack.length}
+            count={persistedRoutes.length}
+            canPrevious={cursorStack.length > 1}
+            canNext={Boolean(routebooksResource.data.nextCursor)}
+            busy={routebooksResource.status === 'refreshing'}
+            onPrevious={() => setCursorStack(previousCursorStack)}
+            onNext={() => setCursorStack((stack) => nextCursorStack(stack, routebooksResource.data?.nextCursor))}
+          />
+        )}
         {!persistedRoutes.length && (routebooksResource.status === 'ready' || routebooksResource.status === 'empty') && (
           <p className="ops-definition-note">暂无持久化路书；上表仅展示代码内置路线，不提供会失败的状态操作。</p>
         )}
