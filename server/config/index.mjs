@@ -171,6 +171,12 @@ export const IMPORTED_ROUTEBOOK_PUBLIC_POLICIES = ['unlisted-unless-authorized',
 export const IMPORTED_ROUTEBOOK_PUBLIC_POLICY = IMPORTED_ROUTEBOOK_PUBLIC_POLICIES.includes(String(process.env.IMPORTED_ROUTEBOOK_PUBLIC_POLICY ?? ''))
   ? String(process.env.IMPORTED_ROUTEBOOK_PUBLIC_POLICY)
   : 'unlisted-unless-authorized';
+// PUBLIC_PUBLISHING=disabled turns public listing off for every routebook (owners and ops):
+// routebooks stay private or go out as friend links. Already-public routebooks are untouched.
+export const PUBLIC_PUBLISHING_ENABLED =
+  String(process.env.PUBLIC_PUBLISHING ?? 'enabled')
+    .trim()
+    .toLowerCase() !== 'disabled';
 export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
 export const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';
 export const CURATED_ROUTE_IDS = new Set(curatedRoutes.map((route) => sanitizePublicId(route.id)).filter(Boolean));

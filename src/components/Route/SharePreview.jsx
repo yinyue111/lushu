@@ -193,19 +193,19 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           onShared?.(latestRoutebook);
           setShareState({
             loading: false,
-            message: `发布未重复提交：服务端${latestVersion != null ? `已更新到 v${latestVersion}` : '版本已更新'}，已刷新最新内容。${isPublished ? '当前版本已经公开，可再次点击复制链接。' : '请重新检查后再发布。'}${recoveryText}`,
+            message: `没有重复发布：云端${latestVersion != null ? `已更新到 v${latestVersion}` : '版本已更新'}，已刷新最新内容。${isPublished ? '当前版本已经公开，可再次点击复制链接。' : '请重新检查后再发布。'}${recoveryText}`,
             url: latestUrl
           });
         } catch (refreshError) {
           setShareState({
             loading: false,
-            message: `发布未提交：服务端${Number.isInteger(error.currentVersion) ? `已更新到 v${error.currentVersion}` : '版本已更新'}，自动刷新失败（${refreshError.message}）。${recoveryText}`,
+            message: `没有发布：云端${Number.isInteger(error.currentVersion) ? `已更新到 v${error.currentVersion}` : '版本已更新'}，自动刷新失败（${refreshError.message}）。${recoveryText}`,
             url: shareState.url
           });
         }
         return;
       }
-      if (error?.code === 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED') {
+      if (error?.code === 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED' || error?.code === 'PUBLIC_PUBLISHING_DISABLED') {
         setShareState({ loading: false, message: `暂不能公开发布：${error.message}`, url: shareState.url });
         return;
       }

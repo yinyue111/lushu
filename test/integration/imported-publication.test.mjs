@@ -147,3 +147,26 @@ test('the imported routebook policy is configurable', async (t) => {
     if (expected === 409) assert.equal(result.data.details.canClaimAuthorship, false);
   }
 });
+
+test('PUBLIC_PUBLISHING=disabled keeps every routebook private or friend-link only', async (t) => {
+  const server = await startServer({ env: { PUBLIC_PUBLISHING: 'disabled' } });
+  t.after(server.stop);
+  const { send } = client(server);
+  const draft = await send('/api/routebooks', { city: '杭州', title: '我自己写的路线', stops: STOPS });
+  assert.equal(draft.status, 200, JSON.stringify(draft.data));
+  const { publicId, editToken, publication } = draft.data.routebook;
+  assert.equal(publication.publicAllowed, false);
+  assert.equal(publication.publishingDisabled, true);
+  assert.equal(publication.friendLinkAllowed, true);
+  const submitted = await send(`/api/routebooks/${publicId}/publish`, { editToken, expectedVersion: 1, claimOriginalAuthor: true });
+  assert.equal(submitted.status, 409, JSON.stringify(submitted.data));
+  assert.equal(submitted.data.code, 'PUBLIC_PUBLISHING_DISABLED');
+  // Ops cannot list it either.
+  const opsPublish = await send(
+    `/api/routebooks/${publicId}/status`,
+    { expectedVersion: 1, publishStatus: 'published', allowUnverifiedRouting: true, routingOverrideReason: '测试显式人工核验例外说明' },
+    adminHeaders()
+  );
+  assert.equal(opsPublish.status, 409, JSON.stringify(opsPublish.data));
+  assert.equal(opsPublish.data.code, 'PUBLIC_PUBLISHING_DISABLED');
+});

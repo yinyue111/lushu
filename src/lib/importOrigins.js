@@ -27,5 +27,6 @@ export function isImportedRoutebook(routebook) {
   return routebookGuideOrigins(routebook).length > 0;
 }
 
+export const PUBLIC_PUBLISHING_DISABLED_EXPLANATION = '暂不开放公开发布。路书可以自己用，或生成朋友链接只发给朋友。';
 export const IMPORTED_PUBLIC_EXPLANATION =
   '这条路书是根据导入的第三方攻略（小红书、抖音、X、网页链接或截图）生成的。攻略内容属于原作者，没有原作者授权前不能公开发布到列表和搜索里；你可以自己用，或生成朋友链接只发给朋友。';

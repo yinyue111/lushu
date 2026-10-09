@@ -61,7 +61,7 @@ export function requireImportPublicationAllowed(routebook, context, input = {}) 
   if (publication.canClaimAuthorship && routebook?.authorshipClaim?.claimed === true && note.length >= 8) {
     return { origins: publication.origins, policy: publication.policy, note, authorshipClaim: routebook.authorshipClaim };
   }
-  throw Object.assign(createHttpError(publication.reason, 409, 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
+  throw Object.assign(createHttpError(publication.reason, 409, publication.code || 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
     details: { policy: publication.policy, origins: publication.origins, claimedAuthorship: routebook?.authorshipClaim?.claimed === true }
   });
 }
@@ -401,7 +401,7 @@ export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
   const claimNote = truncateString(input?.authorshipClaimNote, 200).trim();
   const claimsAuthorship = input?.claimOriginalAuthor === true && publication.canClaimAuthorship;
   if (!publication.publicAllowed && !claimsAuthorship) {
-    throw Object.assign(createHttpError(publication.reason, 409, 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
+    throw Object.assign(createHttpError(publication.reason, 409, publication.code || 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
       details: { policy: publication.policy, origins: publication.origins, canClaimAuthorship: publication.canClaimAuthorship }
     });
   }

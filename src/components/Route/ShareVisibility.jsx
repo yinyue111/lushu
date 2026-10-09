@@ -69,7 +69,9 @@ export default function ShareVisibility({
           badge={shareUrl ? '已公开' : pendingReview ? '审核中' : publication?.publicAllowed === false ? '暂不可用' : ''}
           muted={publication?.publicAllowed === false && !shareUrl}
         >
-          {publication?.publicAllowed === false ? (
+          {publication?.publishingDisabled ? (
+            <span className="block">{publication.reason || '暂不开放公开发布。路书可以自己用，或生成朋友链接只发给朋友。'}</span>
+          ) : publication?.publicAllowed === false ? (
             <>
               <span className="block">需要原作者授权：导入的攻略属于原作者，平台不会把它公开展示在城市列表和搜索里。</span>
               {publication.canClaimAuthorship && !claimed && !pendingReview && (

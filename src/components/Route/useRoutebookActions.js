@@ -385,7 +385,7 @@ export function useRoutebookActions({
       const localSaved = saveRoutebook(localNext);
       if (localSaved) onSaved?.(localNext);
       setVariantState(
-        localSaved ? `${variant.label}只存在这台设备上，云端同步失败：${error.message}` : `${variant.label}在本机和服务端均未保存：${error.message}`
+        localSaved ? `${variant.label}只存在这台设备上，云端同步失败：${error.message}` : `${variant.label}没存上（这台设备和云端都失败）：${error.message}`
       );
     }
   }
@@ -586,7 +586,7 @@ export function useRoutebookActions({
     localEditsDirtyRef.current = false;
     setRoutebook(next);
     if (!saveRoutebook(next)) {
-      setShareState(['published', 'featured'].includes(next.publishStatus) ? '路书已发布，但这台设备没存上' : '已读取服务端最新版本，但浏览器本地存储失败');
+      setShareState(['published', 'featured'].includes(next.publishStatus) ? '路书已发布，但这台设备没存上' : '已读取云端最新版本，但这台设备没存上');
     }
     onSaved?.(next);
   }
@@ -623,9 +623,9 @@ export function useRoutebookActions({
       const localSaved = saveRoutebook(refreshed);
       onSaved?.(refreshed);
       const latestVersion = currentRoutebookVersion(refreshed) ?? fallbackVersion;
-      return `${actionLabel}：服务端${latestVersion != null ? `已更新到 v${latestVersion}` : '版本已更新'}，${localSaved ? '已刷新为最新内容' : '最新内容已读取但本地存储失败'}。${recoveryText}`;
+      return `${actionLabel}：云端${latestVersion != null ? `已更新到 v${latestVersion}` : '版本已更新'}，${localSaved ? '已刷新为最新内容' : '最新内容已读取但本地存储失败'}。${recoveryText}`;
     } catch (refreshError) {
-      return `${actionLabel}：服务端${fallbackVersion != null ? `已更新到 v${fallbackVersion}` : '版本已更新'}，自动刷新失败（${refreshError.message}）。${recoveryText}`;
+      return `${actionLabel}：云端${fallbackVersion != null ? `已更新到 v${fallbackVersion}` : '版本已更新'}，自动刷新失败（${refreshError.message}）。${recoveryText}`;
     }
   }
 
