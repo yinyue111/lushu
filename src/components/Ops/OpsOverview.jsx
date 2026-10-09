@@ -109,7 +109,18 @@ export default function OpsOverview() {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricTile
+            label="约束满足率"
+            value={rateValue(dashboardKnown, funnel?.constraintSatisfactionRate)}
+            detail={
+              dashboardKnown
+                ? `${ratioText(dashboardKnown, funnel?.constraintSatisfaction?.checksSatisfied, funnel?.constraintSatisfaction?.checksDecided, '项')}；必去/避开与预算，待复核 ${numberValue(
+                    (funnel?.constraintSatisfaction?.mustGoAvoid?.['needs-review'] ?? 0) + (funnel?.constraintSatisfaction?.budget?.['needs-review'] ?? 0)
+                  )} 项不计入`
+                : '数据状态未知'
+            }
+          />
           <MetricTile
             label="成功生成耗时 P50 / P95"
             value={`${durationLabel(funnel?.generationLatencyMs?.p50)} / ${durationLabel(funnel?.generationLatencyMs?.p95)}`}
@@ -127,7 +138,7 @@ export default function OpsOverview() {
           />
         </div>
         <p className="mt-3 text-xs text-muted">
-          以上指标读取全部可用历史后按窗口与稳定身份去重，零分母显示 —。满意度与不可用投诉尚未接入前端采集，当前不展示虚假的 0%。
+          以上指标读取全部可用历史后按窗口与稳定身份去重，零分母显示 —。满意度、不可用投诉和商品点击后的外跳尚未接入采集，当前不展示虚假的 0%。
         </p>
       </section>
 

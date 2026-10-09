@@ -1,0 +1,8 @@
+{"id":"hz-mustgo-1","city":"杭州","constraints":{"duration":"1 天","mustGo":"柳浪闻莺、南宋御街","avoid":""},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"hz-avoid-1","city":"杭州","constraints":{"duration":"1 天","mustGo":"","avoid":"湖滨银泰"},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"hz-two-day","city":"杭州","constraints":{"duration":"2 天 1 晚","mustGo":"法喜寺、龙井茶园、茅家埠","avoid":""},"expect":{"days":2,"minStops":3,"maxStops":14}}
+{"id":"hz-alias","city":"杭州","constraints":{"duration":"1 天","mustGo":"上天竺法喜讲寺","avoid":""},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"sh-walk","city":"上海","constraints":{"duration":"1 天","mustGo":"武康路、安福路","avoid":""},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"sh-avoid","city":"上海","constraints":{"duration":"1 天","mustGo":"武康路","avoid":"上海展览中心"},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"sz-classic","city":"苏州","constraints":{"duration":"1 天","mustGo":"拙政园、平江路","avoid":""},"expect":{"days":1,"minStops":2,"maxStops":8}}
+{"id":"sz-alias","city":"苏州","constraints":{"duration":"2 天 1 晚","mustGo":"七里山塘","avoid":""},"expect":{"days":2,"minStops":2,"maxStops":14}}

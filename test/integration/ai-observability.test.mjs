@@ -111,4 +111,9 @@ test('failed output records model-stage failure and rolling summaries keep unava
   assert.equal(dashboard.status, 200, JSON.stringify(dashboard.data));
   assert.equal(dashboard.data.dashboard.funnel.aiSatisfactionRate, null);
   assert.equal(dashboard.data.dashboard.funnel.unusableComplaintRateStatus, 'not-instrumented');
+  // Redirects after a product click are not collected yet: null, never 0%.
+  assert.equal(dashboard.data.dashboard.funnel.redirectRate, null);
+  assert.equal(dashboard.data.dashboard.funnel.redirectRateStatus, 'not-instrumented');
+  assert.ok(dashboard.data.dashboard.funnel.constraintSatisfaction, 'constraint satisfaction breakdown is exposed');
+  assert.ok(dashboard.data.dashboard.metricDefinitions.constraintSatisfaction.denominator);
 });

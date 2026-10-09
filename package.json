@@ -41,7 +41,10 @@
     "verify": "npm run check:syntax && npm run lint && npm run format:check && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5 && npm run test:profile-trip && npm run test:storage-safety && npm run test:backup && npm run test:pwa-build",
     "verify:full": "npm run verify && npm run smoke:api",
     "preview": "npm run build && npm run start",
-    "poi:dedup-report": "node scripts/poi-dedup-report.mjs"
+    "poi:dedup-report": "node scripts/poi-dedup-report.mjs",
+    "eval:generation": "node scripts/eval/run-generation-eval.mjs",
+    "jev:labeling-kit": "node scripts/jev/build-labeling-kit.mjs",
+    "jev:eval": "node scripts/jev/eval-labels.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

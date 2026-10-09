@@ -23,6 +23,7 @@ import { publicRoutebookView } from '../routebooks/views.mjs';
 import { calculateOperationalMetrics } from './operationalMetrics.mjs';
 import { applyCheckinOpsOverlay, buildOpsAuditContext } from '../ops/audit.mjs';
 import { buildProductFunnelAnalytics } from './productFunnel.mjs';
+import { buildConstraintSatisfaction } from './constraintMetrics.mjs';
 
 async function buildOperationalMetrics(asOf) {
   const since = asOf - 37 * 86400000;
@@ -181,6 +182,7 @@ export async function buildPlatformDashboard(limit = 1000) {
   const legacyJourneyEventsMissingTravelDate = journeyEvents.filter((item) => !normalizeTravelDate(item?.travelDate)).length;
   const copiedCount = totalRoutebookCopyCount(exposures);
   const productAnalytics = await buildProductAnalytics(limit);
+  const constraintSatisfaction = buildConstraintSatisfaction(routebooks, { routeIds: generatedRouteIds });
   const funnel = {
     generateAttempts,
     generatedOk,
@@ -219,6 +221,11 @@ export async function buildPlatformDashboard(limit = 1000) {
     exposureCount: exposures.length,
     clickCount: clicks.length,
     clickThroughRate: productAnalytics.overallCtr,
+    constraintSatisfactionRate: constraintSatisfaction.satisfactionRate,
+    constraintSatisfaction,
+    // 商品点击后的外跳（redirect）尚无事件采集；不展示 0%。
+    redirectRate: null,
+    redirectRateStatus: 'not-instrumented',
     ...operationalMetrics.funnel
   };
   return {
@@ -241,6 +248,12 @@ export async function buildPlatformDashboard(limit = 1000) {
         windowDaysBefore: TRAVEL_DAY_WINDOW_DAYS,
         windowDaysAfter: TRAVEL_DAY_WINDOW_DAYS
       },
+      constraintSatisfaction: {
+        numerator: 'AI 生成路书当前版本中，必去/避开核对为“已纳入”与预算核对为“可控”的项数',
+        denominator: '上述两类核对中结论明确（满足或未满足/超预算）的项数；“需人工确认”“待复核”“未设置”单独计数，不进分母',
+        scope: '最近保存的路书（与 legacyCounters 同一窗口），仅限 AI 生成成功记录中的路书'
+      },
+      redirect: { status: 'not-instrumented', note: '曝光→点击已采集；点击后的外跳/下单没有事件，需接入后再统计' },
       importAnalysis: {
         numerator: '状态为 fetched 的已记录来源',
         denominator: '明确记录为 fetched、metadata-only 或 failed 的来源'
