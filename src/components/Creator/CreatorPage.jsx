@@ -5,6 +5,7 @@ import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
 import { RouteCard } from '../cards/RouteCard';
+import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { SectionHeading } from '../ui/section-heading';
 
@@ -84,11 +85,11 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
               <p className="mt-1 max-w-xl text-copy text-white/90">{creator.bio || '路线合集由真实保存、复制和打卡反馈持续校准。'}</p>
             </div>
           </div>
-          <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:max-w-3xl">
+          <dl className={cn('mt-6 grid grid-cols-3 gap-2.5 lg:max-w-3xl', stats.clickCount > 0 && 'grid-cols-2 sm:grid-cols-4')}>
             <Stat icon={Route} label="公开路线" value={stats.routebookCount ?? visibleRoutebooks.length} />
             <Stat icon={Copy} label="被复制" value={stats.copyCount ?? 0} />
             <Stat icon={Camera} label="有效打卡" value={stats.validCheckins ?? 0} />
-            <Stat icon={Ticket} label="商品点击" value={stats.clickCount ?? 0} />
+            {stats.clickCount > 0 && <Stat icon={Ticket} label="商品点击" value={stats.clickCount} />}
           </dl>
         </div>
       </section>
