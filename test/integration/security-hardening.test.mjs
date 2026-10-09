@@ -254,6 +254,10 @@ test('L4: og:image ignores a spoofed Host header and uses PUBLIC_BASE_URL when s
   try {
     const html = await fetch(`${configured.baseUrl}/share/og-test`).then((r) => r.text());
     assert.match(html, /og:image" content="https:\/\/routebook\.example\/assets\//);
+    // Site-wide default share tags must not precede (and win over) the routebook's own tags.
+    assert.equal((html.match(/property="og:image"/g) ?? []).length, 1);
+    assert.equal((html.match(/name="description"/g) ?? []).length, 1);
+    assert.equal((html.match(/property="og:site_name"/g) ?? []).length, 1);
   } finally {
     await configured.stop();
   }

@@ -270,7 +270,11 @@ function injectShareLandingMeta(html, meta) {
   ].join('\n    ');
   // 用函数返回替换串：字符串形态的第二参会展开 $&/$` 等模板序列，
   // 标题里出现这些字符时会把原 HTML 片段拼进注入结果。
-  let output = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${safeTitle}</title>`);
+  // 先移除 index.html 里的站点级默认分享标签：否则爬虫常取第一个（相对路径的 og:image、通用 description），
+  // 分享卡片会显示站点默认图文而不是这条路书。
+  let output = html
+    .replace(/[ \t]*<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>[ \t]*\r?\n?/gi, '')
+    .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${safeTitle}</title>`);
   if (output.includes('</head>')) {
     output = output.replace('</head>', () => `    ${metaTags}\n  </head>`);
   }
