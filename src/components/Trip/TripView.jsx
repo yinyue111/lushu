@@ -579,7 +579,14 @@ export default function TripView({ routebook, onBack, onReview }) {
                   </div>
                   {nextStopCountdown && (
                     <Chip size="sm" tone={nextStopCountdown.overdue ? 'warn' : 'ok'} className="shrink-0">
-                      {nextStopCountdown.label.replace('距建议到达还有', '还有').replace('已超出建议时间', '超时')}
+                      {nextStopCountdown.overdue ? (
+                        // Exact overdue minutes ("超时 601 分钟") read as an alarm; the full figure stays in the tooltip/SR text.
+                        <span title={nextStopCountdown.label}>
+                          比建议晚了<span className="sr-only">：{nextStopCountdown.label}</span>
+                        </span>
+                      ) : (
+                        nextStopCountdown.label.replace('距建议到达还有', '还有')
+                      )}
                     </Chip>
                   )}
                 </div>
