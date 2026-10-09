@@ -13,19 +13,31 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
   const cover = image || cityCover(routebook.city);
   const theme = dayTheme(Math.abs(hashCode(routebook.city || routebook.title || '')) % 5);
   const stopCount = routebook.stops?.length ?? 0;
+  // 'feature': a lone curated route spreads image-left / text-right instead of leaving two empty columns.
+  const overlayChip = layout === 'tall' || layout === 'feature';
   return (
     <article
       className={cn(
-        'group relative flex overflow-hidden rounded-card border border-line bg-white shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-pop',
-        layout === 'tall' ? 'flex-col' : 'flex-row',
+        'group relative flex overflow-hidden rounded-card border border-line bg-white shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:shadow-pop motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        layout === 'tall' ? 'flex-col' : layout === 'feature' ? 'flex-col sm:flex-row' : 'flex-row',
         className
       )}
     >
       <button
         type="button"
         onClick={onOpen}
-        className={cn('relative isolate shrink-0 overflow-hidden text-left', layout === 'tall' ? 'aspect-[16/10] w-full' : 'w-28 sm:w-36')}
-        aria-label={`打开 ${routebook.title || '路书'}`}
+        className={cn(
+          'relative isolate shrink-0 overflow-hidden text-left',
+          layout === 'tall'
+            ? 'aspect-[16/10] w-full'
+            : layout === 'feature'
+              ? 'aspect-[16/10] w-full sm:aspect-auto sm:min-h-[300px] sm:w-[56%]'
+              : 'w-28 sm:w-36'
+        )}
+        // Pointer shortcut only: the title button below is the single accessible way in, so
+        // screen readers and keyboards don't meet the same link twice.
+        tabIndex={-1}
+        aria-hidden="true"
         style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
       >
         {cover ? (
@@ -46,25 +58,25 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
             />
           </>
         )}
-        {layout === 'tall' && (
-          <span className="absolute top-3 left-3">
-            <TrustChip routebook={routebook} curated={curated} className="bg-white/95 shadow-card" />
-          </span>
-        )}
       </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4">
-        {layout !== 'tall' && <TrustChip routebook={routebook} curated={curated} className="self-start" />}
+      {overlayChip && (
+        <span className="pointer-events-none absolute top-3 left-3">
+          <TrustChip routebook={routebook} curated={curated} className="bg-white/95 shadow-card" />
+        </span>
+      )}
+      <div className={cn('flex min-w-0 flex-1 flex-col gap-1.5 p-4', layout === 'feature' && 'sm:justify-center sm:gap-2.5 sm:p-7')}>
+        {!overlayChip && <TrustChip routebook={routebook} curated={curated} className="self-start" />}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-full bg-lemon-soft px-2 py-0.5 text-xs font-bold text-lemon-ink">
+              <span key={tag} className="rounded-full bg-canvas px-2 py-0.5 text-xs font-bold text-ink-2">
                 {tag}
               </span>
             ))}
           </div>
         )}
         <h3 className="line-clamp-2 text-lead leading-snug font-extrabold">
-          <button type="button" onClick={onOpen} className="text-left hover:text-primary-strong">
+          <button type="button" onClick={onOpen} className="text-left transition-colors hover:text-primary-strong">
             {routebook.title || `${routebook.city} 路书`}
           </button>
         </h3>

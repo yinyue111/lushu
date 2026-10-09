@@ -247,7 +247,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             }
           />
           {cityRoutes.length ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={cn('grid grid-cols-1 gap-4', cityRoutes.length > 1 && 'sm:grid-cols-2', cityRoutes.length > 2 && 'lg:grid-cols-3')}>
               {cityRoutes.map((route) => {
                 const book = curatedRouteToRoutebook(route);
                 return (
@@ -257,6 +257,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                     image={route.image}
                     tags={route.tags}
                     curated
+                    layout={cityRoutes.length === 1 ? 'feature' : 'tall'}
                     meta={route.subtitle}
                     onOpen={() => onOpenBook(book)}
                     actions={
