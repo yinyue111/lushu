@@ -17,6 +17,7 @@ import { dismissTripReminder, dueTripReminders } from './lib/reminders';
 import { readActiveGenerationJob } from './lib/generationJob';
 import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRoutebook } from './lib/storage';
 import { preserveRoutebookConflictDraft } from './lib/routebookConflict';
+import { uploadLocalOnlyRoutebooks } from './lib/localRoutebookSync';
 import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './components/Route/routebookModel';
 
 const VIEWS = {
@@ -117,6 +118,38 @@ export default function App() {
       .catch(() => setModelHealth({ ok: false, ready: false }));
     return () => ctrl.abort();
   }, []);
+
+  // Guest copies saved before cloud sync was enabled are uploaded once the profile has a
+  // cloud token (and again whenever the network comes back); conflicts keep a 冲突副本.
+  const localUploadRef = useRef(false);
+  useEffect(() => {
+    if (!profile.profileAccessToken) return undefined;
+    const upload = () => {
+      if (localUploadRef.current) return;
+      localUploadRef.current = true;
+      const activeProfile = getProfile();
+      uploadLocalOnlyRoutebooks({
+        profile: activeProfile,
+        books: getStoredRoutebooks(activeProfile.id),
+        profileFields: profileRoutebookFields,
+        save: (book) => saveRoutebookRemote(book),
+        fetchRemote: (id) => getRoutebookRemote(id),
+        persist: (book) => persistRoutebook(book, { claimOwnership: true }),
+        preserveConflict: (book, label) => preserveRoutebookConflictDraft(book, label)
+      })
+        .then((result) => {
+          if (result.uploaded.length || result.conflicts.length) setSavedBooks(getStoredRoutebooks(activeProfile.id));
+          if (result.conflicts.length) setStorageNotice(`有 ${result.conflicts.length} 份本机路书与云端版本冲突，已保留为“冲突副本”，可在“我的”中查看。`);
+        })
+        .catch(() => {})
+        .finally(() => {
+          localUploadRef.current = false;
+        });
+    };
+    upload();
+    window.addEventListener('online', upload);
+    return () => window.removeEventListener('online', upload);
+  }, [profile.profileAccessToken]);
 
   useEffect(() => {
     // rank7①：挂载与网络恢复时补传离线打卡队列；flush 幂等、离线自动跳过，失败保持静默。
