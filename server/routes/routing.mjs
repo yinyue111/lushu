@@ -23,7 +23,8 @@ export const routingRoutes = [
       const current = await getSavedRoutebook(id);
       if (!current) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
       const version = await routebookMutationMetadata(current, body, { changeReason: '重新核验道路', actorType: 'admin' });
-      const routed = await attachServerRouteLegs(normalizeRoutebookForStorage(current, id), signal);
+      // Only legs touched since the last verification are re-queried.
+      const routed = await attachServerRouteLegs(normalizeRoutebookForStorage(current, id), signal, undefined, { reuseVerifiedLegs: true });
       const routing = summarizeRouteExecution(routed.stops, routed.routeLegs);
       const demoted = ['published', 'featured'].includes(current.publishStatus) && routing.expectedLegs > 0 && !routing.allVerified;
       const routebook = normalizeRoutebookForStorage({ ...routed, ...version, ...(demoted ? { publishStatus: 'pending_review' } : {}) }, id);

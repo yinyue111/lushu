@@ -117,7 +117,8 @@ export async function buildRouteLegs({
           signal
         });
         assertNotCancelled(signal);
-        return normalizeRouteLeg(result, { ...context, queriedAt });
+        // A reused (still verified) leg keeps the time it was actually queried.
+        return normalizeRouteLeg(result, { ...context, queriedAt: result?.reusedQueriedAt ?? queriedAt });
       } catch (error) {
         if (isRoutingCancellation(error) || signal?.aborted) throw cancelledError();
         return unverifiedRouteLeg({ ...context, queriedAt }, error);

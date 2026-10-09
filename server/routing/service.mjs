@@ -7,11 +7,42 @@ import { buildRoutebookMetrics, buildRoutebookValidations, routebookValidationCo
 
 const routingProvider = createAmapRoutingProvider({ apiKey: AMAP_ROUTING_KEY, timeoutMs: ROUTING_TIMEOUT_MS, fetchImpl: pacedAmapFetch });
 
-export async function attachServerRouteLegs(routebook, signal, provider = routingProvider) {
+/**
+ * Wraps a provider so legs that are still verified (server proof checked by
+ * normalizeStoredRouteLegs on load, same endpoints and mode) are reused instead of
+ * re-queried: a re-check after an edit only spends AMap calls on the touched legs.
+ */
+export function reuseVerifiedLegsProvider(provider, routeLegs = []) {
+  const verified = new Map(
+    (Array.isArray(routeLegs) ? routeLegs : [])
+      .filter((leg) => leg?.status === 'verified' && leg?.proof)
+      .map((leg) => [`${String(leg.fromStopId)}\u0000${String(leg.toStopId)}\u0000${leg.mode}`, leg])
+  );
+  return {
+    ...provider,
+    async route(request) {
+      const kept = verified.get(`${String(request?.fromStop?.id)}\u0000${String(request?.toStop?.id)}\u0000${request?.mode}`);
+      if (kept) {
+        return {
+          status: 'verified',
+          provider: kept.provider,
+          mode: kept.mode,
+          distanceMeters: kept.distanceMeters,
+          durationSeconds: kept.durationSeconds,
+          geometry: kept.geometry,
+          reusedQueriedAt: kept.queriedAt
+        };
+      }
+      return provider.route(request);
+    }
+  };
+}
+
+export async function attachServerRouteLegs(routebook, signal, provider = routingProvider, { reuseVerifiedLegs = false } = {}) {
   const defaultMode = normalizeStopTransportMode(routebook?.constraints?.transport) || 'walking';
   const legs = await buildRouteLegs({
     routebook,
-    provider,
+    provider: reuseVerifiedLegs ? reuseVerifiedLegsProvider(provider, routebook?.routeLegs) : provider,
     defaultMode,
     modeForLeg: ({ to }) => normalizeStopTransportMode(to?.transportMode) || defaultMode,
     concurrency: ROUTING_CONCURRENCY,
