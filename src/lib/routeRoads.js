@@ -50,6 +50,9 @@ export function roadSummary(stops = [], routeLegs = []) {
 }
 
 export function roadLegLabel(leg) {
-  const mode = { walking: '步行', driving: '驾车', transit: '公共交通', bicycling: '骑行' }[leg.mode] || '道路';
+  const mode =
+    leg.mode === 'transit' && leg.walkingOnly
+      ? '步行（距离近，无需乘车）'
+      : { walking: '步行', driving: '驾车', transit: '公共交通', bicycling: '骑行' }[leg.mode] || '道路';
   return `${mode} ${(Number(leg.distanceMeters) / 1000).toFixed(1)} km · 约 ${Math.ceil(Number(leg.durationSeconds) / 60)} 分钟（道路核验）`;
 }

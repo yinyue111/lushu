@@ -227,3 +227,43 @@ test('admin helper makes normal request first and never silently overrides', asy
   assert.equal(result.overridden, true);
   assert.equal(calls.at(-1).allowUnverifiedRouting, true);
 });
+
+test('adjacent stops on a transit route: Amap returns no transit plan, so the leg is verified as a short walk', async () => {
+  const paths = [];
+  const provider = createAmapRoutingProvider({
+    apiKey: 'fake-test-key',
+    fetchImpl: async (url) => {
+      const target = new URL(url);
+      paths.push(target.pathname);
+      if (target.pathname.includes('transit')) return new Response(JSON.stringify({ status: '1', route: { distance: '180', transits: [] } }));
+      return new Response(
+        JSON.stringify({
+          status: '1',
+          route: { paths: [{ distance: '190', duration: '160', steps: [{ polyline: '120.157000,30.256000;120.158000,30.257000' }] }] }
+        })
+      );
+    }
+  });
+  const [leg] = await buildRouteLegs({ stops: stops(), provider, city: '杭州', defaultMode: 'transit', now: () => new Date('2026-10-09T00:00:00Z') });
+  assert.deepEqual(paths, ['/v3/direction/transit/integrated', '/v3/direction/walking']);
+  assert.equal(leg.status, 'verified');
+  assert.equal(leg.mode, 'transit');
+  assert.equal(leg.walkingOnly, true);
+  assert.equal(leg.distanceMeters, 190);
+});
+
+test('a far transit leg with no plan stays unverified instead of pretending to be a walk', async () => {
+  const provider = createAmapRoutingProvider({
+    apiKey: 'fake-test-key',
+    fetchImpl: async () => new Response(JSON.stringify({ status: '1', route: { distance: '9000', transits: [] } }))
+  });
+  const [leg] = await buildRouteLegs({ stops: stops(), provider, city: '杭州', defaultMode: 'transit' });
+  assert.equal(leg.status, 'unverified');
+  assert.equal(leg.error.code, 'ROUTING_ROUTE_NOT_FOUND');
+});
+
+test('a walk-only transit leg is labelled as a walk, not 公共交通', async () => {
+  const { roadLegLabel } = await import('../../src/lib/routeRoads.js');
+  assert.match(roadLegLabel({ mode: 'transit', walkingOnly: true, distanceMeters: 190, durationSeconds: 160 }), /^步行（距离近，无需乘车） 0\.2 km/);
+  assert.match(roadLegLabel({ mode: 'transit', distanceMeters: 3563, durationSeconds: 1732 }), /^公共交通 3\.6 km/);
+});

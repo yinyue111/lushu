@@ -15,7 +15,7 @@ export function createAmapRoutingProvider({ apiKey = '', fetchImpl = globalThis.
   const requestTimeoutMs = clampTimeout(timeoutMs);
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
 
-  return Object.freeze({
+  const provider = Object.freeze({
     id: 'amap',
     configured: Boolean(key) && typeof fetchImpl === 'function',
     supportsMode: (mode) => ROUTING_MODES.includes(String(mode || '').toLowerCase()),
@@ -96,6 +96,12 @@ export function createAmapRoutingProvider({ apiKey = '', fetchImpl = globalThis.
       }
 
       assertAmapAccepted(data);
+      // 两站很近时高德公交规划不给换乘方案（transits 为空），实际就是步行：按步行核验道路，
+      // 路段仍记为用户选择的公共交通方式，并标记 walkingOnly 供界面说明“无需乘车”。
+      if (normalizedMode === 'transit' && isWalkOnlyTransit(data)) {
+        const walking = await provider.route({ origin, destination, mode: 'walking', city, signal });
+        return { ...walking, mode: 'transit', walkingOnly: true };
+      }
       const path = selectAmapPath(data, normalizedMode);
       if (!path) {
         throw new RoutingError(ROUTING_ERROR_CODES.ROUTE_NOT_FOUND, '高德未返回可用的道路路线', { category: 'upstream', retryable: false });
@@ -121,6 +127,7 @@ export function createAmapRoutingProvider({ apiKey = '', fetchImpl = globalThis.
       };
     }
   });
+  return provider;
 }
 
 function buildAmapUrl({ baseUrl, key, mode, city, origin, destination }) {
@@ -141,6 +148,19 @@ function assertAmapAccepted(data) {
   const upstreamMessage = String(data?.info ?? data?.errmsg ?? '上游拒绝请求').slice(0, 100);
   const retryable = ['10004', '10016', '10020', '10021', '10044'].includes(upstreamCode);
   throw new RoutingError(ROUTING_ERROR_CODES.UPSTREAM_REJECTED, `高德路径规划未通过：${upstreamMessage}`, { category: 'upstream', retryable, upstreamCode });
+}
+
+const WALK_ONLY_TRANSIT_MAX_METERS = 1500;
+
+function isWalkOnlyTransit(data) {
+  const transits = data?.route?.transits;
+  const walkingDistance = Number(data?.route?.distance);
+  return (
+    (!Array.isArray(transits) || transits.length === 0) &&
+    Number.isFinite(walkingDistance) &&
+    walkingDistance > 0 &&
+    walkingDistance <= WALK_ONLY_TRANSIT_MAX_METERS
+  );
 }
 
 function selectAmapPath(data, mode) {

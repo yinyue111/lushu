@@ -28,7 +28,8 @@ export function normalizeRouteLeg(candidate = {}, context = {}) {
       distanceMeters: Math.round(distanceMeters),
       durationSeconds: Math.round(durationSeconds),
       geometry,
-      status: 'verified'
+      status: 'verified',
+      ...(candidate?.walkingOnly === true && base.mode === 'transit' ? { walkingOnly: true } : {})
     };
   }
 
