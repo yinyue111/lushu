@@ -52,20 +52,45 @@ export async function checkHealth(signal) {
   return getJson('/health', signal, adminHeaders());
 }
 
-export async function generateRoutebook({ city, guide, constraints, importedSources, profileId, editToken }, signal) {
-  const body = {
+/** Synchronous generation (legacy; holds the request for the whole model call). */
+export async function generateRoutebook(input, signal) {
+  return postJson('/generate-routebook', generationRequestBody(input), signal, ownerHeaders(input?.profileId));
+}
+
+function generationRequestBody({ city, guide, constraints, importedSources, profileId, editToken, guideOrigins }) {
+  return {
     city,
     guide,
     profileId,
     editToken,
     importedSources,
     constraints,
+    ...(Array.isArray(guideOrigins) && guideOrigins.length ? { guideOrigins } : {}),
     client: {
       locale: 'zh-CN',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     }
   };
-  return postJson('/generate-routebook', body, signal, ownerHeaders(profileId));
+}
+
+/** Starts an async generation job; resolves with { job, deduplicated } right away. */
+export async function startGenerationJob(input, signal) {
+  return postJson('/generation-jobs', generationRequestBody(input), signal, ownerHeaders(input?.profileId));
+}
+
+/**
+ * Long-polls a job: the server answers when `seq` changes or after ~15 s.
+ * @param {string} jobId
+ * @param {{ after?: number, profileId?: string }} [options]
+ * @param {AbortSignal} [signal]
+ */
+export async function getGenerationJob(jobId, { after, profileId } = {}, signal) {
+  const query = Number.isInteger(after) && after >= 0 ? `?after=${after}` : '';
+  return getJson(`/generation-jobs/${encodeURIComponent(jobId)}${query}`, signal, ownerHeaders(profileId));
+}
+
+export async function cancelGenerationJob(jobId, profileId, signal) {
+  return postJson(`/generation-jobs/${encodeURIComponent(jobId)}/cancel`, {}, signal, ownerHeaders(profileId));
 }
 
 export async function importGuide(urls, signal) {

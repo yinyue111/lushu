@@ -455,15 +455,27 @@ function shadowGeocodeChoice({ city, name, candidates, choice }) {
   });
 }
 
-async function geocodeGeneratedRoutebook(routebook, signal) {
+/**
+ * @param {any} routebook
+ * @param {AbortSignal | undefined} signal
+ * @param {(progress: { done: number, total: number }) => void} [onProgress]
+ */
+async function geocodeGeneratedRoutebook(routebook, signal, onProgress = () => {}) {
   if (!AMAP_GEOCODE_KEY || !routebook?.stops?.length) return routebook;
+  let done = 0;
+  const total = routebook.stops.length;
   const stops = await mapWithConcurrency(routebook.stops, 4, async (stop) => {
-    if (stop.coordinateSource === 'known-poi') return stop;
+    const finish = (value) => {
+      done += 1;
+      onProgress({ done, total });
+      return value;
+    };
+    if (stop.coordinateSource === 'known-poi') return finish(stop);
     const geocoded = await geocodePoiWithAmap(routebook.city, stop.name, signal, { onCandidates: shadowGeocodeChoice }).catch(() => null);
-    if (!geocoded) return stop;
+    if (!geocoded) return finish(stop);
     // The candidate choice is audit detail for the server, not a stop field clients may echo back.
     const { geocodeChoice: _choice, ...fields } = geocoded;
-    return { ...stop, ...fields };
+    return finish({ ...stop, ...fields });
   });
   return {
     ...routebook,
@@ -635,6 +647,9 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
   signal?.addEventListener('abort', abortFromCaller, { once: true });
 
   let response;
+  let text = '';
+  // The timeout and the caller's abort cover the whole exchange, body included: relays
+  // often send headers early and stream the body, so stopping at headers is not enough.
   try {
     response = await fetch(endpoint, {
       method: 'POST',
@@ -645,12 +660,13 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
       body: JSON.stringify(requestBody),
       signal: controller.signal
     });
+    text = await response.text();
   } catch (error) {
     if (timedOut) {
       throw createHttpError('模型服务响应超时，请稍后重试', 504, 'MODEL_TIMEOUT');
     }
     if (signal?.aborted) {
-      throw createHttpError('客户端已取消请求', 499, 'CLIENT_ABORTED');
+      throw createHttpError('已取消生成', 499, 'CLIENT_ABORTED');
     }
     if (error?.statusCode) throw error;
     throw createHttpError('模型服务暂时不可用', 502, 'MODEL_FETCH_FAILED');
@@ -659,7 +675,6 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
     signal?.removeEventListener('abort', abortFromCaller);
   }
 
-  const text = await response.text();
   let data = {};
   try {
     data = text ? JSON.parse(text) : {};
@@ -877,20 +892,39 @@ export function generationFailureReason(error) {
   }
 }
 
-export async function generateRoutebook(payload, signal) {
+/**
+ * Progress events for async jobs (see ./generationJobs.mjs). Each fires when the
+ * backend actually starts or finishes that step; nothing here runs on a timer.
+ * @typedef {(event: { stage: 'match' | 'model' | 'geocode' | 'route', state: 'started' | 'completed', detail?: string, progress?: { done: number, total: number } }) => void} GenerationStageListener
+ */
+
+/**
+ * @param {any} payload
+ * @param {AbortSignal} [signal]
+ * @param {{ onStage?: GenerationStageListener }} [options]
+ */
+export async function generateRoutebook(payload, signal, { onStage = () => {} } = {}) {
   const runtime = await loadCodexRuntime();
   if (!runtime.ready) {
     throw createHttpError(runtime.readyReason || 'yinyue provider 或 OPENAI_API_KEY 未配置', 503, 'MODEL_NOT_READY');
   }
 
   // rank12③：把目标城市的已审核运营 POI 候选注入 prompt（≤40 条，构建失败静默降级）。
+  onStage({ stage: 'match', state: 'started' });
   let promptPayload = payload;
+  let poiCandidateCount = 0;
   try {
     const poiCandidates = buildApprovedPoiPromptCandidates(payload.city);
+    poiCandidateCount = poiCandidates.length;
     if (poiCandidates.length) promptPayload = { ...payload, poiCandidates };
   } catch {
     promptPayload = payload;
   }
+  onStage({
+    stage: 'match',
+    state: 'completed',
+    detail: poiCandidateCount ? `匹配到 ${poiCandidateCount} 个已审核地点` : `${payload.city || '该城市'}暂无已审核地点库，按攻略原文定位`
+  });
 
   const attempts = [];
   const recordUsage = (usage) =>
@@ -945,6 +979,7 @@ export async function generateRoutebook(payload, signal) {
     });
 
   try {
+    onStage({ stage: 'model', state: 'started', detail: runtime.model });
     const routebook = await runStage('model', async () => {
       const raw = await callModel().catch((error) => {
         if (!error?.truncatedByTokenLimit || error.attemptedMaxOutputTokens >= AI_MAX_OUTPUT_TOKENS_RETRY) throw error;
@@ -959,8 +994,25 @@ export async function generateRoutebook(payload, signal) {
         throw failure;
       }
     });
-    const geocoded = await runStage('geocoding', () => geocodeGeneratedRoutebook(routebook, signal));
+    onStage({ stage: 'model', state: 'completed', detail: `返回 ${routebook.stops.length} 个站点` });
+    onStage({ stage: 'geocode', state: 'started', progress: { done: 0, total: routebook.stops.length } });
+    const geocoded = await runStage('geocoding', () =>
+      geocodeGeneratedRoutebook(routebook, signal, (progress) => onStage({ stage: 'geocode', state: 'started', progress }))
+    );
+    const preciseStops = geocoded.stops.filter((stop) => stop.navigationDisabled !== true && Number(stop.geoConfidence) >= 60).length;
+    onStage({
+      stage: 'geocode',
+      state: 'completed',
+      detail: AMAP_GEOCODE_KEY ? `${preciseStops}/${geocoded.stops.length} 个站点已定位` : '未配置地图服务，坐标为近似值'
+    });
+    onStage({ stage: 'route', state: 'started' });
     const routed = await runStage('routing', () => attachServerRouteLegs(geocoded, signal));
+    const legs = routed.routeLegs ?? [];
+    onStage({
+      stage: 'route',
+      state: 'completed',
+      detail: legs.length ? `${legs.filter((leg) => leg.status === 'verified').length}/${legs.length} 段道路已核验` : '无需核验的同日转场'
+    });
     if ((routed.routeLegs ?? []).some((leg) => leg.status !== 'verified')) stages.routing.status = 'degraded';
     if ((routed.routeLegs ?? []).some((leg) => /timeout/i.test(String(leg.error?.code || '')))) stages.routing.timedOut = true;
     return { ...routed, ...buildServerProcessLog(routed, stages, { geocodingConfigured: Boolean(AMAP_GEOCODE_KEY) }), observability: observability() };

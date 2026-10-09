@@ -12,6 +12,7 @@ import {
   PORT,
   PROFILE_ID_SECRET_SOURCE,
   PUBLIC_BASE_URL,
+  REQUEST_TIMEOUT_MS,
   TRUST_PROXY_HEADERS
 } from './server/config/index.mjs';
 import { assignRequestId } from './server/http/response.mjs';
@@ -111,7 +112,7 @@ function listen(port, attemptsLeft = DEV_PORT_FALLBACK_ATTEMPTS) {
     }
     await sendStatic(req, res);
   });
-  server.requestTimeout = envNumber('REQUEST_TIMEOUT_MS', 130000, { min: 0 });
+  server.requestTimeout = REQUEST_TIMEOUT_MS;
   server.headersTimeout = envNumber('HEADERS_TIMEOUT_MS', 15000, { min: 0 });
 
   const onError = (error) => {

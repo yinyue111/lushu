@@ -1,32 +1,45 @@
 // Generation, OCR and import API routes.
-import { hashText, clampNumber, createHttpError, truncateString } from '../lib/util.mjs';
-import { AI_LOG_PATH, IMPORT_LOG_PATH, MAX_IMPORT_URLS, MAX_OCR_IMAGES, MAX_OCR_REQUEST_BYTES } from '../config/index.mjs';
+import { clampNumber, createHttpError, safeDecodePathSegment, truncateString } from '../lib/util.mjs';
+import {
+  AI_LOG_PATH,
+  AI_TIMEOUT_MS,
+  GENERATION_DEDUP_TTL_MS,
+  GENERATION_JOB_POLL_WAIT_MS,
+  IMPORT_LOG_PATH,
+  MAX_IMPORT_URLS,
+  MAX_OCR_IMAGES,
+  MAX_OCR_REQUEST_BYTES
+} from '../config/index.mjs';
 import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
 import { analyzeSourceUrl, detectPlatform, extractUrls } from '../import/source-page.mjs';
-import { createRouteEditToken, cryptoRandomId, normalizeProfileId, sanitizeEditToken } from '../auth/tokens.mjs';
-import { resolveWriteProfile, verifyApiAccess, verifySensitiveReadAccess } from '../auth/request-access.mjs';
+import { cryptoRandomId, normalizeProfileId } from '../auth/tokens.mjs';
+import {
+  hasAdminAccess,
+  requestClientKey,
+  resolveWriteProfile,
+  verifyApiAccess,
+  verifyProfileReadAccess,
+  verifySensitiveReadAccess
+} from '../auth/request-access.mjs';
 import { bindRequestAbortSignal, readJsonBody, sendJson } from '../http/response.mjs';
-import { route } from '../http/router.mjs';
+import { NO_POI_CATALOG, route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { safeSourceUrl } from '../lib/urls.mjs';
-import { normalizeRoutebookForStorage, signImportedSource } from '../routebooks/normalize.mjs';
-import { analyzeGuideImages, generateRoutebook, generationFailureReason, normalizeOcrImage, sanitizePayload } from '../ai/generate.mjs';
-import { enrichRoutebook } from '../trust/feedback.mjs';
-import { enforceGenerationQuota, withGenerationDedup } from '../ai/generationGuard.mjs';
-import { appendVersionedRoutebook } from '../routebooks/versions.mjs';
-import { normalizeUserRouteCreator } from '../routebooks/mutations.mjs';
+import { signImportedSource } from '../routebooks/normalize.mjs';
+import { analyzeGuideImages, normalizeOcrImage, sanitizePayload } from '../ai/generate.mjs';
+import { enforceGenerationQuota, generationInputHash, withGenerationDedup } from '../ai/generationGuard.mjs';
+import { generateAndStoreRoutebook, recentGenerationEstimate } from '../ai/generationRun.mjs';
+import {
+  cancelGenerationJob,
+  findDuplicateGenerationJob,
+  generationJobSnapshot,
+  getGenerationJob,
+  startGenerationJob,
+  waitForGenerationJob
+} from '../ai/generationJobs.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { buildAiObservabilitySummary, normalizeAiGenerationStages, normalizeCostEstimate, normalizeStoredModelUsage } from '../analytics/aiObservability.mjs';
-
-function guideLogMeta(payload) {
-  const guide = String(payload?.guide ?? '');
-  return {
-    inputHash: hashText(guide),
-    inputLength: guide.length,
-    sourceCount: payload?.importedSources?.length ?? 0
-  };
-}
 
 const IMPORT_STATUS_TEXT = { fetched: '已读取公开内容', 'metadata-only': '只识别到链接', unavailable: '页面已删除或需登录', failed: '抓取失败' };
 
@@ -40,93 +53,80 @@ export const aiRoutes = [
     return sendJson(res, 200, await analyzeGuideImages(images, bindRequestAbortSignal(req)));
   }),
   route('POST', '/api/generate-routebook', async ({ req, res }) => {
+    // Synchronous (legacy) generation: holds the request until the routebook is saved.
+    // The web app uses /api/generation-jobs; this stays for scripts and older clients.
     enforceRateLimit(req, 'ai');
     verifyApiAccess(req);
     const sanitizedPayload = sanitizePayload(await readJsonBody(req));
     const actor = await resolveWriteProfile(req, sanitizedPayload.profileId);
     const payload = { ...sanitizedPayload, profileId: actor.profileId };
-    const startedAt = Date.now();
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
-    const inputMeta = guideLogMeta(payload);
-    let observability = null;
-    let persistenceStartedAt = null;
-    let persistenceCompleted = false;
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
       await enforceGenerationQuota(normalizeProfileId(payload.profileId));
-      return generateAndStore();
+      return generateAndStoreRoutebook(payload, { signal: bindRequestAbortSignal(req), requestId });
     });
     return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
-
-    async function generateAndStore() {
-      try {
-        const routebook = await generateRoutebook(payload, bindRequestAbortSignal(req));
-        observability = routebook.observability;
-        const profileId = normalizeProfileId(payload.profileId);
-        const storedRoutebook = normalizeRoutebookForStorage(
-          {
-            ...routebook,
-            schemaVersion: 2,
-            version: 1,
-            parentVersion: null,
-            changeReason: 'AI 生成初始草稿',
-            actorType: 'user',
-            profileId,
-            creator: normalizeUserRouteCreator(payload, profileId),
-            sourceAuthorization: 'user-generated',
-            editToken: sanitizeEditToken(payload.editToken) || createRouteEditToken()
-          },
-          routebook.publicId
-        );
-        persistenceStartedAt = Date.now();
-        await appendVersionedRoutebook(storedRoutebook, 'generated');
-        persistenceCompleted = true;
-        observability.stages.persistence = { durationMs: Date.now() - persistenceStartedAt, status: 'completed', timedOut: false };
-        await appendJsonLine(AI_LOG_PATH, {
-          requestId,
-          kind: 'generate-routebook',
-          status: 'ok',
-          city: payload.city,
-          profileId,
-          provider: routebook.provider,
-          ...inputMeta,
-          ...observability,
-          outputTitle: storedRoutebook.title,
-          trustScore: storedRoutebook.trustScore,
-          stopCount: storedRoutebook.stops.length,
-          publicId: storedRoutebook.publicId,
-          durationMs: Date.now() - startedAt,
-          createdAt: new Date().toISOString()
-        });
-        return { ...(await enrichRoutebook(storedRoutebook)), shareUrl: '' };
-      } catch (error) {
-        observability = error.observability ?? observability;
-        if (observability && persistenceStartedAt != null && !persistenceCompleted) {
-          observability = {
-            ...observability,
-            failureStage: 'persistence',
-            stages: { ...observability.stages, persistence: { durationMs: Date.now() - persistenceStartedAt, status: 'failed', timedOut: false } }
-          };
-        }
-        await appendJsonLine(AI_LOG_PATH, {
-          requestId,
-          kind: 'generate-routebook',
-          status: 'error',
-          city: payload.city,
-          profileId: normalizeProfileId(payload.profileId),
-          ...inputMeta,
-          ...(observability ?? {}),
-          code: error.code ?? 'MODEL_ERROR',
-          failureReason: generationFailureReason(error),
-          upstreamStatus: error.upstreamStatus,
-          upstreamDetail: truncateString(error.upstreamDetail, 400),
-          durationMs: Date.now() - startedAt,
-          createdAt: new Date().toISOString()
-        });
-        throw error;
-      }
-    }
   }),
+  route('POST', '/api/generation-jobs', async ({ req, res }) => {
+    enforceRateLimit(req, 'ai');
+    verifyApiAccess(req);
+    const sanitizedPayload = sanitizePayload(await readJsonBody(req));
+    const actor = await resolveWriteProfile(req, sanitizedPayload.profileId);
+    const payload = { ...sanitizedPayload, profileId: actor.profileId };
+    const profileId = normalizeProfileId(payload.profileId);
+    const clientKey = requestClientKey(req);
+    // Anonymous users share one profile id, so their dedup key also carries the client
+    // address: identical input from two strangers must never return the same routebook.
+    const dedupKey = GENERATION_DEDUP_TTL_MS
+      ? generationInputHash({ ...payload, profileId: profileId === 'anonymous' ? `anonymous:${clientKey}` : profileId })
+      : '';
+    const duplicate = findDuplicateGenerationJob(dedupKey);
+    if (duplicate) return sendJson(res, 200, { ok: true, deduplicated: true, job: generationJobSnapshot(duplicate) });
+    await enforceGenerationQuota(profileId);
+    const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
+    const { job, deduplicated } = startGenerationJob({
+      dedupKey,
+      clientKey,
+      profileId,
+      timeoutMs: AI_TIMEOUT_MS,
+      estimate: await recentGenerationEstimate(),
+      parseDetail: [`${payload.guide.length} 字攻略`, payload.importedSources?.length ? `${payload.importedSources.length} 个导入来源` : '']
+        .filter(Boolean)
+        .join(' · '),
+      run: (signal, onStage, jobId) => generateAndStoreRoutebook(payload, { signal, requestId, onStage, jobId })
+    });
+    // The rejection is reported through the job; never let it surface as unhandled.
+    job.promise?.catch(() => {});
+    return sendJson(res, deduplicated ? 200 : 202, { ok: true, deduplicated, job: generationJobSnapshot(job) });
+  }),
+  route(
+    'GET',
+    '/api/generation-jobs/:id',
+    async ({ req, res, params, url }) => {
+      enforceRateLimit(req, 'public-read');
+      verifyApiAccess(req);
+      const job = await readableGenerationJob(req, params.id);
+      const after = Number(url.searchParams.get('after'));
+      if (Number.isInteger(after) && after >= 0) {
+        await waitForGenerationJob(job, after, GENERATION_JOB_POLL_WAIT_MS, bindRequestAbortSignal(req));
+      }
+      return sendJson(res, 200, { ok: true, job: generationJobSnapshot(job) });
+    },
+    NO_POI_CATALOG
+  ),
+  route(
+    'POST',
+    '/api/generation-jobs/:id/cancel',
+    async ({ req, res, params }) => {
+      enforceRateLimit(req, 'core-write');
+      verifyApiAccess(req);
+      const job = await readableGenerationJob(req, params.id);
+      cancelGenerationJob(job);
+      return sendJson(res, 200, { ok: true, job: generationJobSnapshot(job) });
+    },
+    NO_POI_CATALOG
+  ),
   route('GET', '/api/logs', async ({ req, res, url }) => {
     verifySensitiveReadAccess(req);
     const history = await readJsonLines(AI_LOG_PATH, Number.POSITIVE_INFINITY);
@@ -225,6 +225,16 @@ export const aiRoutes = [
     });
   })
 ];
+
+/** The job id is the capability; a registered profile's job additionally needs that profile's token. */
+async function readableGenerationJob(req, rawId) {
+  const job = getGenerationJob(safeDecodePathSegment(rawId));
+  if (!job) throw createHttpError('生成任务不存在或已过期（服务可能已重启），请重新生成', 404, 'GENERATION_JOB_NOT_FOUND');
+  if (job.profileId !== 'anonymous' && !hasAdminAccess(req) && !(await verifyProfileReadAccess(req, job.profileId))) {
+    throw createHttpError('生成任务不存在或已过期（服务可能已重启），请重新生成', 404, 'GENERATION_JOB_NOT_FOUND');
+  }
+  return job;
+}
 
 /** Mirrors the builder's gate (BuilderFlow hasActionableGuideInput) plus the low-trust threshold. */
 export function isUsableImportedSource(source) {

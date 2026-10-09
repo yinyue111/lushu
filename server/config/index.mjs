@@ -58,7 +58,18 @@ export const MAX_OCR_IMAGES = envNumber('MAX_OCR_IMAGES', 4, { min: 1, max: 20 }
 export const MAX_OCR_IMAGE_BYTES = envNumber('MAX_OCR_IMAGE_BYTES', 2 * 1024 * 1024, { min: 1024 });
 export const MAX_OCR_REQUEST_BYTES = envNumber('MAX_OCR_REQUEST_BYTES', Math.ceil((MAX_OCR_IMAGES * MAX_OCR_IMAGE_BYTES * 4) / 3) + 64 * 1024, { min: 1024 });
 export const IMPORT_TIMEOUT_MS = envNumber('IMPORT_TIMEOUT_MS', 12000, { min: 100 });
-export const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 120000, { min: 1000 });
+// Real models (e.g. grok-4.7 via a relay) take 140-180 s for a 2-day routebook, so the
+// default leaves headroom; every other timeout on the generation path derives from it.
+export const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 300000, { min: 1000 });
+// The synchronous /api/generate-routebook request (legacy) must outlive the model call
+// plus geocoding/routing; node's requestTimeout would otherwise cut it first.
+export const REQUEST_TIMEOUT_MS = envNumber('REQUEST_TIMEOUT_MS', AI_TIMEOUT_MS + 90000, { min: 0 });
+// Async generation jobs: finished jobs stay readable (page reload / resume) this long.
+export const GENERATION_JOB_RETENTION_MS = envNumber('GENERATION_JOB_RETENTION_MS', 30 * 60 * 1000, { min: 60 * 1000 });
+// Running jobs per client (IP / profile); cancelling one frees the slot immediately.
+export const GENERATION_MAX_ACTIVE_JOBS = envNumber('GENERATION_MAX_ACTIVE_JOBS', 2, { min: 1, max: 20 });
+// Long-poll window for GET /api/generation-jobs/:id?after=<seq>.
+export const GENERATION_JOB_POLL_WAIT_MS = envNumber('GENERATION_JOB_POLL_WAIT_MS', 15000, { min: 0, max: 60000 });
 
 // A 12-stop Chinese routebook plus assets/validations/metrics does not fit in the
 // old 2400-token budget; the retry limit covers the longest 3-day itineraries.

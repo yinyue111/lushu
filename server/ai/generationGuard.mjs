@@ -83,7 +83,13 @@ export async function enforceGenerationQuota(
   const since = nowMs - windowMs;
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
-    (row) => row?.kind === 'generate-routebook' && row?.profileId === profileId && row?.deduplicated !== true && Date.parse(row?.createdAt ?? '') >= since,
+    (row) =>
+      row?.kind === 'generate-routebook' &&
+      row?.profileId === profileId &&
+      row?.deduplicated !== true &&
+      // A generation the user cancelled gives its quota back.
+      row?.status !== 'cancelled' &&
+      Date.parse(row?.createdAt ?? '') >= since,
     quota,
     50000
   );
