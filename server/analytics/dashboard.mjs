@@ -107,6 +107,17 @@ function indexJourneyDatesByBase(dateKeys) {
   return datesByBase;
 }
 
+// 已删除/需登录（unavailable）的来源同样算解析失败，不能从分母里消失而抬高解析率。
+const RECORDED_IMPORT_STATUSES = new Set(['fetched', 'metadata-only', 'unavailable', 'failed']);
+
+export function summarizeImportAnalysis(imports) {
+  const recordedImportSources = (Array.isArray(imports) ? imports : [])
+    .flatMap((item) => (Array.isArray(item?.sources) ? item.sources : []))
+    .filter((source) => RECORDED_IMPORT_STATUSES.has(source?.status));
+  const importAnalysisSucceeded = recordedImportSources.filter((source) => source.status === 'fetched').length;
+  return { recordedImportSources, importAnalysisSucceeded, importAnalysisFailed: recordedImportSources.length - importAnalysisSucceeded };
+}
+
 export async function buildPlatformDashboard(limit = 1000) {
   const asOf = Date.now();
   const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics] = await Promise.all([
@@ -170,11 +181,7 @@ export async function buildPlatformDashboard(limit = 1000) {
       return Boolean(routebook?.provider?.editedAt || routebook?.provider?.statusUpdatedAt || routebook?.activeVariantId);
     })
   );
-  const recordedImportSources = imports
-    .flatMap((item) => (Array.isArray(item?.sources) ? item.sources : []))
-    .filter((source) => ['fetched', 'metadata-only', 'failed'].includes(source?.status));
-  const importAnalysisSucceeded = recordedImportSources.filter((source) => source.status === 'fetched').length;
-  const importAnalysisFailed = recordedImportSources.length - importAnalysisSucceeded;
+  const { recordedImportSources, importAnalysisSucceeded, importAnalysisFailed } = summarizeImportAnalysis(imports);
   const savedRoutebooks = savedJourneyKeys.size;
   const validCheckins = eligibleExecutionCheckins.length;
   const sharedRoutebooks = savedSharedJourneyKeys.size;
@@ -256,7 +263,7 @@ export async function buildPlatformDashboard(limit = 1000) {
       redirect: { status: 'not-instrumented', note: '曝光→点击已采集；点击后的外跳/下单没有事件，需接入后再统计' },
       importAnalysis: {
         numerator: '状态为 fetched 的已记录来源',
-        denominator: '明确记录为 fetched、metadata-only 或 failed 的来源'
+        denominator: '明确记录为 fetched、metadata-only、unavailable（已删除/需登录）或 failed 的来源'
       }
     },
     byCity: aggregateRoutebooksByCity(routebooks, checkins),

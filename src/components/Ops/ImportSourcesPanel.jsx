@@ -8,6 +8,7 @@ const STATUS_FILTERS = [
   { id: 'all', label: '全部状态' },
   { id: 'fetched', label: '抓取成功' },
   { id: 'metadata-only', label: '仅元数据' },
+  { id: 'unavailable', label: '页面不可用' },
   { id: 'failed', label: '抓取失败' }
 ];
 
@@ -106,7 +107,7 @@ export default function ImportSourcesPanel() {
         ) : listReady ? (
           <EmptyState>{rows.length ? '当前筛选状态下没有导入来源。' : '导入分析尚无记录。用户在生成页粘贴攻略链接并解析后，会在这里出现来源明细。'}</EmptyState>
         ) : null}
-        <p className="text-caption mt-2.5">状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only 与 failed 计失败。</p>
+        <p className="text-caption mt-2.5">状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only、unavailable（已删除/需登录）与 failed 计失败。</p>
       </section>
       {selected && (
         <OpsAuditDialog
@@ -187,6 +188,7 @@ function SourceStatusBadge({ value }) {
   const presentation = {
     fetched: ['抓取成功', 'badge-green'],
     'metadata-only': ['仅元数据', 'badge-orange'],
+    unavailable: ['页面不可用', 'badge-red'],
     failed: ['抓取失败', 'badge-red']
   }[String(value ?? '')] ?? ['未知', 'badge-blue'];
   return <span className={`badge ${presentation[1]}`}>{presentation[0]}</span>;
