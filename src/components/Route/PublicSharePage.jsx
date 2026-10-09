@@ -15,6 +15,7 @@ import AigcChip from './AigcChip';
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
   const [state, setState] = useState({ loading: true, error: '', routebook: null });
   const [actionState, setActionState] = useState({ pending: '', message: '', isError: false, savedDraft: null, synced: false });
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const exposureRef = useRef('');
 
   useEffect(() => {
@@ -172,7 +173,24 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               </span>
             </div>
             <h1 className="mt-3 text-3xl leading-tight font-black tracking-tight lg:text-5xl">{routebook.title}</h1>
-            {routebook.summary && <p className="mt-2 max-w-2xl text-copy text-white/90">{routebook.summary}</p>}
+            {routebook.summary && (
+              <>
+                <p id="share-summary" className={cn('mt-2 max-w-2xl text-copy text-white/90', !summaryOpen && 'max-sm:line-clamp-3')}>
+                  {routebook.summary}
+                </p>
+                {routebook.summary.length > 60 && (
+                  <button
+                    type="button"
+                    aria-expanded={summaryOpen}
+                    aria-controls="share-summary"
+                    onClick={() => setSummaryOpen((open) => !open)}
+                    className="-mt-1 inline-flex min-h-11 items-center text-meta font-bold text-white underline-offset-4 hover:underline sm:hidden"
+                  >
+                    {summaryOpen ? '收起' : '展开全文'}
+                  </button>
+                )}
+              </>
+            )}
             {routebook.creator?.id && (
               <button
                 type="button"

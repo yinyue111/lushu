@@ -81,7 +81,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
           </button>
         </h3>
         {routebook.summary && <p className="line-clamp-2 text-sm text-muted">{routebook.summary}</p>}
-        <p className="mt-auto flex items-center gap-1 pt-1 text-meta font-semibold text-ink-2">
+        <p className={cn('flex items-center gap-1 pt-1 text-meta font-semibold text-ink-2', layout === 'feature' ? 'mt-auto sm:mt-2' : 'mt-auto')}>
           <MapPin className="size-3.5 text-primary-strong" aria-hidden="true" />
           {meta || `${routebook.city || '目的地'}${stopCount ? ` · ${stopCount} 站` : ''}`}
         </p>

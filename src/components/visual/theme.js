@@ -1,4 +1,4 @@
-import { Coffee, Landmark, Mountain, ShoppingBag, Sparkles, TreePine, Utensils, Waves, Building2, Moon, Palette } from 'lucide-react';
+import { Coffee, Landmark, Mountain, ShoppingBag, Sparkles, TreePine, Utensils, Waves, Building2, Moon, Palette, TrainFront } from 'lucide-react';
 import { cityStories, defaultCityImage } from '../../lib/content';
 
 // Day colours (direction B): each day owns a two-stop gradient used by day cards,
@@ -73,6 +73,16 @@ export const EMPTY_SCENE = scene('empty-state');
 // Category inference for stops without photos: category scene image (「示意图」), with a
 // gradient tile + lucide icon underneath as the last resort.
 const CATEGORIES = [
+  // Transit points first: "交通大学地铁站" must not fall through to a lake or temple scene.
+  {
+    id: 'transit',
+    label: '交通',
+    test: /地铁|站$|站\d|号口|出口|车站|机场|码头/,
+    icon: TrainFront,
+    from: '#5c6370',
+    to: '#a3a9b5',
+    scene: scene('cat-street')
+  },
   { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市/, icon: Moon, from: '#2b3a67', to: '#7c5cdb' },
   {
     id: 'museum',
@@ -120,9 +130,10 @@ const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '
 
 export function stopCategory(stop) {
   // The stop's own name decides first: district names (锦江区, 西湖区) must not turn a
-  // shopping street into a 「湖河」 scene. Area and notes are only fallbacks.
+  // shopping street into a 「湖河」 scene. Area is the only fallback: free-text notes
+  // ("从地铁站步行到湖边") mention neighbouring places and picked misleading scenes.
   const match = (text) => CATEGORIES.find((item) => item.test.test(String(text ?? '')));
-  return match(stop?.name) ?? match(stop?.area) ?? match(stop?.verify) ?? FALLBACK_CATEGORY;
+  return match(stop?.name) ?? match(stop?.area) ?? FALLBACK_CATEGORY;
 }
 
 /** A real photo for the stop, only when the data actually carries one. */
