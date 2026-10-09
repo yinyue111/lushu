@@ -134,8 +134,10 @@ export function checkinForStatusDisplay(checkins) {
   );
 }
 
-/** @param {{ cloudSyncOff?: boolean }} [options] cloudSyncOff: this device has not turned on 云端同步 yet. */
-export function syncStatusLabel(status, row, { cloudSyncOff = false } = {}) {
+// cloudSyncOff: this device has not turned on 云端同步 yet.
+/** @param {string} status @param {any} row @param {{ cloudSyncOff?: boolean }} [options] */
+export function syncStatusLabel(status, row, options = {}) {
+  const cloudSyncOff = Boolean(options.cloudSyncOff);
   if (status === 'syncing') return '正在上传';
   if (status === 'synced') return '已保存到云端';
   if (status === 'failed') return row?.clientSyncRetryable === false ? '上传失败，请手动重试' : '上传失败，稍后自动重试';
