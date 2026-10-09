@@ -115,7 +115,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             <Chip tone="lemon" wrap>
               <MapPin /> {story.kicker}
             </Chip>
-            <h1 className="mt-4 text-display-md max-[359px]:text-[30px] leading-[1.15] font-extrabold tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,.25)] lg:text-display-xl">
+            <h1 className="mt-4 text-display-md max-[359px]:text-display-sm leading-[1.15] font-extrabold tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,.25)] lg:text-display-xl">
               把收藏的攻略，
               <br />
               变成能照着走的路书
