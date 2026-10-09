@@ -51,6 +51,27 @@ export function nameSimilarity(left, right) {
 
 const MATCH_RANK = Object.freeze({ exact: 3, alias: 2, contains: 1 });
 
+// AMap names a sight inside a scenic area as "<景区>-<景点>", e.g.
+// 「杭州西湖风景名胜区-苏堤春晓」. The part after the dash is the sight's own name, so it
+// is matched like an alias; the area prefix alone never is.
+const SCENIC_AREA_PREFIX = /(风景名胜区|风景区|景区|名胜区|公园|旅游区|度假区|湿地)$/;
+
+function splitScenicName(candidateName) {
+  const parts = String(candidateName ?? '')
+    .split(/\s*[-－—–]\s*/)
+    .filter(Boolean);
+  return parts.length >= 2 && SCENIC_AREA_PREFIX.test(parts[0]) ? parts : null;
+}
+
+function scenicAreaPrefix(candidateName) {
+  return splitScenicName(candidateName)?.[0] ?? '';
+}
+
+export function scenicSubPoiVariants(candidateName) {
+  const parts = splitScenicName(candidateName);
+  return parts ? placeNameVariants(parts.slice(1).join('')) : [];
+}
+
 // A name that merely *contains* the query is often a business named after the sight
 // ("西湖音乐喷泉公寓酒店", "全季酒店…音乐喷泉店停车场"): same words, different place.
 // Containment is refused when the candidate is lodging / parking / transit by AMap
@@ -74,8 +95,11 @@ export function classifyNameMatch(query, candidateName, aliases = []) {
   if (!normalizedQuery || !normalizedCandidate) return null;
   if (normalizedQuery === normalizedCandidate) return 'exact';
   const queryVariants = new Set(placeNameVariants(query, aliases));
-  const candidateVariants = placeNameVariants(candidateName);
+  const candidateVariants = [...placeNameVariants(candidateName), ...scenicSubPoiVariants(candidateName)];
   if (candidateVariants.some((variant) => queryVariants.has(variant))) return 'alias';
+  // "<景区>-<景点>": a query naming only the area is not this sight.
+  const scenicArea = scenicAreaPrefix(candidateName);
+  if (scenicArea && normalizePlaceText(scenicArea).includes(normalizedQuery)) return null;
   // Containment needs at least 2 shared characters and the shorter name to cover half
   // of the longer one, so "西湖" does not match "西湖区第三人民医院".
   const [shorter, longer] =

@@ -33,11 +33,44 @@ function parseAmapLocation(location) {
 async function fetchAmapJson(path, params, options = {}) {
   const { signal, fetchImpl = globalThis.fetch, baseUrl = AMAP_API_BASE_URL } = options;
   const response = await fetchImpl(`${String(baseUrl).replace(/\/+$/, '')}${path}?${new URLSearchParams(params)}`, { signal });
-  if (!response.ok) return null;
+  if (!response.ok) {
+    reportAmapUpstreamError(path, { httpStatus: response.status }, options);
+    return null;
+  }
   const data = await response.json();
-  // AMap reports errors with HTTP 200 and status "0".
-  if (data && String(data.status ?? '1') === '0') return null;
+  // AMap reports errors with HTTP 200 and status "0" (bad key, service not enabled, QPS or
+  // daily quota). Those used to look exactly like "no match"; surface the infocode.
+  if (data && String(data.status ?? '1') === '0') {
+    reportAmapUpstreamError(path, { infocode: String(data.infocode ?? ''), info: String(data.info ?? '') }, options);
+    return null;
+  }
   return data;
+}
+
+const reportedAmapErrors = new Map();
+
+/**
+ * Logs one line per path+infocode per minute: path, infocode and AMap's info text only —
+ * never the request URL, which carries the key.
+ */
+export function reportAmapUpstreamError(path, detail, options = {}) {
+  const error = {
+    path,
+    httpStatus: detail.httpStatus ?? null,
+    infocode: truncateString(detail.infocode ?? '', 12),
+    info: truncateString(detail.info ?? '', 80)
+  };
+  try {
+    options.onUpstreamError?.(error);
+  } catch {
+    // Observers never affect geocoding.
+  }
+  const key = `${path}:${error.infocode || error.httpStatus}`;
+  const now = Date.now();
+  if ((reportedAmapErrors.get(key) ?? 0) > now - 60000) return error;
+  reportedAmapErrors.set(key, now);
+  (options.warn ?? console.warn)(`[amap] ${path} rejected: ${error.infocode ? `infocode=${error.infocode} info=${error.info}` : `HTTP ${error.httpStatus}`}`);
+  return error;
 }
 
 /** POI keyword search, limited to the city. Candidates outside the city are dropped. */
@@ -114,6 +147,7 @@ export async function geocodePoiWithAmap(city, name, signal, options = {}) {
     let normalized = null;
     const candidates = await searchAmapPoiCandidates(city, name, requestOptions).catch((error) => {
       if (controller.signal.aborted) throw error;
+      reportAmapUpstreamError('/v3/place/text', { info: `network: ${String(error?.code ?? error?.name ?? 'error')}`, infocode: 'network' }, requestOptions);
       return [];
     });
     const choice = chooseGeocodeCandidate({ name, aliases: options.aliases }, candidates);

@@ -167,3 +167,41 @@ test('containment never picks a hotel, parking lot or branch named after the sig
   assert.equal(chooseGeocodeCandidate({ name: '音乐喷泉公寓酒店' }, candidates).chosen.id, 'h1');
   assert.equal(chooseGeocodeCandidate({ name: '西湖音乐喷泉公寓酒店' }, candidates).matchType, 'exact');
 });
+
+test('a sight inside a scenic area ("<景区>-<景点>") matches its own name, not the area', () => {
+  // Shapes from a real AMap /v3/place/text answer for 杭州「苏堤春晓」.
+  const candidates = [
+    { id: 'a', name: '杭州西湖风景名胜区-苏堤春晓', typecode: '110000', rank: 0 },
+    { id: 'b', name: '西湖风景区-苏堤', typecode: '110200', rank: 1 },
+    { id: 'c', name: '杭州苏堤春晓网络科技有限公司', typecode: '170206', rank: 2 }
+  ];
+  const choice = chooseGeocodeCandidate({ name: '苏堤春晓' }, candidates);
+  assert.equal(choice.chosen.id, 'a');
+  assert.equal(choice.matchType, 'alias');
+  assert.equal(choice.precision, GEOCODE_PRECISION.POI_EXACT);
+  assert.equal(classifyNameMatch('西湖风景名胜区', '杭州西湖风景名胜区-苏堤春晓'), null, 'the area prefix alone is not a match');
+  assert.equal(classifyNameMatch('苏堤', '某某大厦-苏堤'), null, 'only scenic-area prefixes are split');
+});
+
+test('AMap status-0 answers are reported with infocode, never with the key', async () => {
+  clearGeocodeCache();
+  const { fetchImpl } = mockFetch({
+    '/v3/place/text': { status: '0', infocode: '10021', info: 'CUQPS_HAS_EXCEEDED_THE_LIMIT' },
+    '/v3/geocode/geo': { status: '0', infocode: '10009', info: 'USERKEY_PLAT_NOMATCH' }
+  });
+  const warnings = [];
+  const errors = [];
+  const result = await geocodePoiWithAmap('杭州', '上报测试点', undefined, {
+    fetchImpl,
+    apiKey: 'secret-test-key-123',
+    warn: (/** @type {string} */ line) => warnings.push(line),
+    onUpstreamError: (/** @type {any} */ error) => errors.push(error)
+  });
+  assert.equal(result, null);
+  assert.deepEqual(
+    errors.map((error) => `${error.path} ${error.infocode}`),
+    ['/v3/place/text 10021', '/v3/geocode/geo 10009']
+  );
+  assert.ok(warnings.some((line) => line.includes('infocode=10021') && line.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT')));
+  assert.ok(!JSON.stringify([warnings, errors]).includes('secret-test-key-123'), 'key never logged');
+});
