@@ -47,3 +47,16 @@ const IMPORT_STATUS_LABELS = {
 export function importStatusLabel(status) {
   return IMPORT_STATUS_LABELS[status] ?? '状态待补充';
 }
+
+/** Typed 必去 text plus candidates the user marked 必去 (and kept included), de-duplicated. */
+export function mergeMustGoConstraint(mustGoText, candidatePlaces = []) {
+  const typed = String(mustGoText ?? '')
+    .split(/[、，,;；\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const marked = (Array.isArray(candidatePlaces) ? candidatePlaces : [])
+    .filter((place) => place?.mustGo && place?.included !== false)
+    .map((place) => String(place.name ?? '').trim())
+    .filter(Boolean);
+  return [...new Set([...typed, ...marked])].join('、');
+}

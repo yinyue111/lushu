@@ -36,3 +36,16 @@ test('import status is shown in Chinese, never the raw enum', () => {
   assert.equal(importStatusLabel('unavailable'), '页面已删除或需登录');
   assert.equal(importStatusLabel('weird'), '状态待补充');
 });
+
+test('E2E 2026-10-09: candidates marked 必去 reach constraints.mustGo', async () => {
+  const { mergeMustGoConstraint } = await import('../../src/components/Builder/builderModel.js');
+  const candidates = [
+    { name: '宽窄巷子', included: true, mustGo: true },
+    { name: '春熙路', included: true, mustGo: false },
+    { name: '武侯祠', included: true, mustGo: true },
+    { name: '熊猫基地', included: false, mustGo: true }
+  ];
+  assert.equal(mergeMustGoConstraint('', candidates), '宽窄巷子、武侯祠');
+  assert.equal(mergeMustGoConstraint('武侯祠、杜甫草堂', candidates), '武侯祠、杜甫草堂、宽窄巷子');
+  assert.equal(mergeMustGoConstraint('', []), '');
+});

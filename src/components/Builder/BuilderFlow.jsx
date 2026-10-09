@@ -7,7 +7,7 @@ import { adoptServerProfile } from '../../lib/profileSync';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGenerate, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
-import { BUDGET_OPTIONS } from './builderModel';
+import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
 import { extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
 
@@ -268,6 +268,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           editToken: createRouteEditToken(),
           constraints: {
             ...constraints,
+            // Places marked 必去 in the candidate list are must-go constraints too, so the
+            // routebook's 必去与避开 check and the constraint metrics can verify them.
+            mustGo: mergeMustGoConstraint(constraints.mustGo, candidatePlaces),
             theme: constraints.theme?.join('、')
           },
           importedSources: importState.sources
