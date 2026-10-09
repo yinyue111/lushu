@@ -3,6 +3,7 @@ import { trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
+import { cityCover, smallImage } from '../visual/theme';
 import { averageSourcePrediction, budgetHint, budgetValueForLabel, importStatusLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
 
 const TONES = {
@@ -82,22 +83,46 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
           <option key={item} value={item} />
         ))}
       </datalist>
-      <div className="mt-4 flex flex-wrap gap-2" aria-label="首批可信城市">
-        {trustedCities.map((item) => (
-          <button
-            key={item}
-            type="button"
-            aria-pressed={item === city}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => commitCity(item)}
-            className={cn(
-              'inline-flex h-11 items-center gap-1.5 rounded-full border px-5 text-copy font-bold transition-colors',
-              item === city ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-ink hover:border-ink/40'
-            )}
-          >
-            <MapPin className="size-4" aria-hidden="true" /> {item}
-          </button>
-        ))}
+      {/* Trusted cities as photo cards: the step's focal point, and the photos are the bundled city shots. */}
+      <div className="mt-5 grid grid-cols-3 gap-2.5 sm:gap-3" role="group" aria-label="首批可信城市">
+        {trustedCities.map((item) => {
+          const cover = cityCover(item);
+          const active = item === city;
+          return (
+            <button
+              key={item}
+              type="button"
+              aria-pressed={active}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => commitCity(item)}
+              className={cn(
+                'group relative isolate flex h-24 items-end overflow-hidden rounded-tile p-2.5 text-left text-white ring-offset-2 transition-shadow sm:h-32 sm:p-3',
+                active ? 'ring-[3px] ring-ink' : 'ring-1 ring-line hover:ring-ink/40'
+              )}
+            >
+              {cover && (
+                <img
+                  src={smallImage(cover)}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 -z-20 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
+                />
+              )}
+              <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,0)_30%,rgba(10,12,16,.72)_100%)]" aria-hidden="true" />
+              {active && (
+                <span className="absolute top-2 right-2 grid size-6 place-items-center rounded-full bg-white text-ink shadow-card" aria-hidden="true">
+                  <Check className="size-4" />
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="flex items-center gap-1 text-copy font-extrabold sm:text-lead">
+                  <MapPin className="size-4 shrink-0" aria-hidden="true" /> {item}
+                </span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-white/85 max-sm:hidden">已有真实打卡</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
       {!isTrustedCity && <Notice className="mt-5">{city} 是试验生成：地点、营业信息和导航都需要出发前人工核对。</Notice>}
     </section>
