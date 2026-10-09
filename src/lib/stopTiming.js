@@ -43,3 +43,20 @@ export function retimeReorderedDays(stops, days) {
   }
   return next;
 }
+
+// 下一站建议时间倒计时：解析 stop.time 里的 HH:mm，与当前时间比较；
+// 解析不到、下一站在另一天（明天的 09:00 不是“超时”），或相差超过 12 小时时不展示。
+export function nextStopEta(stop, nowMs, currentStop = null) {
+  if (currentStop && (stop?.day || 'Day 1') !== (currentStop?.day || 'Day 1')) return null;
+  const match = String(stop?.time ?? '').match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  const target = new Date(nowMs);
+  target.setHours(hours, minutes, 0, 0);
+  const diffMinutes = Math.round((target.getTime() - nowMs) / 60_000);
+  if (Math.abs(diffMinutes) > 12 * 60) return null;
+  if (diffMinutes >= 0) return { overdue: false, label: `距建议到达还有 ${diffMinutes} 分钟` };
+  return { overdue: true, label: `已超出建议时间 ${Math.abs(diffMinutes)} 分钟` };
+}

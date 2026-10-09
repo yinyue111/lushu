@@ -129,7 +129,7 @@ export default function TripView({ routebook, onBack, onReview }) {
   );
   const nearbyVisible = filterNearbyRecommendations(nearbyItems, nearbyFilter);
   const navigation = useMemo(() => navigationForStop(stops, effectiveIdx, routebook, latestByStop), [effectiveIdx, latestByStop, routebook, stops]);
-  const nextStopCountdown = useMemo(() => nextStopEta(next, nowTick), [next, nowTick]);
+  const nextStopCountdown = useMemo(() => nextStopEta(next, nowTick, current), [next, nowTick, current]);
 
   useEffect(() => {
     checkinsRef.current = checkins;

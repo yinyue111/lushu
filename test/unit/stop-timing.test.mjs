@@ -38,3 +38,11 @@ test('unparseable times are left alone instead of inventing a schedule', () => {
   ];
   assert.deepEqual(retimeReorderedDays(stops, ['Day 1']), stops);
 });
+
+test('the next stop on another day never shows as 超时 against today’s clock', async () => {
+  const { nextStopEta } = await import('../../src/lib/stopTiming.js');
+  const now = new Date(2026, 9, 9, 16, 30).getTime();
+  assert.equal(nextStopEta({ day: 'Day 2', time: '09:00-11:20' }, now, { day: 'Day 1', time: '16:20-17:50' }), null);
+  assert.deepEqual(nextStopEta({ day: 'Day 1', time: '18:10-19:50' }, now, { day: 'Day 1' }), { overdue: false, label: '距建议到达还有 100 分钟' });
+  assert.equal(nextStopEta({ day: 'Day 1', time: '15:00' }, now, { day: 'Day 1' }).overdue, true);
+});

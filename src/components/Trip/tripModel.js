@@ -37,21 +37,7 @@ export function createClientCheckinId() {
   return `checkin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// 下一站建议时间倒计时：解析 stop.time 里的 HH:mm，与当前时间比较；
-// 解析不到或相差超过 12 小时（可能非当日）时不展示。
-export function nextStopEta(stop, nowMs) {
-  const match = String(stop?.time ?? '').match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) return null;
-  const target = new Date(nowMs);
-  target.setHours(hours, minutes, 0, 0);
-  const diffMinutes = Math.round((target.getTime() - nowMs) / 60_000);
-  if (Math.abs(diffMinutes) > 12 * 60) return null;
-  if (diffMinutes >= 0) return { overdue: false, label: `距建议到达还有 ${diffMinutes} 分钟` };
-  return { overdue: true, label: `已超出建议时间 ${Math.abs(diffMinutes)} 分钟` };
-}
+export { nextStopEta } from '../../lib/stopTiming';
 
 export function buildReview(checkins, stops) {
   if (!checkins.length) return '记录到达后会自动沉淀完成度、花费、排队和踩坑反馈';
@@ -163,7 +149,7 @@ export function publicTrustEvidenceLabel(row, evidence) {
     return '上传并校验通过后，才会计入路线可信度。';
   }
   if (evidence.countsTowardPublicTrust) {
-    return '公开可信：实名身份与有效 GPS 到达均已通过，已计入样本。';
+    return '公开可信：账号归属与有效 GPS 到达均已校验，已计入样本（尚未接入实名认证）。';
   }
   if (evidence.validArrival && !evidence.identityAttested) {
     return '公开可信：GPS 到达有效，但身份尚未完成可信绑定，不计入样本。';
