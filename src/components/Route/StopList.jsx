@@ -1,18 +1,4 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  CarTaxiFront,
-  CircleCheckBig,
-  Clock,
-  Footprints,
-  Info,
-  MapPinned,
-  MoreVertical,
-  Pencil,
-  Ticket,
-  Trash2,
-  TriangleAlert
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil, Trash2, TriangleAlert } from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
 import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { formatVerifiedDate, getStopTrustBadge } from '../../lib/trust';
@@ -22,7 +8,8 @@ import { cn } from '../ui/cn';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/menu';
 import { StopThumb } from '../visual/StopThumb';
 import { sourceEvidencePrediction, stopKey } from './routebookModel';
-import { StopProvenanceChips } from './StopProvenance';
+import { StopTrustLine } from './StopProvenance';
+import { Notice } from '../ui/notice';
 
 export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [] }) {
   return (
@@ -68,7 +55,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
     <>
       <li
         className={cn(
-          'group grid cursor-pointer grid-cols-[104px_minmax(0,1fr)] gap-3 rounded-card border border-line bg-white p-2.5 shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:shadow-pop sm:grid-cols-[168px_minmax(0,1fr)] sm:gap-[18px] sm:p-3',
+          'group grid cursor-pointer grid-cols-[88px_minmax(0,1fr)] gap-3 rounded-card border border-line bg-white p-2.5 shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:shadow-pop motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4 sm:p-3',
           selected && 'border-transparent shadow-[0_0_0_2px_var(--color-primary),var(--shadow-pop)]',
           draggedStopId && stopKey(draggedStopId) === stopKey(stop.id) && 'opacity-60'
         )}
@@ -79,7 +66,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
         onDrop={() => canEdit && handlers.moveStopBefore(draggedStopId, stop.id)}
         onClick={() => handlers.select(stop.id)}
       >
-        <StopThumb stop={stop} number={index + 1} time={stop.time} color={theme.ink} className="min-h-28 sm:min-h-[132px]" />
+        <StopThumb stop={stop} number={index + 1} color={theme.ink} className="aspect-square self-start sm:aspect-[4/3.4]" />
         <div className="min-w-0 py-1 pr-1.5">
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
             <h3 className="text-lead leading-snug font-extrabold sm:text-xl">
@@ -126,43 +113,26 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               )}
             </div>
           </div>
-          <div className="my-1.5 flex flex-wrap gap-1.5 sm:my-2">
-            {stop.stay && (
-              <Chip size="sm" className="sm:h-7 sm:text-sm">
-                <Clock /> 停留 {String(stop.stay).replace(/^停留\s*/, '')}
-              </Chip>
-            )}
-            {stop.cost && (
-              <Chip size="sm" className="sm:h-7 sm:text-sm">
-                <Ticket /> {stop.cost}
-              </Chip>
-            )}
-            {trustBadge.tone === 'verified' ? (
-              <Chip size="sm" tone="ok" className="sm:h-7 sm:text-sm">
-                <CircleCheckBig /> {verifiedCount ? `${verifiedCount} 人到达验证` : trustBadge.label}
-              </Chip>
-            ) : trustBadge.tone === 'trial' ? (
-              <Chip size="sm" tone="warn" className="sm:h-7 sm:text-sm">
-                待人工复核
-              </Chip>
-            ) : (
-              <Chip size="sm" tone="sky" className="sm:h-7 sm:text-sm">
-                还没人打卡
-              </Chip>
-            )}
-            {approximate && (
-              <Chip size="sm" tone="warn" className="sm:h-7 sm:text-sm">
-                <MapPinned /> 位置待确认
-              </Chip>
-            )}
-            <StopProvenanceChips stop={stop} className="sm:h-7 sm:text-sm" />
-          </div>
-          {stop.verify && <p className="text-sm text-ink-2 sm:text-copy">{stop.verify}</p>}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-ink-2 sm:text-sm">
+            {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`, stop.cost].filter(Boolean).map((part, i) => (
+              <span key={part} className="inline-flex items-center gap-2">
+                {i > 0 && (
+                  <span className="text-line-strong" aria-hidden="true">
+                    ·
+                  </span>
+                )}
+                {i === 0 && <Clock className="size-3.5 text-muted" aria-hidden="true" />}
+                {part}
+              </span>
+            ))}
+          </p>
+          <StopTrustLine stop={stop} trust={trustBadge} verifiedCount={verifiedCount} approximate={approximate} className="mt-1.5" />
+          {stop.verify && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-2 sm:text-copy">{stop.verify}</p>}
           {stop.risk && (
-            <p className="mt-2 inline-flex items-start gap-1.5 rounded-[10px] bg-primary-soft px-2 py-1.5 text-meta font-semibold text-primary-strong sm:px-2.5 sm:text-sm">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <Notice className="mt-2">
+              <span className="sr-only">出发前留意：</span>
               {stop.risk}
-            </p>
+            </Notice>
           )}
           {selected && (trustBadge.verified || evidence.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -195,7 +165,7 @@ function LegRow({ from, to, roadLeg }) {
     <li
       className={cn(
         "relative ml-[52px] flex items-center gap-2.5 py-2 text-meta font-semibold text-muted before:absolute before:top-0 before:bottom-0 before:-left-4 before:border-l-[3px] before:border-dotted before:border-line-strong before:content-[''] sm:ml-24 sm:py-2.5 sm:text-sm",
-        !precise && 'text-lemon-ink'
+        !precise && 'text-warn-ink'
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />

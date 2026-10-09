@@ -56,7 +56,7 @@ export default function RouteHero({
         </div>
       )}
       <div
-        className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.28)_0%,rgba(10,12,16,.05)_35%,rgba(10,12,16,.78)_100%)]"
+        className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.32)_0%,rgba(10,12,16,.04)_32%,rgba(10,12,16,.62)_68%,rgba(10,12,16,.86)_100%)]"
         aria-hidden="true"
       />
 
@@ -84,21 +84,17 @@ export default function RouteHero({
 
       <div className="mx-auto flex min-h-[380px] max-w-[1376px] items-end gap-8 px-[18px] pt-24 pb-11 lg:min-h-[400px] lg:px-8 lg:pb-8">
         <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <Chip tone="lemon">
               <MapPin /> {routebook.city || '目的地'}
             </Chip>
-            <Chip tone="glass">{dayCount} 天</Chip>
-            <Chip tone="glass">{stopCount} 站</Chip>
+            <Chip tone="glass">
+              {dayCount} 天 · {stopCount} 站
+            </Chip>
             <Chip tone="glass">
               <TrustIcon /> {trustState.shortLabel}
             </Chip>
             <AigcChip routebook={routebook} />
-            {isOwner && (
-              <Chip tone="glass" className="hidden sm:inline-flex">
-                {publishStatusLabel(routebook.publishStatus)}
-              </Chip>
-            )}
             {routebook.routingWarning?.unverifiedLegs > 0 && (
               // Only present on owner/ops reads: a re-check found unverified legs but the
               // routebook stays published (re-checks never unpublish).
@@ -111,13 +107,18 @@ export default function RouteHero({
           <h1 className="max-w-[860px] text-display-sm leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:text-display-lg lg:leading-[1.18]">
             {routebook.title}
           </h1>
-          {routebook.summary && <p className="mt-2 hidden max-w-[760px] text-lead text-white/92 sm:block">{routebook.summary}</p>}
+          {routebook.summary && (
+            <p className="mt-2.5 hidden max-w-[720px] text-copy leading-relaxed text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,.35)] sm:line-clamp-2 lg:text-lead lg:leading-relaxed">
+              {routebook.summary}
+            </p>
+          )}
           <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy">
             <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
               {String(creatorName).slice(0, 1)}
             </span>
             <span className="min-w-0 truncate">
               <b className="text-white">{creatorName}</b>
+              {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
               {Number.isInteger(version) && version > 0 && <span className="hidden sm:inline"> · v{version}</span>}
               {updated && <span className="hidden sm:inline"> · {updated} 更新</span>}
             </span>

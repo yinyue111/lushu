@@ -1,6 +1,7 @@
 import { BadgeCheck, NotebookPen, Link2, PenLine, Sparkles, CircleHelp } from 'lucide-react';
 import { STOP_ORIGINS, coordinateVerificationLevel, normalizeStopOrigin } from '../../lib/trustSignals';
 import { Chip } from '../ui/chip';
+import { cn } from '../ui/cn';
 
 const ORIGIN_UI = {
   'user-guide': { icon: NotebookPen, tone: 'ok' },
@@ -72,5 +73,40 @@ export function StopProvenanceDetail({ stop }) {
         ))}
       </dl>
     </section>
+  );
+}
+
+const DOT = { ok: 'bg-success', warn: 'bg-warn', info: 'bg-info', neutral: 'bg-line-strong' };
+
+/**
+ * One calm line that carries a stop's trust + provenance (polish pass): text holds the
+ * meaning, a small dot is a secondary cue. Details stay in the 「这一站的依据」 sheet.
+ * @param {{ stop: any, trust: { tone: string, verified?: boolean, label?: string }, verifiedCount?: number, approximate?: boolean, className?: string }} props
+ */
+export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = false, className }) {
+  const origin = normalizeStopOrigin(stop?.provenance?.origin);
+  const items = [
+    trust.tone === 'verified'
+      ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达验证` : trust.label }
+      : trust.tone === 'trial'
+        ? { tone: 'warn', text: '待人工复核' }
+        : { tone: 'info', text: '还没人打卡' },
+    approximate && { tone: 'warn', text: '位置待确认' },
+    {
+      tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' ? 'ok' : 'neutral',
+      text: STOP_ORIGINS[origin].label,
+      title: STOP_ORIGINS[origin].detail
+    },
+    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '已审核 POI', title: '名称命中运营已审核的 POI 目录' }
+  ].filter(Boolean);
+  return (
+    <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>
+      {items.map((item) => (
+        <span key={item.text} className="inline-flex items-center gap-1.5" title={item.title}>
+          <i className={cn('size-1.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
+          {item.text}
+        </span>
+      ))}
+    </p>
   );
 }

@@ -81,11 +81,12 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
         if (!isNavigableCoordinate(from) || !isNavigableCoordinate(to)) continue;
         const road = roadLegForStops(routeLegs, from, to);
         const points = road ? road.geometry.map(([lat, lng]) => toMapLatLng(lat, lng, basemap)) : [toLatLng(from), toLatLng(to)];
-        if (road && isActive) L.polyline(points, { color: '#ffffff', weight: 12, opacity: 1, interactive: false }).addTo(group);
+        // Active day: white casing under every leg so the ribbon reads on the muted basemap.
+        if (isActive) L.polyline(points, { color: '#ffffff', weight: road ? 11 : 7, opacity: 0.95, interactive: false, lineCap: 'round' }).addTo(group);
         L.polyline(points, {
           color: entry.theme.solid,
-          weight: road ? (isActive ? 7 : 4) : 3,
-          opacity: isActive ? 0.95 : 0.4,
+          weight: road ? (isActive ? 6 : 3.5) : isActive ? 3.5 : 2.5,
+          opacity: isActive ? 1 : 0.45,
           dashArray: road ? undefined : '5 8',
           lineCap: 'round',
           lineJoin: 'round'

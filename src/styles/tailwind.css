@@ -116,8 +116,13 @@
    these few classes live here instead of utilities. ---- */
 @layer components {
   .rb-map .leaflet-container {
-    background: #dfeaf2;
+    background: #e9eef1;
     font-family: var(--font-sans);
+  }
+  /* Calmer basemap so the day ribbon and pins carry the picture. Only the tile layer is
+     filtered; the provider attribution control stays untouched. */
+  .rb-map .leaflet-tile-pane {
+    filter: saturate(0.5) brightness(1.04) contrast(0.95);
   }
   .rb-map .leaflet-control-zoom {
     border: 0;
