@@ -82,7 +82,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
                 {sourceAuthorizationLabel(creator.sourceAuthorization)}
               </span>
               <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{creator.name || creator.id}</h1>
-              <p className="mt-1 max-w-xl text-copy text-white/90">{creator.bio || '路线合集由真实保存、复制和打卡反馈持续校准。'}</p>
+              <p className="mt-1 max-w-xl text-copy text-white/90">{creator.bio || 'TA 公开的路线都在这里，附带别人保存、复制和打卡的次数。'}</p>
             </div>
           </div>
           <dl className={cn('mt-6 grid grid-cols-3 gap-2.5 lg:max-w-3xl', stats.clickCount > 0 && 'grid-cols-2 sm:grid-cols-4')}>

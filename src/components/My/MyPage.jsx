@@ -66,7 +66,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           ? failures
               .map((item) => item.reason?.message)
               .filter(Boolean)
-              .join('；') || '服务端暂时不可用'
+              .join('；') || '云端暂时连不上'
           : ''
       );
     });
@@ -143,7 +143,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
   function handleDeleteBook(book) {
     const label = book?.title || book?.city || '未命名路书';
-    if (!window.confirm(`确定删除路书「${label}」的本机存档吗？服务端已保存的副本不受影响。`)) return;
+    if (!window.confirm(`确定删除路书「${label}」的本机存档吗？云端已保存的副本不受影响。`)) return;
     deleteRoutebook(book);
     setLocalDataVersion((value) => value + 1);
     // 通知 App 就地更新 savedBooks，避免停留本页时 TripReminderBanner 仍持已删的书。
@@ -168,7 +168,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       onProfileChanged?.(saved);
       setProfileMessage(adoption.migratedCount ? `已保存偏好，并迁移 ${adoption.migratedCount} 条本机资产到新身份` : '已保存偏好，下一次生成会默认套用');
     } catch (err) {
-      setProfileMessage(`本地已保存，服务端同步失败：${err.message}`);
+      setProfileMessage(`已存在这台设备上，云端同步失败：${err.message}`);
     }
   }
 

@@ -26,7 +26,7 @@ export function StopProvenanceChips({ stop, size = 'sm', className }) {
         <Icon aria-hidden="true" /> {STOP_ORIGINS[origin].label}
       </Chip>
       {reviewed && (
-        <Chip size={size} tone="ok" className={className} title="名称命中运营已审核的 POI 目录">
+        <Chip size={size} tone="ok" className={className} title="名称和平台已审核的地点对得上">
           <BadgeCheck aria-hidden="true" /> 已审核 POI
         </Chip>
       )}
@@ -45,16 +45,12 @@ export function StopProvenanceDetail({ stop }) {
   const matched = String(stop?.provenance?.matchedText ?? '');
   const rows = [
     ['来源', `${STOP_ORIGINS[origin].label}${matched && origin !== 'model' ? `（匹配到“${matched}”）` : ''}。${STOP_ORIGINS[origin].detail}`],
-    ['POI 目录', stop?.provenance?.reviewedPoi ? '命中运营已审核 POI。' : '没有命中已审核 POI。'],
+    ['POI 目录', stop?.provenance?.reviewedPoi ? '和平台已审核的地点对得上。' : '平台已审核的地点里没有它。'],
     [
       '坐标',
-      coordinate === 'verified'
-        ? '来自已审核 POI 或地图服务精确定位。'
-        : coordinate === 'approximate'
-          ? '近似坐标，未经过已审核 POI 或地图服务精确定位。'
-          : '没有可用坐标。'
+      coordinate === 'verified' ? '位置来自平台审核或地图精确定位。' : coordinate === 'approximate' ? '位置是估的，还没用地图精确定位。' : '没有可用坐标。'
     ],
-    ['已核验事实', facts ? `${facts} 条有证据且在有效期内。` : '暂无有证据且在有效期内的事实。']
+    ['已核验事实', facts ? `${facts} 条有证据且在有效期内。` : '还没有带证据、仍在有效期内的信息。']
   ];
   return (
     <section aria-labelledby="stop-provenance-title" className="mt-4 rounded-tile bg-canvas p-4">
@@ -97,7 +93,7 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
       text: STOP_ORIGINS[origin].label,
       title: STOP_ORIGINS[origin].detail
     },
-    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '已审核 POI', title: '名称命中运营已审核的 POI 目录' }
+    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '已审核 POI', title: '名称和平台已审核的地点对得上' }
   ].filter(Boolean);
   return (
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>

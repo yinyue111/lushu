@@ -115,7 +115,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
         ? result.attributionSynced === false
           ? '已保存到我的路书，来源归因暂未同步。'
           : '已保存到我的路书。'
-        : `已保存到本地，服务端暂未同步：${result.syncError || '网络不可用'}`;
+        : `已存在这台设备上，云端暂未同步：${result.syncError || '网络不可用'}`;
       setActionState({
         pending: '',
         message: syncNote,
@@ -304,9 +304,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               </ul>
             </section>
           )}
-          <p className="px-1 text-xs leading-relaxed text-muted">
-            公开页只展示路线结构、站点可信度和校验结果，不搬运第三方攻略原文。真实打卡会继续校准路线质量。
-          </p>
+          <p className="px-1 text-xs leading-relaxed text-muted">这里只展示路线和核验结果，不转载原攻略。有人走过并打卡后，可信度会更新。</p>
         </aside>
       </div>
 
@@ -365,6 +363,6 @@ function buildShareText(routebook) {
     '',
     ...stops.slice(0, 10).map((stop, index) => `${index + 1}. ${stop.time} ${stop.name}｜${stop.stay}｜${stop.cost}`),
     '',
-    '由可信路书 AI 生成，真实打卡持续验证。'
+    '由可信路书 AI 生成；有人打卡后会更新可信度。'
   ].join('\n');
 }

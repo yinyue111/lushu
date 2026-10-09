@@ -143,24 +143,24 @@ export function syncStatusLabel(status, row) {
 
 export function publicTrustEvidenceLabel(row, evidence) {
   if (row?.status === 'skipped' || row?.status === 'replaced') {
-    return '公开可信：行程跳过或替换记录不作为到达样本。';
+    return '跳过或替换的站点不算到达。';
   }
   if (evidence.syncStatus !== 'synced') {
     return '上传并校验通过后，才会计入路线可信度。';
   }
   if (evidence.countsTowardPublicTrust) {
-    return '公开可信：账号归属与有效 GPS 到达均已校验，已计入样本（尚未接入实名认证）。';
+    return '已计入可信度：GPS 确认到达，账号已校验（尚未接入实名认证）。';
   }
   if (evidence.validArrival && !evidence.identityAttested) {
-    return '公开可信：GPS 到达有效，但身份尚未完成可信绑定，不计入样本。';
+    return '未计入可信度：GPS 确认到达，但账号还没完成校验。';
   }
   if (evidence.arrivalConfidence === 'weak') {
-    return '普通反馈：GPS 接近但置信度不足，不计入公开可信样本。';
+    return '普通反馈：离站点很近，但定位不够准，不计入可信度。';
   }
   if (evidence.arrivalConfidence === 'invalid') {
-    return '普通反馈：GPS 位置疑似偏离，不计入公开可信样本。';
+    return '普通反馈：定位离站点较远，不计入可信度。';
   }
-  return '普通反馈：没有形成有效 GPS 到达，不计入公开可信样本。';
+  return '普通反馈：没有有效定位，不计入可信度。';
 }
 
 export function buildAlternatives(current, routebook, activeStops, latestByStop, poiKnowledge = []) {

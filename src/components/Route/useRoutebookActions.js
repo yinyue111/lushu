@@ -182,8 +182,8 @@ export function useRoutebookActions({
     if (renamed) {
       setShareState(
         coordinateForName(prepared.name, routebook.city)
-          ? `「${prepared.name}」坐标待确认，导航已暂停；本地目录有参考坐标，正在向服务端确认`
-          : `「${prepared.name}」坐标待确认，导航已暂停，正在向服务端匹配可信坐标`
+          ? `「${prepared.name}」位置待确认，导航先暂停；正在核对坐标`
+          : `「${prepared.name}」位置待确认，导航先暂停；正在匹配可信坐标`
       );
     }
     const nextStops = isNew ? [...stops, prepared] : stops.map((stop) => (stableStopId(stop.id) === prepared.id ? prepared : stop));
@@ -325,7 +325,7 @@ export function useRoutebookActions({
             ? '云端版本冲突，待提交内容已按保存提示保留'
             : saveResult?.status === 'stale'
               ? '保存响应已过期（页面已有后续操作）'
-              : '本地编辑尚未同步到服务端';
+              : '改动还没同步到云端';
         setVariantState(`${mode}版已在本机重排生效；${reason}，同步成功后可再试云端变体`);
         return;
       }
@@ -362,7 +362,7 @@ export function useRoutebookActions({
       if (routebookSyncSequenceRef.current !== operationSequence) {
         // 丢弃整份响应，但把单调版本标量合入最新引用，避免后续保存必 409。
         adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
-        setVariantState(`${data.variant.label}已写入服务端；当前页面已有后续操作，未用较早响应覆盖。`);
+        setVariantState(`${data.variant.label}已存到云端；你后来的改动没有被覆盖。`);
         return;
       }
       // 只合并服务端派生字段（variants/version/trustMeta 等），保留本地 stops/days/validations/metrics，
@@ -372,7 +372,7 @@ export function useRoutebookActions({
       setRoutebook(merged);
       const localSaved = saveRoutebook(merged);
       onSaved?.(merged);
-      setVariantState(localSaved ? `已保存 ${data.variant.label}` : '服务端已保存，但浏览器本地存储失败');
+      setVariantState(localSaved ? `已保存 ${data.variant.label}` : '已存到云端，但这台设备没存上');
     } catch (error) {
       if (error?.status === 409) {
         setVariantState(await refreshAfterVersionConflict(error, `${variant.label}未保存`, localNext, operationSequence));
@@ -385,7 +385,7 @@ export function useRoutebookActions({
       const localSaved = saveRoutebook(localNext);
       if (localSaved) onSaved?.(localNext);
       setVariantState(
-        localSaved ? `${variant.label}仅保存在本机，服务端同步失败：${error.message}` : `${variant.label}在本机和服务端均未保存：${error.message}`
+        localSaved ? `${variant.label}只存在这台设备上，云端同步失败：${error.message}` : `${variant.label}在本机和服务端均未保存：${error.message}`
       );
     }
   }
@@ -424,7 +424,7 @@ export function useRoutebookActions({
       if (routebookSyncSequenceRef.current !== operationSequence) {
         // seq 不匹配丢弃整份响应，但把单调版本标量合入最新引用，避免后续保存必 409。
         adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
-        setShareState('服务端已保存，但当前页面已有后续操作，未用较早响应覆盖。');
+        setShareState('已存到云端；你后来的改动没有被覆盖。');
         return { status: 'stale', routebook: next };
       }
       latestRoutebookRef.current = next;
@@ -439,7 +439,7 @@ export function useRoutebookActions({
           ? data.shareUrl
             ? `已保存并发布，H5 分享页：${new URL(data.shareUrl, window.location.origin).toString()}${anonymousNote}`
             : `已保存为草稿，点击分享可提交公开审核${anonymousNote}`
-          : `服务端已保存，但浏览器本地存储失败${anonymousNote}`
+          : `已存到云端，但这台设备没存上${anonymousNote}`
       );
       return { status: 'saved', routebook: next };
     } catch (error) {
@@ -450,7 +450,7 @@ export function useRoutebookActions({
       if (routebookSyncSequenceRef.current !== operationSequence) return { status: 'stale', routebook: current };
       const localSaved = saveRoutebook(current);
       if (localSaved) onSaved?.(current);
-      setShareState(localSaved ? `已保存到本地，服务端保存失败：${error.message}` : `本地和服务端均保存失败：${error.message}`);
+      setShareState(localSaved ? `已存在这台设备上，云端没存上：${error.message}` : `没存上（这台设备和云端都失败）：${error.message}`);
       return { status: 'error', routebook: current };
     } finally {
       setSaving(false);
@@ -560,7 +560,7 @@ export function useRoutebookActions({
       saveFavorite(data.favorite || localFavorite, profile.id);
       setShareState('已收藏到我的资产');
     } catch (error) {
-      setShareState(`已本地收藏，服务端同步失败：${error.message}`);
+      setShareState(`已收藏在这台设备上，云端同步失败：${error.message}`);
     }
   }
 
@@ -586,7 +586,7 @@ export function useRoutebookActions({
     localEditsDirtyRef.current = false;
     setRoutebook(next);
     if (!saveRoutebook(next)) {
-      setShareState(['published', 'featured'].includes(next.publishStatus) ? '路书已发布，但浏览器本地存储失败' : '已读取服务端最新版本，但浏览器本地存储失败');
+      setShareState(['published', 'featured'].includes(next.publishStatus) ? '路书已发布，但这台设备没存上' : '已读取服务端最新版本，但浏览器本地存储失败');
     }
     onSaved?.(next);
   }
@@ -607,9 +607,9 @@ export function useRoutebookActions({
     const routebookBeforeRefresh = latestRoutebookRef.current;
     try {
       const data = await getRoutebookRemote(routeId);
-      if (!data?.routebook) throw new Error('服务端未返回路书');
+      if (!data?.routebook) throw new Error('云端没有返回路书');
       if (routebookSyncSequenceRef.current !== refreshSequence || latestRoutebookRef.current !== routebookBeforeRefresh) {
-        return `${actionLabel}：刷新期间当前页面已有新更新，未用较早的服务端响应覆盖。${recoveryText}`;
+        return `${actionLabel}：刷新时你又改了内容，已保留你的改动。${recoveryText}`;
       }
       // 应用服务端版本时保留本地所有权与凭证，避免匿名化响应洗掉本机归属。
       const refreshed = {

@@ -273,7 +273,7 @@ export default function App() {
         if (fallbackBook) {
           setRouteLoadState({
             loading: false,
-            error: cached && [403, 404].includes(error.status) ? '服务端暂无这份草稿，已保留本地版本；重新保存或发布后会同步。' : ''
+            error: cached && [403, 404].includes(error.status) ? '云端还没有这份草稿，先用这台设备上的版本；保存或发布后会同步上去。' : ''
           });
           return;
         }
@@ -808,6 +808,6 @@ function routeLoadErrorMessage(error) {
   const status = Number(error?.status) || 0;
   if (status === 404) return '路书不存在或已被删除，请确认链接是否正确。';
   if (status === 403) return '没有权限查看这份路书，可能作者尚未公开。';
-  if (status) return `路书加载失败（HTTP ${status}）：${error?.message || '服务端暂时不可用'}`;
+  if (status) return `路书加载失败（HTTP ${status}）：${error?.message || '云端暂时连不上'}`;
   return '网络连接失败，请检查网络后重试。';
 }

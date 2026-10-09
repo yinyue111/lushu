@@ -262,10 +262,13 @@ export function StepGuide(props) {
                   />
                   <span className="min-w-0">
                     <strong className="block truncate text-copy font-bold">{place.name}</strong>
-                    <span className="block truncate text-xs text-muted">
+                    <span
+                      className="block truncate text-xs text-muted"
+                      // The raw 0–100 number read like a grade; the reason already says how sure we are.
+                      title={place.confidence != null ? `识别把握 ${place.confidence}/100` : undefined}
+                    >
                       {place.source || '候选来源'}
                       {place.reason ? ` · ${place.reason}` : ''}
-                      {place.confidence != null ? `（把握 ${place.confidence}）` : ''}
                       {place.note ? ` · ${place.note}` : ''}
                     </span>
                   </span>
@@ -359,7 +362,7 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options })
   const pick = (key) => ({ isActive: (v) => constraints[key] === v, onToggle: (v) => setConstraints((p) => ({ ...p, [key]: v })) });
   return (
     <section>
-      <StepTitle title="你想怎么玩？" sub="选好约束，AI 会据此排路线；都可以之后再改。" />
+      <StepTitle title="你想怎么玩？" sub="选好这些，AI 按它排路线；之后都能改。" />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="出行日期">
           <span className="relative">

@@ -229,7 +229,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const curatedHint = '精选路线请先「定制同款」复制为个人路书再发布';
 
   return (
-    <Sheet title="分享路书" description="公开页只展示路线结构与可信状态，不搬运第三方攻略原文。" onClose={onClose} wide>
+    <Sheet title="分享路书" description="公开页只展示路线和核验状态，不转载原攻略。" onClose={onClose} wide>
       {!isCuratedRoute && (
         <ShareVisibility
           routebook={routebook}
@@ -427,7 +427,7 @@ function buildShareText(routebook) {
     '',
     ...stops.slice(0, 8).map((s, i) => `${i + 1}. ${s.time} ${s.name}（${s.stay}·${s.cost}）`),
     '',
-    '— 由可信路书 AI 生成，真实打卡验证每一站'
+    '— 由可信路书 AI 生成，出发前请核对营业时间'
   ];
   return lines.join('\n');
 }

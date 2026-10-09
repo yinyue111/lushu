@@ -296,7 +296,7 @@ export default function TripView({ routebook, onBack, onReview }) {
     commitCheckinsState(nextRows);
     applyLocalActionState(actionPlan);
     if (navigator.onLine === false) {
-      setModeNote('本地操作已完成，行程可继续；服务端尚未校验，恢复网络后会自动同步。');
+      setModeNote('已在这台设备上记下，可以继续走；联网后会自动同步并校验。');
       return;
     }
     void syncQueuedCheckins();
@@ -386,12 +386,12 @@ export default function TripView({ routebook, onBack, onReview }) {
     if (failed) {
       const terminalCount = checkinsRef.current.filter((item) => item?.clientSyncStatus === 'failed' && item.clientSyncRetryable === false).length;
       if (terminalCount) {
-        setModeNote(`${terminalCount} 条记录未被服务端接受，需手动重试；其他可同步记录已继续处理${synced ? `，本次成功 ${synced} 条` : ''}。`);
+        setModeNote(`${terminalCount} 条记录没传上去，需要手动重试；其他可同步记录已继续处理${synced ? `，本次成功 ${synced} 条` : ''}。`);
       } else {
         setModeNote(`${failed} 条记录暂未同步成功，将在 15 秒后自动重试${synced ? `；本次已成功 ${synced} 条` : ''}。`);
       }
     } else if (synced) {
-      setModeNote(`服务端同步完成，本次成功 ${synced} 条；GPS 与身份校验结果见下方记录状态。`);
+      setModeNote(`已同步 ${synced} 条，每条是否计入可信度见下方状态。`);
     }
   }
 
@@ -414,7 +414,7 @@ export default function TripView({ routebook, onBack, onReview }) {
   function persistCheckins(rows) {
     // 截断上限与迁移侧一致（120），且优先丢弃已同步行、保住 queued/failed 行。
     const ok = safeWriteJsonStorage(storageKey, capCheckinRows(rows));
-    setStorageWarning(ok ? '' : '本地存储空间受限，本次反馈已保留在当前页面并尝试同步服务端。');
+    setStorageWarning(ok ? '' : '手机存储空间不够，这条反馈先留在当前页面，正在上传。');
     return ok;
   }
 
@@ -782,7 +782,7 @@ export default function TripView({ routebook, onBack, onReview }) {
       </div>
 
       <Drawer open={showCheckin} onOpenChange={setShowCheckin}>
-        <DrawerContent title={`记录到达 · ${current.name}`} description="都是选填。开了 GPS 且服务端确认到达的记录，才会计入路线可信度。">
+        <DrawerContent title={`记录到达 · ${current.name}`} description="都是选填。开了 GPS 并确认你到了这里的记录，才计入路线可信度。">
           <CheckinForm onSubmit={submitCheckin} onCancel={() => setShowCheckin(false)} />
         </DrawerContent>
       </Drawer>

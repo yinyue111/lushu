@@ -459,7 +459,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           ocrPlaces: ocrState.places
         })
       ) {
-        setError('还没有可分析的攻略正文或已确认地点。请粘贴至少一段正文/旅行需求，或手动添加地点；只有链接标题和截图文件名不能生成。');
+        setError('还缺内容：贴一段攻略正文或写下需求，或手动加几个地点。只有链接标题或截图文件名，没法生成。');
         return;
       }
       setStep(2);

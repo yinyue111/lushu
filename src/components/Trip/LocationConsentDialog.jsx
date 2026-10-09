@@ -15,7 +15,7 @@ export default function LocationConsentDialog({ open, onAgree, onDecline }) {
         <div className="space-y-3 text-copy">
           <ul className="list-disc space-y-1.5 pl-5">
             <li>用途：仅在你主动打卡时读取一次当前位置，与该站点坐标比对，判断是否计入「到达验证」。</li>
-            <li>上传内容：经纬度、定位精度、坐标系标注和浏览器标识，随这条打卡保存在服务端。</li>
+            <li>上传内容：经纬度、定位精度、坐标系标注和浏览器标识，随这条打卡保存在云端。</li>
             <li>不做：不后台追踪，不连续定位，不用于广告。</li>
             <li>你可以：不同意也能打卡（记为普通反馈）；在「我的」导出或注销时一并导出或删除这些记录；随时在隐私说明页撤回本机的定位同意。</li>
           </ul>

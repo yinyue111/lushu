@@ -74,12 +74,12 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           coordinateSystem: 'unknown',
           userAgent: String(navigator.userAgent ?? '').slice(0, 160)
         }),
-      onError: () => setGpsError('定位失败，仍可记录到达；服务端会保存为普通反馈，不是已验证到达。'),
+      onError: () => setGpsError('没拿到定位，仍可记录；这条算普通反馈，不算到达验证。'),
       options: { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     });
     // 未同意前绝不调用定位 API：先弹出说明，用户同意后再请求。
     if (result === 'needs-consent') setConsentOpen(true);
-    if (result === 'unsupported') setGpsError('当前浏览器不支持 GPS，仍可记录到达；服务端会保存为普通反馈。');
+    if (result === 'unsupported') setGpsError('这个浏览器不支持定位，仍可记录；这条算普通反馈。');
   }
 
   async function handlePhotoChange(event) {

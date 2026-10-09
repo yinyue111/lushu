@@ -22,7 +22,7 @@ export default function PrivacyPage({ onBack }) {
       <section className="space-y-2">
         <h2 className="text-lg font-extrabold">我们处理哪些信息、用来做什么</h2>
         <ul className="list-disc space-y-1.5 pl-5">
-          <li>匿名资料：服务端生成的匿名 ID、你填写的昵称；用于保存与同步你的路书。</li>
+          <li>匿名资料：系统生成的匿名 ID、你填写的昵称；用于保存与同步你的路书。</li>
           <li>路书与生成输入：目的地、天数、偏好、你粘贴的攻略文字或链接、上传的截图；会发送给当前配置的大模型服务用于生成路书或识别文字。</li>
           <li>打卡：评价、排队、花费、短评、照片；若你同意定位，还包括打卡那一刻的经纬度、定位精度、坐标系标注和浏览器标识，用于判断「到达验证」。</li>
           <li>使用统计：路书曝光、点击；用于统计路书效果，不用于个性化广告。</li>
