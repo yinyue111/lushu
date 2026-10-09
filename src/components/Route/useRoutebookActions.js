@@ -1,7 +1,17 @@
 import { useRef, useState } from 'react';
 import { coordinateForName, cityCenters, isValidCoordinate } from '../../lib/coordinates';
 import { clickStorageKey, getStoredRoutebookById, saveFavorite, saveRoutebook, safeWriteJsonStorage } from '../../lib/storage';
-import { copyRoutebookRemote, createFavorite, getJson, getRoutebookRemote, recordJourneyEvent, saveRoutebookRemote, saveRoutebookVariant } from '../../lib/api';
+import {
+  copyRoutebookRemote,
+  createFavorite,
+  getJson,
+  getRoutebookRemote,
+  recheckOwnRoutebook,
+  recordJourneyEvent,
+  saveRoutebookRemote,
+  saveRoutebookVariant
+} from '../../lib/api';
+import { recheckSummaryText } from '../../lib/recheck';
 import { profileRoutebookFields } from '../../lib/profile';
 import { recordProductClick as recordProductClickTelemetry } from '../../lib/productTelemetry';
 import { downloadTripIcs, requestTripNotification } from '../../lib/reminders';
@@ -44,6 +54,7 @@ export function useRoutebookActions({
   const [shareState, setShareState] = useState('');
   const [saving, setSaving] = useState(false);
   const [variantState, setVariantState] = useState('');
+  const [recheckState, setRecheckState] = useState({ busy: false, message: '' });
   const routebookSyncSequenceRef = useRef(0);
   // 本地是否有尚未同步到服务端的编辑（删除/拖拽/替换等只写 localStorage 的操作）。
   const localEditsDirtyRef = useRef(hasUnsyncedLocalEdits(routebook));
@@ -180,7 +191,65 @@ export function useRoutebookActions({
     setActiveDay(prepared.day || activeDay);
     setSelectedId(prepared.id);
     setEditingStop(null);
-    if (renamed) resolveRenamedStopCoordinate(prepared);
+    // A replaced or added stop is re-located with AMap POI search on the server and only the
+    // legs touching it are re-verified; offline/failure falls back to the local POI catalog.
+    if (renamed || isNew) {
+      recheckRoute({ auto: true, stopIds: [prepared.id] }).then((result) => {
+        if (renamed && result !== 'done') resolveRenamedStopCoordinate(prepared);
+      });
+    }
+  }
+
+  /**
+   * @param {{ auto?: boolean, stopIds?: string[] }} [options]
+   * @returns {Promise<'done' | 'skipped' | 'failed'>}
+   */
+  async function recheckRoute({ auto = false, stopIds } = {}) {
+    const start = latestRoutebookRef.current;
+    if (!canEdit || (start?.publishStatus || 'draft') !== 'draft') {
+      if (!auto) setRecheckState({ busy: false, message: '已提交或已公开的路书由运营重新核验道路' });
+      return 'skipped';
+    }
+    setRecheckState({ busy: true, message: auto ? '正在为新站点重新定位并核验相关道路…' : '正在重新定位待确认站点并核验道路…' });
+    // The server re-checks its own copy, so local edits are synced first.
+    if (localEditsDirtyRef.current || !Number.isInteger(currentRoutebookVersion(start))) {
+      const saved = await saveCurrentRoutebook();
+      if (saved?.status !== 'saved') {
+        setRecheckState({ busy: false, message: '路书还没同步到云端，暂时无法核验道路；同步后可再试' });
+        return 'failed';
+      }
+    }
+    const current = latestRoutebookRef.current;
+    const operationSequence = ++routebookSyncSequenceRef.current;
+    const expectedVersion = currentRoutebookVersion(current);
+    try {
+      const data = await recheckOwnRoutebook(current.publicId || current.id, {
+        ...profileRoutebookFields(profile),
+        editToken: current.editToken,
+        ...(stopIds?.length ? { stopIds } : {}),
+        ...(expectedVersion != null ? { expectedVersion } : {})
+      });
+      if (routebookSyncSequenceRef.current !== operationSequence) {
+        adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
+        setRecheckState({ busy: false, message: '道路已核验，但页面已有新的编辑；保存后可再次核验' });
+        return 'failed';
+      }
+      const next = { ...data.routebook, ...profileRoutebookFields(profile), editToken: data.routebook.editToken || current.editToken };
+      latestRoutebookRef.current = next;
+      localEditsDirtyRef.current = false;
+      setRoutebook(next);
+      saveRoutebook(next);
+      onSaved?.(next);
+      setRecheckState({ busy: false, message: recheckSummaryText(data.recheck) });
+      return 'done';
+    } catch (error) {
+      if (error?.status === 409 && error?.code !== 'ROUTEBOOK_RECHECK_DRAFT_ONLY') {
+        setRecheckState({ busy: false, message: await refreshAfterVersionConflict(error, '道路核验未执行', current, operationSequence) });
+      } else {
+        setRecheckState({ busy: false, message: recheckSummaryText(null, error) });
+      }
+      return 'failed';
+    }
   }
 
   // 改名站点走服务端可信 POI 目录（seed + 运营 approved）重校验：
@@ -573,6 +642,8 @@ export function useRoutebookActions({
     applyModeReorder,
     applyVariant,
     saveCurrentRoutebook,
+    recheckRoute,
+    recheckState,
     copyRoute,
     recordProductClick,
     favoriteRoute,

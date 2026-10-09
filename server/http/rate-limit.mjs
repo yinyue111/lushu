@@ -6,6 +6,7 @@ import {
   RATE_LIMIT_OPS_READ_MAX,
   RATE_LIMIT_PUBLIC_CONFIG_MAX,
   RATE_LIMIT_PUBLIC_READ_MAX,
+  RATE_LIMIT_RECHECK_MAX,
   RATE_LIMIT_TELEMETRY_MAX,
   RATE_LIMIT_BUCKET_SWEEP_SIZE,
   RATE_LIMIT_WINDOW_MS
@@ -33,6 +34,8 @@ function rateLimitQuotaForCategory(category) {
       return RATE_LIMIT_PUBLIC_CONFIG_MAX;
     case 'ops-read':
       return RATE_LIMIT_OPS_READ_MAX;
+    case 'recheck':
+      return RATE_LIMIT_RECHECK_MAX;
     case 'ai':
     default:
       return RATE_LIMIT_MAX;

@@ -20,6 +20,7 @@ import DayStrip from './DayStrip';
 import StopList, { MiniStopCard } from './StopList';
 import { EditToolbar, RoutePreflight, RouteProducts } from './RoutePreflight';
 import TrustExplanation from './TrustExplanation';
+import RecheckBar from './RecheckBar';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
 
@@ -208,6 +209,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               onAddStop={() => setEditingStop({ stop: createDraftStop(routebook, activeDay), isNew: true })}
               onApplyVariant={actions.applyVariant}
             />
+          )}
+          {canEdit && (routebook.publishStatus || 'draft') === 'draft' && (
+            <RecheckBar routebook={routebook} recheckState={actions.recheckState} onRecheck={() => actions.recheckRoute()} />
           )}
 
           <DayStrip city={routebook.city} dayEntries={dayEntries} activeDay={activeEntry?.day} onSelectDay={selectDay} />

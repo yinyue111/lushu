@@ -134,6 +134,11 @@ export async function getShareRoutebook(publicId, signal, friendKey = '') {
   return getJson(`/share/${encodeURIComponent(publicId)}${key}`, signal);
 }
 
+/** Owner re-geocodes replaced stops and re-verifies touched road legs (drafts, rate-limited). */
+export async function recheckOwnRoutebook(publicId, payload = {}, signal) {
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/recheck`, payload, signal, ownerHeaders(payload?.profileId));
+}
+
 /** Owner creates (or keeps) the unlisted friend link; the server generates the key. */
 export async function createFriendLink(publicId, payload = {}, signal) {
   return postJson(`/routebooks/${encodeURIComponent(publicId)}/friend-link`, payload, signal, ownerHeaders(payload?.profileId));

@@ -88,6 +88,8 @@ export const RATE_LIMIT_PUBLIC_READ_MAX = envNumber('RATE_LIMIT_PUBLIC_READ_MAX'
 // L9: cheap public config reads (cities/cms/products) get their own, larger bucket.
 // Read-only ops listings (review queue, check-ins, imports, audits) per admin client.
 export const RATE_LIMIT_OPS_READ_MAX = envNumber('RATE_LIMIT_OPS_READ_MAX', 120, { min: 1 });
+// Owner-triggered re-geocode + road re-verification (AMap quota): per client per window.
+export const RATE_LIMIT_RECHECK_MAX = envNumber('RATE_LIMIT_RECHECK_MAX', 6, { min: 1 });
 // Phase 2 generation guard: identical requests within the TTL reuse the result
 // (0 disables); registered profiles get N model generations per rolling window (0 disables).
 export const GENERATION_DEDUP_TTL_MS = envNumber('GENERATION_DEDUP_TTL_MS', 10 * 60 * 1000, { min: 0 });

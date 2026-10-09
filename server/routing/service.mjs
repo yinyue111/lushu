@@ -1,11 +1,16 @@
-import { AMAP_ROUTING_KEY, ROUTING_TIMEOUT_MS, ROUTING_CONCURRENCY } from '../config/index.mjs';
+import { AMAP_API_BASE_URL, AMAP_ROUTING_KEY, ROUTING_TIMEOUT_MS, ROUTING_CONCURRENCY } from '../config/index.mjs';
 import { buildRouteLegs } from './routeLegs.mjs';
 import { createAmapRoutingProvider } from './amapProvider.mjs';
 import { pacedAmapFetch } from '../geo/amap.mjs';
 import { normalizeStopTransportMode, signRouteLeg } from './provenance.mjs';
 import { buildRoutebookMetrics, buildRoutebookValidations, routebookValidationContext } from '../routebooks/normalize.mjs';
 
-const routingProvider = createAmapRoutingProvider({ apiKey: AMAP_ROUTING_KEY, timeoutMs: ROUTING_TIMEOUT_MS, fetchImpl: pacedAmapFetch });
+const routingProvider = createAmapRoutingProvider({
+  apiKey: AMAP_ROUTING_KEY,
+  timeoutMs: ROUTING_TIMEOUT_MS,
+  fetchImpl: pacedAmapFetch,
+  baseUrl: AMAP_API_BASE_URL
+});
 
 /**
  * Wraps a provider so legs that are still verified (server proof checked by
