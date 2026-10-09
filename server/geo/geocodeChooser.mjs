@@ -51,6 +51,23 @@ export function nameSimilarity(left, right) {
 
 const MATCH_RANK = Object.freeze({ exact: 3, alias: 2, contains: 1 });
 
+// A name that merely *contains* the query is often a business named after the sight
+// ("西湖音乐喷泉公寓酒店", "全季酒店…音乐喷泉店停车场"): same words, different place.
+// Containment is refused when the candidate is lodging / parking / transit by AMap
+// typecode, or when the extra text names such a facility or a branch ("…店"), unless the
+// query itself asks for that kind of place.
+const FACILITY_TYPECODE = /^(10|1505|1507|1509)/;
+const FACILITY_WORDS = /酒店|宾馆|饭店|公寓|民宿|客栈|旅馆|青旅|停车场|停车库|出入口|售票|公交站|地铁站|充电站|店$|店\)|分店/;
+
+export function isFacilityMismatch(query, candidate) {
+  const normalizedQuery = normalizePlaceText(query);
+  if (FACILITY_WORDS.test(normalizedQuery)) return false;
+  if (FACILITY_TYPECODE.test(String(candidate?.typecode ?? ''))) return true;
+  const normalizedCandidate = normalizePlaceText(candidate?.name);
+  const remainder = normalizedCandidate.split(normalizedQuery).join(' ');
+  return FACILITY_WORDS.test(remainder) || FACILITY_WORDS.test(String(candidate?.name ?? '').replace(String(query ?? ''), ' '));
+}
+
 export function classifyNameMatch(query, candidateName, aliases = []) {
   const normalizedQuery = normalizePlaceText(query);
   const normalizedCandidate = normalizePlaceText(candidateName);
@@ -73,10 +90,12 @@ export function classifyNameMatch(query, candidateName, aliases = []) {
  */
 export function chooseGeocodeCandidate(query, candidates) {
   const scored = (Array.isArray(candidates) ? candidates : []).map((candidate, index) => {
-    const matchType = classifyNameMatch(query?.name, candidate?.name, query?.aliases);
+    const nameMatch = classifyNameMatch(query?.name, candidate?.name, query?.aliases);
+    const facilityMismatch = nameMatch === 'contains' && isFacilityMismatch(query?.name, candidate);
     return {
       candidate,
-      matchType,
+      matchType: facilityMismatch ? null : nameMatch,
+      facilityMismatch,
       similarity: Number(nameSimilarity(query?.name, candidate?.name).toFixed(4)),
       rank: Number.isFinite(candidate?.rank) ? Number(candidate.rank) : index
     };
@@ -98,6 +117,7 @@ export function chooseGeocodeCandidate(query, candidates) {
     precision: best ? (best.matchType === 'contains' ? GEOCODE_PRECISION.POI_NAME_MATCH : GEOCODE_PRECISION.POI_EXACT) : null,
     candidateCount: scored.length,
     acceptedCount: accepted.length,
+    facilityRejectedCount: scored.filter((entry) => entry.facilityMismatch).length,
     reason: best ? `name-${best.matchType}` : scored.length ? 'no-name-match' : 'no-candidates'
   };
 }

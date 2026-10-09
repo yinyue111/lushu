@@ -145,3 +145,25 @@ test('arrival radius scales with coordinate precision, capped and never for coar
   assert.equal(coarse.valid, false);
   assert.equal(coarse.thresholdMeters, null);
 });
+
+test('containment never picks a hotel, parking lot or branch named after the sight', () => {
+  // Shapes seen in a real AMap /v3/place/text answer for 杭州「西湖音乐喷泉」: the sight itself
+  // was not in the top 10, only businesses named after it.
+  const candidates = [
+    { id: 'h1', name: '西湖音乐喷泉公寓酒店', typecode: '100100', rank: 1 },
+    { id: 'p1', name: '全季酒店杭州西湖音乐喷泉店停车场', typecode: '150904', rank: 6 },
+    { id: 'r1', name: '餐厅(西湖音乐喷泉店)', typecode: '050100', rank: 4 }
+  ];
+  const choice = chooseGeocodeCandidate({ name: '西湖音乐喷泉' }, candidates);
+  assert.equal(choice.chosen, null, 'falls through to address geocoding instead');
+  assert.equal(choice.reason, 'no-name-match');
+  // The parking lot is already too long for containment; the hotel and the branch are refused here.
+  assert.equal(choice.facilityRejectedCount, 2);
+  // A sub-feature of the sight is still a containment match.
+  const stele = chooseGeocodeCandidate({ name: '断桥残雪' }, [{ id: 's1', name: '断桥残雪碑亭', typecode: '110200', rank: 0 }]);
+  assert.equal(stele.chosen.id, 's1');
+  assert.equal(stele.precision, 'poi-name-match');
+  // Asking for the hotel itself still works, and exact names are never filtered.
+  assert.equal(chooseGeocodeCandidate({ name: '音乐喷泉公寓酒店' }, candidates).chosen.id, 'h1');
+  assert.equal(chooseGeocodeCandidate({ name: '西湖音乐喷泉公寓酒店' }, candidates).matchType, 'exact');
+});
