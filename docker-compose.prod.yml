@@ -10,11 +10,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-lushu}
       POSTGRES_USER: ${POSTGRES_USER:-lushu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    command: ["postgres", "-c", "shared_buffers=96MB", "-c", "max_connections=30", "-c", "work_mem=4MB"]
+    command: ['postgres', '-c', 'shared_buffers=96MB', '-c', 'max_connections=30', '-c', 'work_mem=4MB']
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 10s
       timeout: 5s
       retries: 6
@@ -29,16 +29,16 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
-      PORT: "3080"
+      PORT: '3080'
       ROUTEBOOK_DATA_DIR: /data
       STORAGE_BACKEND: postgres
       DATABASE_URL: postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
       # Requests reach the container from the compose network gateway (docker-proxy for the
       # 127.0.0.1:3080 publish). Trust X-Forwarded-For from that hop only.
-      TRUST_PROXY_HEADERS: "true"
+      TRUST_PROXY_HEADERS: 'true'
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.80.1,127.0.0.1,::1}
     ports:
-      - "127.0.0.1:3080:3080"
+      - '127.0.0.1:3080:3080'
     volumes:
       - appdata:/data
     depends_on:
@@ -51,7 +51,7 @@ services:
   # One-shot schema migration / first-time readiness: `docker compose -f docker-compose.prod.yml run --rm migrate`
   migrate:
     image: lushu-app:latest
-    profiles: ["tools"]
+    profiles: ['tools']
     env_file: .env
     environment:
       NODE_ENV: production
@@ -62,7 +62,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    entrypoint: ["sh", "-c"]
+    entrypoint: ['sh', '-c']
     command:
       - >-
         node scripts/postgres-migrate.mjs &&
