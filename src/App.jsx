@@ -340,6 +340,7 @@ export default function App() {
           const profile = getProfile();
           await copyRoutebookRemote(routeId, {
             profileId: profile.id,
+            ...(book?.shareKey ? { friendKey: book.shareKey } : {}),
             surface: meta.surface || 'customize',
             routeTitle: book?.title,
             city: book?.city,
@@ -731,6 +732,7 @@ async function recordSharedRoutebookCopy(routebook, profile, surface = 'public-s
   if (!routeId) return;
   await copyRoutebookRemote(routeId, {
     profileId: profile.id,
+    ...(routebook?.shareKey ? { friendKey: routebook.shareKey } : {}),
     surface: surface || 'public-share-save',
     routeTitle: routebook?.title,
     city: routebook?.city,

@@ -14,6 +14,7 @@ async function readApiResponse(response) {
     error.status = response.status;
     error.code = data.code;
     error.requestId = requestId;
+    if (data.details && typeof data.details === 'object') error.details = data.details;
     if (Number.isInteger(Number(data.currentVersion)) && Number(data.currentVersion) >= 0) {
       error.currentVersion = Number(data.currentVersion);
     }
@@ -123,8 +124,23 @@ export async function getRoutebookRemote(publicId, signal) {
   return getJson(`/routebooks/${encodeURIComponent(publicId)}`, signal, ownerHeaders(profile.id));
 }
 
-export async function getShareRoutebook(publicId, signal) {
-  return getJson(`/share/${encodeURIComponent(publicId)}`, signal);
+/**
+ * @param {string} publicId
+ * @param {AbortSignal} [signal]
+ * @param {string} [friendKey] unlisted friend-link key (`?k=`)
+ */
+export async function getShareRoutebook(publicId, signal, friendKey = '') {
+  const key = /^[a-f0-9]{32}$/.test(String(friendKey)) ? `?k=${friendKey}` : '';
+  return getJson(`/share/${encodeURIComponent(publicId)}${key}`, signal);
+}
+
+/** Owner creates (or keeps) the unlisted friend link; the server generates the key. */
+export async function createFriendLink(publicId, payload = {}, signal) {
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/friend-link`, payload, signal, ownerHeaders(payload?.profileId));
+}
+
+export async function revokeFriendLink(publicId, payload = {}, signal) {
+  return deleteJson(`/routebooks/${encodeURIComponent(publicId)}/friend-link`, payload, signal, ownerHeaders(payload?.profileId));
 }
 
 export async function getRoutebooks(limit = 100, signal, cursor = '') {

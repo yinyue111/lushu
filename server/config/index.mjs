@@ -160,6 +160,15 @@ export const TRUSTED_PROXY_CIDRS = (process.env.TRUSTED_PROXY_CIDRS ?? '127.0.0.
   .filter(Boolean);
 
 export const PUBLIC_ROUTE_STATUSES = new Set(['published', 'featured']);
+// Routebooks generated from imported third-party guides (X/小红书/抖音/links/OCR):
+// - unlisted-unless-authorized (default): private or friend link only; public listing
+//   only after the user claims original authorship and ops authorize every source.
+// - unlisted-only: never publicly listed.
+// - authorization-required: legacy behaviour (owner may submit; ops source gate decides).
+export const IMPORTED_ROUTEBOOK_PUBLIC_POLICIES = ['unlisted-unless-authorized', 'unlisted-only', 'authorization-required'];
+export const IMPORTED_ROUTEBOOK_PUBLIC_POLICY = IMPORTED_ROUTEBOOK_PUBLIC_POLICIES.includes(String(process.env.IMPORTED_ROUTEBOOK_PUBLIC_POLICY ?? ''))
+  ? String(process.env.IMPORTED_ROUTEBOOK_PUBLIC_POLICY)
+  : 'unlisted-unless-authorized';
 export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
 export const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';
 export const CURATED_ROUTE_IDS = new Set(curatedRoutes.map((route) => sanitizePublicId(route.id)).filter(Boolean));

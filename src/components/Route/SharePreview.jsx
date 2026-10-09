@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, ExternalLink, Link2, MapPin, Share2 } from 'lucide-react';
-import { getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, saveRoutebookRemote } from '../../lib/api';
+import { createFriendLink, getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, revokeFriendLink, saveRoutebookRemote } from '../../lib/api';
+import { IMPORTED_PUBLIC_EXPLANATION, isImportedRoutebook, routebookGuideOrigins } from '../../lib/importOrigins';
+import ShareVisibility from './ShareVisibility';
 import { curatedRoutes } from '../../lib/content';
 import { getProfile, profileRoutebookFields } from '../../lib/profile';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
@@ -34,8 +36,76 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const requestSequenceRef = useRef(0);
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
+  // The server attaches the authoritative policy on owner reads; freshly generated or
+  // local-only routebooks fall back to the default (imported => not publicly listed).
+  const publication = routebook.publication ?? localPublication(routebook);
+  const [friendState, setFriendState] = useState({ loading: false, url: '' });
+  const friendUrl = friendState.url || (routebook.friendShareUrl ? new URL(routebook.friendShareUrl, window.location.origin).toString() : '');
+  const publicBlocked = publication.publicAllowed === false && !shareUrl;
 
-  async function createShareLink() {
+  async function copyText(text, okMessage, fallbackMessage) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(text);
+      setShareState((prev) => ({ ...prev, loading: false, message: okMessage }));
+    } catch {
+      setShareState((prev) => ({ ...prev, loading: false, message: fallbackMessage }));
+    }
+  }
+
+  async function saveForSharing(profile) {
+    // Only drafts are saved first; pending/public routebooks cannot be overwritten.
+    if ((routebook.publishStatus || 'draft') !== 'draft') return routebook;
+    const saved = await saveRoutebookRemote({ ...routebook, ...profileRoutebookFields(profile) });
+    return saved.routebook;
+  }
+
+  async function handleCreateFriendLink() {
+    if (friendUrl) return copyText(friendUrl, '已复制朋友链接', '朋友链接已就绪；浏览器未允许自动复制，请手动复制上方链接');
+    setFriendState((prev) => ({ ...prev, loading: true }));
+    setShareState((prev) => ({ ...prev, message: '' }));
+    try {
+      const profile = getProfile();
+      const target = await saveForSharing(profile);
+      const routeId = target.publicId || target.id;
+      const expectedVersion = currentRoutebookVersion(target);
+      const data = await createFriendLink(routeId, {
+        ...profileRoutebookFields(profile),
+        editToken: target.editToken || routebook.editToken,
+        ...(expectedVersion != null ? { expectedVersion } : {})
+      });
+      const url = new URL(data.friendShareUrl, window.location.origin).toString();
+      onShared?.(data.routebook);
+      setFriendState({ loading: false, url });
+      await copyText(url, '已生成并复制朋友链接：只有拿到链接的人能打开', '已生成朋友链接；浏览器未允许自动复制，请手动复制上方链接');
+    } catch (error) {
+      setFriendState((prev) => ({ ...prev, loading: false }));
+      setShareState((prev) => ({ ...prev, message: `朋友链接生成失败：${error.message}` }));
+    }
+  }
+
+  async function handleRevokeFriendLink() {
+    setFriendState((prev) => ({ ...prev, loading: true }));
+    try {
+      const profile = getProfile();
+      const routeId = routebook.publicId || routebook.id;
+      const expectedVersion = currentRoutebookVersion(routebook);
+      const data = await revokeFriendLink(routeId, {
+        ...profileRoutebookFields(profile),
+        editToken: routebook.editToken,
+        ...(expectedVersion != null ? { expectedVersion } : {})
+      });
+      onShared?.(data.routebook);
+      setFriendState({ loading: false, url: '' });
+      setShareState((prev) => ({ ...prev, message: '朋友链接已停用，之前发出去的链接打不开了' }));
+    } catch (error) {
+      setFriendState((prev) => ({ ...prev, loading: false }));
+      setShareState((prev) => ({ ...prev, message: `停用失败：${error.message}` }));
+    }
+  }
+
+  /** @param {{ claimOriginalAuthor?: boolean }} [options] */
+  async function createShareLink(options = {}) {
     setShareState((prev) => ({ ...prev, loading: true, message: '' }));
     if (shareUrl) {
       try {
@@ -63,13 +133,20 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
       const data = await publishOwnRoutebook(routeId, {
         ...profileRoutebookFields(profile),
         editToken: saved.routebook.editToken || routebook.editToken,
+        ...(options.claimOriginalAuthor ? { claimOriginalAuthor: true } : {}),
         ...(expectedVersion != null ? { expectedVersion } : {})
       });
       if (requestSequenceRef.current !== operationSequence) return;
       if (data.routebook?.publishStatus === 'pending_review') {
         onShared?.({ ...data.routebook, shareUrl: '' });
         await recordJourneyEvent('routebook-submit-review', data.routebook, profile.id).catch(() => {});
-        setShareState({ loading: false, message: '已提交运营审核，通过来源授权与道路核验后才能公开分享。', url: '' });
+        setShareState({
+          loading: false,
+          message: options.claimOriginalAuthor
+            ? '已提交原作者授权审核：运营核实授权和道路后才会公开，期间仍可用朋友链接分享。'
+            : '已提交运营审核，通过来源授权与道路核验后才能公开分享。',
+          url: ''
+        });
         return;
       }
       await Promise.allSettled([
@@ -128,6 +205,10 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         }
         return;
       }
+      if (error?.code === 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED') {
+        setShareState({ loading: false, message: `暂不能公开发布：${error.message}`, url: shareState.url });
+        return;
+      }
       setShareState({ loading: false, message: `发布失败：${error.message}`, url: shareState.url });
     }
   }
@@ -149,6 +230,19 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
 
   return (
     <Sheet title="分享路书" description="公开页只展示路线结构与可信状态，不搬运第三方攻略原文。" onClose={onClose} wide>
+      {!isCuratedRoute && (
+        <ShareVisibility
+          routebook={routebook}
+          publication={publication}
+          shareUrl={shareUrl}
+          friendUrl={friendUrl}
+          busy={friendState.loading || shareState.loading}
+          onCreateFriendLink={handleCreateFriendLink}
+          onCopyFriendLink={handleCreateFriendLink}
+          onRevokeFriendLink={handleRevokeFriendLink}
+          onClaimAuthorship={() => createShareLink({ claimOriginalAuthor: true })}
+        />
+      )}
       <article className="overflow-hidden rounded-card border border-line shadow-card">
         <header className="relative isolate p-5 text-white" style={cover ? undefined : { backgroundImage: 'linear-gradient(135deg,#e8553d,#7c5cdb)' }}>
           {cover ? (
@@ -252,26 +346,39 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
 
       <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="primary"
-            onClick={createShareLink}
-            disabled={shareState.loading || routebook.publishStatus === 'pending_review' || (isCuratedRoute && !shareUrl)}
-            title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
-          >
-            <Link2 />{' '}
-            {shareState.loading ? '提交中...' : shareUrl ? '复制分享链接' : routebook.publishStatus === 'pending_review' ? '已提交，等待审核' : '提交公开审核'}
-          </Button>
+          {publicBlocked ? (
+            <Button variant="primary" onClick={handleCreateFriendLink} disabled={friendState.loading}>
+              <Link2 /> {friendState.loading ? '生成中...' : friendUrl ? '复制朋友链接' : '生成朋友链接'}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => createShareLink()}
+              disabled={shareState.loading || routebook.publishStatus === 'pending_review' || (isCuratedRoute && !shareUrl)}
+              title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
+            >
+              <Link2 />{' '}
+              {shareState.loading
+                ? '提交中...'
+                : shareUrl
+                  ? '复制分享链接'
+                  : routebook.publishStatus === 'pending_review'
+                    ? '已提交，等待审核'
+                    : '提交公开审核'}
+            </Button>
+          )}
           <Button variant="outline" onClick={copyShareText}>
             <ClipboardCopy /> 复制文字摘要
           </Button>
           <Button
             variant="outline"
-            disabled={!shareUrl}
-            title={shareUrl ? undefined : '发布后才能系统分享，不会分享私有链接'}
+            disabled={!shareUrl && !friendUrl}
+            title={shareUrl || friendUrl ? undefined : '发布或生成朋友链接后才能系统分享，不会分享私有链接'}
             onClick={() => {
-              if (!shareUrl) return;
+              const target = shareUrl || friendUrl;
+              if (!target) return;
               if (navigator.share) {
-                navigator.share({ title: routebook.title, text: buildShareText(routebook), url: shareUrl }).catch(() => {});
+                navigator.share({ title: routebook.title, text: buildShareText(routebook), url: target }).catch(() => {});
               } else {
                 copyShareText();
               }
@@ -291,11 +398,19 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
       </div>
       {shareUrl ? (
         <p className="mt-3 rounded-tile bg-canvas px-3 py-2 font-mono text-xs break-all text-ink-2">{shareUrl}</p>
-      ) : (
-        <p className="mt-3 text-sm text-muted">{isCuratedRoute ? `${curatedHint}。` : '还没发布：发布后才能用系统分享，私有编辑链接不会被分享出去。'}</p>
-      )}
+      ) : isCuratedRoute ? (
+        <p className="mt-3 text-sm text-muted">{`${curatedHint}。`}</p>
+      ) : null}
     </Sheet>
   );
+}
+
+/** Client-side fallback mirroring the server's default import policy. */
+function localPublication(routebook) {
+  const imported = isImportedRoutebook(routebook);
+  return imported
+    ? { imported, origins: routebookGuideOrigins(routebook), publicAllowed: false, canClaimAuthorship: true, reason: IMPORTED_PUBLIC_EXPLANATION }
+    : { imported: false, origins: [], publicAllowed: true, canClaimAuthorship: false, reason: '' };
 }
 
 function currentRoutebookVersion(routebook) {

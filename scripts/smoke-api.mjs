@@ -243,13 +243,26 @@ async function main() {
       if (draftShareResponse.status !== 404) {
         throw new Error(`Draft share should be hidden, got HTTP ${draftShareResponse.status}`);
       }
+      // Imported routebooks are private / friend-link only unless the original author claims
+      // authorship; the claim then goes through the ops source-authorization gate.
+      const { response: importBlockedResponse, data: importBlockedData } = await fetchJson(
+        `${baseUrl}/api/routebooks/${encodeURIComponent(importedRouteId)}/publish`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ profileId: SMOKE_PROFILE_ID, editToken: saveData.routebook.editToken, expectedVersion: saveData.routebook.version })
+        }
+      );
+      if (importBlockedResponse.status !== 409 || importBlockedData.code !== 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED')
+        throw new Error(`Imported routebook must not be submitted for public listing without an authorship claim: ${JSON.stringify(importBlockedData)}`);
       const { response: publishResponse, data: submittedData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(importedRouteId)}/publish`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           profileId: SMOKE_PROFILE_ID,
           editToken: saveData.routebook.editToken,
-          expectedVersion: saveData.routebook.version
+          expectedVersion: saveData.routebook.version,
+          claimOriginalAuthor: true
         })
       });
       if (!publishResponse.ok || submittedData.routebook?.publishStatus !== 'pending_review' || submittedData.shareUrl) {

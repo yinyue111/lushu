@@ -23,8 +23,12 @@ import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mj
 import { appendVersionedRoutebook, listRoutebookAudits, listRoutebookVersionRows } from '../routebooks/versions.mjs';
 import { isPublicRoutebook, publicRoutebookView } from '../routebooks/views.mjs';
 import { moderateAndQueue } from '../moderation/index.mjs';
+import { routebookPublicationPolicy } from '../routebooks/importPolicy.mjs';
+import { buildOpsAuditContext } from '../ops/audit.mjs';
 import {
   copyRoutebook,
+  hasFriendLinkAccess,
+  setRoutebookFriendLink,
   ensureDraftEditToken,
   publishOwnRoutebook,
   saveDraftRoutebook,
@@ -32,6 +36,56 @@ import {
   updateRoutebookStatus
 } from '../routebooks/mutations.mjs';
 import { buildCreatorProfile, buildPlatformDashboard } from '../analytics/dashboard.mjs';
+
+/**
+ * Owner-only fields: what the import publishing policy allows for this routebook and
+ * the friend-link URL (the key itself is only ever handed back to the owner).
+ * @param {Record<string, any>} routebook
+ */
+async function ownerPublicationFields(routebook) {
+  const id = routebook?.publicId || routebook?.id;
+  return {
+    publication: routebookPublicationPolicy(routebook, await buildOpsAuditContext()),
+    friendShareUrl: routebook?.friendLink?.key && id ? `/share/${encodeURIComponent(id)}?k=${routebook.friendLink.key}` : ''
+  };
+}
+
+/**
+ * @param {string} method
+ */
+function friendLinkRoute(method) {
+  return route(method, '/api/routebooks/:id/friend-link', async ({ req, res, params }) => {
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const revoke = method === 'DELETE';
+    const { routebook, changed } = await withStorageEntityLock('routebook', id, () =>
+      setRoutebookFriendLink(id, body, { verifiedProfileId: actor.verified ? actor.profileId : '', revoke })
+    );
+    // Friend links still go through content safety: flagged routebooks stay closed.
+    if (!revoke && changed) {
+      await moderateAndQueue({
+        entityType: 'routebook',
+        entityId: sanitizePublicId(routebook.publicId || routebook.id),
+        profileId: normalizeProfileId(routebook.profileId),
+        scene: 'routebook',
+        fields: {
+          title: String(routebook.title ?? ''),
+          summary: String(routebook.summary ?? ''),
+          stops: (routebook.stops ?? []).map((stop) => [stop?.name, stop?.note, stop?.tip].filter(Boolean).join(' ')).join('\n')
+        }
+      });
+    }
+    const enriched = await enrichRoutebook(routebook);
+    const owner = await ownerPublicationFields(routebook);
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: { ...enriched, ...owner, ownerAccessVerified: actor.verified },
+      friendShareUrl: hasFriendLinkAccess(routebook, routebook.friendLink?.key) ? owner.friendShareUrl : ''
+    });
+  });
+}
 
 export const routebookRoutes = [
   route('GET', '/api/routebooks', async ({ req, res, url }) => {
@@ -133,7 +187,7 @@ export const routebookRoutes = [
         : { status: null };
     return sendJson(res, 200, {
       ok: true,
-      routebook: await enrichRoutebook(routebook),
+      routebook: { ...(await enrichRoutebook(routebook)), ...(await ownerPublicationFields(routebook)) },
       shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : '',
       ...(moderation.status && moderation.status !== 'passed' ? { moderation: { status: moderation.status } } : {})
     });
@@ -213,7 +267,10 @@ export const routebookRoutes = [
     }
     const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
     const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
-    return sendJson(res, 200, { ok: true, routebook: privateRead ? { ...routebook, ownerAccessVerified: true } : publicRoutebookView(routebook) });
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: privateRead ? { ...routebook, ...(await ownerPublicationFields(routebook)), ownerAccessVerified: true } : publicRoutebookView(routebook)
+    });
   }),
   route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
     enforceRateLimit(req, 'core-write');
@@ -241,22 +298,29 @@ export const routebookRoutes = [
     });
     return sendJson(res, 200, {
       ok: true,
-      routebook: { ...enriched, ownerAccessVerified: actor.verified },
+      routebook: { ...enriched, ...(await ownerPublicationFields(routebook)), ownerAccessVerified: actor.verified },
       shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
     });
   }),
-  route('GET', '/api/share/:id', async ({ req, res, params }) => {
+  friendLinkRoute('POST'),
+  friendLinkRoute('DELETE'),
+  route('GET', '/api/share/:id', async ({ req, res, params, url }) => {
     enforceRateLimit(req, 'public-read');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const routebook = await enrichRoutebook(await getResolvableRoutebook(id));
-    if (!routebook || !isPublicRoutebook(routebook)) {
+    const listed = Boolean(routebook) && isPublicRoutebook(routebook);
+    // Unlisted friend link: same redacted view, never listed and never indexed.
+    const unlisted = !listed && hasFriendLinkAccess(routebook, url.searchParams.get('k'));
+    if (!routebook || (!listed && !unlisted)) {
       throw createHttpError('分享路书不存在或已失效', 404, 'SHARE_NOT_FOUND');
     }
-    const publicRoutebook = publicRoutebookView(routebook);
+    if (unlisted) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    const publicRoutebook = { ...publicRoutebookView(routebook), visibility: unlisted ? 'unlisted' : 'public' };
     return sendJson(res, 200, {
       ok: true,
       routebook: publicRoutebook,
       share: {
+        visibility: publicRoutebook.visibility,
         publicId: publicRoutebook.publicId,
         title: publicRoutebook.title,
         city: publicRoutebook.city,

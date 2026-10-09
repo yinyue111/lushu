@@ -21,9 +21,12 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
     const ctrl = new AbortController();
     setState({ loading: true, error: '', routebook: null });
     setActionState({ pending: '', message: '', isError: false, savedDraft: null, synced: false });
-    getShareRoutebook(publicId, ctrl.signal)
+    // Unlisted friend links carry their key as ?k=; it is only sent back to the share API.
+    const friendKey = new URLSearchParams(window.location.search).get('k') || '';
+    getShareRoutebook(publicId, ctrl.signal, friendKey)
       .then((data) => {
-        if (!ctrl.signal.aborted) setState({ loading: false, error: '', routebook: data.routebook });
+        const routebook = data.routebook?.visibility === 'unlisted' ? { ...data.routebook, shareKey: friendKey } : data.routebook;
+        if (!ctrl.signal.aborted) setState({ loading: false, error: '', routebook });
       })
       .catch((error) => {
         if (!ctrl.signal.aborted) setState({ loading: false, error: error.message, routebook: null });
@@ -152,6 +155,14 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
             <div className="flex flex-wrap items-center gap-2">
               <TrustChip routebook={routebook} className="bg-white/95" />
               <AigcChip routebook={routebook} />
+              {routebook.visibility === 'unlisted' && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold backdrop-blur"
+                  title="作者通过朋友链接分享，未公开发布，也不会被搜索引擎收录"
+                >
+                  朋友链接 · 未公开
+                </span>
+              )}
               <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold backdrop-blur">
                 <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
               </span>

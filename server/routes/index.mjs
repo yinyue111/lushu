@@ -67,6 +67,7 @@ function sendApiError(req, res, error) {
     error: error.statusCode ? (error.message ?? '服务器错误') : '服务器暂时不可用，请稍后重试',
     code: error.code ?? 'SERVER_ERROR',
     ...(error.currentVersion != null ? { currentVersion: error.currentVersion } : {}),
+    ...(error.details && typeof error.details === 'object' && error.statusCode ? { details: error.details } : {}),
     ...(Number.isFinite(error.retryAfterSeconds) ? { retryAfterSeconds: error.retryAfterSeconds } : {})
   });
 }

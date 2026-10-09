@@ -2,6 +2,7 @@
 import { safeSourceUrl } from '../lib/urls.mjs';
 import { PUBLIC_ROUTE_STATUSES, PUBLIC_TRUST_SAMPLE_THRESHOLD, MAX_ROUTEBOOK_STOPS } from '../config/index.mjs';
 import { clampNumber, normalizeCityName, positiveInteger, sanitizePublicId, truncateString } from '../lib/util.mjs';
+import { safeTokenEqual } from '../auth/tokens.mjs';
 import { normalizeCreator } from './normalize.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
 import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
@@ -12,6 +13,20 @@ export function isPublicRoutebook(routebook) {
   if (!PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft')) return false;
   // A published routebook flagged by moderation stays private until ops approve it.
   return !isModerationWithheld('routebook', sanitizePublicId(routebook?.publicId || routebook?.id));
+}
+
+/**
+ * Unlisted friend-link access: the routebook is not archived, not withheld by
+ * moderation, and the caller presents the server-generated key.
+ * @param {Record<string, any> | null | undefined} routebook
+ * @param {unknown} key
+ */
+export function hasFriendLinkAccess(routebook, key) {
+  const stored = routebook?.friendLink?.key;
+  const provided = String(key ?? '');
+  if (!stored || !/^[a-f0-9]{32}$/.test(provided) || (routebook?.publishStatus || 'draft') === 'archived') return false;
+  if (isModerationWithheld('routebook', sanitizePublicId(routebook.publicId || routebook.id))) return false;
+  return safeTokenEqual(provided, stored);
 }
 
 function hasPublicTrustSamples(sampleCount) {

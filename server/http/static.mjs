@@ -9,7 +9,7 @@ import { sanitizePublicId, clampNumber, normalizeCityName, truncateString } from
 import { cityStories, defaultCityImage } from '../../src/lib/content.js';
 import { getSavedReview } from '../storage/records.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
-import { isPublicRoutebook } from '../routebooks/views.mjs';
+import { hasFriendLinkAccess, isPublicRoutebook } from '../routebooks/views.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
 import { refreshModerationState } from '../moderation/index.mjs';
 import { reviewIsStillPublic } from '../reviews/reviews.mjs';
@@ -175,8 +175,11 @@ export async function sendStatic(req, res) {
 export function matchShareLandingPath(req) {
   if (req.method !== 'GET') return null;
   let pathname = '';
+  let key = '';
   try {
-    pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
+    const parsed = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    pathname = parsed.pathname;
+    key = String(parsed.searchParams.get('k') ?? '').slice(0, 64);
   } catch {
     return null;
   }
@@ -189,7 +192,7 @@ export function matchShareLandingPath(req) {
     return null;
   }
   const id = sanitizePublicId(decoded);
-  return id ? { kind: match[1], id } : null;
+  return id ? { kind: match[1], id, ...(match[1] === 'share' && key ? { key } : {}) } : null;
 }
 
 // 注入值统一做 HTML 实体转义，防止路书标题/摘要携带的 <script> 等内容注入页面。
@@ -208,7 +211,9 @@ async function buildShareLandingMeta(target) {
     await refreshModerationState();
     if (target.kind === 'share') {
       const routebook = await getResolvableRoutebook(target.id);
-      if (!routebook || !isPublicRoutebook(routebook)) return null;
+      const listed = Boolean(routebook) && isPublicRoutebook(routebook);
+      const unlisted = !listed && hasFriendLinkAccess(routebook, target.key);
+      if (!routebook || (!listed && !unlisted)) return null;
       const title = truncateString(routebook.title, 80) || 'AI 可信路书';
       const city = routebook.city ? normalizeCityName(routebook.city) : '';
       const stops = Array.isArray(routebook.stops) ? routebook.stops : [];
@@ -216,7 +221,9 @@ async function buildShareLandingMeta(target) {
         title: `${title}｜AI 可信路书`,
         description: truncateString(routebook.summary, 160) || `${city ? `${city}的` : ''}可执行、可验证的分日路书。`,
         image: cityStories[city]?.image ?? defaultCityImage,
-        path: `/share/${encodeURIComponent(target.id)}`,
+        // Friend links are unlisted: no canonical/og:url (the key stays out of crawlers) and noindex.
+        path: unlisted ? '' : `/share/${encodeURIComponent(target.id)}`,
+        unlisted,
         aigc: aigcMetadata(routebook),
         // Pre-rendered text for crawlers without JS (inside <noscript>, so users never see a flash).
         prerender: {
@@ -263,6 +270,7 @@ function injectShareLandingMeta(html, meta) {
         ]
       : ['<meta name="twitter:card" content="summary">']),
     `<meta name="description" content="${safeDescription}">`,
+    ...(meta.unlisted ? ['<meta name="robots" content="noindex, nofollow">'] : []),
     '<meta property="og:locale" content="zh_CN">',
     ...(meta.url ? [`<meta property="og:url" content="${escapeHtmlText(meta.url)}">`, `<link rel="canonical" href="${escapeHtmlText(meta.url)}">`] : []),
     // Implicit AIGC label for machine readers (see src/lib/aigc.js).
@@ -331,7 +339,8 @@ export async function serveShareLandingHtml(req, res, target, vite = null) {
     // dev 下 vite 会注入内联脚本（react-refresh preamble），不能带静态 CSP。
     ...(vite ? securityHeaders() : STATIC_SECURITY_HEADERS),
     'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-cache'
+    'cache-control': meta.unlisted ? 'private, no-store' : 'no-cache',
+    ...(meta.unlisted ? { 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' } : {})
   });
   res.end(body);
   return true;

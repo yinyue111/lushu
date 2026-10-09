@@ -21,6 +21,7 @@ import {
   CURATED_ROUTE_VERSION,
   CURATED_ROUTE_IDS
 } from '../config/index.mjs';
+import { routebookGuideOrigins } from '../../src/lib/importOrigins.js';
 import { safeEqualHex, cryptoRandomId, normalizeProfileId, sanitizeEditToken, hashSecretToken } from '../auth/tokens.mjs';
 import { findTrustedPoi, resolvePoiId } from '../poi/catalog.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
@@ -839,8 +840,27 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
       savedAt: now.toISOString()
     }),
     routingWarning: normalizeRoutingWarning(input?.routingWarning, publishStatus),
+    guideOrigins: routebookGuideOrigins({ guideOrigins: input?.guideOrigins, importedSources }),
+    friendLink: normalizeFriendLink(input?.friendLink),
+    authorshipClaim: normalizeAuthorshipClaim(input?.authorshipClaim),
     ...versionMetadata
   };
+}
+
+/**
+ * Unlisted "friend link" access key. Server-generated only (never accepted from a
+ * client save) and never part of public views.
+ * @param {any} link
+ */
+export function normalizeFriendLink(link) {
+  if (!link || typeof link !== 'object' || !/^[a-f0-9]{32}$/.test(String(link.key ?? ''))) return null;
+  return { key: String(link.key), createdAt: truncateString(link.createdAt, 60) };
+}
+
+/** @param {any} claim */
+function normalizeAuthorshipClaim(claim) {
+  if (!claim || typeof claim !== 'object' || claim.claimed !== true) return null;
+  return { claimed: true, claimedAt: truncateString(claim.claimedAt, 60), note: truncateString(claim.note, 200) };
 }
 
 /**

@@ -1,4 +1,5 @@
 // Model calls: routebook generation, OCR and prompt construction.
+import { normalizeGuideOrigins, routebookGuideOrigins } from '../../src/lib/importOrigins.js';
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
 import {
   AI_RUNTIME_FROM_CODEX,
@@ -258,6 +259,7 @@ export function sanitizePayload(payload) {
     editToken: sanitizeEditToken(payload?.editToken),
     guide,
     importedSources: normalizeImportedSources(payload?.importedSources),
+    guideOrigins: normalizeGuideOrigins(payload?.guideOrigins),
     constraints: {
       duration: truncateString(constraints.duration, 30) || '2 天 1 晚',
       // No silent default: an unset budget means "no budget constraint".
@@ -430,6 +432,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
     // Model-written hints, shown as unverified "AI 提示"; legacy outputs used `validations`.
     aiNotes: normalizeAiNotes(Array.isArray(routebook.riskNotes) ? routebook.riskNotes : routebook.validations),
     importedSources: payload.importedSources ?? [],
+    guideOrigins: routebookGuideOrigins(payload),
     sourceSummary,
     constraints: normalizeRouteConstraints(payload.constraints),
     travelDate: normalizeTravelDate(payload.constraints?.date),

@@ -16,7 +16,9 @@ import { appendVersionedRoutebook, routebookMutationMetadata, currentRoutebookVe
 import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { copyActorKey, isRoutebookCopyExposure } from './copies.mjs';
-import { isPublicRoutebook } from './views.mjs';
+import { hasFriendLinkAccess, isPublicRoutebook } from './views.mjs';
+export { hasFriendLinkAccess };
+import { randomBytes } from 'node:crypto';
 import { normalizeExposure } from '../analytics/exposures.mjs';
 import { normalizePoiName } from '../poi/catalog.mjs';
 import { coordinateForName } from '../geo/normalize-coordinate.mjs';
@@ -24,6 +26,8 @@ import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
 import { summarizeRouteExecution } from '../routing/routeExecution.mjs';
 import { buildOpsAuditContext } from '../ops/audit.mjs';
 import { sourcesPreventPublicStatus } from '../ops/sources.mjs';
+import { routebookGuideOrigins } from '../../src/lib/importOrigins.js';
+import { routebookPublicationPolicy } from './importPolicy.mjs';
 
 export function requireVerifiedRoutingForPublicStatus(routebook, input = {}) {
   const routing = summarizeRouteExecution(
@@ -42,6 +46,26 @@ export function requireVerifiedRoutingForPublicStatus(routebook, input = {}) {
   return { overridden: true, reason, routing };
 }
 
+/**
+ * Imported routebooks (links/OCR) stay unlisted unless the import policy allows public
+ * listing. Screenshot (OCR) imports have no signed source ops could authorize, so ops
+ * may only list them for an author who claimed authorship, with an audited note.
+ * @param {Record<string, any>} routebook
+ * @param {any} context
+ * @param {Record<string, any>} input
+ */
+export function requireImportPublicationAllowed(routebook, context, input = {}) {
+  const publication = routebookPublicationPolicy(routebook, context);
+  if (publication.publicAllowed) return null;
+  const note = truncateString(input?.importAuthorizationNote, 400).trim();
+  if (publication.canClaimAuthorship && routebook?.authorshipClaim?.claimed === true && note.length >= 8) {
+    return { origins: publication.origins, policy: publication.policy, note, authorshipClaim: routebook.authorshipClaim };
+  }
+  throw Object.assign(createHttpError(publication.reason, 409, 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
+    details: { policy: publication.policy, origins: publication.origins, claimedAuthorship: routebook?.authorshipClaim?.claimed === true }
+  });
+}
+
 export async function updateRoutebookStatus(publicId, input) {
   const routebook = await getSavedRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
@@ -54,9 +78,11 @@ export async function updateRoutebookStatus(publicId, input) {
     changeReason: `运营状态变更：${routebook.publishStatus || 'draft'} -> ${nextStatus}`,
     actorType: 'admin'
   });
-  if (PUBLIC_ROUTE_STATUSES.has(nextStatus) && sourcesPreventPublicStatus(routebook, await buildOpsAuditContext())) {
+  const opsContext = PUBLIC_ROUTE_STATUSES.has(nextStatus) ? await buildOpsAuditContext() : null;
+  if (opsContext && sourcesPreventPublicStatus(routebook, opsContext)) {
     throw createHttpError('导入来源尚未取得公开展示授权，不能公开发布', 409, 'SOURCE_PUBLIC_AUTHORIZATION_REQUIRED');
   }
+  const importAuthorization = opsContext ? requireImportPublicationAllowed(routebook, opsContext, input) : null;
   const routingPublication = PUBLIC_ROUTE_STATUSES.has(nextStatus) ? requireVerifiedRoutingForPublicStatus(routebook, input) : null;
   const opsNote = truncateString(input?.opsNote || input?.changeReason, 400).trim();
   // Taking a public routebook down is only ever a manual ops decision, and it
@@ -84,16 +110,53 @@ export async function updateRoutebookStatus(publicId, input) {
   await appendVersionedRoutebook(updated, 'status-changed', {
     previousStatus: routebook.publishStatus || 'draft',
     ...(routingPublication ? { routingPublication } : {}),
+    ...(importAuthorization ? { importAuthorization } : {}),
     // normalizeRoutebookForStorage 不保留 opsNote 字段，运营备注写入审计明细。
     ...(opsNote ? { opsNote } : {})
   });
   return updated;
 }
 
+/**
+ * Create (or keep) / revoke the owner's unlisted friend link. The key is generated
+ * here and never accepted from a client.
+ * @param {string} publicId
+ * @param {Record<string, any>} input
+ * @param {{ verifiedProfileId?: string, revoke?: boolean }} context
+ */
+export async function setRoutebookFriendLink(publicId, input = {}, context = {}) {
+  const routebook = await getSavedRoutebook(publicId);
+  if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+  if (!canOverwriteRoutebook(routebook, input, context)) {
+    throw createHttpError('只能为自己保存的路书生成朋友链接', 403, 'ROUTEBOOK_OWNER_REQUIRED');
+  }
+  if (!context.revoke && (routebook.publishStatus || 'draft') === 'archived') {
+    throw createHttpError('归档路书不能生成朋友链接', 403, 'ROUTEBOOK_ARCHIVED');
+  }
+  if (context.revoke ? !routebook.friendLink : routebook.friendLink) return { routebook, changed: false };
+  const versionMetadata = await routebookMutationMetadata(routebook, input, {
+    changeReason: context.revoke ? '停用朋友链接' : '生成朋友链接',
+    actorType: 'user'
+  });
+  const updated = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      editToken: sanitizeEditToken(routebook.editToken),
+      friendLink: context.revoke ? null : { key: randomBytes(16).toString('hex'), createdAt: new Date().toISOString() }
+    },
+    routebook.publicId || routebook.id
+  );
+  await appendVersionedRoutebook(updated, context.revoke ? 'friend-link-revoked' : 'friend-link-created', {
+    previousStatus: routebook.publishStatus || 'draft'
+  });
+  return { routebook: updated, changed: true };
+}
+
 export async function copyRoutebook(publicId, input = {}) {
   const routebook = await getResolvableRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
-  if (!isPublicRoutebook(routebook)) {
+  if (!isPublicRoutebook(routebook) && !hasFriendLinkAccess(routebook, input?.friendKey)) {
     throw createHttpError('路书尚未公开发布或已失效', 404, 'ROUTEBOOK_NOT_FOUND');
   }
   const routeId = sanitizePublicId(routebook.publicId || routebook.id);
@@ -138,7 +201,12 @@ function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
         (existingRoutebook?.editTokenHash ? '' : createRouteEditToken()),
       editTokenHash: existingRoutebook?.editTokenHash || '',
       publishStatus: 'draft',
-      copyCount: existingRoutebook ? (existingRoutebook.copyCount ?? hardenedInput?.copyCount ?? 0) : 0
+      copyCount: existingRoutebook ? (existingRoutebook.copyCount ?? hardenedInput?.copyCount ?? 0) : 0,
+      // Import provenance is sticky (a client cannot drop it to dodge the import policy);
+      // friend links and authorship claims are only ever set by their own endpoints.
+      guideOrigins: [...routebookGuideOrigins(existingRoutebook), ...routebookGuideOrigins(hardenedInput)],
+      friendLink: existingRoutebook?.friendLink ?? null,
+      authorshipClaim: existingRoutebook?.authorshipClaim ?? null
     },
     existingRoutebook ? existingRoutebook.publicId || existingRoutebook.id : ''
   );
@@ -238,7 +306,7 @@ export function normalizeUserRouteCreator(input = {}, profileId = '') {
   };
 }
 
-function canOverwriteRoutebook(existingRoutebook, input, context = {}) {
+export function canOverwriteRoutebook(existingRoutebook, input, context = {}) {
   if (!existingRoutebook) return true;
   const verifiedProfileId = normalizeProfileId(context?.verifiedProfileId);
   if (verifiedProfileId !== 'anonymous' && verifiedProfileId === normalizeProfileId(existingRoutebook.profileId)) return true;
@@ -329,6 +397,14 @@ export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
   if (['published', 'featured', 'pending_review'].includes(routebook.publishStatus)) {
     return routebook;
   }
+  const publication = routebookPublicationPolicy(routebook, await buildOpsAuditContext());
+  const claimNote = truncateString(input?.authorshipClaimNote, 200).trim();
+  const claimsAuthorship = input?.claimOriginalAuthor === true && publication.canClaimAuthorship;
+  if (!publication.publicAllowed && !claimsAuthorship) {
+    throw Object.assign(createHttpError(publication.reason, 409, 'IMPORTED_ROUTEBOOK_PUBLIC_DISABLED'), {
+      details: { policy: publication.policy, origins: publication.origins, canClaimAuthorship: publication.canClaimAuthorship }
+    });
+  }
   const profileId = normalizeProfileId(routebook.profileId || input?.profileId);
   const creator = normalizeUserRouteCreator(routebook, profileId);
   const updated = normalizeRoutebookForStorage(
@@ -340,6 +416,7 @@ export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
       publishStatus: 'pending_review',
       sourceAuthorization: 'user-generated',
       creator,
+      ...(claimsAuthorship ? { authorshipClaim: { claimed: true, claimedAt: new Date().toISOString(), note: claimNote } } : {}),
       provider: {
         ...(routebook.provider ?? {}),
         userPublishedAt: new Date().toISOString()
@@ -348,7 +425,8 @@ export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
     routebook.publicId || routebook.id
   );
   await appendVersionedRoutebook(updated, 'submitted-for-review', {
-    previousStatus: routebook.publishStatus || 'draft'
+    previousStatus: routebook.publishStatus || 'draft',
+    ...(claimsAuthorship ? { authorshipClaim: updated.authorshipClaim, importOrigins: publication.origins } : {})
   });
   return updated;
 }
