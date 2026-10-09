@@ -178,6 +178,8 @@ export const AMAP_GEOCODE_KEY = String(process.env.AMAP_GEOCODE_KEY ?? '').trim(
 export const AMAP_ROUTING_KEY = String(process.env.AMAP_ROUTING_KEY ?? AMAP_GEOCODE_KEY).trim();
 export const ROUTING_TIMEOUT_MS = envNumber('ROUTING_TIMEOUT_MS', 8000, { min: 100, max: 60000 });
 export const ROUTING_CONCURRENCY = envNumber('ROUTING_CONCURRENCY', 3, { min: 1, max: 8 });
+// Requests per second across all AMap Web-service calls (personal keys: about 3).
+export const AMAP_QPS = envNumber('AMAP_QPS', 3, { min: 1, max: 200 });
 export const AMAP_API_BASE_URL = String(process.env.AMAP_API_BASE_URL ?? '').trim() || 'https://restapi.amap.com';
 export const GEOCODE_TIMEOUT_MS = envNumber('GEOCODE_TIMEOUT_MS', 5000, { min: 100 });
 export const MAP_TILE_TIMEOUT_MS = envNumber('MAP_TILE_TIMEOUT_MS', 12000, { min: 3000, max: 30000 });

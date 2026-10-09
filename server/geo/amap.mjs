@@ -1,11 +1,14 @@
 // AMap geocoding: POI keyword search with a deterministic candidate chooser, falling back
 // to address geocoding. Results are cached in memory per city+name.
 import { isValidCoordinate, truncateString } from '../lib/util.mjs';
-import { AMAP_API_BASE_URL, AMAP_GEOCODE_KEY, GEOCODE_TIMEOUT_MS } from '../config/index.mjs';
+import { AMAP_API_BASE_URL, AMAP_GEOCODE_KEY, AMAP_QPS, GEOCODE_TIMEOUT_MS } from '../config/index.mjs';
+import { createPacedAmapFetch } from './amapPacer.mjs';
 import { coordinateDistanceWarning, gcj02ToWgs84 } from './coordinates.mjs';
 import { GEOCODE_PRECISION, chooseGeocodeCandidate, precisionFromAmapLevel } from './geocodeChooser.mjs';
 
 const geocodeCache = new Map();
+// One pacer for every AMap Web-service call made by this process (geocoding and routing).
+export const pacedAmapFetch = createPacedAmapFetch({ qps: AMAP_QPS });
 const MAX_CANDIDATES = 10;
 
 const PRECISION_CONFIDENCE = Object.freeze({
@@ -31,7 +34,7 @@ function parseAmapLocation(location) {
 
 /** @param {string} path @param {Record<string, string>} params @param {any} [options] */
 async function fetchAmapJson(path, params, options = {}) {
-  const { signal, fetchImpl = globalThis.fetch, baseUrl = AMAP_API_BASE_URL } = options;
+  const { signal, fetchImpl = pacedAmapFetch, baseUrl = AMAP_API_BASE_URL } = options;
   const response = await fetchImpl(`${String(baseUrl).replace(/\/+$/, '')}${path}?${new URLSearchParams(params)}`, { signal });
   if (!response.ok) {
     reportAmapUpstreamError(path, { httpStatus: response.status }, options);

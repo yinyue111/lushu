@@ -1,10 +1,11 @@
 import { AMAP_ROUTING_KEY, ROUTING_TIMEOUT_MS, ROUTING_CONCURRENCY } from '../config/index.mjs';
 import { buildRouteLegs } from './routeLegs.mjs';
 import { createAmapRoutingProvider } from './amapProvider.mjs';
+import { pacedAmapFetch } from '../geo/amap.mjs';
 import { normalizeStopTransportMode, signRouteLeg } from './provenance.mjs';
 import { buildRoutebookMetrics, buildRoutebookValidations, routebookValidationContext } from '../routebooks/normalize.mjs';
 
-const routingProvider = createAmapRoutingProvider({ apiKey: AMAP_ROUTING_KEY, timeoutMs: ROUTING_TIMEOUT_MS });
+const routingProvider = createAmapRoutingProvider({ apiKey: AMAP_ROUTING_KEY, timeoutMs: ROUTING_TIMEOUT_MS, fetchImpl: pacedAmapFetch });
 
 export async function attachServerRouteLegs(routebook, signal, provider = routingProvider) {
   const defaultMode = normalizeStopTransportMode(routebook?.constraints?.transport) || 'walking';
