@@ -44,7 +44,12 @@ const IMPORT_STATUS_LABELS = {
   failed: '抓取失败'
 };
 
-export function importStatusLabel(status) {
+/**
+ * @param {string} status
+ * @param {string} [unavailableReason] 'too-little' for title-only / near-empty pages
+ */
+export function importStatusLabel(status, unavailableReason = '') {
+  if (status === 'unavailable' && unavailableReason === 'too-little') return '内容太少，读不到攻略';
   return IMPORT_STATUS_LABELS[status] ?? '状态待补充';
 }
 

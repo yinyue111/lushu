@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { describeFetchError, detectUnavailablePage } from '../../server/import/source-page.mjs';
+import { describeFetchError, detectUnavailablePage, MIN_SUBSTANTIVE_CHARS, substantiveContentChars } from '../../server/import/source-page.mjs';
 import { importStatusLabel } from '../../src/components/Builder/builderModel.js';
 
 test('a deleted 小红书 note (real 2026-10 page text) is detected as unavailable', () => {
@@ -33,6 +33,7 @@ test('English network errors become Chinese reasons; Chinese messages pass throu
 
 test('import status is shown in Chinese, never the raw enum', () => {
   assert.equal(importStatusLabel('fetched'), '已读取公开内容');
+  assert.equal(importStatusLabel('unavailable', 'too-little'), '内容太少，读不到攻略');
   assert.equal(importStatusLabel('unavailable'), '页面已删除或需登录');
   assert.equal(importStatusLabel('weird'), '状态待补充');
 });
@@ -48,4 +49,46 @@ test('E2E 2026-10-09: candidates marked 必去 reach constraints.mustGo', async 
   assert.equal(mergeMustGoConstraint('', candidates), '宽窄巷子、武侯祠');
   assert.equal(mergeMustGoConstraint('武侯祠、杜甫草堂', candidates), '武侯祠、杜甫草堂、宽窄巷子');
   assert.equal(mergeMustGoConstraint('', []), '');
+});
+
+test('E2E 2026-10-09: title-only / hashtag-only pages carry too little content to be a guide', () => {
+  // 抖音 video page: app shell, empty description, our crawler UA echoed into the body.
+  const douyinVideo = substantiveContentChars({
+    platformId: 'douyin',
+    title: '成都三天两晚怎么玩-抖音',
+    description: '',
+    text: '成都三天两晚怎么玩-抖音 登录 下载抖音 TrustedRoutebookBot/0.1 (+https://example.invalid/bot) 推荐 关注 直播'
+  });
+  assert.ok(douyinVideo < MIN_SUBSTANTIVE_CHARS, String(douyinVideo));
+  // 抖音 shipin page: one short sentence plus hashtags.
+  const douyinShipin = substantiveContentChars({
+    platformId: 'douyin',
+    title: '成都citywalk',
+    description: '成都两天一夜citywalk路线来啦，收藏起来慢慢逛 #成都旅游 #成都citywalk #旅行攻略 #宽窄巷子 #春熙路',
+    text: ''
+  });
+  assert.ok(douyinShipin < MIN_SUBSTANTIVE_CHARS, String(douyinShipin));
+  // X post with a real day-by-day description (141 chars in the E2E) passes.
+  const xPost = substantiveContentChars({
+    platformId: 'x',
+    title: 'Global Travel Guide on X',
+    description:
+      '成都旅游攻略 DAY1：春熙路—IFS国金中心—大慈寺—太古里，晚上去九眼桥酒吧街。DAY2：宽窄巷子—人民公园喝茶—武侯祠—锦里，晚上吃火锅。DAY3：熊猫基地早上去，下午杜甫草堂。',
+    text: ''
+  });
+  assert.ok(xPost >= MIN_SUBSTANTIVE_CHARS, String(xPost));
+  // A normal web article passes on its body even without a meta description.
+  assert.ok(
+    substantiveContentChars({
+      platformId: 'web',
+      title: '杭州攻略',
+      description: '',
+      text: '西湖一日游路线：断桥残雪、白堤、孤山、平湖秋月、苏堤春晓、花港观鱼、雷峰塔，傍晚在湖滨看音乐喷泉。'.repeat(2)
+    }) >= MIN_SUBSTANTIVE_CHARS
+  );
+  // A generic page that only repeats its title and site chrome does not.
+  assert.ok(
+    substantiveContentChars({ platformId: 'web', title: '杭州旅游攻略大全', description: '', text: '杭州旅游攻略大全 首页 登录 注册 © 2026 ICP备12345678号' }) <
+      MIN_SUBSTANTIVE_CHARS
+  );
 });

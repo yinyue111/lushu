@@ -1001,6 +1001,7 @@ export function normalizeImportedSources(sources) {
         platform: truncateString(source?.platform, 40),
         platformId: truncateString(source?.platformId, 40),
         status: truncateString(source?.status, 30),
+        ...(['too-little', 'deleted-or-login'].includes(source?.unavailableReason) ? { unavailableReason: source.unavailableReason } : {}),
         title: truncateString(source?.title, 120),
         description: truncateString(source?.description, 260),
         excerpt: truncateString(source?.excerpt, 700),

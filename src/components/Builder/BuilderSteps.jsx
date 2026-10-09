@@ -208,7 +208,7 @@ export function StepGuide(props) {
                 <li key={i} className="flex flex-wrap items-center gap-2 py-2 text-sm">
                   <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', TONES[sourcePredictionTone(score)])}>来源预测 {score ?? '待计算'}</span>
                   <span className="min-w-0 flex-1 text-ink-2">
-                    {s.platform || '公开链接'} · {importStatusLabel(s.status)} · {s.title?.slice(0, 30) || '标题待补充'}
+                    {s.platform || '公开链接'} · {importStatusLabel(s.status, s.unavailableReason)} · {s.title?.slice(0, 30) || '标题待补充'}
                   </span>
                   {s.warnings?.[0] && <small className="w-full text-xs text-lemon-ink">{s.warnings[0]}</small>}
                 </li>

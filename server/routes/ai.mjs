@@ -203,7 +203,7 @@ export const aiRoutes = [
       guideText: sources
         .map((source, index) =>
           [
-            `来源 ${index + 1}｜${source.platform}｜可信 ${source.trustScore}｜${IMPORT_STATUS_TEXT[source.status] ?? source.status}`,
+            `来源 ${index + 1}｜${source.platform}｜可信 ${source.trustScore}｜${source.unavailableReason === 'too-little' ? '内容太少' : (IMPORT_STATUS_TEXT[source.status] ?? source.status)}`,
             `标题：${source.title}`,
             source.description ? `摘要：${source.description}` : '',
             source.excerpt ? `公开正文摘录：${source.excerpt}` : '',

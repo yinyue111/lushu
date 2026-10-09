@@ -145,6 +145,42 @@ export function detectUnavailablePage({ title = '', description = '', text = '' 
   return match ? match[0] : '';
 }
 
+// Short-video / note platforms render an app shell: the guide (if any) is only in the
+// description, and hashtags are not content.
+const DESCRIPTION_ONLY_PLATFORMS = new Set(['douyin', 'xiaohongshu']);
+export const MIN_SUBSTANTIVE_CHARS = 40;
+// Some pages echo the request (our crawler UA) back into the page body.
+const CRAWLER_ECHO = /TrustedRoutebookBot\/[\w.]+(?:\s*\([^)]*\))?/gi;
+const PAGE_BOILERPLATE =
+  /登录|注册|下载(?:\s*app|客户端)?|打开app|网页版|创作中心|业务合作|直播|发布|通知|消息|首页|推荐|关注|举报|隐私政策|用户协议|版权所有|©\s*\d{4}(?:-\d{4})?|ICP备[\w-]*号?|营业执照|沪公网安备[\w-]*号?|京公网安备[\w-]*号?/gi;
+
+/** @param {string} value */
+function countMeaningfulChars(value) {
+  return (String(value).match(/[\p{Script=Han}\p{L}\p{N}]/gu) ?? []).length;
+}
+
+/**
+ * How much actual guide text a fetched page carries, ignoring hashtags, @mentions,
+ * the title (already shown), site chrome and our own crawler UA echoed back.
+ * @param {{ platformId?: string, title?: string, description?: string, text?: string }} page
+ */
+export function substantiveContentChars({ platformId = 'web', title = '', description = '', text = '' }) {
+  const clean = (value) =>
+    String(value ?? '')
+      .replace(CRAWLER_ECHO, ' ')
+      .replace(/#[^\s#]+#?/g, ' ')
+      .replace(/@[^\s@]+/g, ' ')
+      .replace(/https?:\/\/\S+/g, ' ');
+  const descriptionChars = countMeaningfulChars(clean(description));
+  if (DESCRIPTION_ONLY_PLATFORMS.has(platformId)) return descriptionChars;
+  let body = clean(text).replace(PAGE_BOILERPLATE, ' ');
+  for (const repeated of [title, description]) {
+    const needle = String(repeated ?? '').trim();
+    if (needle) body = body.split(needle).join(' ');
+  }
+  return Math.max(descriptionChars, countMeaningfulChars(body));
+}
+
 /** Network/abort errors from node are English; users get a Chinese reason. */
 export function describeFetchError(error) {
   const message = String(error?.message ?? '');
@@ -190,8 +226,27 @@ export async function analyzeSourceUrl(rawUrl, signal) {
   const html = fetched?.html ?? '';
   const title = extractTitle(html).slice(0, 120);
   const description = extractDescription(html).slice(0, 260);
-  const text = stripHtmlToText(html).slice(0, 2800);
+  const text = stripHtmlToText(html).replace(CRAWLER_ECHO, ' ').slice(0, 2800);
   const unavailableReason = fetched ? detectUnavailablePage({ title, description, text }) : '';
+  const contentChars = fetched ? substantiveContentChars({ platformId: platform.id, title, description, text }) : 0;
+  if (fetched && !unavailableReason && contentChars < MIN_SUBSTANTIVE_CHARS) {
+    // Title-only / empty pages (e.g. a 抖音 video page with just hashtags) are not a guide.
+    return {
+      url: rawUrl,
+      finalUrl: fetched.finalUrl ?? url.toString(),
+      platform: platform.name,
+      platformId: platform.id,
+      status: 'unavailable',
+      unavailableReason: 'too-little',
+      title: title || `${platform.name} 分享链接`,
+      description,
+      excerpt: '',
+      trustScore: 25,
+      signals: ['仅完成链接来源识别'],
+      warnings: [`页面只有标题或极少文字（约 ${contentChars} 字），读不到攻略内容。请粘贴视频文案/正文，或上传截图`, platform.note],
+      fetchedAt: new Date().toISOString()
+    };
+  }
   if (unavailableReason) {
     // A deleted note / login wall is not guide content: no excerpt, low trust, not usable.
     return {
@@ -200,6 +255,7 @@ export async function analyzeSourceUrl(rawUrl, signal) {
       platform: platform.name,
       platformId: platform.id,
       status: 'unavailable',
+      unavailableReason: 'deleted-or-login',
       title: title || `${platform.name} 分享链接`,
       description: '',
       excerpt: '',
