@@ -5,6 +5,59 @@ import { POI_CORRECTION_LOG_PATH, POI_KNOWLEDGE_LOG_PATH } from '../config/index
 import { readLatestUniqueJsonLines, appendJsonLine } from '../storage/jsonl.mjs';
 import { poiCorrectionIndex } from '../storage/records.mjs';
 
+/**
+ * Correction categories. The form used to offer a combined "开放时间/价格"
+ * option, so a price correction counted as an hours/closure signal. Each
+ * correction now carries a single category; only `hours` and `closure` feed the
+ * POI hours/closure trust flag.
+ */
+export const POI_CORRECTION_CATEGORIES = Object.freeze({
+  hours: '开放时间',
+  closure: '闭店/暂停',
+  price: '价格',
+  location: '位置坐标',
+  crowd: '排队/拥挤',
+  audience: '适合人群',
+  other: '其他'
+});
+
+const CLOSURE_TEXT = /已?(?:关门|倒闭|停业|歇业|闭店|拆除|不再营业|暂停(?:开放|营业)|永久关闭|闭园|闭馆中|关闭了)/;
+const HOURS_TEXT = /开放时间|营业时间|开门|几点|\d{1,2}\s*[:：点]\s*\d{0,2}|周[一二三四五六日天]\s*(?:闭馆|休息|不开)|闭馆|最晚入场/;
+const PRICE_TEXT = /价格|门票|票价|涨价|降价|免费|收费|人均|\d+(?:\.\d+)?\s*(?:元|块)|[¥￥]\s*\d/;
+
+/**
+ * @param {{ field?: string, category?: string, suggestedValue?: string, reason?: string }} correction
+ * @returns {keyof typeof POI_CORRECTION_CATEGORIES}
+ */
+export function classifyPoiCorrection(correction) {
+  if (Object.hasOwn(POI_CORRECTION_CATEGORIES, correction?.category)) return /** @type {any} */ (correction.category);
+  const field = String(correction?.field ?? '');
+  const text = `${correction?.suggestedValue ?? ''} ${correction?.reason ?? ''}`;
+  if (/闭店|暂停|停业|关闭|歇业/.test(field)) return 'closure';
+  if (/位置|坐标|地址/.test(field)) return 'location';
+  if (/排队|拥挤/.test(field)) return 'crowd';
+  if (/人群/.test(field)) return 'audience';
+  if (field === '价格' || /^(?:价格|门票|费用)$/.test(field)) return 'price';
+  if (/^(?:开放时间|营业时间)$/.test(field)) return 'hours';
+  // Legacy combined option ("开放时间/价格") and free-form fields: decide from the text.
+  if (CLOSURE_TEXT.test(text)) return 'closure';
+  if (/开放|营业/.test(field) && /价格/.test(field)) {
+    const hours = HOURS_TEXT.test(text);
+    const price = PRICE_TEXT.test(text);
+    if (hours && !price) return 'hours';
+    if (price && !hours) return 'price';
+    return 'other';
+  }
+  if (/开放|营业|闭馆|闭园/.test(field)) return 'hours';
+  return 'other';
+}
+
+/** Hours/closure corrections only (price, crowd, etc. never mark a POI as possibly closed). */
+export function isHoursOrClosureCorrection(correction) {
+  const category = classifyPoiCorrection(correction);
+  return category === 'hours' || category === 'closure';
+}
+
 export function normalizePoiCorrection(input) {
   const name = truncateString(input?.stopName ?? input?.name, 80);
   if (!name) throw createHttpError('请提供要纠错的 POI 名称', 400, 'POI_NAME_REQUIRED');
@@ -15,6 +68,12 @@ export function normalizePoiCorrection(input) {
     stopId: truncateString(input?.stopId, 40),
     stopName: name,
     field: truncateString(input?.field, 40) || '综合信息',
+    category: classifyPoiCorrection({
+      category: input?.category,
+      field: input?.field,
+      suggestedValue: input?.suggestedValue,
+      reason: input?.reason
+    }),
     currentValue: truncateString(input?.currentValue, 300),
     suggestedValue: truncateString(input?.suggestedValue, 500),
     reason: truncateString(input?.reason, 500),
