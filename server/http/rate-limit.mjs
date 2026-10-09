@@ -3,6 +3,7 @@ import {
   RATE_LIMIT_CORE_WRITE_MAX,
   RATE_LIMIT_MAP_TILE_MAX,
   RATE_LIMIT_MAX,
+  RATE_LIMIT_OPS_READ_MAX,
   RATE_LIMIT_PUBLIC_CONFIG_MAX,
   RATE_LIMIT_PUBLIC_READ_MAX,
   RATE_LIMIT_TELEMETRY_MAX,
@@ -30,6 +31,8 @@ function rateLimitQuotaForCategory(category) {
       return RATE_LIMIT_PUBLIC_READ_MAX;
     case 'public-config':
       return RATE_LIMIT_PUBLIC_CONFIG_MAX;
+    case 'ops-read':
+      return RATE_LIMIT_OPS_READ_MAX;
     case 'ai':
     default:
       return RATE_LIMIT_MAX;

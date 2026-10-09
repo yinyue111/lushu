@@ -180,6 +180,23 @@ test('L9: public read endpoints are rate limited', async () => {
   }
 });
 
+test('ops GET listings share an ops-read rate-limit bucket (checked before admin auth)', async () => {
+  const server = await startServer({ env: { RATE_LIMIT_OPS_READ_MAX: '2' } });
+  try {
+    const statuses = [];
+    for (const path of ['/api/ops/review-queue', '/api/ops/audits', '/api/ops/checkins', '/api/ops/imports']) {
+      statuses.push((await fetch(`${server.baseUrl}${path}`, { headers: adminHeaders() })).status);
+    }
+    assert.deepEqual(statuses, [200, 200, 429, 429]);
+    // Unauthenticated guesses consume the same budget instead of reaching token comparison.
+    assert.equal((await fetch(`${server.baseUrl}/api/ops/audits`)).status, 429);
+    // Other buckets are unaffected.
+    assert.equal((await fetch(`${server.baseUrl}/api/cities`)).status, 200);
+  } finally {
+    await server.stop();
+  }
+});
+
 async function seedPublishedRoutebook(dataDir) {
   await mkdir(dataDir, { recursive: true });
   await writeJsonl(dataDir, 'routebooks.jsonl', [

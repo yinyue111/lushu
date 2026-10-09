@@ -46,6 +46,7 @@ export async function startServer(options = {}) {
     RATE_LIMIT_MAX: '1000',
     RATE_LIMIT_CORE_WRITE_MAX: '1000',
     RATE_LIMIT_PUBLIC_READ_MAX: '1000',
+    RATE_LIMIT_OPS_READ_MAX: '1000',
     ...(options.env ?? {})
   });
   for (const [key, value] of Object.entries(env)) {

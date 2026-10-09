@@ -9,22 +9,29 @@
 
 /**
  * @typedef {{ req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, url: URL, params: Record<string, string> }} RouteContext
- * @typedef {{ method: string, pattern: string, segments: string[], wildcard: boolean, handler: (context: RouteContext) => unknown }} Route
+ * @typedef {{ method: string, pattern: string, segments: string[], wildcard: boolean, poiCatalog: boolean, handler: (context: RouteContext) => unknown }} Route
+ * @typedef {{ poiCatalog?: boolean }} RouteOptions
  */
+
+/** Route option for handlers that never resolve POIs (see route()). */
+export const NO_POI_CATALOG = Object.freeze({ poiCatalog: false });
 
 /**
  * @param {string} method
  * @param {string} pattern
  * @param {(context: RouteContext) => unknown} handler
+ * @param {RouteOptions} [options] `poiCatalog: false` marks a route whose handler
+ *   never resolves POIs, so the API entry skips the catalog freshness check.
+ *   Routes default to `true` (fail-safe: an unmarked route always sees a fresh catalog).
  * @returns {Route}
  */
-export function route(method, pattern, handler) {
+export function route(method, pattern, handler, options = {}) {
   if (!pattern.startsWith('/')) throw new Error(`Route pattern must start with '/': ${pattern}`);
   const segments = pattern.slice(1).split('/');
   const wildcard = segments.at(-1) === '*';
   if (wildcard) segments.pop();
   if (segments.slice(0, -1).includes('*') || segments.includes('*')) throw new Error(`'*' is only allowed as the last segment: ${pattern}`);
-  return { method: method.toUpperCase(), pattern, segments, wildcard, handler };
+  return { method: method.toUpperCase(), pattern, segments, wildcard, poiCatalog: options.poiCatalog !== false, handler };
 }
 
 /**

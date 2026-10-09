@@ -72,6 +72,8 @@ export const RATE_LIMIT_MAP_TILE_MAX = envNumber('RATE_LIMIT_MAP_TILE_MAX', 300,
 export const RATE_LIMIT_PUBLIC_READ_MAX = envNumber('RATE_LIMIT_PUBLIC_READ_MAX', 60, { min: 1 });
 
 // L9: cheap public config reads (cities/cms/products) get their own, larger bucket.
+// Read-only ops listings (review queue, check-ins, imports, audits) per admin client.
+export const RATE_LIMIT_OPS_READ_MAX = envNumber('RATE_LIMIT_OPS_READ_MAX', 120, { min: 1 });
 export const RATE_LIMIT_PUBLIC_CONFIG_MAX = envNumber('RATE_LIMIT_PUBLIC_CONFIG_MAX', 240, { min: 1 });
 export const RATE_LIMIT_BUCKET_SWEEP_SIZE = 10000;
 
