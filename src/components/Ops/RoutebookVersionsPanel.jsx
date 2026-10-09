@@ -4,7 +4,7 @@ import { curatedRoutes } from '../../lib/content';
 import { getRoutebookVersions, getRoutebooks, updateRoutebookStatus } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatApiError, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
 import { sourceAuthorizationLabel } from '../ui/labels';
-import { submitRoutebookStatusWithRoutingGate } from './routebookPublication';
+import { askUnpublishNote, submitRoutebookStatusWithRoutingGate, unpublishNeedsNote } from './routebookPublication';
 import { recheckRoutebookRouting } from '../../lib/routingApi';
 import OpsPager, { nextCursorStack, previousCursorStack } from './OpsPager';
 
@@ -46,6 +46,16 @@ export default function RoutebookVersionsPanel() {
       setRowStates((previous) => ({ ...previous, [id]: { status: 'ready', error: null, message: '已取消归档。' } }));
       return;
     }
+    let opsNote = '';
+    if (unpublishNeedsNote(routebook.publishStatus, publishStatus)) {
+      const answer = askUnpublishNote(routebook);
+      if (!('opsNote' in answer)) {
+        const message = 'invalid' in answer ? '运营备注至少需要 4 个字，路书保持公开。' : '已取消下线，路书保持公开。';
+        setRowStates((previous) => ({ ...previous, [id]: { status: 'ready', error: null, message } }));
+        return;
+      }
+      opsNote = answer.opsNote;
+    }
     setRowStates((previous) => ({ ...previous, [id]: { status: 'loading', error: null, message: '' } }));
     try {
       let version = firstValue(routebook.version, routebook.currentVersion, routebook.revision);
@@ -61,6 +71,7 @@ export default function RoutebookVersionsPanel() {
           publishStatus,
           sourceAuthorization: routebook.sourceAuthorization || routebook.creator?.sourceAuthorization || 'user-generated',
           creator: routebook.creator,
+          ...(opsNote ? { opsNote } : {}),
           ...(hasValue(version) ? { expectedVersion: Number(version) } : {})
         }
       });
@@ -101,7 +112,13 @@ export default function RoutebookVersionsPanel() {
       const count = data.routebook?.routeLegs?.length ?? 0;
       setRowStates((previous) => ({
         ...previous,
-        [id]: { status: 'ready', error: null, message: `道路核验完成：${verified}/${count} 段已核验；未核验段不会显示精确道路耗时。` }
+        [id]: {
+          status: 'ready',
+          error: null,
+          message: data.routebook?.routingWarning
+            ? `道路核验完成：${verified}/${count} 段已核验。路书保持公开，已向作者和运营标记“道路待复核”；如需下线请手动改状态并填写备注。`
+            : `道路核验完成：${verified}/${count} 段已核验；未核验段不会显示精确道路耗时。`
+        }
       }));
       if (selectedId === id) versionsResource.retry();
     } catch (error) {
@@ -165,6 +182,11 @@ export default function RoutebookVersionsPanel() {
                             ))}
                           </select>
                         </label>
+                        {routebook.routingWarning?.unverifiedLegs > 0 && (
+                          <span className="badge badge-orange ops-routing-warning" title={routebook.routingWarning.message}>
+                            {routebook.routingWarning.unverifiedLegs}/{routebook.routingWarning.expectedLegs} 段道路待复核
+                          </span>
+                        )}
                       </td>
                       <td>{formatOpsDate(routebook.updatedAt)}</td>
                       <td>

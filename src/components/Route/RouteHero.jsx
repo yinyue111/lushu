@@ -99,6 +99,14 @@ export default function RouteHero({
                 {publishStatusLabel(routebook.publishStatus)}
               </Chip>
             )}
+            {routebook.routingWarning?.unverifiedLegs > 0 && (
+              // Only present on owner/ops reads: a re-check found unverified legs but the
+              // routebook stays published (re-checks never unpublish).
+              <Chip tone="lemon" title={routebook.routingWarning.message} data-testid="routing-warning-chip">
+                <TriangleAlert aria-hidden="true" /> {routebook.routingWarning.unverifiedLegs} 段道路待复核
+                <span className="sr-only">：{routebook.routingWarning.message}</span>
+              </Chip>
+            )}
           </div>
           <h1 className="max-w-[860px] text-display-sm leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:text-display-lg lg:leading-[1.18]">
             {routebook.title}

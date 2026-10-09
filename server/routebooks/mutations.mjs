@@ -58,6 +58,12 @@ export async function updateRoutebookStatus(publicId, input) {
     throw createHttpError('导入来源尚未取得公开展示授权，不能公开发布', 409, 'SOURCE_PUBLIC_AUTHORIZATION_REQUIRED');
   }
   const routingPublication = PUBLIC_ROUTE_STATUSES.has(nextStatus) ? requireVerifiedRoutingForPublicStatus(routebook, input) : null;
+  const opsNote = truncateString(input?.opsNote || input?.changeReason, 400).trim();
+  // Taking a public routebook down is only ever a manual ops decision, and it
+  // must leave an audit note (re-checks and other automation never unpublish).
+  if (PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus) && !PUBLIC_ROUTE_STATUSES.has(nextStatus) && opsNote.length < 4) {
+    throw createHttpError('下线已公开的路书需要填写运营备注（至少 4 个字），会写入审计记录', 400, 'UNPUBLISH_NOTE_REQUIRED');
+  }
   const creator = input?.creator ? normalizeCreator(input.creator) : normalizeCreator(routebook.creator);
   const updated = normalizeRoutebookForStorage(
     {
@@ -67,7 +73,7 @@ export async function updateRoutebookStatus(publicId, input) {
       publishStatus: nextStatus,
       sourceAuthorization: truncateString(input?.sourceAuthorization || creator.sourceAuthorization || routebook.sourceAuthorization, 40),
       creator,
-      opsNote: truncateString(input?.opsNote, 400),
+      opsNote,
       provider: {
         ...(routebook.provider ?? {}),
         statusUpdatedAt: new Date().toISOString()
@@ -75,7 +81,6 @@ export async function updateRoutebookStatus(publicId, input) {
     },
     routebook.publicId || routebook.id
   );
-  const opsNote = truncateString(input?.opsNote, 400);
   await appendVersionedRoutebook(updated, 'status-changed', {
     previousStatus: routebook.publishStatus || 'draft',
     ...(routingPublication ? { routingPublication } : {}),

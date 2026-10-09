@@ -5,7 +5,7 @@ import { normalizeStoredRouteLegs, signRouteLeg } from '../../server/routing/pro
 import { requireVerifiedRoutingForPublicStatus } from '../../server/routebooks/mutations.mjs';
 import { normalizeRoutebookForStorage } from '../../server/routebooks/normalize.mjs';
 import { publicRoutebookView } from '../../server/routebooks/views.mjs';
-import { submitRoutebookStatusWithRoutingGate } from '../../src/components/Ops/routebookPublication.js';
+import { askUnpublishNote, submitRoutebookStatusWithRoutingGate, unpublishNeedsNote } from '../../src/components/Ops/routebookPublication.js';
 import { roadSummary } from '../../src/lib/routeRoads.js';
 
 function stops() {
@@ -276,4 +276,30 @@ test('builder transport preferences map to the right per-leg routing mode', asyn
   assert.equal(normalizeStopTransportMode('打车'), 'driving');
   assert.equal(normalizeStopTransportMode('步行'), 'walking');
   assert.equal(normalizeStopTransportMode('少换乘'), '');
+});
+
+test('manual unpublish of a public routebook asks ops for an audit note', () => {
+  assert.equal(unpublishNeedsNote('published', 'pending_review'), true);
+  assert.equal(unpublishNeedsNote('featured', 'archived'), true);
+  assert.equal(unpublishNeedsNote('published', 'featured'), false);
+  assert.equal(unpublishNeedsNote('draft', 'archived'), false);
+  const prompts = [];
+  const routebook = { title: '西湖', routingWarning: { message: '重新核验发现 1/3 段道路暂未核验' } };
+  assert.deepEqual(
+    askUnpublishNote(routebook, (message) => {
+      prompts.push(message);
+      return '  道路长期无法核验  ';
+    }),
+    { opsNote: '道路长期无法核验' }
+  );
+  assert.match(prompts[0], /西湖/);
+  assert.match(prompts[0], /1\/3 段道路/);
+  assert.deepEqual(
+    askUnpublishNote(routebook, () => null),
+    { cancelled: true }
+  );
+  assert.deepEqual(
+    askUnpublishNote(routebook, () => '短'),
+    { invalid: true }
+  );
 });

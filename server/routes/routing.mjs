@@ -11,6 +11,20 @@ import { normalizeRoutebookForStorage } from '../routebooks/normalize.mjs';
 import { attachServerRouteLegs } from '../routing/service.mjs';
 import { summarizeRouteExecution } from '../routing/routeExecution.mjs';
 import { enrichRoutebook } from '../trust/feedback.mjs';
+import { PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
+
+/**
+ * @param {Record<string, any>} routebook
+ * @param {{ expectedLegs: number, unverifiedLegs: number, allVerified: boolean }} routing
+ */
+export function routingWarningFor(routebook, routing) {
+  if (!PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus) || !routing.expectedLegs || routing.allVerified) return null;
+  return {
+    unverifiedLegs: routing.unverifiedLegs,
+    expectedLegs: routing.expectedLegs,
+    detectedAt: routebook?.routingWarning?.detectedAt || new Date().toISOString()
+  };
+}
 
 export const routingRoutes = [
   route('POST', '/api/routebooks/:id/routing', async ({ req, res, params }) => {
@@ -26,9 +40,13 @@ export const routingRoutes = [
       // Only legs touched since the last verification are re-queried.
       const routed = await attachServerRouteLegs(normalizeRoutebookForStorage(current, id), signal, undefined, { reuseVerifiedLegs: true });
       const routing = summarizeRouteExecution(routed.stops, routed.routeLegs);
-      const demoted = ['published', 'featured'].includes(current.publishStatus) && routing.expectedLegs > 0 && !routing.allVerified;
-      const routebook = normalizeRoutebookForStorage({ ...routed, ...version, ...(demoted ? { publishStatus: 'pending_review' } : {}) }, id);
-      await appendVersionedRoutebook(routebook, 'routing-checked', { routing: summarizeRouteExecution(routebook.stops, routebook.routeLegs) });
+      // A re-check never unpublishes: unverified legs on a public routebook become a
+      // warning for the author and ops; ops can still unpublish manually with a note.
+      const routebook = normalizeRoutebookForStorage({ ...routed, ...version, routingWarning: routingWarningFor(current, routing) }, id);
+      await appendVersionedRoutebook(routebook, 'routing-checked', {
+        routing: summarizeRouteExecution(routebook.stops, routebook.routeLegs),
+        ...(routebook.routingWarning ? { routingWarning: routebook.routingWarning } : {})
+      });
       return routebook;
     });
     return sendJson(res, 200, { ok: true, routebook: await enrichRoutebook(updated) });

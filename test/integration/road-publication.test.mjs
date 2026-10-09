@@ -41,9 +41,38 @@ test('road publication gate, owner review submission and audited admin override'
   assert.equal(audit.routingPublication.overridden, true);
   assert.equal(audit.routingPublication.routing.unverifiedLegs, 1);
   assert.equal(audit.routingPublication.reason, '测试显式人工核验例外说明');
-  const demoted = await post(`/api/routebooks/${id}/routing`, { expectedVersion: 4 }, true);
-  assert.equal(demoted.status, 200, JSON.stringify(demoted.data));
-  assert.equal(demoted.data.routebook.publishStatus, 'pending_review');
+  // A re-check on a published routebook never unpublishes it: it records a warning.
+  const rechecked2 = await post(`/api/routebooks/${id}/routing`, { expectedVersion: 4 }, true);
+  assert.equal(rechecked2.status, 200, JSON.stringify(rechecked2.data));
+  assert.equal(rechecked2.data.routebook.publishStatus, 'published');
+  assert.equal(rechecked2.data.routebook.routingWarning.code, 'ROUTING_UNVERIFIED_AFTER_PUBLISH');
+  assert.equal(rechecked2.data.routebook.routingWarning.unverifiedLegs, 1);
+  assert.equal(rechecked2.data.routebook.routingWarning.expectedLegs, 1);
+  assert.equal((await fetchJson(`${server.baseUrl}/api/share/${id}`)).status, 200, 'share link keeps working');
+  const ownerView = await fetchJson(`${server.baseUrl}/api/routebooks/${id}`, { headers: { 'x-routebook-edit-token': draft.data.routebook.editToken } });
+  assert.match(ownerView.data.routebook.routingWarning.message, /保持公开/);
+  const publicView = await fetchJson(`${server.baseUrl}/api/routebooks/${id}`);
+  assert.equal(publicView.data.routebook.routingWarning, undefined, 'warning is for the author and ops only');
+  const versionsAfterRecheck = await fetchJson(`${server.baseUrl}/api/routebooks/${id}/versions`, { headers: adminHeaders() });
+  const recheckAudit = versionsAfterRecheck.data.audits.filter((item) => item.event === 'routing-checked').at(-1);
+  assert.equal(recheckAudit.routingWarning.unverifiedLegs, 1);
+
+  // Ops can still take it down manually, but only with an audit note.
+  const noNote = await post(`/api/routebooks/${id}/status`, { expectedVersion: 5, publishStatus: 'pending_review' }, true);
+  assert.equal(noNote.status, 400);
+  assert.equal(noNote.data.code, 'UNPUBLISH_NOTE_REQUIRED');
+  const unpublished = await post(
+    `/api/routebooks/${id}/status`,
+    { expectedVersion: 5, publishStatus: 'pending_review', opsNote: '道路长期无法核验，先下线复查' },
+    true
+  );
+  assert.equal(unpublished.status, 200, JSON.stringify(unpublished.data));
+  assert.equal(unpublished.data.routebook.publishStatus, 'pending_review');
+  assert.equal(unpublished.data.routebook.routingWarning, null);
+  const finalVersions = await fetchJson(`${server.baseUrl}/api/routebooks/${id}/versions`, { headers: adminHeaders() });
+  const unpublishAudit = finalVersions.data.audits.filter((item) => item.event === 'status-changed').at(-1);
+  assert.equal(unpublishAudit.opsNote, '道路长期无法核验，先下线复查');
+  assert.equal(unpublishAudit.previousStatus, 'published');
 });
 
 test('verified profile owner can edit and submit cross-device without a plaintext route token', async (t) => {

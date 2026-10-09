@@ -1165,7 +1165,7 @@ async function main() {
     const archived = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-routebook-admin-token': ADMIN_TOKEN },
-      body: JSON.stringify({ publishStatus: 'archived', expectedVersion: 4 })
+      body: JSON.stringify({ publishStatus: 'archived', expectedVersion: 4, opsNote: '安全回归归档' })
     });
     if (!archived.response.ok) {
       throw new Error(`Archiving routebook failed: ${JSON.stringify(archived.data)}`);

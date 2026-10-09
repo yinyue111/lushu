@@ -326,7 +326,8 @@ async function main() {
         headers: { 'content-type': 'application/json', 'x-routebook-admin-token': SMOKE_ADMIN_TOKEN },
         body: JSON.stringify({
           publishStatus: 'archived',
-          expectedVersion: publishData.routebook.version
+          expectedVersion: publishData.routebook.version,
+          opsNote: '冒烟测试归档'
         })
       });
       if (!archiveResponse.ok || archiveData.routebook?.publishStatus !== 'archived') {

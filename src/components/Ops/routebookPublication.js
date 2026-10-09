@@ -1,5 +1,25 @@
 export const ROUTEBOOK_ROUTING_UNVERIFIED = 'ROUTEBOOK_ROUTING_UNVERIFIED';
 
+const PUBLIC_STATUSES = new Set(['published', 'featured']);
+
+/** Manual unpublish (public -> non-public) must carry an audit note. */
+export function unpublishNeedsNote(previousStatus, nextStatus) {
+  return PUBLIC_STATUSES.has(previousStatus) && !PUBLIC_STATUSES.has(nextStatus);
+}
+
+/**
+ * @param {{ title?: string, routingWarning?: { message?: string } | null }} routebook
+ * @param {(message: string) => string | null} [promptNote]
+ * @returns {{ opsNote: string } | { cancelled: true } | { invalid: true }}
+ */
+export function askUnpublishNote(routebook, promptNote = (message) => window.prompt(message)) {
+  const context = routebook?.routingWarning?.message ? `\n当前提示：${routebook.routingWarning.message}` : '';
+  const raw = promptNote(`下线“${routebook?.title || '这条路书'}”会让分享链接失效。请填写运营备注（至少 4 个字，写入审计记录）。${context}`);
+  if (raw == null) return { cancelled: true };
+  const opsNote = String(raw).trim();
+  return opsNote.length >= 4 ? { opsNote } : { invalid: true };
+}
+
 export async function submitRoutebookStatusWithRoutingGate({
   publicId,
   payload,

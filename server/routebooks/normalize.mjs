@@ -838,7 +838,29 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
       travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate),
       savedAt: now.toISOString()
     }),
+    routingWarning: normalizeRoutingWarning(input?.routingWarning, publishStatus),
     ...versionMetadata
+  };
+}
+
+/**
+ * A published routebook whose re-check found unverified legs keeps its status and
+ * carries this warning instead (shown to the author and ops). Only meaningful
+ * while the routebook is public; dropped otherwise.
+ * @param {any} warning
+ * @param {string} publishStatus
+ */
+export function normalizeRoutingWarning(warning, publishStatus) {
+  if (!warning || typeof warning !== 'object' || !PUBLIC_ROUTE_STATUSES.has(publishStatus)) return null;
+  const expectedLegs = clampNumber(warning.expectedLegs, 0, 1000, 0);
+  const unverifiedLegs = clampNumber(warning.unverifiedLegs, 0, expectedLegs, 0);
+  if (!unverifiedLegs) return null;
+  return {
+    code: 'ROUTING_UNVERIFIED_AFTER_PUBLISH',
+    unverifiedLegs,
+    expectedLegs,
+    detectedAt: truncateString(warning.detectedAt, 60),
+    message: `重新核验发现 ${unverifiedLegs}/${expectedLegs} 段道路暂未核验，路书保持公开，相关路段不显示精确道路耗时。`
   };
 }
 

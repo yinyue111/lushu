@@ -46,7 +46,7 @@ test('writes through the API are visible on the next read (read-your-writes)', a
   const update = await fetchJson(`${server.baseUrl}/api/routebooks/rb-oldest/status`, {
     method: 'POST',
     headers: { ...jsonHeaders(), ...adminHeaders() },
-    body: JSON.stringify({ publishStatus: 'archived', expectedVersion: 2 })
+    body: JSON.stringify({ publishStatus: 'archived', expectedVersion: 2, opsNote: '索引回归归档' })
   });
   assert.equal(update.status, 200, JSON.stringify(update.data));
   assert.equal(update.data.routebook.version, 3);
