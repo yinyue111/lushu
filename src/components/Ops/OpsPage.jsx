@@ -61,6 +61,16 @@ export default function OpsPage() {
     }
   }
 
+  // Keep the active tab fully visible in the scrolling strip on phones (also for ?tab= deep links).
+  useEffect(() => {
+    const tab = document.getElementById(`ops-tab-${activeTab}`);
+    const strip = tab?.parentElement;
+    if (!tab || !strip || strip.scrollWidth <= strip.clientWidth) return;
+    const t = tab.getBoundingClientRect();
+    const box = strip.getBoundingClientRect();
+    if (t.left < box.left || t.right > box.right - 32) strip.scrollLeft += t.left - box.left - 16;
+  }, [activeTab]);
+
   return (
     <div className="container ops-page page-enter">
       <header className="ops-hero">

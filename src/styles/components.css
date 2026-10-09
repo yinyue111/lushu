@@ -1321,3 +1321,26 @@
     overflow: visible;
   }
 }
+
+/* Phones: the ops header took a third of the screen on every tab, and the tab strip ended in a
+   hard cut with no hint that it scrolls. Compact header + right-edge fade; tabs ≥44px. */
+@media (max-width: 639px) {
+  .ops-page {
+    padding-top: 16px;
+  }
+  .ops-hero .text-hero {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+  .ops-hero .text-body {
+    display: none;
+  }
+  .ops-tabs {
+    margin-top: 12px;
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+    padding-right: 32px;
+  }
+  .ops-tab {
+    min-height: 44px;
+  }
+}
