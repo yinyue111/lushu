@@ -6,6 +6,7 @@ import { cn } from '../ui/cn';
 import { publishStatusLabel } from '../ui/labels';
 import { CITY_SCENE, cityCover, heroImageProps } from '../visual/theme';
 import { SceneBadge, SceneImage } from '../visual/SceneImage';
+import AigcChip from './AigcChip';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -92,6 +93,7 @@ export default function RouteHero({
             <Chip tone="glass">
               <TrustIcon /> {trustState.shortLabel}
             </Chip>
+            <AigcChip routebook={routebook} />
             {isOwner && (
               <Chip tone="glass" className="hidden sm:inline-flex">
                 {publishStatusLabel(routebook.publishStatus)}

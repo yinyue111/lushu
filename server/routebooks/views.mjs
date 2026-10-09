@@ -5,6 +5,7 @@ import { clampNumber, normalizeCityName, positiveInteger, sanitizePublicId, trun
 import { normalizeCreator } from './normalize.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
 import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
+import { aigcMetadata } from '../../src/lib/aigc.js';
 
 export function isPublicRoutebook(routebook) {
   return PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft');
@@ -75,6 +76,8 @@ export function publicRoutebookView(routebook) {
     publishStatus: PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus) ? routebook.publishStatus : 'published',
     sourceAuthorization: truncateString(routebook.sourceAuthorization || routebook.creator?.sourceAuthorization, 40),
     copyCount: clampNumber(routebook.copyCount, 0, 1000000, 0),
+    // Implicit AIGC label (metadata), derived from the stored routebook, never from the client.
+    aigc: aigcMetadata(routebook),
     schemaVersion: positiveInteger(routebook.schemaVersion, 1),
     version: positiveInteger(routebook.version, 1),
     parentVersion: positiveInteger(routebook.parentVersion),

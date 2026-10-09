@@ -9,6 +9,7 @@ import { TrustChip } from '../cards/TrustChip';
 import { CityBackdrop } from '../visual/CityBackdrop';
 import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
+import AigcChip from './AigcChip';
 
 /** @param {Record<string, any>} props */
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
@@ -150,6 +151,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
               <TrustChip routebook={routebook} className="bg-white/95" />
+              <AigcChip routebook={routebook} />
               <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold backdrop-blur">
                 <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
               </span>

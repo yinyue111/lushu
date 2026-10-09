@@ -23,7 +23,8 @@ const VIEWS = {
   my: 'my',
   share: 'share',
   creator: 'creator',
-  publicReview: 'publicReview'
+  publicReview: 'publicReview',
+  privacy: 'privacy'
 };
 const PUBLIC_VIEWS = new Set([VIEWS.share, VIEWS.publicReview]);
 // Crowd data aggregated from other travellers' check-ins: a local snapshot is never
@@ -41,6 +42,7 @@ const OpsPage = React.lazy(() => import('./components/Ops/OpsPage'));
 const LogsPage = React.lazy(() => import('./components/Ops/LogsPage'));
 const MyPage = React.lazy(() => import('./components/My/MyPage'));
 const CreatorPage = React.lazy(() => import('./components/Creator/CreatorPage'));
+const PrivacyPage = React.lazy(() => import('./components/Legal/PrivacyPage'));
 
 function initialRouteState() {
   const decodePathParam = (value) => {
@@ -65,7 +67,7 @@ function initialRouteState() {
   const tripMatch = window.location.pathname.match(/^\/trip\/([^/]+)\/?$/);
   if (tripMatch) return { view: VIEWS.trip, publicId: decodePathParam(tripMatch[1]) };
   const directView = window.location.pathname.replace(/^\/+|\/+$/g, '');
-  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder].includes(directView)) {
+  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(directView)) {
     return { view: directView, publicId: '' };
   }
   return { view: VIEWS.home, publicId: '', city: '' };
@@ -567,6 +569,7 @@ export default function App() {
               />
             )}
             {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
+            {view === VIEWS.privacy && <PrivacyPage onBack={() => navigate(VIEWS.home)} />}
           </Suspense>
         </ErrorBoundary>
       </main>
@@ -733,7 +736,7 @@ function routebookVersion(book) {
 }
 
 function publicPathForView(view, options = {}) {
-  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder].includes(view)) return `/${view}`;
+  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(view)) return `/${view}`;
   if (view === VIEWS.destination) return `/destination/${encodeURIComponent(options.city || '杭州')}`;
   if (view === VIEWS.creator) return `/creator/${encodeURIComponent(options.creatorId || '')}`;
   if (view === VIEWS.route && options.routeId) return `/route/${encodeURIComponent(options.routeId)}`;

@@ -111,7 +111,10 @@ export function MyAccountPanel({
         <section className="rounded-panel border border-line bg-white p-5">
           <h2 className="text-lg font-extrabold">资料与隐私</h2>
           <p className="mt-1 text-sm text-muted">
-            导出不含访问凭据。注销会删除当前服务中的资料、照片和本机副本；已被他人下载及运营备份中的副本不在即时删除范围。
+            导出不含访问凭据。注销会删除当前服务中的资料、照片和本机副本；已被他人下载及运营备份中的副本不在即时删除范围。{' '}
+            <a className="underline" href="/privacy">
+              查看隐私说明（草案）与定位授权
+            </a>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" disabled={syncBusy} onClick={onExport}>

@@ -3,6 +3,8 @@ import { Check, LocateFixed } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
+import { grantLocationConsent, requestPositionWithConsent } from '../../lib/locationConsent.js';
+import LocationConsentDialog from './LocationConsentDialog';
 
 // 本地暂存照片 dataURL 上限（约 400KB），防 localStorage 被撑爆。
 const MAX_PHOTO_DATA_URL_LENGTH = 400 * 1024;
@@ -57,15 +59,13 @@ export default function CheckinForm({ onSubmit, onCancel }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [gps, setGps] = useState(null);
   const [gpsError, setGpsError] = useState('');
+  const [consentOpen, setConsentOpen] = useState(false);
 
   function locate() {
     setGpsError('');
-    if (!navigator.geolocation) {
-      setGpsError('当前浏览器不支持 GPS，仍可记录到达；服务端会保存为普通反馈。');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
+    const result = requestPositionWithConsent({
+      geolocation: typeof navigator !== 'undefined' ? navigator.geolocation : null,
+      onPosition: (position) =>
         setGps({
           lat: Number(position.coords.latitude.toFixed(6)),
           lng: Number(position.coords.longitude.toFixed(6)),
@@ -74,9 +74,12 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           coordinateSystem: 'unknown',
           userAgent: String(navigator.userAgent ?? '').slice(0, 160)
         }),
-      () => setGpsError('定位失败，仍可记录到达；服务端会保存为普通反馈，不是已验证到达。'),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-    );
+      onError: () => setGpsError('定位失败，仍可记录到达；服务端会保存为普通反馈，不是已验证到达。'),
+      options: { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    });
+    // 未同意前绝不调用定位 API：先弹出说明，用户同意后再请求。
+    if (result === 'needs-consent') setConsentOpen(true);
+    if (result === 'unsupported') setGpsError('当前浏览器不支持 GPS，仍可记录到达；服务端会保存为普通反馈。');
   }
 
   async function handlePhotoChange(event) {
@@ -118,6 +121,18 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           {gps ? `已定位 · 精度约 ${gps.accuracy} 米` : gpsError || '不开定位也能记录；只是这条会作为普通反馈，不算“到达验证”。'}
         </p>
       </div>
+      <LocationConsentDialog
+        open={consentOpen}
+        onAgree={() => {
+          grantLocationConsent();
+          setConsentOpen(false);
+          locate();
+        }}
+        onDecline={() => {
+          setConsentOpen(false);
+          setGpsError('未同意定位：这条打卡会作为普通反馈记录，不算到达验证。');
+        }}
+      />
       <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />
       <ChoiceGroup label="现场人多吗" options={['空', '适中', '拥挤', '不建议']} value={crowd} onChange={setCrowd} />
       <details className="group rounded-card border border-line">

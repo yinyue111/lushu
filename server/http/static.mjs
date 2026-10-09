@@ -10,6 +10,7 @@ import { cityStories, defaultCityImage } from '../../src/lib/content.js';
 import { getSavedReview } from '../storage/records.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { isPublicRoutebook } from '../routebooks/views.mjs';
+import { aigcMetadata } from '../../src/lib/aigc.js';
 import { reviewIsStillPublic } from '../reviews/reviews.mjs';
 import { shouldTrustProxyHeaders } from '../auth/request-access.mjs';
 
@@ -208,10 +209,18 @@ async function buildShareLandingMeta(target) {
       if (!routebook || !isPublicRoutebook(routebook)) return null;
       const title = truncateString(routebook.title, 80) || 'AI 可信路书';
       const city = routebook.city ? normalizeCityName(routebook.city) : '';
+      const stops = Array.isArray(routebook.stops) ? routebook.stops : [];
       return {
         title: `${title}｜AI 可信路书`,
         description: truncateString(routebook.summary, 160) || `${city ? `${city}的` : ''}可执行、可验证的分日路书。`,
-        image: cityStories[city]?.image ?? defaultCityImage
+        image: cityStories[city]?.image ?? defaultCityImage,
+        path: `/share/${encodeURIComponent(target.id)}`,
+        aigc: aigcMetadata(routebook),
+        // Pre-rendered text for crawlers without JS (inside <noscript>, so users never see a flash).
+        prerender: {
+          heading: title,
+          lines: stops.slice(0, 20).map((stop) => [truncateString(stop?.day, 24), truncateString(stop?.name, 60)].filter(Boolean).join(' · '))
+        }
       };
     }
     const review = await getSavedReview(target.id);
@@ -225,7 +234,10 @@ async function buildShareLandingMeta(target) {
         `真实打卡 ${clampNumber(stats.checkinCount, 0, 100000, 0)} 次，主线完成率 ${clampNumber(stats.completionRate, 0, 100, 0)}%，来自 AI 可信路书的可验证行程回顾。`,
         200
       ),
-      image: cityStories[reviewCity]?.image ?? defaultCityImage
+      image: cityStories[reviewCity]?.image ?? defaultCityImage,
+      path: `/review/${encodeURIComponent(target.id)}`,
+      aigc: aigcMetadata(review.routebook),
+      prerender: { heading: `${routeTitle}｜旅行回顾`, lines: [] }
     };
   } catch {
     return null;
@@ -248,13 +260,23 @@ function injectShareLandingMeta(html, meta) {
           `<meta name="twitter:image" content="${safeImage}">`
         ]
       : ['<meta name="twitter:card" content="summary">']),
-    `<meta name="description" content="${safeDescription}">`
+    `<meta name="description" content="${safeDescription}">`,
+    '<meta property="og:locale" content="zh_CN">',
+    ...(meta.url ? [`<meta property="og:url" content="${escapeHtmlText(meta.url)}">`, `<link rel="canonical" href="${escapeHtmlText(meta.url)}">`] : []),
+    // Implicit AIGC label for machine readers (see src/lib/aigc.js).
+    ...(meta.aigc?.generated ? [`<meta name="aigc" content="${escapeHtmlText(JSON.stringify(meta.aigc))}">`] : [])
   ].join('\n    ');
   // 用函数返回替换串：字符串形态的第二参会展开 $&/$` 等模板序列，
   // 标题里出现这些字符时会把原 HTML 片段拼进注入结果。
   let output = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${safeTitle}</title>`);
   if (output.includes('</head>')) {
     output = output.replace('</head>', () => `    ${metaTags}\n  </head>`);
+  }
+  if (meta.prerender && output.includes('</body>')) {
+    const items = (meta.prerender.lines ?? []).map((line) => `<li>${escapeHtmlText(line)}</li>`).join('');
+    const label = meta.aigc?.generated ? `<p>${escapeHtmlText(meta.aigc.label)}</p>` : '';
+    const block = `<noscript><article><h1>${escapeHtmlText(meta.prerender.heading)}</h1>${label}<p>${safeDescription}</p>${items ? `<ol>${items}</ol>` : ''}</article></noscript>`;
+    output = output.replace('</body>', () => `  ${block}\n  </body>`);
   }
   return output;
 }
@@ -284,10 +306,9 @@ export async function serveShareLandingHtml(req, res, target, vite = null) {
   const meta = await buildShareLandingMeta(target);
   if (!meta) return false;
   // og:image 需要绝对 URL（微信/QQ 等抓取器不解析相对路径）；以请求来源组装 origin。
-  if (meta.image?.startsWith('/')) {
-    const origin = shareLandingOrigin(req);
-    if (origin) meta.image = `${origin}${meta.image}`;
-  }
+  const origin = shareLandingOrigin(req);
+  if (meta.image?.startsWith('/') && origin) meta.image = `${origin}${meta.image}`;
+  if (origin && meta.path) meta.url = `${origin}${meta.path}`;
   let html = '';
   try {
     if (vite) {
