@@ -772,21 +772,23 @@ export default function TripView({ routebook, onBack, onReview }) {
       </div>
 
       {/* Phone action bar */}
-      <div className="fixed inset-x-0 bottom-0 z-[1300] flex gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
+      {/* @container: when the bar is narrower than 22rem (320px phones, or a large system font
+          that grows rem), 导航 collapses to its icon so the check-in label keeps one line. */}
+      <div className="@container fixed inset-x-0 bottom-0 z-[1300] flex gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
         <Button
           variant="dark"
           size="lg"
-          className="h-auto min-h-[54px] min-w-0 flex-1 py-2 text-base leading-tight whitespace-normal"
+          className="h-[54px] flex-1 text-base @max-[22rem]:flex-none @max-[22rem]:px-4"
           onClick={openNavigation}
           disabled={!isNavigableCoordinate(current)}
+          aria-label="导航"
         >
-          <Navigation /> 导航
+          <Navigation /> <span className="@max-[22rem]:sr-only">导航</span>
         </Button>
         <Button
           variant="primary"
           size="lg"
-          // Large system fonts: the label wraps onto two lines instead of being clipped.
-          className="h-auto min-h-[54px] min-w-0 flex-[2] py-2 leading-tight whitespace-normal"
+          className="h-auto min-h-[54px] min-w-0 flex-[2] py-2 leading-tight whitespace-normal @max-[22rem]:flex-1"
           onClick={() => setShowCheckin(true)}
           disabled={actionDisabled}
         >
