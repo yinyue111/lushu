@@ -226,7 +226,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
       label: '试验生成 · POI、营业信息和导航需人工复核',
       shortLabel: '试验生成',
       value: '待人工复核',
-      note: '当前城市尚未进入可信范围，暂不输出数值分。'
+      note: '这座城市还没开放可信评分，先不打分。'
     };
   }
   if (trust.verified) {
@@ -236,7 +236,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
       label: trust.label,
       shortLabel: '真实打卡验证',
       value: trust.scoreText,
-      note: `${trust.sampleCount} 个独立身份有效样本`
+      note: `${trust.sampleCount} 个人有效打卡`
     };
   }
   return {
@@ -245,7 +245,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
     label: trust.label,
     shortLabel: '资料核验',
     value: '待验证',
-    note: `独立有效样本 ${Math.min(trust.sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD}，暂不输出验证分。`
+    note: `已有 ${Math.min(trust.sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 个人有效打卡，够数后再打分。`
   };
 }
 

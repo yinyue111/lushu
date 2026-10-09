@@ -117,7 +117,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
   function openInMap() {
     if (!canNavigate) {
-      setMessage('当前 POI 坐标待复核，暂不能直接打开地图标记');
+      setMessage('这个地点的位置还没确认，先不打开地图');
       return;
     }
     window.open(
@@ -139,7 +139,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         currentValue: `${stop.verify}；${stop.risk}`,
         ...correction
       });
-      setMessage('已提交纠错，运营台会进入待审核队列');
+      setMessage('已提交，运营核对后会更新');
       setShowCorrection(false);
       setCorrection({ field: '开放时间', suggestedValue: '', reason: '' });
     } catch (error) {
@@ -176,7 +176,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
           iconClass="text-primary-strong bg-primary-soft"
           label="坐标"
           value={coordinateLabel}
-          hint={!canNavigate ? '仅展示模糊范围，不建议直接导航' : ''}
+          hint={!canNavigate ? '只知道大概范围，别直接导航' : ''}
         />
         <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待真实验证'} />
       </div>
@@ -202,7 +202,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
             {realFeedback.crowdLabel && <Line icon={Users}>实测拥挤程度：{realFeedback.crowdLabel}</Line>}
             {realFeedback.latestDaysAgo != null && (
               <Line icon={Clock}>
-                {realFeedback.latestDaysAgo === 0 ? '今天有人反馈了该点位的真实情况' : `${realFeedback.latestDaysAgo} 天前有人反馈了该点位的真实情况`}
+                {realFeedback.latestDaysAgo === 0 ? '今天有人反馈过这里的情况' : `${realFeedback.latestDaysAgo} 天前有人反馈过这里的情况`}
               </Line>
             )}
           </ul>
@@ -238,7 +238,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               <EvidenceCard
                 key={item.id || item.url || item.label}
                 href={item.url}
-                tag={item.platform || (item.type === 'matched-source' ? '来源命中' : '路线来源')}
+                tag={item.platform || (item.type === 'matched-source' ? '来源提到' : '路线来源')}
                 title={item.label}
                 detail={item.detail || '来源只作为规划线索，出发前仍需复核。'}
               />
@@ -488,8 +488,8 @@ function buildEvidence(stop, routebook) {
     type: matched.length ? 'matched-source' : 'route-source',
     label: `${source.platform || '导入来源'}｜来源预测 ${sourcePredictionLabel(source)}`,
     detail: matched.length
-      ? source.title || source.description || source.excerpt || '来源命中该站点。'
-      : `路线级来源，未在公开摘要中逐点命中「${stopName}」。${source.title || source.description || ''}`,
+      ? source.title || source.description || source.excerpt || '来源里提到了这一站。'
+      : `这条来源讲的是整条路线，摘要里没直接提到「${stopName}」。${source.title || source.description || ''}`,
     platform: source.platform,
     predictionScore: source.predictionScore ?? source.trustScore,
     trustScore: source.trustScore,
@@ -514,8 +514,8 @@ function buildPoiTrustState(stop, city) {
       verified: false,
       value: '待复核',
       label: '试验生成 · 待复核',
-      detailLabel: '当前城市尚未进入可信范围',
-      detail: 'POI、营业信息和导航需人工复核，暂不输出数值分。',
+      detailLabel: '这座城市还没开放可信评分',
+      detail: '地点、营业信息和导航还要人工复核，先不打分。',
       score: null
     };
   }
@@ -530,8 +530,8 @@ function buildPoiTrustState(stop, city) {
       verified: true,
       value: String(Math.round(score)),
       label: `POI 可信 ${Math.round(score)}`,
-      detailLabel: trust?.label || '独立身份打卡验证',
-      detail: [trust?.freshnessLabel, `独立有效样本 ${sampleCount} 个`, `有效到达 ${validArrivals} 次`, pitfallRate == null ? '' : `踩坑率 ${pitfallRate}%`]
+      detailLabel: trust?.label || '不同的人打卡验证',
+      detail: [trust?.freshnessLabel, `${sampleCount} 个人有效打卡`, `有效到达 ${validArrivals} 次`, pitfallRate == null ? '' : `踩坑率 ${pitfallRate}%`]
         .filter(Boolean)
         .join(' · '),
       score
@@ -544,8 +544,8 @@ function buildPoiTrustState(stop, city) {
     verified: false,
     value: '待验证',
     label: 'POI 待验证',
-    detailLabel: '独立身份样本不足',
-    detail: `独立有效样本 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD}，暂不输出 POI 可信分。`,
+    detailLabel: '打卡的人还不够',
+    detail: `已有 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 个人有效打卡，够数后再打分。`,
     score: null
   };
 }
