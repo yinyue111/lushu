@@ -109,7 +109,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
     };
     const existing = safeReadClicks();
     if (!safeWriteJsonStorage(clickStorageKey(profile.id), [payload, ...existing].slice(0, 100))) {
-      setMessage('本地点击归因存储失败，已尝试同步服务端');
+      setMessage('链接已打开，正在记录这次点击');
     }
     recordProductClick(payload).catch(() => {});
     if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
@@ -328,7 +328,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
                     {item.type} · {item.price}
                   </span>
                 </span>
-                <Pill tone="sky">{item.deepLinkStatus === 'verified' ? '可归因深链' : '外部入口'}</Pill>
+                <Pill tone="sky">{item.deepLinkStatus === 'verified' ? '直达链接' : '外部入口'}</Pill>
               </button>
             ))}
           </div>

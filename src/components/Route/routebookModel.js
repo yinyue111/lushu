@@ -182,7 +182,7 @@ export function mergeServerClickIntoLocal(localPayload, serverClick, profileId) 
 // 优先消费服务端透传的 linkType/deepLinkStatus：种子搜索卡（seed-search/search）
 // 或深链未就绪（deepLinkStatus 非 ready/verified）一律明示「外部搜索入口」。
 export function productLinkLabel(item) {
-  if (item.deepLinkStatus === 'verified') return '可归因深链';
+  if (item.deepLinkStatus === 'verified') return '直达链接';
   if (isExternalSearchEntry(item) || item.matchLevel === 'generic' || item.linkKind === 'search') return '外部搜索入口';
   return item.provider || '外部服务';
 }

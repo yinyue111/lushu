@@ -113,7 +113,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
       const result = await onSave(routebook, { surface: 'public-share-save' });
       const syncNote = result.synced
         ? result.attributionSynced === false
-          ? '已保存到我的路书，来源归因暂未同步。'
+          ? '已保存到我的路书（来源记录稍后同步）。'
           : '已保存到我的路书。'
         : `已存在这台设备上，云端暂未同步：${result.syncError || '网络不可用'}`;
       setActionState({

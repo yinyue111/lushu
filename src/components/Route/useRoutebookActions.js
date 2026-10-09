@@ -499,7 +499,7 @@ export function useRoutebookActions({
       }
       setShareState(`已复制路线文本，并记录第 ${next.copyCount ?? 1} 次复制`);
     } catch (error) {
-      setShareState(`已复制路线文本，复制归因同步失败：${error.message}`);
+      setShareState(`已复制路线文本（复制次数没记上：${error.message}）`);
     }
   }
 
@@ -521,7 +521,7 @@ export function useRoutebookActions({
     };
     if (isSeedCard) {
       // 种子/兜底卡也上报点击归因（linkType 标记 seed-search），失败静默；打开链接行为不变。
-      setShareState('已打开外部搜索入口，已尝试记录兜底点击归因');
+      setShareState('已打开外部搜索');
       recordProductClickTelemetry(payload)
         .then((data) => {
           if (data?.click) mergeServerClickIntoLocal(payload, data.click, profile.id);
@@ -532,15 +532,15 @@ export function useRoutebookActions({
     }
     const existing = safeReadClicks();
     const localStored = safeWriteJsonStorage(clickStorageKey(profile.id), [payload, ...existing].slice(0, 100));
-    setShareState(localStored ? `已记录 ${item.type} 点击归因` : '本地点击归因存储失败，正在同步服务端');
+    setShareState(localStored ? `已打开${item.type}链接` : `已打开${item.type}链接，正在记录这次点击`);
     recordProductClickTelemetry(payload)
       .then((data) => {
         // 把服务端 click 行（含 id/createdAt）回写本地，保证“我的页”本地/服务端去重键一致。
         if (data?.click) mergeServerClickIntoLocal(payload, data.click, profile.id);
-        if (!localStored) setShareState(`已同步 ${item.type} 点击归因到服务端`);
+        if (!localStored) setShareState(`已打开${item.type}链接`);
       })
       .catch(() => {
-        if (!localStored) setShareState('点击已打开，但本地与服务端归因均未保存');
+        if (!localStored) setShareState('链接已打开，但这次点击没记下来');
       });
     if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
   }
