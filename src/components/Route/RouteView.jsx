@@ -377,7 +377,8 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             {mapMode ? <List size={18} /> : <MapIcon size={18} />}
             {mapMode ? '列表' : '地图'}
           </button>
-          <div className="fixed inset-x-0 bottom-0 z-[1300] flex items-center gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md">
+          {/* @container: with large system text the bar is under 21rem (also 320px phones); the CTA then reads 出发 (icon hidden) instead of clipping. */}
+          <div className="@container fixed inset-x-0 bottom-0 z-[1300] flex items-center gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md">
             <Button size="icon" className="size-[50px]" onClick={favorite} aria-label={liked ? '已收藏' : '收藏'}>
               <Heart className={cn(liked && 'animate-pop fill-current text-primary-strong')} />
             </Button>
@@ -391,8 +392,16 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               </Button>
             )}
             <MoreMenu actions={actions} onShare={openShare} onCustomize={customize} canEdit={canEdit} triggerClassName="size-[50px] bg-canvas shadow-none" />
-            <Button variant="primary" size="lg" className="h-[54px] flex-1" onClick={onStartTrip}>
-              <Navigation /> 开始出行
+            <Button
+              variant="primary"
+              size="lg"
+              className="h-auto min-h-[54px] min-w-0 flex-1 leading-tight whitespace-normal @max-[21rem]:px-2 @max-[21rem]:[&_svg]:hidden"
+              onClick={onStartTrip}
+            >
+              <Navigation /> <span className="@max-[21rem]:sr-only">开始出行</span>
+              <span aria-hidden="true" className="hidden @max-[21rem]:inline">
+                出发
+              </span>
             </Button>
           </div>
         </>
