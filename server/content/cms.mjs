@@ -1,6 +1,5 @@
 // CMS and product card configuration.
-import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { readConfigDocument } from '../storage/config-documents.mjs';
 import { CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
 import { normalizeCityName, truncateString, clampNumber, stablePublicId, createHttpError, sanitizePublicId } from '../lib/util.mjs';
 import { normalizeExternalUrl, safeExternalUrl } from '../lib/urls.mjs';
@@ -8,7 +7,8 @@ import { productCards as seedProductCards } from '../../src/lib/content.js';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 
 export async function readCmsConfig() {
-  if (!existsSync(CMS_CONFIG_PATH)) {
+  const document = await readConfigDocument(CMS_CONFIG_PATH);
+  if (!document) {
     return {
       defaultCity: '杭州',
       heroTitle: '把分散攻略，变成能照着走的可信路书',
@@ -18,7 +18,7 @@ export async function readCmsConfig() {
     };
   }
   try {
-    return JSON.parse(await readFile(CMS_CONFIG_PATH, 'utf8'));
+    return document;
   } catch {
     return {
       defaultCity: '杭州',
@@ -99,12 +99,17 @@ function seedProductConfig() {
 }
 
 export async function readProductConfig() {
-  if (!existsSync(PRODUCT_CONFIG_PATH)) {
+  const document = await readConfigDocument(PRODUCT_CONFIG_PATH);
+  if (!document) {
     return seedProductConfig();
   }
   try {
-    const config = normalizeProductConfig(JSON.parse(await readFile(PRODUCT_CONFIG_PATH, 'utf8')), { preserveTimestamps: true });
-    return config.products.length ? config : seedProductConfig();
+    // An explicitly saved empty products array is an intentional operational
+    // state (for example, an emergency all-products pause), not a missing
+    // configuration. Only a missing/invalid document falls back to seed cards.
+    if (typeof document !== 'object' || Array.isArray(document) || !Array.isArray(document.products)) return seedProductConfig();
+    const config = normalizeProductConfig(document, { preserveTimestamps: true });
+    return config;
   } catch {
     return seedProductConfig();
   }

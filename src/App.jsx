@@ -8,6 +8,8 @@ import { createRouteEditToken, getProfile, profileRoutebookFields } from './lib/
 import { adoptServerProfile } from './lib/profileSync';
 import { dismissTripReminder, dueTripReminders } from './lib/reminders';
 import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRoutebook } from './lib/storage';
+import { preserveRoutebookConflictDraft } from './lib/routebookConflict';
+import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './components/Route/routebookModel';
 
 const VIEWS = {
   home: 'home',
@@ -84,8 +86,10 @@ export default function App() {
   const [creatorId, setCreatorId] = useState(initial.view === VIEWS.creator ? initial.publicId : '');
   const [dueReminder, setDueReminder] = useState(null);
   const [storageNotice, setStorageNotice] = useState('');
+  const [routebookRefreshNotice, setRoutebookRefreshNotice] = useState('');
   const routebookRef = useRef(null);
   const profileRef = useRef(profile);
+  const routebookRefreshConflictsRef = useRef(new Set());
 
   useEffect(() => {
     routebookRef.current = routebook;
@@ -169,17 +173,46 @@ export default function App() {
     if (fallbackBook) {
       setRouteLoadState({ loading: false, error: '' });
     }
+    setRoutebookRefreshNotice('');
     const ctrl = new AbortController();
     setRouteLoadState({ loading: !fallbackBook, error: '' });
     getRoutebookRemote(routeId, ctrl.signal)
       .then((data) => {
         if (ctrl.signal.aborted) return;
-        const next = mergeRemoteRoutebook(data.routebook, cached, profile.id);
+        // 不使用请求发起时的 cached：用户可能在 GET 等待期间已经保存了编辑。
+        // localStorage 失败时再用 routebookRef 兜底，避免回调拿旧快照覆盖内存状态。
+        const latestCached = getStoredRoutebookById(routeId);
+        const latestInMemory = routebookRef.current && (routebookRef.current.publicId || routebookRef.current.id) === routeId ? routebookRef.current : null;
+        const latestLocal = selectLatestLocalRoutebook([latestCached, latestInMemory, cached], profile.id, routeId);
+        const refreshDecision = routebookRefreshDecision(data.routebook, latestLocal, profile.id);
+        if (refreshDecision.preserveLocal) {
+          const conflictKey = routebookRefreshConflictKey(data.routebook, latestLocal);
+          const firstSeen = !routebookRefreshConflictsRef.current.has(conflictKey);
+          if (firstSeen) {
+            routebookRefreshConflictsRef.current.add(conflictKey);
+            const localSnapshot = preserveRoutebookConflictDraft(latestLocal, '自动刷新发现本机编辑分叉');
+            const remoteSnapshot = preserveRoutebookConflictDraft(
+              { ...data.routebook, ...profileRoutebookFields(profile) },
+              `自动刷新发现云端版本${refreshDecision.remoteVersion ?? '更新'}`
+            );
+            if (localSnapshot.saved && localSnapshot.draft) replaceSavedBook(localSnapshot.draft);
+            if (remoteSnapshot.saved && remoteSnapshot.draft) replaceSavedBook(remoteSnapshot.draft);
+          }
+          // 当前页面继续显示本机编辑；原路书不写回远端响应，两个副本在「我的」可恢复。
+          setRoutebook(latestLocal);
+          replaceSavedBook(latestLocal);
+          setRoutebookRefreshNotice(
+            '检测到云端版本与本机未同步编辑分叉，当前仍保留本机编辑；本机副本和云端快照已保存到「我的路书」，请选择要继续的版本后再保存。'
+          );
+          setRouteLoadState({ loading: false, error: '' });
+          return;
+        }
+        const next = mergeRemoteRoutebook(data.routebook, latestLocal ?? latestCached ?? cached, profile.id);
         setRoutebook(next);
         // rank6：浏览他人路线只展示不落库（内存路书兜底展示）；与 handleOpenBook 同一守卫：
         // 本人的书或本地已有同 id 存档的才写回本机缓存。
         const ownedByProfile = next?.profileId === profile.id || next?.creator?.id === profile.id;
-        if (ownedByProfile || Boolean(cached)) {
+        if (ownedByProfile || Boolean(latestCached ?? cached)) {
           persistRoutebook(next);
           replaceSavedBook(next);
         }
@@ -198,7 +231,7 @@ export default function App() {
         setRouteLoadState({ loading: false, error: routeLoadErrorMessage(error) });
       });
     return () => ctrl.abort();
-  }, [profile.id, replaceSavedBook, routeRetryNonce, sharePublicId, view]);
+  }, [profile, replaceSavedBook, routeRetryNonce, sharePublicId, view]);
 
   const retryRouteLoad = useCallback(() => setRouteRetryNonce((value) => value + 1), []);
 
@@ -445,6 +478,9 @@ export default function App() {
           />
         )}
         {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
+        {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (
+          <StorageNoticeBanner text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
+        )}
         <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
           <Suspense fallback={<PageLoadingFallback />}>
             {view === VIEWS.home && (
@@ -471,6 +507,7 @@ export default function App() {
                 defaults={builderDefaults}
                 onGenerated={handleGenerated}
                 onProfileChanged={handleProfileChanged}
+                onModelHealth={setModelHealth}
                 onBack={handleBack}
               />
             )}

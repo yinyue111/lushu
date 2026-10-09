@@ -4,9 +4,9 @@ import {
   sanitizePublicId,
   truncateString,
   clampNumber,
-  parseMoney,
+  parseMoneyRange,
+  sumMoneyRanges,
   isValidCoordinate,
-  distanceMeters,
   positiveInteger,
   normalizeRoutebookActorType,
   createHttpError,
@@ -22,11 +22,14 @@ import {
   CURATED_ROUTE_VERSION,
   CURATED_ROUTE_IDS
 } from '../config/index.mjs';
-import { safeEqualHex, cryptoRandomId, normalizeProfileId, sanitizeEditToken } from '../auth/tokens.mjs';
+import { safeEqualHex, cryptoRandomId, normalizeProfileId, sanitizeEditToken, hashSecretToken } from '../auth/tokens.mjs';
 import { findTrustedPoi, resolvePoiId } from '../poi/catalog.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { curatedRoutes, curatedRouteToRoutebook } from '../../src/lib/content.js';
 import { getSavedRoutebook } from '../storage/records.mjs';
+import { normalizeStoredRouteLegs, normalizeStopTransportMode } from '../routing/provenance.mjs';
+import { routeExecutionMetricRows, routeExecutionValidationRows, summarizeRouteExecution } from '../routing/routeExecution.mjs';
+import { importSourceId } from '../ops/source-identity.mjs';
 
 export function normalizeCreator(input = {}) {
   return {
@@ -69,20 +72,21 @@ function hasValidImportedSourceProof(source = {}) {
   return safeEqualHex(String(source?.proof ?? ''), signImportedSource(source));
 }
 
-export function buildRoutebookMetrics(stops, existingMetrics = []) {
+export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = []) {
   const metrics = Array.isArray(existingMetrics) ? existingMetrics : [];
   const stopCount = stops.length;
   const lowGeoCount = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
   const avgScore = stopCount ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stopCount) : 78;
-  const estimatedBudget = stops.reduce((sum, stop) => sum + parseMoney(stop.cost), 0);
+  const budgetSummary = sumMoneyRanges(stops.map((stop) => stop.cost));
   const calculated = [
+    ...routeExecutionMetricRows(summarizeRouteExecution(stops, routeLegs)),
     { label: '站点均分', value: `${avgScore}` },
     { label: '定位待复核', value: lowGeoCount ? `${lowGeoCount} 处` : '0 处' },
-    { label: '预算估算', value: estimatedBudget ? `约 ${estimatedBudget} 元` : '待验证' },
+    { label: '预算估算', value: formatBudgetSummary(budgetSummary) },
     { label: '编辑校验', value: '已重算' }
   ];
   const merged = [...calculated, ...metrics.filter((item) => !calculated.some((next) => next.label === item.label))];
-  return merged.slice(0, 6);
+  return merged.slice(0, 9);
 }
 
 export function buildSourceSummary(sources = []) {
@@ -168,39 +172,6 @@ export function hasPreciseCoordinate(stop) {
   );
 }
 
-function routeLegStats(stops) {
-  let longestMeters = 0;
-  let totalMeters = 0;
-  let measuredLegs = 0;
-  let unverifiedLegs = 0;
-  const riskyLegs = [];
-  for (let index = 0; index < stops.length - 1; index += 1) {
-    const current = stops[index];
-    const next = stops[index + 1];
-    if ((current.day || 'Day 1') !== (next.day || 'Day 1')) continue;
-    if (!hasPreciseCoordinate(current) || !hasPreciseCoordinate(next)) {
-      unverifiedLegs += 1;
-      continue;
-    }
-    const distance = distanceMeters(current, next);
-    if (!Number.isFinite(distance)) {
-      unverifiedLegs += 1;
-      continue;
-    }
-    measuredLegs += 1;
-    totalMeters += distance;
-    if (distance > longestMeters) longestMeters = distance;
-    if (distance > 8000) {
-      riskyLegs.push({
-        from: truncateString(current.name, 48),
-        to: truncateString(next.name, 48),
-        distance
-      });
-    }
-  }
-  return { longestMeters, totalMeters, measuredLegs, unverifiedLegs, riskyLegs };
-}
-
 // Day labels are relative ("Day 2"), so a closure check needs the travel date to know
 // which weekday each stop actually lands on.
 function weekdayForDayLabel(travelDate, dayLabel) {
@@ -213,53 +184,117 @@ function weekdayForDayLabel(travelDate, dayLabel) {
 
 const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-function poiOpenHours(stop, city) {
-  const trusted = findTrustedPoi(stop, city);
-  const hours = trusted?.openHours;
-  if (!hours || !Array.isArray(hours.closedWeekdays)) return null;
-  return hours;
+function parseTimestamp(value, endOfDay = false) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(text) ? Date.parse(`${text}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`) : Date.parse(text);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function openingHoursConflicts(stops, city, travelDate) {
+function hasScheduleTiming(hours) {
+  const hasOpeningTime = Boolean(hours?.openTime || hours?.openingTime);
+  const hasClosingTime = Boolean(hours?.closeTime || hours?.closingTime);
+  const hasLatestEntry = Boolean(hours?.lastEntryTime || hours?.latestEntryTime);
+  return hasOpeningTime && hasClosingTime && hasLatestEntry;
+}
+
+function hasScheduleEvidence(hours, trusted) {
+  // Seed closures are a conservative baseline used to flag an obvious
+  // weekday conflict.  Operational hours must carry evidence before they can
+  // be treated as planning facts.
+  if (trusted?.sourceKind === 'seed') return true;
+  return Boolean(hours?.evidence || hours?.evidenceId || hours?.sourceEvidence || hours?.checkedAt || hours?.verifiedAt);
+}
+
+export function normalizePoiOpenHours(hours, trusted, nowMs = Date.now()) {
+  if (!hours || !Array.isArray(hours.closedWeekdays)) return null;
+  const validUntil = hours.validUntil || hours.expiresAt || hours.expiry;
+  const expiry = parseTimestamp(validUntil, true);
+  const freshnessInvalid = Boolean(validUntil) && !Number.isFinite(expiry);
+  const stale = freshnessInvalid || (Number.isFinite(expiry) && expiry < nowMs);
+  const hasEvidence = hasScheduleEvidence(hours, trusted);
+  const timingKnown = hasScheduleTiming(hours);
+  return {
+    ...hours,
+    stale,
+    freshnessInvalid,
+    hasEvidence,
+    timingKnown,
+    // A weekday closure can still be surfaced as a warning, but no schedule
+    // lacking fresh evidence and an arrival window is planning-usable.
+    planningUsable: !stale && hasEvidence && timingKnown,
+    closureCheckable: !stale && hasEvidence
+  };
+}
+
+function poiOpenHours(stop, city, nowMs = Date.now()) {
+  const trusted = findTrustedPoi(stop, city);
+  const hours = normalizePoiOpenHours(trusted?.openHours, trusted, nowMs);
+  if (!hours) return null;
+  return { hours, trusted };
+}
+
+function openingHoursConflicts(stops, city, travelDate, nowMs = Date.now()) {
   const closures = [];
   let checkedStops = 0;
   let unknownStops = 0;
+  let timingUnknownStops = 0;
+  let staleStops = 0;
+  let evidenceMissingStops = 0;
   for (const stop of stops) {
-    const hours = poiOpenHours(stop, city);
-    if (!hours) {
+    const schedule = poiOpenHours(stop, city, nowMs);
+    if (!schedule) {
       unknownStops += 1;
       continue;
     }
+    const { hours } = schedule;
     checkedStops += 1;
+    if (hours.stale) staleStops += 1;
+    if (!hours.hasEvidence) evidenceMissingStops += 1;
+    if (!hours.timingKnown) timingUnknownStops += 1;
+    if (!hours.planningUsable) unknownStops += 1;
     const weekday = weekdayForDayLabel(travelDate, stop.day);
-    if (weekday == null || !hours.closedWeekdays.includes(weekday)) continue;
+    if (weekday == null || !hours.closureCheckable || !hours.closedWeekdays.includes(weekday)) continue;
     closures.push({
       name: truncateString(stop.name, 48),
       day: truncateString(stop.day, 24) || 'Day 1',
       weekday: WEEKDAY_NAMES[weekday],
-      note: truncateString(hours.note, 60)
+      note: truncateString(hours.note, 60),
+      planningUsable: hours.planningUsable,
+      stale: hours.stale,
+      hasEvidence: hours.hasEvidence
     });
   }
-  return { closures, checkedStops, unknownStops };
+  return { closures, checkedStops, unknownStops, timingUnknownStops, staleStops, evidenceMissingStops };
 }
 
-function buildOpeningHoursValidation(stops, city, travelDate) {
-  const { closures, checkedStops, unknownStops } = openingHoursConflicts(stops, city, travelDate);
-  if (closures.length) {
-    const first = closures[0];
-    return {
-      id: 'edit-hours',
-      label: '营业时间',
-      state: '闭馆冲突',
-      detail: `${first.day}（${first.weekday}）${first.name}${first.note ? ` ${first.note}` : '当天不开放'}，请换到其他日期或替换同区 POI。${closures.length > 1 ? `另有 ${closures.length - 1} 处冲突。` : ''}`
-    };
-  }
+export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = Date.now() } = {}) {
+  const { closures, checkedStops, unknownStops, timingUnknownStops, staleStops, evidenceMissingStops } = openingHoursConflicts(stops, city, travelDate, nowMs);
   if (!travelDate) {
     return {
       id: 'edit-hours',
       label: '营业时间',
       state: '需填出行日期',
-      detail: '填写出行日期后可自动检查闭馆冲突（例如周一闭馆的美术馆）。'
+      detail: '填写出行日期后可自动检查闭馆冲突；到达时段和最晚入场仍需有有效营业事实才能判断。'
+    };
+  }
+  if (closures.length) {
+    const first = closures[0];
+    const conflictText = `${first.day}（${first.weekday}）${first.name}${first.note ? ` ${first.note}` : '当天不开放'}`;
+    const suffix = closures.length > 1 ? `另有 ${closures.length - 1} 处冲突。` : '';
+    if (!first.planningUsable) {
+      return {
+        id: 'edit-hours',
+        label: '营业时间',
+        state: '需复核',
+        detail: `发现${conflictText}的闭馆信号，但营业事实${first.stale ? '已过期或有效期无效' : '缺少有效证据'}，不能作为规划可用条件；${suffix}请出发前确认。`
+      };
+    }
+    return {
+      id: 'edit-hours',
+      label: '营业时间',
+      state: '闭馆冲突',
+      detail: `${conflictText}，请换到其他日期或替换同区 POI。${suffix}`
     };
   }
   if (!checkedStops) {
@@ -267,48 +302,162 @@ function buildOpeningHoursValidation(stops, city, travelDate) {
       id: 'edit-hours',
       label: '营业时间',
       state: '无数据',
-      detail: `${unknownStops} 个站点没有已核验的营业时间数据，出发前需逐个复核。`
+      detail: `${unknownStops} 个站点没有已核验的营业时间数据，出发前需逐个复核到达时段和最晚入场。`
+    };
+  }
+  if (staleStops || evidenceMissingStops) {
+    return {
+      id: 'edit-hours',
+      label: '营业时间',
+      state: '部分待复核',
+      detail: `已有营业日历信号，但 ${staleStops ? `${staleStops} 个站点事实已过期或有效期无效` : ''}${staleStops && evidenceMissingStops ? '，' : ''}${evidenceMissingStops ? `${evidenceMissingStops} 个站点缺少有效证据` : ''}；不能作为规划可用条件。到达时段/最晚入场未知。`
+    };
+  }
+  if (timingUnknownStops || unknownStops) {
+    return {
+      id: 'edit-hours',
+      label: '营业时间',
+      state: '部分待复核',
+      detail: `已核对 ${checkedStops} 个站点未发现出行日闭馆冲突，但到达时段/最晚入场未知，另有 ${unknownStops} 个站点需复核。`
     };
   }
   return {
     id: 'edit-hours',
     label: '营业时间',
-    state: unknownStops ? '部分待复核' : '通过',
-    detail: unknownStops
-      ? `已核对 ${checkedStops} 个站点当天开放，另有 ${unknownStops} 个站点缺营业时间数据需复核。`
-      : `已核对 ${checkedStops} 个站点在出行日均开放。`
+    state: '通过',
+    detail: `已核对 ${checkedStops} 个站点的出行日营业时间及到达时段。`
   };
 }
 
-// Budget is only meaningful against what the user asked for: "人均 300" and "人均 3000"
-// cannot share one threshold.
-function budgetThresholdFromConstraints(constraints, stops) {
-  const perPerson = parseMoney(constraints?.budget);
-  if (!perPerson) return { threshold: 0, perPerson: 0 };
-  const dayCount = Math.max(1, new Set(stops.map((stop) => stop.day || 'Day 1')).size);
-  return { threshold: perPerson * dayCount, perPerson };
+export function parseBudgetConstraint(value) {
+  const parsed = parseMoneyRange(value);
+  const text = String(value ?? '').replace(/\s+/g, '');
+  const perPerson = /人均|每人|每位|\/人|perperson/i.test(text);
+  const daily = /每日|每天|日均|\/天|perday/i.test(text);
+  const fullTrip = /全程|全段|总预算|总计|合计|一共|整趟|整个行程|整段|trip/i.test(text);
+  const scope = daily && !fullTrip ? 'daily' : 'trip';
+  return {
+    ...parsed,
+    scope,
+    perPerson,
+    explicitScope: daily || fullTrip,
+    semanticsLabel: `${scope === 'daily' ? '每日' : '全程'}${perPerson ? '人均' : ''}`
+  };
 }
 
-function buildBudgetValidation(budget, constraints, stops) {
-  if (!budget) {
-    return { id: 'edit-budget', label: '预算风险', state: '待补充', detail: '费用信息不足，建议补充门票/餐饮价格。' };
+function budgetThresholdFromConstraints(constraints, stops) {
+  const parsed = parseBudgetConstraint(constraints?.budget);
+  const dayCount = Math.max(1, new Set(stops.map((stop) => stop.day || 'Day 1')).size);
+  const multiplier = parsed.scope === 'daily' ? dayCount : 1;
+  if (!parsed.known) {
+    return {
+      ...parsed,
+      dayCount,
+      threshold: 0,
+      thresholdMin: null,
+      thresholdMax: null,
+      perPerson: parsed.perPerson ? parsed.estimate : 0
+    };
   }
-  const { threshold, perPerson } = budgetThresholdFromConstraints(constraints, stops);
-  if (!threshold) {
+  return {
+    ...parsed,
+    dayCount,
+    threshold: parsed.estimate * multiplier,
+    thresholdMin: parsed.min * multiplier,
+    thresholdMax: parsed.max * multiplier,
+    perPerson: parsed.perPerson ? parsed.estimate : 0
+  };
+}
+
+function formatMoneyAmount(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '';
+  const amount = Number(value);
+  return Number.isInteger(amount) ? amount.toLocaleString('zh-CN') : amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
+
+function formatBudgetSummary(summary) {
+  if (!summary?.knownCount) return summary?.unknownCount ? `待补充（${summary.unknownCount} 处费用未知）` : '待验证';
+  const amount =
+    summary.min === summary.max ? `约 ${formatMoneyAmount(summary.min)} 元` : `约 ${formatMoneyAmount(summary.min)}–${formatMoneyAmount(summary.max)} 元`;
+  return summary.unknownCount ? `${amount}（另有 ${summary.unknownCount} 处待补充）` : amount;
+}
+
+function splitConstraintTerms(value) {
+  return [
+    ...new Set(
+      String(value ?? '')
+        .replace(/(?:必须|必去|想去|希望去|避开|不要去|不想去)/g, '')
+        .split(/[、,，；;|\n]+/)
+        .map((item) => truncateString(item.trim(), 40))
+        .filter((item) => item.length >= 2)
+    )
+  ].slice(0, 12);
+}
+
+function stopMatchesTerm(stop, term) {
+  const name = String(stop?.name ?? '')
+    .trim()
+    .toLocaleLowerCase('zh-CN');
+  const normalized = String(term ?? '')
+    .trim()
+    .toLocaleLowerCase('zh-CN');
+  return Boolean(normalized && name && (name.includes(normalized) || normalized.includes(name)));
+}
+
+function buildConstraintValidation(stops, constraints = {}) {
+  const mustGo = splitConstraintTerms(constraints?.mustGo);
+  const avoid = splitConstraintTerms(constraints?.avoid);
+  if (!mustGo.length && !avoid.length) {
+    return { id: 'edit-constraints', label: '必去与避开', state: '未设置', detail: '可填写必去地点和想避开的内容，生成后会在这里显示是否满足。' };
+  }
+  const missingMustGo = mustGo.filter((term) => !stops.some((stop) => stopMatchesTerm(stop, term)));
+  const includedAvoid = avoid.filter((term) => stops.some((stop) => stopMatchesTerm(stop, term)));
+  const detail = [
+    mustGo.length ? (missingMustGo.length ? `必去未找到：${missingMustGo.join('、')}。` : `已纳入 ${mustGo.length} 个必去地点。`) : '',
+    avoid.length ? (includedAvoid.length ? `路线仍包含想避开：${includedAvoid.join('、')}。` : `未在站点名称中发现 ${avoid.length} 个避开项。`) : '',
+    missingMustGo.length || includedAvoid.length ? '请编辑站点或调整约束后再出发。' : '仍需核对语义相近地点与实际路线。'
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return {
+    id: 'edit-constraints',
+    label: '必去与避开',
+    state: missingMustGo.length || includedAvoid.length ? '未完全满足' : '已纳入',
+    detail
+  };
+}
+
+function buildBudgetValidation(budgetSummary, constraints, stops) {
+  const parsed = parseBudgetConstraint(constraints?.budget);
+  if (!parsed.raw) {
     return {
       id: 'edit-budget',
       label: '预算风险',
       state: '无预算约束',
-      detail: `按站点费用粗估约 ${budget} 元，填写预算后可判断是否超支。`
+      detail: `按站点费用${formatBudgetSummary(budgetSummary)}，填写全程、每日或人均预算后可判断是否超支。`
     };
   }
-  const overspent = budget > threshold;
-  return {
-    id: 'edit-budget',
-    label: '预算风险',
-    state: overspent ? '超预算' : '可控',
-    detail: `按站点费用粗估约 ${budget} 元，你的预算为人均 ${perPerson} 元（约 ${threshold} 元）。${overspent ? `超出约 ${budget - threshold} 元，建议替换高价站点。` : '实际价格仍需出发前复核。'}`
-  };
+  if (!parsed.known) {
+    return { id: 'edit-budget', label: '预算风险', state: '待补充', detail: '预算金额无法识别，请填写数字并注明全程或每日（需要时注明人均）。' };
+  }
+  const { threshold, thresholdMin, thresholdMax, dayCount, semanticsLabel } = budgetThresholdFromConstraints(constraints, stops);
+  if (!budgetSummary?.knownCount) {
+    return {
+      id: 'edit-budget',
+      label: '预算风险',
+      state: '待补充',
+      detail: `${semanticsLabel}预算约 ${formatMoneyAmount(parsed.min)}${parsed.isRange ? `–${formatMoneyAmount(parsed.max)}` : ''} 元（${parsed.scope === 'daily' ? `按 ${dayCount} 天折算` : '按全程'}），站点费用均未知，不能判断是否超支。`
+    };
+  }
+  const definitelyOver = budgetSummary.min > thresholdMax;
+  const definitelyWithin = budgetSummary.max <= thresholdMin;
+  let state = definitelyOver ? '超预算' : definitelyWithin ? '可控' : '区间待复核';
+  if (budgetSummary.unknownCount && !definitelyOver) state = '部分待复核';
+  const routeText = formatBudgetSummary(budgetSummary);
+  const thresholdText =
+    thresholdMin === thresholdMax ? `约 ${formatMoneyAmount(threshold)} 元` : `${formatMoneyAmount(thresholdMin)}–${formatMoneyAmount(thresholdMax)} 元`;
+  const detail = `${semanticsLabel}预算 ${thresholdText}（${parsed.scope === 'daily' ? `按 ${dayCount} 天折算` : '全程'}），站点费用${routeText}。${definitelyOver ? '按已知最低费用也已超预算，建议替换高价站点。' : definitelyWithin ? '已知费用在预算范围内，实际价格仍需出发前复核。' : '费用区间与预算重叠，需核对价格或补充缺失费用。'}`;
+  return { id: 'edit-budget', label: '预算风险', state, detail };
 }
 
 export function buildRoutebookValidations(stops, existingValidations = [], reason = '保存', context = {}) {
@@ -321,34 +470,13 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
   const crowdedDay = [...groupedByDay.entries()].find(([, count]) => count > 6);
   const missingCoordinate = stops.filter((stop) => !isValidCoordinate(Number(stop.lat), Number(stop.lng))).length;
   const lowConfidence = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const budget = stops.reduce((sum, stop) => sum + parseMoney(stop.cost), 0);
-  const legStats = routeLegStats(stops);
-  const measuredDistanceKm = legStats.totalMeters ? (legStats.totalMeters / 1000).toFixed(1) : '';
+  const budget = sumMoneyRanges(stops.map((stop) => stop.cost));
+  const execution = summarizeRouteExecution(stops, context.routeLegs);
   const calculated = [
-    {
-      id: 'edit-routing',
-      label: '编辑后动线',
-      state: missingCoordinate || legStats.unverifiedLegs ? '需复核' : '已更新',
-      detail: `${reason}后已重算站点顺序；${missingCoordinate ? `${missingCoordinate} 个站点缺少可用坐标。` : legStats.unverifiedLegs ? `${legStats.unverifiedLegs} 段因定位待复核未计算精确转场。` : `已计算 ${legStats.measuredLegs} 段转场，合计约 ${measuredDistanceKm} km。`}`
-    },
-    {
-      id: 'edit-tempo',
-      label: '节奏密度',
-      state: crowdedDay ? '偏紧' : '可执行',
-      detail: crowdedDay ? `${crowdedDay[0]} 有 ${crowdedDay[1]} 站，建议拆分或删减。` : '单日站点密度在 MVP 可执行范围内。'
-    },
-    {
-      id: 'edit-detour',
-      label: '绕路风险',
-      state: legStats.riskyLegs.length ? '需重排' : legStats.unverifiedLegs ? '待复核' : '可执行',
-      detail: legStats.riskyLegs.length
-        ? `${legStats.riskyLegs[0].from} → ${legStats.riskyLegs[0].to} 约 ${(legStats.riskyLegs[0].distance / 1000).toFixed(1)} km，建议拆天或替换同区 POI。`
-        : legStats.unverifiedLegs
-          ? `${legStats.unverifiedLegs} 段缺少高置信坐标，暂不输出精确步行/打车时长。`
-          : `最长相邻转场约 ${(legStats.longestMeters / 1000).toFixed(1)} km。`
-    },
+    ...routeExecutionValidationRows(execution, { reason, crowdedDay, missingCoordinate }),
     buildBudgetValidation(budget, context.constraints, stops),
     buildOpeningHoursValidation(stops, context.city, context.travelDate),
+    buildConstraintValidation(stops, context.constraints),
     {
       id: 'edit-geo',
       label: '定位可信',
@@ -392,6 +520,7 @@ function normalizeRoutebookStop(stop, index, city) {
         ? clampNumber(coordinate.radiusMeters, 400, 1000000, 1500)
         : clampNumber(stop?.coordinateRadiusMeters, 0, 1000000, coordinate.radiusMeters ?? 0),
     navigationDisabled: stop?.navigationDisabled === true || coordinate.navigationDisabled === true,
+    transportMode: normalizeStopTransportMode(stop?.transportMode),
     sourceEvidence: normalizeStopEvidence(stop?.sourceEvidence),
     facts: normalizeStopFacts(stop?.facts)
   };
@@ -403,6 +532,9 @@ export function normalizeStopEvidence(items = []) {
     .slice(0, 5)
     .map((item, index) => ({
       id: sanitizePublicId(item?.id) || `evidence-${index + 1}`,
+      sourceId: sanitizePublicId(item?.sourceId),
+      authorizationStatus: truncateString(item?.authorizationStatus, 40),
+      authorizationScope: truncateString(item?.authorizationScope, 80),
       type: truncateString(item?.type, 32) || 'source',
       label: truncateString(item?.label, 80) || '来源证据',
       detail: truncateString(item?.detail, 220),
@@ -436,6 +568,7 @@ export function routebookValidationContext(routebook) {
   return {
     city: routebook?.city,
     constraints: routebook?.constraints,
+    routeLegs: routebook?.routeLegs,
     travelDate: resolveTravelDate(routebook?.travelDate, routebook?.constraints?.date, routebook?.provider?.travelDate)
   };
 }
@@ -447,6 +580,7 @@ export function normalizeRouteVariant(variant, index, city, fallbackStops = [], 
   if (stops.length < 2) return null;
   const id = sanitizePublicId(variant?.id) || cryptoRandomId();
   const days = [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
+  const routeLegs = normalizeStoredRouteLegs(variant?.routeLegs, stops, context?.constraints?.transport);
   return {
     id,
     mode,
@@ -454,9 +588,10 @@ export function normalizeRouteVariant(variant, index, city, fallbackStops = [], 
     summary: truncateString(variant?.summary, 160) || `按${mode}偏好重排，并保留原路书的可信校验。`,
     days,
     stops,
+    routeLegs,
     trustScore: calculateRouteTrustScore(stops),
-    metrics: buildRoutebookMetrics(stops, variant?.metrics),
-    validations: buildRoutebookValidations(stops, variant?.validations, `${mode}变体`, { city, ...(context ?? {}) }),
+    metrics: buildRoutebookMetrics(stops, variant?.metrics, routeLegs),
+    validations: buildRoutebookValidations(stops, variant?.validations, `${mode}变体`, { city, ...(context ?? {}), routeLegs }),
     createdAt: truncateString(variant?.createdAt, 60) || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -510,16 +645,18 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
           .slice(0, 10)
       : [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
   const sourceSummary = normalizeSourceSummary(input?.sourceSummary, input?.importedSources);
+  const routeLegs = normalizeStoredRouteLegs(input?.routeLegs, stops, input?.constraints?.transport);
   const validationContext = {
     city,
     constraints: input?.constraints,
+    routeLegs,
     travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate)
   };
   const validations = mergeSourceValidations(
     buildRoutebookValidations(stops, input?.validations, input?.editReason || '保存', validationContext),
     sourceSummary
   );
-  const metrics = mergeSourceMetrics(buildRoutebookMetrics(stops, input?.metrics), sourceSummary);
+  const metrics = mergeSourceMetrics(buildRoutebookMetrics(stops, input?.metrics, routeLegs), sourceSummary);
   const trustScore = calculateRouteTrustScore(stops);
   const publishStatus = ROUTEBOOK_STATUSES.has(input?.publishStatus) ? input.publishStatus : 'draft';
   const versionMetadata = routebookVersionMetadata(input, now, publishStatus);
@@ -528,6 +665,11 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     publicId: id,
     profileId: normalizeProfileId(input?.profileId),
     editToken: sanitizeEditToken(input?.editToken),
+    editTokenHash: sanitizeEditToken(input?.editToken)
+      ? hashSecretToken(sanitizeEditToken(input.editToken))
+      : /^[a-f0-9]{18}$/.test(String(input?.editTokenHash ?? ''))
+        ? input.editTokenHash
+        : '',
     creator: normalizeCreator(input?.creator),
     publishStatus,
     sourceAuthorization: truncateString(input?.sourceAuthorization || input?.creator?.sourceAuthorization, 40) || 'self-owned',
@@ -538,6 +680,7 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     trustScore,
     days,
     stops,
+    routeLegs,
     assets: Array.isArray(input?.assets)
       ? input.assets.slice(0, 12).map((item, index) => ({
           label: truncateString(item?.label, 30) || `资产 ${index + 1}`,
@@ -658,7 +801,9 @@ export function getCuratedRoutebook(publicId) {
 }
 
 export async function getResolvableRoutebook(publicId) {
-  return (await getSavedRoutebook(publicId)) ?? getCuratedRoutebook(publicId);
+  const saved = await getSavedRoutebook(publicId);
+  if (saved?.tombstone || saved?.deletedAt) return null;
+  return saved ?? getCuratedRoutebook(publicId);
 }
 
 export function isCuratedRouteId(publicId) {
@@ -671,6 +816,7 @@ export function normalizeImportedSources(sources) {
     .slice(0, MAX_IMPORT_URLS)
     .map((source) => {
       const normalized = {
+        sourceId: importSourceId(source),
         url: safeSourceUrl(source?.url),
         finalUrl: safeSourceUrl(source?.finalUrl),
         platform: truncateString(source?.platform, 40),

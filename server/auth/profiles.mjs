@@ -11,12 +11,12 @@ import {
   safeTokenEqual,
   sanitizeEditToken
 } from './tokens.mjs';
-import { APP_ID, PROFILE_IDENTITY_ASSERTION_SECRET, IDENTITY_NONCE_LOG_PATH } from '../config/index.mjs';
+import { APP_ID, PROFILE_ID_SECRET, PROFILE_LOG_PATH, PROFILE_IDENTITY_ASSERTION_SECRET, IDENTITY_NONCE_LOG_PATH } from '../config/index.mjs';
 import { createNonceStore } from './nonce-store.mjs';
-import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
+import { appendJsonLine, readJsonLines, findLatestJsonLine } from '../storage/jsonl.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
-
-export const profileMutationLocks = new Map();
+import { withStorageEntityLock } from '../storage/runtime.mjs';
+import { consumeProfileRecoveryProof } from './recovery-proof.mjs';
 
 export function normalizeProfile(input = {}) {
   const now = new Date().toISOString();
@@ -41,6 +41,9 @@ export function normalizeProfile(input = {}) {
     themes: Array.isArray(input?.themes) ? [...new Set(input.themes.map((item) => truncateString(item, 40)).filter(Boolean))].slice(0, 12) : [],
     creatorName: truncateString(input?.creatorName, 60),
     creatorBio: truncateString(input?.creatorBio, 140),
+    cloudRegistrationConsentAt: Number.isFinite(Date.parse(String(input?.cloudRegistrationConsentAt ?? '')))
+      ? new Date(input.cloudRegistrationConsentAt).toISOString()
+      : '',
     accessTokenHash: '',
     updatedAt: now,
     createdAt: truncateString(input?.createdAt, 60) || now
@@ -125,18 +128,43 @@ const identityNonceStore = createNonceStore({
 async function consumeIdentityAssertion(input = {}) {
   const assertion = verifiedProfileIdentity(input?.identity ?? input);
   if (!assertion) return;
-  if (!(await identityNonceStore.consume(assertion.nonceKey, assertion.expiresAt))) {
-    throw createHttpError('身份断言已被使用，请重新登录获取新的断言', 409, 'IDENTITY_ASSERTION_REPLAYED');
-  }
+  await withStorageEntityLock('identity-nonce', assertion.nonceKey, async () => {
+    const persisted = await findLatestJsonLine(IDENTITY_NONCE_LOG_PATH, (row) => row.key === assertion.nonceKey, Infinity);
+    if (persisted || !(await identityNonceStore.consume(assertion.nonceKey, assertion.expiresAt))) {
+      throw createHttpError('身份断言已被使用，请重新登录获取新的断言', 409, 'IDENTITY_ASSERTION_REPLAYED');
+    }
+  });
 }
 
 export async function buildStoredProfile(input = {}) {
-  const requestedToken = sanitizeEditToken(input?.profileAccessToken);
+  let requestedToken = sanitizeEditToken(input?.profileAccessToken);
   const requestedId = normalizeProfileId(input?.id || input?.profileId);
   let normalizedProfile = normalizeProfile(input);
   if (normalizedProfile.identityBound) await consumeIdentityAssertion(input);
+  const existingRequested = await getSavedProfile(requestedId);
+  if (existingRequested?.deletedAt || existingRequested?.deletionStartedAt || existingRequested?.tombstone) {
+    throw createHttpError('该个人资料已注销，不能恢复原账号', 410, 'PROFILE_DELETED');
+  }
+  const registrationSecret = String(input?.pendingRegistrationSecret ?? '');
+  if (registrationSecret && !/^preg_[A-Za-z0-9_-]{43}$/.test(registrationSecret)) {
+    throw createHttpError('注册凭据格式无效', 400, 'PROFILE_REGISTRATION_SECRET_INVALID');
+  }
+  const registrationHash = registrationSecret ? hmacText(registrationSecret, `${PROFILE_ID_SECRET}:profile-registration`) : '';
+  let registrationReplay = null;
+  if (registrationHash && !requestedToken && !normalizedProfile.identityBound) {
+    const candidate = await findLatestJsonLine(PROFILE_LOG_PATH, (row) => row.registrationCredentialHash === registrationHash, Infinity);
+    if (candidate) {
+      registrationReplay = await getSavedProfile(candidate.id);
+      normalizedProfile = { ...normalizedProfile, id: candidate.id, previousLocalId: requestedId !== candidate.id ? requestedId : '' };
+    }
+    requestedToken = registrationSecret;
+  }
   const shouldIssueServerLocalProfile =
-    !normalizedProfile.identityBound && !requestedToken && (!requestedId || requestedId === 'anonymous' || !(await getSavedProfile(requestedId)));
+    !registrationReplay &&
+    !normalizedProfile.identityBound &&
+    (!requestedToken || registrationHash) &&
+    !input?.recoveryProof &&
+    (!requestedId || requestedId === 'anonymous' || !existingRequested);
   if (shouldIssueServerLocalProfile) {
     normalizedProfile = {
       ...normalizedProfile,
@@ -147,6 +175,10 @@ export async function buildStoredProfile(input = {}) {
     };
   }
   const existing = await getSavedProfile(normalizedProfile.id);
+  if (existing?.deletedAt || existing?.deletionStartedAt || existing?.tombstone) {
+    throw createHttpError('该个人资料已注销，不能恢复原账号', 410, 'PROFILE_DELETED');
+  }
+  const recovery = consumeProfileRecoveryProof(existing, input);
   let accessToken = requestedToken || createRouteEditToken();
   let accessTokenHash = hashSecretToken(accessToken);
 
@@ -157,10 +189,10 @@ export async function buildStoredProfile(input = {}) {
     // existing 按同一 id 命中；此时允许在无旧 accessToken 的情况下轮换新 token。
     // 签名与时效校验本身不放宽，未携带合法断言的请求仍必须持有当前 token。
     const identityRecovery = !validExistingToken && normalizedProfile.identityBound && existing.identityBound === true;
-    if (!validExistingToken && !identityRecovery) {
+    if (!validExistingToken && !identityRecovery && !recovery.recovered) {
       throw createHttpError('更新已绑定身份需要当前 profile token，请在原设备同步或重新登录', 403, 'PROFILE_TOKEN_REQUIRED');
     }
-    if (validExistingToken) {
+    if (validExistingToken && !recovery.recovered) {
       accessTokenHash = existing.accessTokenHash || hashSecretToken(accessToken);
       accessToken = requestedToken;
     } else {
@@ -193,9 +225,16 @@ export async function buildStoredProfile(input = {}) {
   const storedProfile = {
     ...profile,
     createdAt: existing?.createdAt || profile.createdAt,
-    accessTokenHash
+    accessTokenHash,
+    registrationCredentialHash: existing?.registrationCredentialHash || registrationHash,
+    usedRecoveryNonces: recovery.usedRecoveryNonces
   };
-  const { accessTokenHash: _accessTokenHash, ...publicProfile } = storedProfile;
+  const {
+    accessTokenHash: _accessTokenHash,
+    registrationCredentialHash: _registrationCredentialHash,
+    usedRecoveryNonces: _usedRecoveryNonces,
+    ...publicProfile
+  } = storedProfile;
   return {
     storedProfile,
     publicProfile: {
@@ -203,4 +242,17 @@ export async function buildStoredProfile(input = {}) {
       profileAccessToken: accessToken
     }
   };
+}
+
+// Registration retries arrive with the old browser-local ID. Resolve their
+// actual stored owner before locking so recovery/deletion cannot race a retry
+// and revive a revoked token or an account tombstone.
+export async function profileMutationKey(input = {}) {
+  const secret = String(input.pendingRegistrationSecret ?? '');
+  if (/^preg_[A-Za-z0-9_-]{43}$/.test(secret)) {
+    const hash = hmacText(secret, `${PROFILE_ID_SECRET}:profile-registration`);
+    const candidate = await findLatestJsonLine(PROFILE_LOG_PATH, (row) => row.registrationCredentialHash === hash, Infinity);
+    if (candidate) return candidate.id;
+  }
+  return normalizeProfile(input).id || 'anonymous';
 }

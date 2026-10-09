@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Check, Heart, List, Map as MapIcon, Navigation } from 'lucide-react';
-import { recordExposure } from '../../lib/api';
+import { recordProductExposure } from '../../lib/productTelemetry';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import { getProfile } from '../../lib/profile';
 import { getStoredFavorites } from '../../lib/storage';
@@ -12,7 +12,8 @@ import { cn } from '../ui/cn';
 import { Toast } from '../ui/toast';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { dayNumber, dayTheme } from '../visual/theme';
-import RouteMap, { dayDistanceKm } from './RouteMap';
+import RouteMap from './RouteMap';
+import { roadSummary } from '../../lib/routeRoads';
 import RouteHero, { MoreMenu } from './RouteHero';
 import RouteStats from './RouteStats';
 import DayStrip from './DayStrip';
@@ -54,7 +55,8 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     () =>
       days.map((day, index) => {
         const dayStops = stops.filter((stop) => stop.day === day);
-        const km = dayDistanceKm(dayStops);
+        const road = roadSummary(dayStops, routebook.routeLegs);
+        const km = road.complete ? road.distanceKm : null;
         return {
           day,
           index,
@@ -63,10 +65,10 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           stops: dayStops,
           label: dayLabel(dayStops, routebook.city, index),
           distanceKm: km,
-          summary: `${dayStops.length} 站${km >= 0.1 ? ` · 约 ${km.toFixed(1)} km` : dayStops.length > 1 ? ' · 距离待确认' : ''}`
+          summary: `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 道路待核验 ${road.verifiedLegs}/${road.expectedLegs}` : ''}`
         };
       }),
-    [days, stops, routebook.city]
+    [days, stops, routebook.city, routebook.routeLegs]
   );
   const activeEntry = dayEntries.find((entry) => entry.day === activeDay) ?? dayEntries[0];
   const dayStops = useMemo(() => activeEntry?.stops ?? [], [activeEntry]);
@@ -108,7 +110,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       const key = `${exposureRouteId}:${productId}`;
       if (exposureRef.current.has(key)) return;
       exposureRef.current.add(key);
-      recordExposure({
+      recordProductExposure({
         profileId: profile.id,
         surface: 'route-products',
         itemType: 'product',
@@ -216,6 +218,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           {dayStops.length ? (
             <StopList
               stops={dayStops}
+              routeLegs={routebook.routeLegs}
               theme={activeEntry.theme}
               selectedId={selectedId}
               routeTrustTone={trustState.tone}
@@ -241,6 +244,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <div className={cn('relative isolate h-full overflow-hidden bg-[#dfeaf2]', !mapMode && 'rounded-panel shadow-pop')}>
               <RouteMap
                 city={routebook.city}
+                routeLegs={routebook.routeLegs}
                 days={dayEntries}
                 activeDay={activeEntry?.day}
                 selectedId={selectedId}
@@ -300,6 +304,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                       </>
                     )}
                   </span>
+                  <span className="text-xs text-muted">
+                    实线：道路核验
+                    <br />
+                    虚线：直线示意
+                  </span>
                   {activeEntry.stops.some((stop) => !isNavigableCoordinate(stop)) && (
                     <span className="inline-flex items-center gap-1.5 text-lemon-ink">
                       <i className="inline-block w-5 border-t-[3px] border-dashed border-lemon-ink" aria-hidden="true" />
@@ -332,6 +341,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             </b>
             <span className="text-[13px] text-muted">{activeEntry.summary}</span>
           </div>
+          <p className="px-4 pb-2 text-xs text-muted">实线为已核验道路；虚线仅直线示意，不代表道路距离和耗时。</p>
           <div ref={carouselRef} className="no-scrollbar flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pt-0.5 pb-1.5">
             {dayStops.map((stop, index) => (
               <MiniStopCard

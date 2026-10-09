@@ -28,7 +28,7 @@ const staticFileCache = new Map();
 let staticCacheBytes = 0;
 
 function staticCacheControl(filePath) {
-  if (filePath.endsWith('index.html')) return 'no-cache';
+  if (filePath.endsWith('index.html') || filePath.endsWith('/sw.js')) return 'no-cache';
   return HASHED_ASSET_PATTERN.test(filePath) ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
 }
 

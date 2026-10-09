@@ -1,17 +1,42 @@
 import { useMemo, useState } from 'react';
-import { Check, Filter, MessageSquareText, RotateCcw, X } from 'lucide-react';
-import { getPoiCorrections, updatePoiCorrectionStatus } from '../../lib/api';
+import { Check, ChevronLeft, ChevronRight, Filter, MessageSquareText, RotateCcw, X } from 'lucide-react';
+import { adminHeaders, getJson, updatePoiCorrectionStatus } from '../../lib/api';
 import { EmptyState, ResourceNotice, formatApiError, formatOpsDate, textValue, useOpsResource } from './OpsShared';
 
+const PAGE_SIZE = 50;
+
 export default function ReviewQueuePanel() {
-  const correctionsResource = useOpsResource((signal) => getPoiCorrections(200, signal));
   const [filters, setFilters] = useState({ city: '', status: 'pending' });
+  const [cursorStack, setCursorStack] = useState(['']);
   const [notes, setNotes] = useState({});
   const [rowStates, setRowStates] = useState({});
   const [panelNotice, setPanelNotice] = useState('');
+  const pageCursor = cursorStack.at(-1) || '';
+  const correctionsResource = useOpsResource((signal) => getReviewQueue({ ...filters, cursor: pageCursor }, signal), {
+    dependencies: [filters.city, filters.status, pageCursor],
+    isEmpty: (data) => normalizeCorrections(data).length === 0
+  });
+  const queue = correctionsResource.data ?? {};
   const corrections = normalizeCorrections(correctionsResource.data);
-  const cities = useMemo(() => [...new Set(corrections.map((item) => item.city).filter(Boolean))].sort(), [corrections]);
-  const visibleRows = corrections.filter((item) => (!filters.city || item.city === filters.city) && (!filters.status || item.status === filters.status));
+  const cities = useMemo(
+    () => (Array.isArray(queue.cities) ? queue.cities : [...new Set(corrections.map((item) => item.city).filter(Boolean))]).sort(),
+    [corrections, queue.cities]
+  );
+  const visibleRows = corrections;
+
+  function updateFilter(name, value) {
+    setFilters((previous) => ({ ...previous, [name]: value }));
+    setCursorStack(['']);
+  }
+
+  function goNextPage() {
+    if (!queue.nextCursor) return;
+    setCursorStack((previous) => [...previous, queue.nextCursor]);
+  }
+
+  function goPreviousPage() {
+    setCursorStack((previous) => (previous.length > 1 ? previous.slice(0, -1) : previous));
+  }
 
   async function review(item, action) {
     const id = item.id;
@@ -24,10 +49,10 @@ export default function ReviewQueuePanel() {
     setRowStates((previous) => ({ ...previous, [id]: { status: 'loading', error: null } }));
     setPanelNotice('');
     try {
-      const data = await updatePoiCorrectionStatus(id, action, reviewerNote);
-      correctionsResource.replaceData((previous) => replaceCorrection(previous, data.correction));
+      await updatePoiCorrectionStatus(id, action, reviewerNote);
       setRowStates((previous) => ({ ...previous, [id]: { status: 'ready', error: null } }));
-      setPanelNotice(`「${item.stopName || id}」纠错${action === 'approved' ? '已通过' : '已驳回'}；若当前筛选未显示该记录，可切换“审核状态”筛选查看。`);
+      setPanelNotice(`「${item.stopName || id}」纠错${action === 'approved' ? '已通过' : '已驳回'}；队列正在刷新。`);
+      correctionsResource.retry();
     } catch (error) {
       setRowStates((previous) => ({ ...previous, [id]: { status: 'error', error } }));
       setPanelNotice(`「${item.stopName || id}」审核操作失败：${formatApiError(error)}`);
@@ -42,13 +67,15 @@ export default function ReviewQueuePanel() {
             <h2 id="review-queue-title">用户纠错审核</h2>
             <p className="text-caption">逐条核对当前值、建议值与提交依据；通过后进入纠错知识记录，不等同于规范化 POI 内容核验</p>
           </div>
-          <span className="badge badge-orange">{correctionsResource.data ? `${visibleRows.length} 条` : '—'}</span>
+          <span className="badge badge-orange">
+            {correctionsResource.data ? `${Number.isFinite(Number(queue.total)) ? queue.total : visibleRows.length} 条` : '—'}
+          </span>
         </div>
         <div className="ops-filter-bar" aria-label="审核队列筛选">
           <Filter size={15} aria-hidden="true" />
           <label>
             <span>城市</span>
-            <select className="input-field" value={filters.city} onChange={(event) => setFilters((previous) => ({ ...previous, city: event.target.value }))}>
+            <select className="input-field" value={filters.city} onChange={(event) => updateFilter('city', event.target.value)}>
               <option value="">全部城市</option>
               {cities.map((city) => (
                 <option key={city} value={city}>
@@ -59,11 +86,7 @@ export default function ReviewQueuePanel() {
           </label>
           <label>
             <span>审核状态</span>
-            <select
-              className="input-field"
-              value={filters.status}
-              onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}
-            >
+            <select className="input-field" value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
               <option value="">全部状态</option>
               <option value="pending">待审核</option>
               <option value="approved">已通过</option>
@@ -142,6 +165,31 @@ export default function ReviewQueuePanel() {
         ) : correctionsResource.status === 'ready' || correctionsResource.status === 'empty' ? (
           <EmptyState>当前筛选条件下没有审核记录。</EmptyState>
         ) : null}
+        {correctionsResource.data && (
+          <div className="ops-inline-actions" style={{ justifyContent: 'space-between', marginTop: 12 }}>
+            <span className="text-caption">
+              第 {cursorStack.length} 页 · 当前 {visibleRows.length} 条 / 共 {Number.isFinite(Number(queue.total)) ? queue.total : '—'} 条
+            </span>
+            <div className="ops-inline-actions">
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                onClick={goPreviousPage}
+                disabled={cursorStack.length <= 1 || correctionsResource.status === 'refreshing'}
+              >
+                <ChevronLeft size={13} /> 上一页
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                onClick={goNextPage}
+                disabled={!queue.nextCursor || correctionsResource.status === 'refreshing'}
+              >
+                下一页 <ChevronRight size={13} />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -152,11 +200,12 @@ function normalizeCorrections(data) {
   return Array.isArray(rows) ? rows.map((item) => ({ ...item, status: item.status || item.reviewStatus || 'pending' })) : [];
 }
 
-function replaceCorrection(data, correction) {
-  if (!correction) return data;
-  const rows = normalizeCorrections(data).map((item) => (item.id === correction.id ? correction : item));
-  if (Array.isArray(data)) return rows;
-  return { ...(data ?? {}), corrections: rows };
+function getReviewQueue({ city = '', status = '', cursor = '' } = {}, signal) {
+  const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+  if (city) params.set('city', city);
+  if (status) params.set('status', status);
+  if (cursor) params.set('cursor', cursor);
+  return getJson(`/ops/review-queue?${params.toString()}`, signal, adminHeaders());
 }
 
 function ReviewStatus({ value }) {

@@ -5,3 +5,6 @@ coverage
 package-lock.json
 *.md
 public
+outputs
+backups
+.codex-spreadsheet

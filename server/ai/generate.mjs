@@ -29,6 +29,8 @@ import {
 } from '../routebooks/normalize.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
+import { attachServerRouteLegs } from '../routing/service.mjs';
+import { estimateModelCost, normalizeModelUsage, summarizeModelUsage } from '../analytics/aiObservability.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -634,6 +636,7 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
     error.upstreamStatus = response.status;
     error.upstreamDetail = detail;
     error.upstreamCode = data.error?.code ?? data.code;
+    error.modelUsage = normalizeModelUsage(data, runtime.wireApi);
     throw error;
   }
 
@@ -645,6 +648,7 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
     error.upstreamDetail = `status=incomplete reason=${reason} max_output_tokens=${maxOutputTokens}`;
     error.truncatedByTokenLimit = reason === 'max_output_tokens';
     error.attemptedMaxOutputTokens = maxOutputTokens;
+    error.modelUsage = normalizeModelUsage(data, runtime.wireApi);
     throw error;
   }
 
@@ -851,20 +855,51 @@ export async function generateRoutebook(payload, signal) {
     promptPayload = payload;
   }
 
+  const attempts = [];
+  const recordUsage = (usage) =>
+    attempts.push({ usage: usage ? { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, total_tokens: usage.totalTokens } : null });
+  const stages = {};
+  let activeStage = 'model';
+  const observability = () => {
+    const modelUsage = summarizeModelUsage(attempts);
+    return { modelUsage, costEstimate: estimateModelCost({ modelUsage, model: runtime.model }), stages };
+  };
+  const runStage = async (name, operation) => {
+    activeStage = name;
+    const startedAt = Date.now();
+    try {
+      const value = await operation();
+      stages[name] = { durationMs: Date.now() - startedAt, status: 'completed', timedOut: false };
+      return value;
+    } catch (error) {
+      stages[name] = { durationMs: Date.now() - startedAt, status: 'failed', timedOut: /TIMEOUT/.test(String(error.code)) };
+      throw error;
+    }
+  };
+  const trackedModelCall = async (options) => {
+    try {
+      const data = await callOpenAiApi(promptPayload, runtime, options);
+      recordUsage(normalizeModelUsage(data, runtime.wireApi));
+      return data;
+    } catch (error) {
+      recordUsage(error.modelUsage ?? null);
+      throw error;
+    }
+  };
   const callModel = (options = {}) =>
-    callOpenAiApi(promptPayload, runtime, {
+    trackedModelCall({
       responseFormat: 'json_schema',
       signal,
       ...options
     }).catch(async (error) => {
       if (!isStructuredOutputUnsupported(error)) throw error;
-      return callOpenAiApi(promptPayload, runtime, {
+      return trackedModelCall({
         responseFormat: 'json_object',
         signal,
         ...options
       }).catch((fallbackError) => {
         if (!isStructuredOutputUnsupported(fallbackError)) throw fallbackError;
-        return callOpenAiApi(promptPayload, runtime, {
+        return trackedModelCall({
           responseFormat: 'none',
           signal,
           ...options
@@ -872,19 +907,28 @@ export async function generateRoutebook(payload, signal) {
       });
     });
 
-  const raw = await callModel().catch((error) => {
-    if (!error?.truncatedByTokenLimit || error.attemptedMaxOutputTokens >= AI_MAX_OUTPUT_TOKENS_RETRY) throw error;
-    return callModel({ maxOutputTokens: AI_MAX_OUTPUT_TOKENS_RETRY });
-  });
-
-  let routebook;
   try {
-    routebook = normalizeRoutebook({ ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId }, payload, runtime);
+    const routebook = await runStage('model', async () => {
+      const raw = await callModel().catch((error) => {
+        if (!error?.truncatedByTokenLimit || error.attemptedMaxOutputTokens >= AI_MAX_OUTPUT_TOKENS_RETRY) throw error;
+        return callModel({ maxOutputTokens: AI_MAX_OUTPUT_TOKENS_RETRY });
+      });
+      try {
+        return normalizeRoutebook({ ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId }, payload, runtime);
+      } catch (error) {
+        if (error?.statusCode) throw error;
+        const failure = createHttpError('AI 输出格式异常，请重新生成', 502, 'MODEL_BAD_OUTPUT');
+        failure.upstreamDetail = error?.message ?? '未知解析失败';
+        throw failure;
+      }
+    });
+    const geocoded = await runStage('geocoding', () => geocodeGeneratedRoutebook(routebook, signal));
+    const routed = await runStage('routing', () => attachServerRouteLegs(geocoded, signal));
+    if ((routed.routeLegs ?? []).some((leg) => leg.status !== 'verified')) stages.routing.status = 'degraded';
+    if ((routed.routeLegs ?? []).some((leg) => /timeout/i.test(String(leg.error?.code || '')))) stages.routing.timedOut = true;
+    return { ...routed, observability: observability() };
   } catch (error) {
-    if (error?.statusCode) throw error;
-    const failure = createHttpError('AI 输出格式异常，请重新生成', 502, 'MODEL_BAD_OUTPUT');
-    failure.upstreamDetail = error?.message ?? '未知解析失败';
-    throw failure;
+    error.observability = { ...observability(), failureStage: activeStage };
+    throw error;
   }
-  return geocodeGeneratedRoutebook(routebook, signal);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Clock, Wallet, Users, AlertTriangle, ShieldCheck, ExternalLink, Ticket, Flag, FileSearch } from 'lucide-react';
-import { createPoiCorrection, getPoiKnowledge, recordClick, recordExposure } from '../../lib/api';
+import { createPoiCorrection, getPoiKnowledge } from '../../lib/api';
+import { recordProductClick, recordProductExposure } from '../../lib/productTelemetry';
 import { getProfile } from '../../lib/profile';
 import { productsForStop, useProductCards } from '../../lib/products';
 import { clickStorageKey, safeWriteJsonStorage } from '../../lib/storage';
@@ -67,7 +68,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       const key = `${routeId}:${stop?.id}:${productId}`;
       if (exposureRef.current.has(key)) return;
       exposureRef.current.add(key);
-      recordExposure({
+      recordProductExposure({
         profileId: profile.id,
         surface: 'poi-detail',
         itemType: 'product',
@@ -99,6 +100,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       stopName: stop.name,
       creatorId: routebook?.creator?.id,
       source: 'poi',
+      surface: 'poi-detail',
       sourcePosition: 'poi-detail',
       clickedAt: new Date().toISOString()
     };
@@ -106,7 +108,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
     if (!safeWriteJsonStorage(clickStorageKey(profile.id), [payload, ...existing].slice(0, 100))) {
       setMessage('本地点击归因存储失败，已尝试同步服务端');
     }
-    recordClick(payload).catch(() => {});
+    recordProductClick(payload).catch(() => {});
     if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
   }
 

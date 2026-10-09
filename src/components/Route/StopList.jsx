@@ -14,6 +14,7 @@ import {
   TriangleAlert
 } from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
+import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { formatVerifiedDate, getStopTrustBadge } from '../../lib/trust';
 import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
@@ -22,7 +23,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/m
 import { StopThumb } from '../visual/StopThumb';
 import { sourceEvidencePrediction, stopKey } from './routebookModel';
 
-export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers }) {
+export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [] }) {
   return (
     <ol className="m-0 list-none p-0" aria-label={`${activeDay} 站点`}>
       {stops.map((stop, index) => (
@@ -31,6 +32,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
           stop={stop}
           index={index}
           next={stops[index + 1]}
+          roadLeg={roadLegForStops(routeLegs, stop, stops[index + 1])}
           theme={theme}
           selected={stopKey(selectedId) === stopKey(stop.id)}
           routeTrustTone={routeTrustTone}
@@ -55,7 +57,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
 }
 
 /** @param {Record<string, any>} props */
-function StopRow({ stop, index, next, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId }) {
+function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId }) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
@@ -176,13 +178,13 @@ function StopRow({ stop, index, next, theme, selected, routeTrustTone, canEdit, 
           )}
         </div>
       </li>
-      {next && <LegRow from={stop} to={next} />}
+      {next && <LegRow from={stop} to={next} roadLeg={roadLeg} />}
     </>
   );
 }
 
 /** @param {Record<string, any>} props */
-function LegRow({ from, to }) {
+function LegRow({ from, to, roadLeg }) {
   const precise = isNavigableCoordinate(from) && isNavigableCoordinate(to);
   const label = routeLegLabel(from, to).replace(/^直线估算：/, '');
   const walking = label.startsWith('步行');
@@ -195,7 +197,7 @@ function LegRow({ from, to }) {
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-      {precise ? `${label}（直线估算）` : '转场距离待确认：有站点位置还不精确'}
+      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算，道路未核验）` : '转场距离待确认：有站点位置还不精确'}
     </li>
   );
 }

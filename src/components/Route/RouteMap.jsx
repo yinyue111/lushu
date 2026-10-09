@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { cityCenters, distanceKm, isNavigableCoordinate, isValidCoordinate } from '../../lib/coordinates';
+import { cityCenters, isNavigableCoordinate, isValidCoordinate } from '../../lib/coordinates';
+import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { addBasemap, currentBasemapConfig, escapeHtml, toMapLatLng } from '../map/basemap';
 import { stopPhoto } from '../visual/theme';
 import { stopKey } from './routebookModel';
@@ -13,6 +14,7 @@ import { stopKey } from './routebookModel';
  *
  * @param {{
  *   city: string,
+ *   routeLegs?: any[],
  *   days: { day: string, label: string, stops: any[], theme: { solid: string, ink: string, from: string, to: string } }[],
  *   activeDay: string,
  *   selectedId: any,
@@ -22,7 +24,7 @@ import { stopKey } from './routebookModel';
  *   className?: string
  * }} props
  */
-export default function RouteMap({ city, days, activeDay, selectedId, onSelect, onTileStatus, fitPadding, className = '' }) {
+export default function RouteMap({ city, days, activeDay, selectedId, onSelect, onTileStatus, fitPadding, routeLegs = [], className = '' }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerGroupRef = useRef(null);
@@ -73,17 +75,25 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
       const located = entry.stops.filter((stop) => isValidCoordinate(Number(stop.lat), Number(stop.lng)));
       const navigable = located.filter(isNavigableCoordinate);
       const isActive = entry.day === activeDay;
+      for (let index = 0; index < entry.stops.length - 1; index += 1) {
+        const from = entry.stops[index];
+        const to = entry.stops[index + 1];
+        if (!isNavigableCoordinate(from) || !isNavigableCoordinate(to)) continue;
+        const road = roadLegForStops(routeLegs, from, to);
+        const points = road ? road.geometry.map(([lat, lng]) => toMapLatLng(lat, lng, basemap)) : [toLatLng(from), toLatLng(to)];
+        if (road && isActive) L.polyline(points, { color: '#ffffff', weight: 12, opacity: 1, interactive: false }).addTo(group);
+        L.polyline(points, {
+          color: entry.theme.solid,
+          weight: road ? (isActive ? 7 : 4) : 3,
+          opacity: isActive ? 0.95 : 0.4,
+          dashArray: road ? undefined : '5 8',
+          lineCap: 'round',
+          lineJoin: 'round'
+        })
+          .bindTooltip(escapeHtml(road ? `${roadLegLabel(road)} · ${road.provider} · ${road.queriedAt}` : '直线示意：道路距离和耗时未核验'))
+          .addTo(group);
+      }
       if (!isActive) {
-        if (navigable.length > 1) {
-          L.polyline(navigable.map(toLatLng), {
-            color: entry.theme.solid,
-            weight: 4,
-            opacity: 0.45,
-            dashArray: '2 8',
-            lineCap: 'round',
-            interactive: false
-          }).addTo(group);
-        }
         navigable.forEach((stop) => {
           L.marker(toLatLng(stop), {
             title: `${entry.label} · ${stop.name}`,
@@ -92,13 +102,6 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
           }).addTo(group);
         });
         return;
-      }
-      if (navigable.length > 1) {
-        const points = navigable.map(toLatLng);
-        L.polyline(points, { color: '#ffffff', weight: 13, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(group);
-        gradientSegments(points, entry.theme.from, entry.theme.to).forEach(([segment, color]) => {
-          L.polyline(segment, { color, weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(group);
-        });
       }
       entry.stops.forEach((stop, index) => {
         if (!isValidCoordinate(Number(stop.lat), Number(stop.lng))) return;
@@ -127,7 +130,7 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- padding is tracked through paddingKey
-  }, [days, activeDay, basemap, paddingKey]);
+  }, [days, activeDay, basemap, paddingKey, routeLegs]);
 
   // Selection only restyles pins; it never resets the user's pan/zoom.
   useEffect(() => {
@@ -155,46 +158,4 @@ function pinIcon(stop, index, color, active, approximate) {
     iconAnchor: [size[0] / 2, size[1]],
     html: `<div class="${classes}" style="--c:${color}">${dot}${label}</div>`
   });
-}
-
-function gradientSegments(points, from, to, steps = 14) {
-  const segments = [];
-  const total = points.length - 1;
-  for (let s = 0; s < total; s += 1) {
-    for (let k = 0; k < steps; k += 1) {
-      const t0 = k / steps;
-      const t1 = (k + 1) / steps;
-      const a = lerpPoint(points[s], points[s + 1], t0);
-      const b = lerpPoint(points[s], points[s + 1], t1);
-      segments.push([[a, b], mixHex(from, to, (s + (t0 + t1) / 2) / total)]);
-    }
-  }
-  return segments;
-}
-
-function lerpPoint(a, b, t) {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-}
-
-function mixHex(a, b, t) {
-  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
-  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
-  return `#${pa
-    .map((v, i) =>
-      Math.round(v + (pb[i] - v) * t)
-        .toString(16)
-        .padStart(2, '0')
-    )
-    .join('')}`;
-}
-
-/** Straight-line distance (km) along navigable stops of one day. */
-export function dayDistanceKm(stops) {
-  const navigable = stops.filter(isNavigableCoordinate);
-  let total = 0;
-  for (let i = 0; i < navigable.length - 1; i += 1) {
-    const km = distanceKm(navigable[i], navigable[i + 1]);
-    if (Number.isFinite(km)) total += km;
-  }
-  return total;
 }

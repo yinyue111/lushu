@@ -1,17 +1,9 @@
 import { useRef, useState } from 'react';
 import { coordinateForName, cityCenters, isValidCoordinate } from '../../lib/coordinates';
 import { clickStorageKey, getStoredRoutebookById, saveFavorite, saveRoutebook, safeWriteJsonStorage } from '../../lib/storage';
-import {
-  copyRoutebookRemote,
-  createFavorite,
-  getJson,
-  getRoutebookRemote,
-  recordClick,
-  recordJourneyEvent,
-  saveRoutebookRemote,
-  saveRoutebookVariant
-} from '../../lib/api';
+import { copyRoutebookRemote, createFavorite, getJson, getRoutebookRemote, recordJourneyEvent, saveRoutebookRemote, saveRoutebookVariant } from '../../lib/api';
 import { profileRoutebookFields } from '../../lib/profile';
+import { recordProductClick as recordProductClickTelemetry } from '../../lib/productTelemetry';
 import { downloadTripIcs, requestTripNotification } from '../../lib/reminders';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { modeSlug, orderedDays, reorderStopsByMode, variantSummary } from '../../lib/routeModes';
@@ -69,6 +61,7 @@ export function useRoutebookActions({
       ...base,
       ...extra,
       stops: normalizedStops,
+      routeLegs: [],
       days: orderedDays(normalizedStops, base.days),
       trustScore: calculateLocalTrustScore(normalizedStops),
       trustMeta: {
@@ -369,7 +362,7 @@ export function useRoutebookActions({
         localSaved
           ? data.shareUrl
             ? `已保存并发布，H5 分享页：${new URL(data.shareUrl, window.location.origin).toString()}${anonymousNote}`
-            : `已保存为草稿，点击分享可发布 H5 链接${anonymousNote}`
+            : `已保存为草稿，点击分享可提交公开审核${anonymousNote}`
           : `服务端已保存，但浏览器本地存储失败${anonymousNote}`
       );
       return { status: 'saved', routebook: next };
@@ -445,6 +438,7 @@ export function useRoutebookActions({
       city: routebook.city,
       creatorId: routebook.creator?.id,
       source: 'route',
+      surface: 'route-products',
       sourcePosition: 'route-products',
       ...(isSeedCard ? { linkType: 'seed-search' } : {}),
       clickedAt: new Date().toISOString()
@@ -452,7 +446,7 @@ export function useRoutebookActions({
     if (isSeedCard) {
       // 种子/兜底卡也上报点击归因（linkType 标记 seed-search），失败静默；打开链接行为不变。
       setShareState('已打开外部搜索入口，已尝试记录兜底点击归因');
-      recordClick(payload)
+      recordProductClickTelemetry(payload)
         .then((data) => {
           if (data?.click) mergeServerClickIntoLocal(payload, data.click, profile.id);
         })
@@ -463,7 +457,7 @@ export function useRoutebookActions({
     const existing = safeReadClicks();
     const localStored = safeWriteJsonStorage(clickStorageKey(profile.id), [payload, ...existing].slice(0, 100));
     setShareState(localStored ? `已记录 ${item.type} 点击归因` : '本地点击归因存储失败，正在同步服务端');
-    recordClick(payload)
+    recordProductClickTelemetry(payload)
       .then((data) => {
         // 把服务端 click 行（含 id/createdAt）回写本地，保证“我的页”本地/服务端去重键一致。
         if (data?.click) mergeServerClickIntoLocal(payload, data.click, profile.id);

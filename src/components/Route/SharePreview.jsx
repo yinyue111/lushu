@@ -22,7 +22,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
     // 精选路线视为已上架公开内容：允许复制与系统分享；
     // 「发布」仍被禁（有 shareUrl 时主按钮只做复制，publish 分支不可达）。
     const shareable = ['published', 'featured'].includes(routebook.publishStatus) || isCuratedCatalogRoute;
-    const sharePath = routebook.shareUrl || (shareable && routebook.publicId ? `/share/${routebook.publicId}` : '');
+    const sharePath = shareable ? routebook.shareUrl || (routebook.publicId ? `/share/${routebook.publicId}` : '') : '';
     return sharePath ? new URL(sharePath, window.location.origin).toString() : '';
   }, [routebook, isCuratedCatalogRoute]);
   const [shareState, setShareState] = useState({ loading: false, message: '', url: '' });
@@ -66,6 +66,12 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         ...(expectedVersion != null ? { expectedVersion } : {})
       });
       if (requestSequenceRef.current !== operationSequence) return;
+      if (data.routebook?.publishStatus === 'pending_review') {
+        onShared?.({ ...data.routebook, shareUrl: '' });
+        await recordJourneyEvent('routebook-submit-review', data.routebook, profile.id).catch(() => {});
+        setShareState({ loading: false, message: '已提交运营审核，通过来源授权与道路核验后才能公开分享。', url: '' });
+        return;
+      }
       await Promise.allSettled([
         recordJourneyEvent('routebook-save', data.routebook, profile.id),
         recordJourneyEvent('routebook-share', data.routebook, profile.id)
@@ -81,7 +87,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         setShareState({ loading: false, message: '已发布分享链接；浏览器未允许自动复制，请手动复制下方链接', url });
       }
     } catch (error) {
-      if (error?.status === 409 && routeId) {
+      if (error?.status === 409 && ['VERSION_CONFLICT', 'ROUTEBOOK_VERSION_CONFLICT', 'EXPECTED_VERSION_REQUIRED'].includes(error?.code) && routeId) {
         const conflictCopy = preserveRoutebookConflictDraft(pendingSnapshot, '发布版本冲突');
         if (conflictCopy.saved) onConflictDraftSaved?.(conflictCopy.draft);
         const recoveryText = conflictCopy.saved
@@ -249,10 +255,11 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           <Button
             variant="primary"
             onClick={createShareLink}
-            disabled={shareState.loading || (isCuratedRoute && !shareUrl)}
+            disabled={shareState.loading || routebook.publishStatus === 'pending_review' || (isCuratedRoute && !shareUrl)}
             title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
           >
-            <Link2 /> {shareState.loading ? '生成中...' : shareUrl ? '复制分享链接' : '发布并生成链接'}
+            <Link2 />{' '}
+            {shareState.loading ? '提交中...' : shareUrl ? '复制分享链接' : routebook.publishStatus === 'pending_review' ? '已提交，等待审核' : '提交公开审核'}
           </Button>
           <Button variant="outline" onClick={copyShareText}>
             <ClipboardCopy /> 复制文字摘要

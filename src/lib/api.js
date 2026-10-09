@@ -1,4 +1,4 @@
-import { getProfile } from './profile.js';
+import { getProfile, prepareProfileSyncPayload } from './profile.js';
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL ?? '/api';
 const ADMIN_TOKEN_KEY = 'trusted-routebook:admin-token';
@@ -34,6 +34,16 @@ export async function postJson(path, body, signal, extraHeaders = {}) {
 
 export async function getJson(path, signal, extraHeaders = {}) {
   const response = await fetch(`${API_BASE}${path}`, { signal, headers: { ...publicHeaders(), ...extraHeaders } });
+  return readApiResponse(response);
+}
+
+export async function deleteJson(path, body, signal, extraHeaders = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json', ...publicHeaders(), ...extraHeaders },
+    body: JSON.stringify(body),
+    signal
+  });
   return readApiResponse(response);
 }
 
@@ -80,7 +90,7 @@ export async function saveRoutebookRemote(routebook, optionsOrSignal, maybeSigna
 export async function saveRoutebookVariant(publicId, payload, signal) {
   const body =
     payload && typeof payload === 'object' && ('variant' in payload || 'editToken' in payload || 'profileId' in payload) ? payload : { variant: payload };
-  return postJson(`/routebooks/${encodeURIComponent(publicId)}/variants`, body, signal);
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/variants`, body, signal, ownerHeaders(body.profileId));
 }
 
 export async function getRoutebookRemote(publicId, signal) {
@@ -229,7 +239,7 @@ export async function saveProducts(products, signal) {
 }
 
 export async function saveProfile(profile, signal) {
-  return postJson('/profile', profile, signal);
+  return postJson('/profile', prepareProfileSyncPayload(profile), signal, ownerHeaders(profile?.id));
 }
 
 export async function createCheckin(checkin, signal) {
@@ -307,12 +317,12 @@ export async function getProductAnalytics(limit = 500, signal) {
   return getJson(`/product-analytics?limit=${limit}`, signal, adminHeaders());
 }
 
-function adminHeaders() {
+export function adminHeaders() {
   const ADMIN_TOKEN = typeof sessionStorage === 'undefined' ? '' : (sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? '');
   return ADMIN_TOKEN ? { 'x-routebook-admin-token': ADMIN_TOKEN } : {};
 }
 
-function ownerHeaders(profileId) {
+export function ownerHeaders(profileId) {
   const admin = adminHeaders();
   try {
     const profile = getProfile();

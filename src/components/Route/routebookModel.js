@@ -32,6 +32,112 @@ export function hasUnsyncedLocalEdits(routebook) {
   return !Number.isFinite(syncedAt) || editedAt > syncedAt;
 }
 
+// GET 请求可能在用户编辑期间返回。只比较可编辑/路线内容，不把版本、时间戳和
+// 服务端聚合字段算作分叉，避免一次普通刷新被误判为冲突。
+export function hasRoutebookContentDifference(left, right) {
+  if (!left || !right) return false;
+  return routebookContentFingerprint(left) !== routebookContentFingerprint(right);
+}
+
+// 回调时从 localStorage 和 React ref 取到多个候选版本时，脏编辑优先；其余再按
+// editedAt/updatedAt/version 选最新。这样 GET 等待期间的内存编辑不会被起始快照遮蔽。
+export function selectLatestLocalRoutebook(candidates, profileId, routeId = '') {
+  const targetId = String(routeId || '').trim();
+  const eligible = (Array.isArray(candidates) ? candidates : []).filter((book) => {
+    if (!book) return false;
+    const id = String(book.publicId || book.id || '').trim();
+    if (targetId && id !== targetId) return false;
+    return book.profileId === profileId || book.creator?.id === profileId;
+  });
+  if (!eligible.length) return null;
+  return eligible.slice(1).reduce((best, candidate) => (compareLocalRoutebookSnapshots(candidate, best) > 0 ? candidate : best), eligible[0]);
+}
+
+// 判断 GET 返回是否会静默覆盖本地编辑。contentDiverged 同时覆盖“远端版本领先”
+// 和“同版本但 GET 等待中发生编辑”两种竞态；调用方据此先保留两个可恢复副本。
+export function routebookRefreshDecision(remote, local, profileId) {
+  const remoteId = String(remote?.publicId || remote?.id || '').trim();
+  const localId = String(local?.publicId || local?.id || '').trim();
+  const sameRoute = Boolean(remoteId && localId && remoteId === localId);
+  const localOwned = Boolean(local && (local.profileId === profileId || local.creator?.id === profileId));
+  const localDirty = hasUnsyncedLocalEdits(local);
+  const contentDiverged = sameRoute && hasRoutebookContentDifference(remote, local);
+  const remoteVersion = currentRoutebookVersion(remote);
+  const localVersion = currentRoutebookVersion(local);
+  const versionDiverged = remoteVersion != null && localVersion != null && remoteVersion !== localVersion;
+  const preserveLocal = Boolean(sameRoute && localOwned && localDirty && contentDiverged);
+  return {
+    sameRoute,
+    localOwned,
+    localDirty,
+    contentDiverged,
+    versionDiverged,
+    remoteVersion,
+    localVersion,
+    preserveLocal,
+    reason: preserveLocal ? (versionDiverged ? 'local-dirty-remote-version' : 'local-dirty-refresh-race') : ''
+  };
+}
+
+export function routebookRefreshConflictKey(remote, local) {
+  return [
+    String(remote?.publicId || remote?.id || ''),
+    currentRoutebookVersion(remote) ?? '',
+    currentRoutebookVersion(local) ?? '',
+    remote?.updatedAt ?? '',
+    local?.updatedAt ?? '',
+    remote?.provider?.editedAt ?? '',
+    local?.provider?.editedAt ?? '',
+    routebookContentFingerprint(remote),
+    routebookContentFingerprint(local)
+  ].join('|');
+}
+
+function compareLocalRoutebookSnapshots(left, right) {
+  const leftDirty = hasUnsyncedLocalEdits(left);
+  const rightDirty = hasUnsyncedLocalEdits(right);
+  if (leftDirty !== rightDirty) return leftDirty ? 1 : -1;
+  const leftTimestamp = routebookSnapshotTimestamp(left);
+  const rightTimestamp = routebookSnapshotTimestamp(right);
+  if (leftTimestamp !== rightTimestamp) return leftTimestamp - rightTimestamp;
+  return (currentRoutebookVersion(left) ?? -1) - (currentRoutebookVersion(right) ?? -1);
+}
+
+function routebookSnapshotTimestamp(routebook) {
+  const timestamps = [routebook?.provider?.editedAt, routebook?.updatedAt, routebook?.provider?.generatedAt, routebook?.createdAt]
+    .map((value) => Date.parse(value ?? ''))
+    .filter(Number.isFinite);
+  return timestamps.length ? Math.max(...timestamps) : 0;
+}
+
+function routebookContentFingerprint(routebook) {
+  return JSON.stringify(
+    canonicalizeRoutebookValue({
+      city: routebook?.city,
+      title: routebook?.title,
+      summary: routebook?.summary,
+      days: routebook?.days,
+      stops: routebook?.stops,
+      variants: routebook?.variants,
+      activeVariantId: routebook?.activeVariantId,
+      constraints: routebook?.constraints,
+      routeLegs: routebook?.routeLegs,
+      importedSources: routebook?.importedSources
+    })
+  );
+}
+
+function canonicalizeRoutebookValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalizeRoutebookValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value)
+    .sort()
+    .reduce((result, key) => {
+      result[key] = canonicalizeRoutebookValue(value[key]);
+      return result;
+    }, {});
+}
+
 // 变体保存成功后只合并服务端派生字段，保留本地 stops/days/validations/metrics，
 // 防止服务端返回的旧 stops 覆盖用户本地未保存的删除/拖拽/替换编辑。
 export function mergeServerDerivedRoutebookFields(base, serverRoutebook) {
@@ -146,7 +252,7 @@ export function canEditRoutebook(routebook, profileId) {
   const owned = routebook.profileId === profileId || routebook.creator?.id === profileId;
   const isDraft = (routebook.publishStatus || 'draft') === 'draft';
   const isUnsavedGeneratedDraft = Boolean(routebook.provider?.generatedAt) && !routebook.editToken;
-  return owned && isDraft && (Boolean(routebook.editToken) || isUnsavedGeneratedDraft);
+  return owned && isDraft && (Boolean(routebook.editToken) || routebook.ownerAccessVerified === true || isUnsavedGeneratedDraft);
 }
 
 export function createDraftStop(routebook, activeDay) {
@@ -195,14 +301,38 @@ export function stopKey(value) {
 export function buildEditedMetrics(stops, existingMetrics = []) {
   const avg = stops.length ? Math.round(stops.reduce((sum, stop) => sum + Number(stop.score ?? 78), 0) / stops.length) : 78;
   const lowGeo = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
-  const budget = stops.reduce((sum, stop) => sum + (Number(String(stop.cost ?? '').match(/\d+/)?.[0]) || 0), 0);
+  const budget = summarizeEditedBudget(stops);
   const calculated = [
+    { label: '道路核验', value: '编辑后待重新核验' },
+    { label: '道路距离', value: '待道路服务核验' },
+    { label: '道路耗时', value: '待道路服务核验' },
     { label: '站点预测均分', value: `${avg}` },
     { label: '定位待复核', value: lowGeo ? `${lowGeo} 处` : '0 处' },
     { label: '预算估算', value: budget ? `约 ${budget} 元` : '待验证' },
     { label: '平均修改', value: '本次已编辑' }
   ];
   return [...calculated, ...(existingMetrics ?? []).filter((item) => !calculated.some((next) => next.label === item.label))].slice(0, 6);
+}
+
+function summarizeEditedBudget(stops) {
+  const ranges = stops
+    .map((stop) => {
+      const values = [
+        ...String(stop?.cost ?? '')
+          .replace(/[,，]/g, '')
+          .matchAll(/\d+(?:\.\d+)?/g)
+      ].map((match) => Number(match[0]));
+      if (!values.length || values.some((value) => !Number.isFinite(value))) return null;
+      const min = Math.min(...values);
+      const max = values.length > 1 ? Math.max(...values) : min;
+      return { min, max };
+    })
+    .filter(Boolean);
+  if (!ranges.length) return '';
+  const min = ranges.reduce((sum, range) => sum + range.min, 0);
+  const max = ranges.reduce((sum, range) => sum + range.max, 0);
+  const format = (value) => (Number.isInteger(value) ? value.toLocaleString('zh-CN') : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 }));
+  return min === max ? format(min) : `${format(min)}–${format(max)}`;
 }
 
 export function buildEditedValidations(stops, existingValidations = [], reason = '编辑') {
@@ -219,8 +349,8 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     {
       id: 'client-edit-density',
       label: '节奏密度',
-      state: dense ? '偏紧' : '可执行',
-      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '单日站点密度在可执行范围内。'
+      state: dense ? '偏紧' : '待道路核验',
+      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '站点密度正常；道路耗时已失效，需重新核验后判断可达性。'
     },
     {
       id: 'client-edit-geo',
@@ -231,8 +361,8 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     {
       id: 'client-edit-leg',
       label: '转场距离',
-      state: longestLeg > 12000 ? '偏远' : longestLeg > 6000 ? '需留缓冲' : '可执行',
-      detail: longestLeg ? `最长相邻转场约 ${(longestLeg / 1000).toFixed(1)} km，建议结合真实交通复核。` : '站点距离信息不足，建议补充坐标。'
+      state: '待道路核验',
+      detail: longestLeg ? `最长相邻直线约 ${(longestLeg / 1000).toFixed(1)} km，不代表真实道路距离或耗时。` : '站点距离信息不足，建议补充坐标。'
     },
     {
       id: 'client-edit-ai-stale',
@@ -241,7 +371,7 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
       detail: '路线已被人工编辑，旧模型校验只作参考；分享前建议重新保存并按实际日期复核开放时间。'
     }
   ];
-  const staleIds = new Set(['hours', 'walk', 'budget', 'crowd']);
+  const staleIds = new Set(['hours', 'walk', 'budget', 'crowd', 'edit-routing', 'edit-tempo', 'edit-detour']);
   return [...calculated, ...(existingValidations ?? []).filter((item) => !calculated.some((next) => next.id === item.id) && !staleIds.has(item.id))].slice(
     0,
     8

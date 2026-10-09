@@ -14,3 +14,8 @@ outputs/
 data/*.jsonl
 data/reviews.jsonl
 data/*.json
+data/photos/
+data/.source-coordination/
+data/*.tmp
+data/*.bak
+backups/

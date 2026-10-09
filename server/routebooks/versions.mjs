@@ -145,7 +145,7 @@ function buildRoutebookAudit(routebook, event, details = {}) {
 
 export async function appendVersionedRoutebook(routebook, event, details = {}) {
   const versionAudit = buildRoutebookAudit(routebook, event, details);
-  await appendJsonLine(ROUTEBOOK_LOG_PATH, versionAudit ? { ...routebook, versionAudit } : routebook);
+  await appendJsonLine(ROUTEBOOK_LOG_PATH, versionAudit ? { ...routebook, versionAudit } : routebook, { expectedVersion: routebook.parentVersion ?? 0 });
 }
 
 export async function listRoutebookAudits(publicId) {

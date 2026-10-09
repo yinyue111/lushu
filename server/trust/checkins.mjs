@@ -11,6 +11,7 @@ import { normalizeTravelDate } from '../routebooks/normalize.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { resolvePoiId } from '../poi/catalog.mjs';
 import { distanceMeters } from '../lib/util.mjs';
+import { isOpsSuppressedCheckin } from '../ops/audit.mjs';
 
 export function localDateForTimestamp(value) {
   const date = new Date(value);
@@ -80,7 +81,7 @@ export function checkinStopKey(item = {}) {
 // server-issued profile token is still a durable pseudonymous identity, and samples stay
 // deduplicated per profile, so profile-owned check-ins count too.
 export function isPublicTrustEligibleCheckin(item = {}) {
-  return PUBLIC_TRUST_ELIGIBLE_STATES.has(item?.trustState);
+  return !isOpsSuppressedCheckin(item) && PUBLIC_TRUST_ELIGIBLE_STATES.has(item?.trustState);
 }
 
 export function isEligibleTrustCheckin(item = {}) {

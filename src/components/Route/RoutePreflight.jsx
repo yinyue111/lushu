@@ -21,7 +21,7 @@ import { cn } from '../ui/cn';
 import { predictionAverage, productLinkLabel } from './routebookModel';
 
 const OK_STATES = /通过|可执行|已更新|已应用|充足|正常|低/;
-const WARN_STATES = /复核|偏紧|缓冲|无数据|偏远|待|超|风险|高/;
+const WARN_STATES = /复核|偏紧|缓冲|无数据|偏远|待|超|风险|高|未|冲突|不满足/;
 
 function stateTone(state) {
   const text = String(state ?? '');

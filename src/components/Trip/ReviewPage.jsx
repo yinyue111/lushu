@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, Clock, FileText, Flag, MapPin, Share2, ShieldCheck, Wallet, X } from 'lucide-react';
-import { checkinPhotoUrl, createReviewShare, getMyCheckins } from '../../lib/api';
+import { createReviewShare, getMyCheckins } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
 import { checkinStorageKey } from '../../lib/storage';
 import { normalizeTripStops, readTripSession, tripRoutebookId } from '../../lib/tripSession';
@@ -8,6 +8,7 @@ import { flushAllCheckinQueues, isServerSyncedCheckin } from '../../lib/checkinQ
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { StopThumb } from '../visual/StopThumb';
+import { CheckinPhoto } from '../visual/CheckinPhoto';
 import { dayTheme } from '../visual/theme';
 
 /** @param {Record<string, any>} props */
@@ -179,14 +180,7 @@ export default function ReviewPage({ routebook, onBack }) {
                           </p>
                         )}
                         {checkin?.photoId && (
-                          <a href={checkinPhotoUrl(checkin.photoId)} target="_blank" rel="noreferrer" className="mt-2 inline-block">
-                            <img
-                              src={checkinPhotoUrl(checkin.photoId)}
-                              alt={`${stop.name}打卡照片`}
-                              loading="lazy"
-                              className="size-20 rounded-tile object-cover"
-                            />
-                          </a>
+                          <CheckinPhoto photoId={checkin.photoId} profileId={profile.id} access="owner" alt={`${stop.name}打卡照片`} className="mt-2 size-20" />
                         )}
                         {checkin?.photoName && !checkin?.photoId && (
                           <p className="mt-1.5 flex items-center gap-1 text-xs text-muted">
@@ -210,21 +204,15 @@ export default function ReviewPage({ routebook, onBack }) {
           </h2>
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {photoCheckins.map((item) => (
-              <a
+              <CheckinPhoto
                 key={item.photoId}
-                href={checkinPhotoUrl(item.photoId)}
-                target="_blank"
-                rel="noreferrer"
-                title={item.stopName || '打卡照片'}
-                className="overflow-hidden rounded-tile"
-              >
-                <img
-                  src={checkinPhotoUrl(item.photoId)}
-                  alt={`${item.stopName || '打卡'}照片`}
-                  loading="lazy"
-                  className="aspect-square w-full object-cover transition-transform hover:scale-105"
-                />
-              </a>
+                photoId={item.photoId}
+                profileId={profile.id}
+                access="owner"
+                alt={`${item.stopName || '打卡'}照片`}
+                className="aspect-square w-full"
+                imageClassName="transition-transform hover:scale-105"
+              />
             ))}
           </div>
         </section>

@@ -1,5 +1,5 @@
 import * as api from './api.js';
-import { getProfile } from './profile.js';
+import { getProfile, hasProfileCloudRegistrationConsent } from './profile.js';
 import { adoptServerProfile } from './profileSync.js';
 
 const INTERRUPTED_SYNC_STATUSES = new Set(['pending', 'syncing']);
@@ -161,6 +161,22 @@ export function classifyCheckinSyncError(error, options = {}) {
 // 模块级防并发重入：TripView / ReviewPage / App 全局补传共用同一个标记，
 // 任一处 flush 进行中时其余调用直接空转返回。
 let flushAllInFlight = false;
+let flushController = null;
+let queuePaused = false;
+
+export async function pauseCheckinQueue() {
+  queuePaused = true;
+  flushController?.abort();
+  const deadline = Date.now() + 5000;
+  while (flushAllInFlight && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  if (flushAllInFlight) {
+    queuePaused = false;
+    throw new Error('打卡同步尚未停止，请稍后重试');
+  }
+  return () => {
+    queuePaused = false;
+  };
+}
 
 // 供调用方（如 TripView）判断全局补传是否进行中：flush 直接写 localStorage，
 // 进行中时内存快照可能滞后，调用方应改以本地存储为准，避免覆盖回滚同步结果。
@@ -174,10 +190,12 @@ export function isCheckinFlushInFlight() {
 /** @param {{ profile?: any, signal?: AbortSignal }} [options] */
 export async function flushAllCheckinQueues({ profile, signal } = {}) {
   const result = { attempted: 0, synced: 0, failed: 0 };
-  if (flushAllInFlight) return result;
+  if (flushAllInFlight || queuePaused) return result;
   if (typeof localStorage === 'undefined') return result;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return result;
   flushAllInFlight = true;
+  flushController = new AbortController();
+  signal = signal ? AbortSignal.any([signal, flushController.signal]) : flushController.signal;
   try {
     // 任一 flush 入口（App 挂载/online/行中/回顾页/我的页）先救回上次刷新或关闭时
     // 卡在 pending/syncing 的行，再取队列；服务端按 clientLocalId 幂等，重复上传安全。
@@ -192,6 +210,11 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
       // profile 存储不可用时沿用调用方传入的 profile。
     }
     if (activeProfile?.id && activeProfile.id !== 'anonymous' && !activeProfile.profileAccessToken) {
+      if (!hasProfileCloudRegistrationConsent(activeProfile)) {
+        result.registrationError = '尚未开启云端同步';
+        result.guidance = '反馈保留在本机；请在「我的 → 账户」明确开启云端同步后再补传';
+        return result;
+      }
       try {
         const data = await api.saveProfile(activeProfile, signal);
         const adopted = adoptServerProfile(data?.profile, activeProfile);
@@ -276,6 +299,7 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
     return result;
   } finally {
     flushAllInFlight = false;
+    flushController = null;
   }
 }
 

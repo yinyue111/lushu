@@ -35,6 +35,9 @@ export const CHECKIN_PHOTO_DIR = join(DATA_DIR, 'photos');
 export const CMS_CONFIG_PATH = join(DATA_DIR, 'cms-config.json');
 export const PRODUCT_CONFIG_PATH = join(DATA_DIR, 'product-config.json');
 export const IDENTITY_NONCE_LOG_PATH = join(DATA_DIR, 'identity-nonces.jsonl');
+export const OPS_AUDIT_LOG_PATH = join(DATA_DIR, 'ops-audits.jsonl');
+export const TRIP_SESSION_LOG_PATH = join(DATA_DIR, 'trip-sessions.jsonl');
+export const PROFILE_LIFECYCLE_LOG_PATH = join(DATA_DIR, 'profile-lifecycle.jsonl');
 const CODEX_HOME = process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex');
 export const CODEX_CONFIG_PATH = process.env.CODEX_CONFIG_PATH ?? join(CODEX_HOME, 'config.toml');
 export const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH ?? join(CODEX_HOME, 'auth.json');
@@ -136,7 +139,7 @@ export const TRUSTED_PROXY_CIDRS = (process.env.TRUSTED_PROXY_CIDRS ?? '127.0.0.
   .filter(Boolean);
 
 export const PUBLIC_ROUTE_STATUSES = new Set(['published', 'featured']);
-export const ROUTEBOOK_STATUSES = new Set(['draft', 'published', 'featured', 'archived']);
+export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
 export const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';
 export const CURATED_ROUTE_IDS = new Set(curatedRoutes.map((route) => sanitizePublicId(route.id)).filter(Boolean));
 export const TRUST_FEEDBACK_SAMPLE_TARGET = envNumber('TRUST_FEEDBACK_SAMPLE_TARGET', 12, { min: 1 });
@@ -162,11 +165,14 @@ export const TRAVEL_DAY_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
 });
 
 export const AMAP_GEOCODE_KEY = String(process.env.AMAP_GEOCODE_KEY ?? '').trim();
+export const AMAP_ROUTING_KEY = String(process.env.AMAP_ROUTING_KEY ?? AMAP_GEOCODE_KEY).trim();
+export const ROUTING_TIMEOUT_MS = envNumber('ROUTING_TIMEOUT_MS', 8000, { min: 100, max: 60000 });
+export const ROUTING_CONCURRENCY = envNumber('ROUTING_CONCURRENCY', 3, { min: 1, max: 8 });
 export const GEOCODE_TIMEOUT_MS = envNumber('GEOCODE_TIMEOUT_MS', 5000, { min: 100 });
-export const MAP_TILE_TIMEOUT_MS = Math.max(3000, Math.min(30000, Number(process.env.MAP_TILE_TIMEOUT_MS) || 12000));
-export const MAP_TILE_UPSTREAM_TIMEOUT_MS = Math.max(1000, Math.min(10000, Number(process.env.MAP_TILE_UPSTREAM_TIMEOUT_MS) || 4000));
-export const MAP_TILE_CACHE_MAX_ENTRIES = Math.max(50, Math.min(5000, Number(process.env.MAP_TILE_CACHE_MAX_ENTRIES) || 600));
-export const MAP_TILE_MAX_BYTES = Math.max(64 * 1024, Math.min(4 * 1024 * 1024, Number(process.env.MAP_TILE_MAX_BYTES) || 1024 * 1024));
+export const MAP_TILE_TIMEOUT_MS = envNumber('MAP_TILE_TIMEOUT_MS', 12000, { min: 3000, max: 30000 });
+export const MAP_TILE_UPSTREAM_TIMEOUT_MS = envNumber('MAP_TILE_UPSTREAM_TIMEOUT_MS', 4000, { min: 1000, max: 10000 });
+export const MAP_TILE_CACHE_MAX_ENTRIES = envNumber('MAP_TILE_CACHE_MAX_ENTRIES', 600, { min: 50, max: 5000 });
+export const MAP_TILE_MAX_BYTES = envNumber('MAP_TILE_MAX_BYTES', 1024 * 1024, { min: 64 * 1024, max: 4 * 1024 * 1024 });
 
 // Ordered basemap providers (see server/http/map-providers.mjs and .env.example).
 const resolvedMapTileProviders = resolveMapTileProviders(process.env);
@@ -176,6 +182,7 @@ export const MAP_TILE_SKIPPED_PROVIDERS = resolvedMapTileProviders.skipped;
 export const MAP_TILE_PROVIDER_COOLDOWN_MS = envNumber('MAP_TILE_PROVIDER_COOLDOWN_MS', 10 * 60 * 1000, { min: 1000 });
 
 export const MIME_TYPES = {
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',

@@ -18,7 +18,8 @@ import {
   EXPOSURE_LOG_PATH,
   MAX_CHECKIN_PHOTO_REQUEST_BYTES
 } from '../config/index.mjs';
-import { appendJsonLine, findLatestJsonLine, readJsonLines, readMatchingJsonLines, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
+import { appendJsonLine, findLatestJsonLine, readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
+import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { cryptoRandomId, normalizeProfileId } from '../auth/tokens.mjs';
 import { resolveWriteProfile, verifySensitiveOrProfileReadAccess } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
@@ -28,11 +29,17 @@ import { resolvePoiId } from '../poi/catalog.mjs';
 import { normalizeCheckinPhotoId, sendCheckinPhotoFile, storeCheckinPhoto } from '../photos/checkin-photos.mjs';
 import { applyTravelPlausibility, normalizeCheckinCoordinateSystem } from '../trust/checkins.mjs';
 import { buildArrivalEvidence, findStopForCheckin } from '../trust/arrival.mjs';
-import { INTERNAL_EXPOSURE_ITEM_TYPES, PUBLIC_EXPOSURE_ITEM_TYPES, normalizeExposure, sanitizeExposureSurface } from '../analytics/exposures.mjs';
+import {
+  INTERNAL_EXPOSURE_ITEM_TYPES,
+  PUBLIC_EXPOSURE_ITEM_TYPES,
+  normalizeExposure,
+  sanitizeExposureSurface,
+  normalizeProductTelemetryId,
+  persistProductClick,
+  persistProductExposure
+} from '../analytics/exposures.mjs';
 import { buildProductAnalytics } from '../analytics/dashboard.mjs';
 import { resolveProductAttribution } from '../content/cms.mjs';
-
-const checkinIdempotencyLocks = new Map();
 
 export const checkinRoutes = [
   // rank13①：照片打卡上传，鉴权与 POST /api/checkins 同级（rate limit + owner headers）。
@@ -50,8 +57,8 @@ export const checkinRoutes = [
       throw createHttpError('上传打卡照片需要已注册的个人资料，请先同步身份后重试', 403, 'PROFILE_NOT_REGISTERED');
     }
     // 幂等键与打卡同款进程内互斥，避免并发双传各自反扫不到而重复落盘。
-    const result = await withSingleProcessKeyLock(
-      checkinIdempotencyLocks,
+    const result = await withStorageEntityLock(
+      'checkin',
       JSON.stringify(['photo', actor.profileId, sanitizePublicId(body?.routeId || body?.publicId), truncateString(body?.clientLocalId, 120)]),
       () => storeCheckinPhoto(body, actor)
     );
@@ -64,7 +71,7 @@ export const checkinRoutes = [
     if (!CHECKIN_PHOTO_ID_PATTERN.test(photoId)) {
       throw createHttpError('照片不存在或已清理', 404, 'PHOTO_NOT_FOUND');
     }
-    if (await sendCheckinPhotoFile(res, photoId)) return;
+    if (await sendCheckinPhotoFile(req, res, photoId)) return;
     throw createHttpError('照片不存在或已清理', 404, 'PHOTO_NOT_FOUND');
   }),
   route('POST', '/api/checkins', async ({ req, res }) => {
@@ -157,8 +164,7 @@ export const checkinRoutes = [
       return { checkin: row, deduplicated: false };
     };
     const result = clientLocalId
-      ? // JSONL needs a database uniqueness constraint before this can be safe across multiple processes.
-        await withSingleProcessKeyLock(checkinIdempotencyLocks, JSON.stringify([actor.profileId, routeId, clientLocalId]), persistCheckin)
+      ? await withStorageEntityLock('checkin', JSON.stringify([actor.profileId, routeId, clientLocalId]), persistCheckin)
       : await persistCheckin();
     return sendJson(res, 200, { ok: true, ...result });
   }),
@@ -182,6 +188,9 @@ export const checkinRoutes = [
     const row = {
       id: cryptoRandomId(),
       profileId: actor.profileId,
+      sessionId: normalizeProductTelemetryId(body?.sessionId),
+      exposureId: normalizeProductTelemetryId(body?.exposureId),
+      surface: sanitizeExposureSurface(body?.surface || body?.sourcePosition || body?.source),
       routeId: sanitizePublicId(derived.routeId),
       routeTitle: truncateString(derived.routeTitle, 80),
       stopId: truncateString(body?.stopId, 40),
@@ -200,8 +209,7 @@ export const checkinRoutes = [
       ...(seedFallback ? { analyticsSource: 'seed-fallback' } : {}),
       createdAt: new Date().toISOString()
     };
-    await appendJsonLine(CLICK_LOG_PATH, row);
-    return sendJson(res, 200, { ok: true, click: row });
+    return sendJson(res, 200, { ok: true, ...(await persistProductClick(row)) });
   }),
   route('POST', '/api/exposures', async ({ req, res }) => {
     // rank9：埋点类超限静默 204，不写库也不报错。
@@ -222,8 +230,9 @@ export const checkinRoutes = [
       attributedBody?.itemType === 'product' || attributedBody?.productId
         ? normalizeExposure(attributedBody, (await resolveProductAttribution(attributedBody)).derived)
         : normalizeExposure(attributedBody);
+    if (row.itemType === 'product' && row.exposureId) return sendJson(res, 200, { ok: true, ...(await persistProductExposure(row)) });
     await appendJsonLine(EXPOSURE_LOG_PATH, row);
-    return sendJson(res, 200, { ok: true, exposure: row });
+    return sendJson(res, 200, { ok: true, exposure: row, deduplicated: false });
   }),
   route('GET', '/api/clicks', async ({ req, res, url }) => {
     const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';

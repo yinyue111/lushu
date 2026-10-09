@@ -5,8 +5,12 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'data/**', 'coverage/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'data/**', 'coverage/**', 'outputs/**', 'backups/**', '.codex-spreadsheet/**'] },
   js.configs.recommended,
+  {
+    files: ['public/sw.js'],
+    languageOptions: { globals: { ...globals.serviceworker } }
+  },
   {
     files: ['**/*.{js,jsx,mjs}'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },

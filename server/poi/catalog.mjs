@@ -17,9 +17,8 @@ import {
 import { coordinateDistanceWarning } from '../geo/coordinates.mjs';
 import { PROFILE_ID_SECRET, POI_LOG_PATH } from '../config/index.mjs';
 import { safeTokenEqual } from '../auth/tokens.mjs';
-import { readJsonLines, appendJsonLine, onJsonlAppend, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
-
-const poiCatalogMutationLocks = new Map();
+import { readJsonLines, appendJsonLine, onJsonlAppend } from '../storage/jsonl.mjs';
+import { usesPostgresStorage, withStorageEntityLock } from '../storage/runtime.mjs';
 
 // openHours is only filled where the pattern is structural and stable (always-open
 // streets and stations, museum rest days). Anything time-sensitive stays absent so the
@@ -567,7 +566,37 @@ function invalidateMergedPoiCache() {
   mergedPoiCache.checkedAtMs = 0;
 }
 
-onJsonlAppend(POI_LOG_PATH, () => invalidateMergedPoiCache());
+onJsonlAppend(POI_LOG_PATH, async () => {
+  invalidateMergedPoiCache();
+  if (usesPostgresStorage()) await refreshPoiCatalog({ force: true });
+});
+
+let postgresPoiRefresh = null;
+
+// Called before serving requests so synchronous coordinate resolution sees the
+// current database snapshot. Local appends refresh immediately; other writers
+// are observed through the same short TTL as the JSONL fingerprint cache.
+export async function refreshPoiCatalog({ force = false } = {}) {
+  if (!usesPostgresStorage()) return refreshMergedPoiCatalog();
+  if (!force && mergedPoiCache.pois && Date.now() - mergedPoiCache.checkedAtMs < MERGED_POI_FINGERPRINT_TTL_MS) return mergedPoiCache;
+  if (postgresPoiRefresh) return postgresPoiRefresh;
+  postgresPoiRefresh = (async () => {
+    const merged = new Map(TRUSTED_POI_CATALOG.map((seed) => [seed.poiId, seedPoiSnapshot(seed)]));
+    for (const envelope of (await readJsonLines(POI_LOG_PATH, Number.POSITIVE_INFINITY)).reverse()) {
+      if (envelope?.kind !== 'poi-batch' || !Array.isArray(envelope.rows)) continue;
+      for (const row of envelope.rows) if (sanitizePublicId(row?.poiId)) merged.set(row.poiId, row);
+    }
+    mergedPoiCache.pois = [...merged.values()];
+    mergedPoiCache.trustedLookup = buildTrustedPoiLookup(mergedPoiCache.pois);
+    mergedPoiCache.checkedAtMs = Date.now();
+    return mergedPoiCache;
+  })();
+  try {
+    return await postgresPoiRefresh;
+  } finally {
+    postgresPoiRefresh = null;
+  }
+}
 
 function poiLogFingerprintSync() {
   try {
@@ -579,6 +608,10 @@ function poiLogFingerprintSync() {
 }
 
 export function refreshMergedPoiCatalog() {
+  if (usesPostgresStorage()) {
+    if (!mergedPoiCache.pois) throw new Error('POI catalog must be initialized before serving requests');
+    return mergedPoiCache;
+  }
   const now = Date.now();
   if (mergedPoiCache.pois && now - mergedPoiCache.checkedAtMs < MERGED_POI_FINGERPRINT_TTL_MS) {
     return mergedPoiCache;
@@ -615,7 +648,7 @@ export function refreshMergedPoiCatalog() {
 }
 
 export async function listMergedPois() {
-  return refreshMergedPoiCatalog().pois;
+  return (await refreshPoiCatalog()).pois;
 }
 
 // rank12①：把「运营已审核 POI」映射为 findTrustedPoi 可用的可信条目：
@@ -700,6 +733,29 @@ function summarizePoiValidationRows(rows) {
   return summary;
 }
 
+function poiReviewStatusChanges(existing, incoming) {
+  if (!existing || !incoming) return [];
+  const changes = [];
+  if (existing.reviewStatus !== incoming.reviewStatus) changes.push('poi');
+  for (const collection of ['evidence', 'facts']) {
+    const previousById = new Map((existing[collection] ?? []).map((item) => [item.id, item]));
+    for (const item of incoming[collection] ?? []) {
+      const previous = previousById.get(item.id);
+      if ((previous && previous.reviewStatus !== item.reviewStatus) || (!previous && item.reviewStatus !== 'pending')) {
+        changes.push(`${collection}:${item.id}`);
+      }
+    }
+  }
+  return changes;
+}
+
+function hasNewPoiReviewAudit(existing, incoming) {
+  const existingIds = new Set((existing.audits ?? []).map((item) => item.id));
+  return (incoming.audits ?? []).some(
+    (audit) => !existingIds.has(audit.id) && audit.source !== 'batch-commit' && Boolean(audit.note?.trim()) && Number.isFinite(Date.parse(audit.createdAt))
+  );
+}
+
 export async function validatePoiBatch(input = {}, { includeBaselineScope = false } = {}) {
   const { parsedRows } = parsePoiBatchRows(input);
   const existingById = new Map((await listMergedPois()).map((row) => [row.poiId, row]));
@@ -717,6 +773,11 @@ export async function validatePoiBatch(input = {}, { includeBaselineScope = fals
     }
     if (!existing) {
       result.status = 'new';
+      return result;
+    }
+    if (poiReviewStatusChanges(existing, result.normalized).length && !hasNewPoiReviewAudit(existing, result.normalized)) {
+      result.status = 'error';
+      result.errors.push(poiValidationIssue('REVIEW_AUDIT_NOTE_REQUIRED', 'audits', 'POI、证据或事实审核状态变化时，必须新增包含备注和时间的审核记录'));
       return result;
     }
     const merged = mergeOperationalPoiSnapshot(existing, result.normalized);
@@ -933,7 +994,7 @@ export async function commitPoiBatch(input) {
   if (existingEnvelope) {
     return buildPoiBatchReplayResponse(existingEnvelope, submittedBatchId, validation, validationView);
   }
-  return withSingleProcessKeyLock(poiCatalogMutationLocks, 'catalog', async () => {
+  return withStorageEntityLock('poi', 'catalog', async () => {
     const replayEnvelope = (await listPoiBatchEnvelopes()).find((row) => row.batchId === submittedBatchId);
     if (replayEnvelope) {
       return buildPoiBatchReplayResponse(replayEnvelope, submittedBatchId, validation, validationView);

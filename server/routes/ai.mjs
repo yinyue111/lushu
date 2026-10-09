@@ -14,6 +14,8 @@ import { analyzeGuideImages, generateRoutebook, generationFailureReason, normali
 import { enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook } from '../routebooks/versions.mjs';
 import { normalizeUserRouteCreator } from '../routebooks/mutations.mjs';
+import { importSourceId } from '../ops/source-identity.mjs';
+import { buildAiObservabilitySummary, normalizeAiGenerationStages, normalizeCostEstimate, normalizeStoredModelUsage } from '../analytics/aiObservability.mjs';
 
 function guideLogMeta(payload) {
   const guide = String(payload?.guide ?? '');
@@ -42,8 +44,12 @@ export const aiRoutes = [
     const startedAt = Date.now();
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
     const inputMeta = guideLogMeta(payload);
+    let observability = null;
+    let persistenceStartedAt = null;
+    let persistenceCompleted = false;
     try {
       const routebook = await generateRoutebook(payload, bindRequestAbortSignal(req));
+      observability = routebook.observability;
       const profileId = normalizeProfileId(payload.profileId);
       const storedRoutebook = normalizeRoutebookForStorage(
         {
@@ -60,7 +66,10 @@ export const aiRoutes = [
         },
         routebook.publicId
       );
+      persistenceStartedAt = Date.now();
       await appendVersionedRoutebook(storedRoutebook, 'generated');
+      persistenceCompleted = true;
+      observability.stages.persistence = { durationMs: Date.now() - persistenceStartedAt, status: 'completed', timedOut: false };
       await appendJsonLine(AI_LOG_PATH, {
         requestId,
         kind: 'generate-routebook',
@@ -69,6 +78,7 @@ export const aiRoutes = [
         profileId,
         provider: routebook.provider,
         ...inputMeta,
+        ...observability,
         outputTitle: storedRoutebook.title,
         trustScore: storedRoutebook.trustScore,
         stopCount: storedRoutebook.stops.length,
@@ -78,12 +88,21 @@ export const aiRoutes = [
       });
       return sendJson(res, 200, { ...(await enrichRoutebook(storedRoutebook)), shareUrl: '' });
     } catch (error) {
+      observability = error.observability ?? observability;
+      if (observability && persistenceStartedAt != null && !persistenceCompleted) {
+        observability = {
+          ...observability,
+          failureStage: 'persistence',
+          stages: { ...observability.stages, persistence: { durationMs: Date.now() - persistenceStartedAt, status: 'failed', timedOut: false } }
+        };
+      }
       await appendJsonLine(AI_LOG_PATH, {
         requestId,
         kind: 'generate-routebook',
         status: 'error',
         city: payload.city,
         ...inputMeta,
+        ...(observability ?? {}),
         code: error.code ?? 'MODEL_ERROR',
         failureReason: generationFailureReason(error),
         upstreamStatus: error.upstreamStatus,
@@ -96,9 +115,17 @@ export const aiRoutes = [
   }),
   route('GET', '/api/logs', async ({ req, res, url }) => {
     verifySensitiveReadAccess(req);
+    const history = await readJsonLines(AI_LOG_PATH, Number.POSITIVE_INFINITY);
+    const limit = clampNumber(url.searchParams.get('limit') ?? 50, 1, 200, 50);
     return sendJson(res, 200, {
       ok: true,
-      logs: await readJsonLines(AI_LOG_PATH, clampNumber(url.searchParams.get('limit'), 1, 200, 50))
+      logs: history.slice(0, limit).map((row) => ({
+        ...row,
+        modelUsage: normalizeStoredModelUsage(row.modelUsage),
+        costEstimate: normalizeCostEstimate(row.costEstimate),
+        stages: normalizeAiGenerationStages(row.stages)
+      })),
+      summary: buildAiObservabilitySummary(history, { asOf: Date.now(), windowDays: 30 })
     });
   }),
   route('POST', '/api/import-guide', async ({ req, res }) => {
@@ -135,7 +162,7 @@ export const aiRoutes = [
         }
       })
     );
-    const sources = analyzedSources.map((source) => ({ ...source, proof: signImportedSource(source) }));
+    const sources = analyzedSources.map((source) => ({ ...source, sourceId: importSourceId(source), proof: signImportedSource(source) }));
     const averageTrust = Math.round(sources.reduce((sum, source) => sum + source.trustScore, 0) / sources.length);
     const importLog = {
       id: cryptoRandomId(),
@@ -144,14 +171,8 @@ export const aiRoutes = [
       platforms: [...new Set(sources.map((source) => source.platform))],
       lowTrustCount: sources.filter((source) => source.trustScore < 45).length,
       createdAt: new Date().toISOString(),
-      sources: sources.map((source) => ({
-        url: source.url,
-        platform: source.platform,
-        status: source.status,
-        title: source.title,
-        trustScore: source.trustScore,
-        warnings: source.warnings?.slice(0, 3) ?? []
-      }))
+      // Retain the signed fields for later authorization/revocation checks.
+      sources
     };
     await appendJsonLine(IMPORT_LOG_PATH, importLog);
     return sendJson(res, 200, {

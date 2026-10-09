@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer as createNetServer } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hermeticServerEnv } from './lib/hermetic-env.mjs';
 
 const explicitBaseUrl = process.env.SMOKE_BASE_URL;
 const APP_ID = 'trusted-routebook';
@@ -18,6 +20,7 @@ const STARTUP_TIMEOUT_MS = Number(process.env.SMOKE_STARTUP_TIMEOUT_MS ?? 30000)
 const NOT_READY_GRACE_MS = Number(process.env.SMOKE_NOT_READY_GRACE_MS ?? 0);
 const SMOKE_PROFILE_ID = 'smoke-profile';
 const SMOKE_ADMIN_TOKEN = 'smoke-admin-token';
+const OFFLINE = process.env.SMOKE_OFFLINE === 'true';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -84,6 +87,7 @@ async function discoverBaseUrl(baseUrl, { child = null, childOutput = [], header
 }
 
 async function main() {
+  if (OFFLINE && explicitBaseUrl) throw new Error('SMOKE_OFFLINE requires a new isolated temp-data server; do not set SMOKE_BASE_URL.');
   if (explicitBaseUrl && !isLocalBaseUrl(explicitBaseUrl)) {
     throw new Error(
       'SMOKE_BASE_URL is mutating and only supports localhost/127.0.0.1 targets. Run npm run smoke:api without SMOKE_BASE_URL for isolated temp-data smoke.'
@@ -95,6 +99,7 @@ async function main() {
     );
   }
   let child = null;
+  let mockProvider = null;
   let dataDir = '';
   let activeBaseUrl = explicitBaseUrl;
   const childOutput = [];
@@ -103,10 +108,24 @@ async function main() {
     const smokePort = await findAvailablePort(SMOKE_PORT);
     const hmrPort = await findAvailablePort(Number(process.env.VITE_HMR_PORT ?? smokePort + 1000));
     activeBaseUrl = `http://127.0.0.1:${smokePort}`;
+    mockProvider = OFFLINE ? await startOfflineModel() : null;
+    const environment = mockProvider
+      ? hermeticServerEnv({
+          NODE_ENV: 'production',
+          AI_RUNTIME_FROM_CODEX: 'false',
+          OPENAI_BASE_URL: mockProvider.baseUrl,
+          OPENAI_API_KEY: 'offline-smoke-fake-key',
+          OPENAI_MODEL: 'offline-smoke-model',
+          OPENAI_WIRE_API: 'responses',
+          ALLOW_LOCAL_API_BYPASS: 'true',
+          AMAP_GEOCODE_KEY: '',
+          AMAP_ROUTING_KEY: ''
+        })
+      : process.env;
     child = spawn(process.execPath, ['server.mjs'], {
       cwd: fileURLToPath(new URL('..', import.meta.url)),
       env: {
-        ...process.env,
+        ...environment,
         PORT: String(smokePort),
         HOST: '127.0.0.1',
         ROUTEBOOK_DATA_DIR: dataDir,
@@ -138,7 +157,7 @@ async function main() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          urls: ['https://example.com/hangzhou-weekend-route']
+          urls: [OFFLINE ? 'http://127.0.0.1:9/smoke-blocked-source' : 'https://example.com/hangzhou-weekend-route']
         })
       });
       if (!importResponse.ok) throw new Error(`Import failed: ${JSON.stringify(importData)}`);
@@ -219,12 +238,12 @@ async function main() {
         throw new Error(`Routebook recalculation did not reflect edited stop: ${JSON.stringify(saveData.routebook.metrics)}`);
       }
 
-      const routeId = saveData.routebook.publicId;
-      const { response: draftShareResponse } = await fetchJson(`${baseUrl}/api/share/${encodeURIComponent(routeId)}`);
+      const importedRouteId = saveData.routebook.publicId;
+      const { response: draftShareResponse } = await fetchJson(`${baseUrl}/api/share/${encodeURIComponent(importedRouteId)}`);
       if (draftShareResponse.status !== 404) {
         throw new Error(`Draft share should be hidden, got HTTP ${draftShareResponse.status}`);
       }
-      const { response: publishResponse, data: publishData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/publish`, {
+      const { response: publishResponse, data: submittedData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(importedRouteId)}/publish`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -233,9 +252,69 @@ async function main() {
           expectedVersion: saveData.routebook.version
         })
       });
-      if (!publishResponse.ok || publishData.routebook?.publishStatus !== 'published') {
-        throw new Error(`Routebook publish failed: ${JSON.stringify(publishData)}`);
+      if (!publishResponse.ok || submittedData.routebook?.publishStatus !== 'pending_review' || submittedData.shareUrl) {
+        throw new Error(`Owner submission must remain private pending review: ${JSON.stringify(submittedData)}`);
       }
+      const { response: pendingShareResponse } = await fetchJson(`${baseUrl}/api/share/${encodeURIComponent(importedRouteId)}`);
+      if (pendingShareResponse.status !== 404) throw new Error('Pending-review routebook must not have a public share page');
+      const adminJsonHeaders = { 'content-type': 'application/json', 'x-routebook-admin-token': SMOKE_ADMIN_TOKEN };
+      const { response: sourceGateResponse, data: sourceGateData } = await fetchJson(
+        `${baseUrl}/api/routebooks/${encodeURIComponent(importedRouteId)}/status`,
+        {
+          method: 'POST',
+          headers: adminJsonHeaders,
+          body: JSON.stringify({
+            publishStatus: 'published',
+            expectedVersion: submittedData.routebook.version,
+            allowUnverifiedRouting: true,
+            routingOverrideReason: '隔离冒烟测试显式道路例外'
+          })
+        }
+      );
+      if (sourceGateResponse.status !== 409 || sourceGateData.code !== 'SOURCE_PUBLIC_AUTHORIZATION_REQUIRED')
+        throw new Error(`Unapproved sources must still block public status: ${JSON.stringify(sourceGateData)}`);
+
+      // Do not manufacture third-party publication rights to make smoke pass.
+      // A separate self-authored fixture covers the public/share/archive contract.
+      const { response: fixtureResponse, data: fixtureData } = await fetchJson(`${baseUrl}/api/routebooks`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          city: '成都',
+          title: 'Smoke 自有路线发布回归',
+          days: ['Day 1'],
+          importedSources: [],
+          stops: [
+            { id: 'smoke-renmin', day: 'Day 1', name: '人民公园', lat: 30.6586, lng: 104.0577, time: '10:00', stay: '30 分钟' },
+            { id: 'smoke-wuhou', day: 'Day 1', name: '武侯祠', lat: 30.6452, lng: 104.0478, time: '12:00', stay: '60 分钟' },
+            { id: 'smoke-jinli', day: 'Day 1', name: '锦里', lat: 30.6458, lng: 104.0495, time: '14:00', stay: '30 分钟' }
+          ]
+        })
+      });
+      if (!fixtureResponse.ok) throw new Error(`Public fixture save failed: ${JSON.stringify(fixtureData)}`);
+      const routeId = fixtureData.routebook.publicId;
+      const { response: fixtureSubmitResponse, data: fixtureSubmitData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/publish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ editToken: fixtureData.routebook.editToken, expectedVersion: fixtureData.routebook.version })
+      });
+      if (!fixtureSubmitResponse.ok || fixtureSubmitData.routebook?.publishStatus !== 'pending_review')
+        throw new Error(`Self-authored fixture submit failed: ${JSON.stringify(fixtureSubmitData)}`);
+      const statusPayload = { publishStatus: 'published', expectedVersion: fixtureSubmitData.routebook.version };
+      const { response: roadGateResponse, data: roadGateData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
+        method: 'POST',
+        headers: adminJsonHeaders,
+        body: JSON.stringify(statusPayload)
+      });
+      if (roadGateResponse.status !== 409 || roadGateData.code !== 'ROUTEBOOK_ROUTING_UNVERIFIED')
+        throw new Error(`Unverified roads must block default publication: ${JSON.stringify(roadGateData)}`);
+      const { response: approvedResponse, data: publishData } = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
+        method: 'POST',
+        headers: adminJsonHeaders,
+        body: JSON.stringify({ ...statusPayload, allowUnverifiedRouting: true, routingOverrideReason: '隔离冒烟测试自有路线显式道路例外' })
+      });
+      if (!approvedResponse.ok || publishData.routebook?.publishStatus !== 'published')
+        throw new Error(`Explicit admin publication failed: ${JSON.stringify(publishData)}`);
       const { response: shareResponse, data: shareData } = await fetchJson(`${baseUrl}/api/share/${encodeURIComponent(routeId)}`);
       if (!shareResponse.ok) throw new Error(`Share fetch failed: ${JSON.stringify(shareData)}`);
       if (shareData.routebook?.publicId !== routeId) {
@@ -296,6 +375,7 @@ async function main() {
         JSON.stringify(
           {
             ok: true,
+            offlineMock: OFFLINE,
             baseUrl,
             provider: health.provider,
             model: health.model,
@@ -311,6 +391,11 @@ async function main() {
             trustScore: data.trustScore,
             shareUrl: `/share/${routeId}`,
             draftShareHidden: true,
+            ownerSubmissionPendingReview: true,
+            pendingShareHidden: true,
+            unapprovedSourceBlocked: true,
+            unverifiedRoadBlocked: true,
+            explicitAdminRoutingOverride: true,
             archivedShareHidden: true,
             productConfigUpdatedAt,
             recalculatedTrustScore: saveData.routebook.trustScore
@@ -332,9 +417,58 @@ async function main() {
     }
     throw error;
   } finally {
-    if (child) child.kill('SIGTERM');
+    if (child) {
+      const exited = new Promise((resolve) => child.once('exit', resolve));
+      child.kill('SIGTERM');
+      await Promise.race([exited, sleep(3000)]);
+    }
     if (dataDir) await rm(dataDir, { recursive: true, force: true }).catch(() => {});
+    if (mockProvider) await mockProvider.close();
   }
+}
+
+async function startOfflineModel() {
+  const provider = createHttpServer(async (req, res) => {
+    for await (const _chunk of req) {
+      /* consume only the local test request */
+    }
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
+        output_text: JSON.stringify({
+          title: '成都离线冒烟测试路书',
+          city: '成都',
+          summary: '固定测试模型输出，不代表真实模型质量。',
+          days: ['Day 1', 'Day 2'],
+          stops: ['人民公园', '武侯祠', '锦里'].map((name, index) => ({
+            name,
+            day: 'Day 1',
+            time: `${10 + index * 2}:00`,
+            stay: '60 分钟',
+            cost: '免费',
+            area: '成都',
+            score: 75,
+            geoConfidence: 45,
+            lat: 30.66 - index * 0.005,
+            lng: 104.06,
+            coordinateSystem: 'WGS84'
+          })),
+          assets: [{ label: '固定测试站点', type: 'POI', confidence: 50 }],
+          logs: [{ stage: 'offline-fixture', input: '固定请求', result: '离线输出', status: '完成' }]
+        }),
+        usage: { input_tokens: 100, output_tokens: 100, total_tokens: 200 }
+      })
+    );
+  });
+  await new Promise((resolve) => provider.listen(0, '127.0.0.1', () => resolve(undefined)));
+  const address = /** @type {import('node:net').AddressInfo} */ (provider.address());
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    close: async () => {
+      provider.closeAllConnections();
+      await new Promise((resolve) => provider.close(resolve));
+    }
+  };
 }
 
 main().catch((error) => {

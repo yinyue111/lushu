@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="可信路书">
+  <rect width="192" height="192" rx="42" fill="#315f72"/>
+  <path d="M48 54 96 72l48-18v84l-48 18-48-18V54Z" fill="#f6f3ec" stroke="#f6f3ec" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M96 72v84M48 54v84M144 54v84" fill="none" stroke="#315f72" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M75 106c0-13 9-23 21-23s21 10 21 23c0 17-21 35-21 35s-21-18-21-35Z" fill="#e1784f"/>
+  <circle cx="96" cy="105" r="8" fill="#f6f3ec"/>
+</svg>

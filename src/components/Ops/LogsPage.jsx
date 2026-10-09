@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, AlertCircle } from 'lucide-react';
 import { getLogs } from '../../lib/api';
+import AiObservabilityPanel, { durationLabel } from './AiObservabilityPanel';
 
 const PIPELINE_STAGES = ['意图识别', 'POI 检索', '约束过滤', '路线编排', '可执行校验', '引用解释'];
 
@@ -9,6 +10,7 @@ const PIPELINE_STAGES = ['意图识别', 'POI 检索', '约束过滤', '路线�
 /** @param {{ routebook?: any, modelHealth?: any, embedded?: boolean }} props */
 export default function LogsPage({ routebook, modelHealth, embedded = false }) {
   const [serverLogs, setServerLogs] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
   const logs = routebook?.logs?.length ? routebook.logs : serverLogs.map(normalizeServerLog);
@@ -18,6 +20,7 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
     getLogs(50, ctrl.signal)
       .then((data) => {
         setServerLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setSummary(data?.summary ?? null);
         setStatus('ready');
       })
       .catch((err) => {
@@ -30,13 +33,14 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
 
   const core = (
     <>
+      <AiObservabilityPanel summary={summary} />
       {error && (
         <p className="text-caption" style={{ marginTop: 10, color: 'var(--orange)' }}>
           日志接口暂不可用：{error}
         </p>
       )}
 
-      {/* Pipeline */}
+      <p className="mt-4 text-xs text-muted">流程示意（实际阶段耗时和失败情况以上方记录为准）</p>
       <div className="pipeline" style={{ marginTop: embedded ? 0 : 32 }}>
         {PIPELINE_STAGES.map((stage, i) => (
           <div key={stage} className="card-flat pipeline-node">
@@ -64,6 +68,7 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
                     {log.stage}
                   </strong>
                   <p className="text-caption">{log.result}</p>
+                  {log.observability && <p className="mt-1 text-xs text-muted">{log.observability}</p>}
                 </div>
                 <span className={`badge ${log.status === '通过' ? 'badge-green' : 'badge-orange'}`}>
                   {log.status === '通过' ? <Check size={11} /> : <AlertCircle size={11} />}
@@ -132,6 +137,16 @@ function normalizeServerLog(log) {
       log.status === 'ok'
         ? `${log.outputTitle ?? '生成成功'} · ${log.stopCount ?? 0} 站 · 可信 ${log.trustScore ?? '-'}`
         : `生成失败 · ${log.code ?? 'MODEL_ERROR'} · ${log.requestId ?? ''}`,
-    status: log.status === 'ok' ? '通过' : '需复核'
+    status: log.status === 'ok' ? '通过' : '需复核',
+    observability: [
+      `耗时 ${durationLabel(log.durationMs)}`,
+      log.modelUsage?.totalTokens == null
+        ? 'Token 未上报'
+        : `${log.modelUsage.totalTokens} Tokens（${log.modelUsage.status === 'reported' ? '完整' : '部分'}）`,
+      log.costEstimate?.status === 'estimated' ? `估算 ${log.costEstimate.currency} ${log.costEstimate.amount}` : '费用不可用',
+      log.failureStage ? `失败阶段 ${log.failureStage}` : ''
+    ]
+      .filter(Boolean)
+      .join(' · ')
   };
 }

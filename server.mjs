@@ -16,6 +16,9 @@ import { assignRequestId } from './server/http/response.mjs';
 import { consumeRateLimit } from './server/http/rate-limit.mjs';
 import { matchShareLandingPath, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';
 import { handleApi } from './server/routes/index.mjs';
+import { initializeRuntimeStorage, closeRuntimeStorage } from './server/storage/runtime.mjs';
+import { installProfileWriteGuard } from './server/auth/profile-lifecycle.mjs';
+import { refreshPoiCatalog } from './server/poi/catalog.mjs';
 
 {
   const { errors, warnings } = evaluateStartupSafety({
@@ -32,7 +35,16 @@ import { handleApi } from './server/routes/index.mjs';
   if (errors.length) throw new Error(errors.join('\n'));
 }
 
-const vite = IS_PRODUCTION ? null : await createDevelopmentViteServer();
+await initializeRuntimeStorage();
+installProfileWriteGuard();
+let vite;
+try {
+  await refreshPoiCatalog({ force: true });
+  vite = IS_PRODUCTION ? null : await createDevelopmentViteServer();
+} catch (error) {
+  await closeRuntimeStorage();
+  throw error;
+}
 
 async function createDevelopmentViteServer() {
   const { createServer: createViteServer } = await import('vite');
@@ -137,6 +149,7 @@ function installGracefulShutdown(server) {
     forceTimer.unref();
     server.close(async () => {
       await vite?.close().catch(() => {});
+      await closeRuntimeStorage().catch((error) => console.error('[storage] shutdown failed', error.code ?? 'STORAGE_CLOSE_FAILED'));
       process.exit(0);
     });
     server.closeIdleConnections?.();

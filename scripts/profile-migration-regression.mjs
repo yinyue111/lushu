@@ -106,7 +106,7 @@ localStorage.setItem(
 );
 localStorage.setItem('trusted-routebook:favorites', JSON.stringify([{ id: 'f-legacy', profileId: previousId }]));
 
-const { createProfileSyncCode, parseProfileSyncCode } = await import('../src/lib/profile.js');
+const { parseProfileSyncCode } = await import('../src/lib/profile.js');
 const { adoptServerProfile } = await import('../src/lib/profileSync.js');
 const adoption = adoptServerProfile(
   {
@@ -157,7 +157,8 @@ assert.equal(migratedTripSession.routeId, 'route-1');
 assert.equal(migratedTripSession.stops.length, 2, '行中会话 stops 迁移后保持原样');
 assert.equal(JSON.parse(localStorage.getItem('trusted-routebook:profile:v1')).id, nextId);
 
-const syncCode = createProfileSyncCode(adoption.profile);
+// Existing v1 recovery codes remain readable; new issuance is server-only v2.
+const syncCode = `trb1_${Buffer.from(JSON.stringify({ version: 1, profileId: nextId, profileAccessToken: 'profile-token-1234567890' })).toString('base64url')}`;
 assert.match(syncCode, /^trb1_/);
 assert.deepEqual(parseProfileSyncCode(syncCode), {
   profileId: nextId,

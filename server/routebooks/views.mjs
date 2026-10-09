@@ -3,6 +3,7 @@ import { PUBLIC_ROUTE_STATUSES, PUBLIC_TRUST_SAMPLE_THRESHOLD, MAX_ROUTEBOOK_STO
 import { clampNumber, normalizeCityName, positiveInteger, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { normalizeCreator } from './normalize.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
+import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
 
 export function isPublicRoutebook(routebook) {
   return PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft');
@@ -42,6 +43,7 @@ export function publicRoutebookView(routebook) {
           .slice(0, 10)
       : [],
     stops: Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
+    routeLegs: publicRouteLegs(routebook),
     assets: Array.isArray(routebook.assets)
       ? routebook.assets.slice(0, 12).map((item) => ({
           label: truncateString(item?.label, 30),
@@ -64,7 +66,9 @@ export function publicRoutebookView(routebook) {
         }))
       : [],
     feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
-    variants: Array.isArray(routebook.variants) ? routebook.variants.slice(0, 8).map(publicRouteVariant) : [],
+    variants: Array.isArray(routebook.variants)
+      ? routebook.variants.slice(0, 8).map((variant) => publicRouteVariant({ ...variant, constraints: routebook.constraints }))
+      : [],
     activeVariantId: sanitizePublicId(routebook.activeVariantId),
     creator: publicCreatorView(routebook.creator),
     publishStatus: PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus) ? routebook.publishStatus : 'published',
@@ -103,16 +107,21 @@ export function publicRoutebookStop(stop = {}) {
     coordinatePrecision: truncateString(stop.coordinatePrecision, 40),
     coordinateRadiusMeters: stop.coordinateRadiusMeters == null ? null : clampNumber(stop.coordinateRadiusMeters, 0, 1000000, 0),
     navigationDisabled: stop.navigationDisabled === true,
+    transportMode: truncateString(stop.transportMode, 24),
     poiTrust,
     sourceEvidence: Array.isArray(stop.sourceEvidence)
-      ? stop.sourceEvidence.slice(0, 5).map((item) => ({
-          id: sanitizePublicId(item?.id),
-          type: truncateString(item?.type, 32),
-          label: truncateString(item?.label, 80),
-          platform: truncateString(item?.platform, 40),
-          trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 0),
-          checkedAt: truncateString(item?.checkedAt, 60)
-        }))
+      ? stop.sourceEvidence
+          .filter((item) => !item?.authorizationStatus || ['authorized-public', 'not-applicable'].includes(item.authorizationStatus))
+          .slice(0, 5)
+          .map((item) => ({
+            id: sanitizePublicId(item?.id),
+            sourceId: sanitizePublicId(item?.sourceId),
+            type: truncateString(item?.type, 32),
+            label: truncateString(item?.label, 80),
+            platform: truncateString(item?.platform, 40),
+            trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 0),
+            checkedAt: truncateString(item?.checkedAt, 60)
+          }))
       : [],
     facts: Array.isArray(stop.facts)
       ? stop.facts.slice(0, 8).map((item) => ({
@@ -142,6 +151,7 @@ function publicRouteVariant(variant = {}) {
           .slice(0, 10)
       : [],
     stops: Array.isArray(variant.stops) ? variant.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
+    routeLegs: publicRouteLegs(variant),
     trustScore: null,
     metrics: Array.isArray(variant.metrics)
       ? variant.metrics.slice(0, 10).map((item) => ({
@@ -160,6 +170,14 @@ function publicRouteVariant(variant = {}) {
     createdAt: truncateString(variant.createdAt, 60),
     updatedAt: truncateString(variant.updatedAt, 60)
   };
+}
+
+function publicRouteLegs(routebook) {
+  return normalizeStoredRouteLegs(routebook?.routeLegs, routebook?.stops, routebook?.constraints?.transport).map((leg) => {
+    const result = /** @type {Record<string, any>} */ ({ ...leg });
+    delete result.proof;
+    return result;
+  });
 }
 
 function publicCreatorView(creator = {}) {

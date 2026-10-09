@@ -1,6 +1,7 @@
 import { CalendarCheck, Copy, FileText, Link2, MousePointerClick, Navigation, TrendingUp } from 'lucide-react';
 import { getDashboard, getProductAnalytics } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, numberValue, useOpsResource } from './OpsShared';
+import { durationLabel } from './AiObservabilityPanel';
 
 export default function OpsOverview() {
   const dashboardResource = useOpsResource((signal) => getDashboard(1000, signal));
@@ -73,7 +74,7 @@ export default function OpsOverview() {
         <div className="ops-section-heading">
           <div>
             <h2 id="ops-overview-metrics-title">核心漏斗</h2>
-            <p>指标按身份与路书去重，无法读取时显示为未知。</p>
+            <p>原有漏斗基于各事件流最近 {dashboard?.metricDefinitions?.legacyCounters?.limit || 1000} 条记录，非固定日期全量；无法读取时显示未知。</p>
           </div>
           {dashboardResource.updatedAt && <span className="ops-updated-at">更新于 {formatOpsDate(dashboardResource.updatedAt)}</span>}
         </div>
@@ -96,6 +97,38 @@ export default function OpsOverview() {
             {travelDayDefinition.windowDaysAfter} 天。
           </p>
         )}
+      </section>
+
+      <section className="ops-panel" aria-labelledby="ops-retention-title">
+        <div className="ops-panel-head">
+          <div>
+            <h2 id="ops-retention-title">生成体验与留存 · 独立滚动口径</h2>
+            <p className="text-caption">
+              {formatOpsDate(dashboard?.metricDefinitions?.repeatGeneration?.window?.startAt)} 至{' '}
+              {formatOpsDate(dashboard?.metricDefinitions?.repeatGeneration?.window?.endAt)}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MetricTile
+            label="成功生成耗时 P50 / P95"
+            value={`${durationLabel(funnel?.generationLatencyMs?.p50)} / ${durationLabel(funnel?.generationLatencyMs?.p95)}`}
+            detail={`${numberValue(funnel?.generationLatencyMs?.sampleCount)} 个去重请求样本，缺失耗时不计入`}
+          />
+          <MetricTile
+            label="重复生成率"
+            value={rateValue(dashboardKnown, funnel?.repeatGenerationRate)}
+            detail={`${ratioText(dashboardKnown, funnel?.repeatGeneratorProfiles, funnel?.generatorProfiles, '人')}；30 天内至少生成 2 条不同路书`}
+          />
+          <MetricTile
+            label="7 日内回访率"
+            value={rateValue(dashboardKnown, funnel?.sevenDayReturnRate)}
+            detail={`${ratioText(dashboardKnown, funnel?.sevenDayReturnedProfiles, funnel?.eligibleSevenDayProfiles, '人')}；首次生成后 24 小时至 7 天回访，仅完整观察期`}
+          />
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          以上指标读取全部可用历史后按窗口与稳定身份去重，零分母显示 —。满意度与不可用投诉尚未接入前端采集，当前不展示虚假的 0%。
+        </p>
       </section>
 
       <section className="ops-panel" aria-labelledby="ops-activity-title">
@@ -145,6 +178,16 @@ export default function OpsOverview() {
 
 function rateValue(known, value) {
   return known && hasValue(value) && Number.isFinite(Number(value)) ? `${Number(value)}%` : '—';
+}
+
+function MetricTile({ label, value, detail }) {
+  return (
+    <div className="rounded-card border border-line p-3">
+      <p className="text-sm text-muted">{label}</p>
+      <strong className="mt-1 block text-xl">{value}</strong>
+      <p className="mt-2 text-xs text-muted">{detail}</p>
+    </div>
+  );
 }
 
 function ratioText(known, numerator, denominator, unit) {

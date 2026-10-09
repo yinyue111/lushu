@@ -1,8 +1,9 @@
 // Routebook, share, creator and favorite API routes.
 import { clampNumber, createHttpError, normalizeCityName, positiveInteger, safeDecodePathSegment, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { ALLOW_LOCAL_ADMIN_BYPASS, FAVORITE_LOG_PATH, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
-import { appendJsonLine, readJsonLines, readMatchingJsonLines, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
-import { cryptoRandomId, normalizeProfileId, safeTokenEqual, sanitizeEditToken } from '../auth/tokens.mjs';
+import { appendJsonLine, readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
+import { withStorageEntityLock } from '../storage/runtime.mjs';
+import { cryptoRandomId, normalizeProfileId, safeTokenEqual, sanitizeEditToken, hashSecretToken } from '../auth/tokens.mjs';
 import {
   hasAdminAccess,
   isLocalRequest,
@@ -24,7 +25,6 @@ import {
   copyRoutebook,
   ensureDraftEditToken,
   publishOwnRoutebook,
-  routebookMutationLocks,
   saveDraftRoutebook,
   saveRoutebookVariant,
   updateRoutebookStatus
@@ -61,7 +61,9 @@ export const routebookRoutes = [
     const publicList = !privilegedRead && allRequestedStatusesPublic && !profileId;
     return sendJson(res, 200, {
       ok: true,
-      routebooks: publicList ? enrichedRoutebooks.map(publicRoutebookView) : enrichedRoutebooks
+      routebooks: publicList
+        ? enrichedRoutebooks.map(publicRoutebookView)
+        : enrichedRoutebooks.map((routebook) => ({ ...routebook, ownerAccessVerified: Boolean(profileId) }))
     });
   }),
   route('GET', '/api/dashboard', async ({ req, res, url }) => {
@@ -85,7 +87,7 @@ export const routebookRoutes = [
     verifyAdminAccess(req);
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
-    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => updateRoutebookStatus(id, body));
+    const routebook = await withStorageEntityLock('routebook', id, () => updateRoutebookStatus(id, body));
     return sendJson(res, 200, {
       ok: true,
       routebook: await enrichRoutebook(routebook)
@@ -95,11 +97,14 @@ export const routebookRoutes = [
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
-    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => publishOwnRoutebook(id, body));
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const routebook = await withStorageEntityLock('routebook', id, () =>
+      publishOwnRoutebook(id, body, { verifiedProfileId: actor.verified ? actor.profileId : '' })
+    );
     return sendJson(res, 200, {
       ok: true,
       routebook: await enrichRoutebook(routebook),
-      shareUrl: `/share/${routebook.publicId}`
+      shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
     });
   }),
   route('POST', '/api/routebooks/:id/copy', async ({ req, res, params }) => {
@@ -107,7 +112,7 @@ export const routebookRoutes = [
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);
-    const routebook = await withSingleProcessKeyLock(routebookMutationLocks, id, () => copyRoutebook(id, { ...body, profileId: actor.profileId }));
+    const routebook = await withStorageEntityLock('routebook', id, () => copyRoutebook(id, { ...body, profileId: actor.profileId }));
     const enriched = await enrichRoutebook(routebook);
     return sendJson(res, 200, {
       ok: true,
@@ -165,20 +170,28 @@ export const routebookRoutes = [
     const requestedEditToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
     const storedEditToken = sanitizeEditToken(savedRoutebook.editToken);
     const editTokenRead = Boolean(
-      !privilegedRead && !ownerRead && requestedEditToken && storedEditToken && safeTokenEqual(requestedEditToken, storedEditToken)
+      !privilegedRead &&
+      !ownerRead &&
+      requestedEditToken &&
+      (savedRoutebook.editTokenHash
+        ? safeTokenEqual(hashSecretToken(requestedEditToken), savedRoutebook.editTokenHash)
+        : storedEditToken && safeTokenEqual(requestedEditToken, storedEditToken))
     );
     if (!privilegedRead && !ownerRead && !editTokenRead && !isPublicRoutebook(savedRoutebook)) {
       throw createHttpError('路书不存在或尚未公开发布', 404, 'ROUTEBOOK_NOT_FOUND');
     }
     const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
     const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
-    return sendJson(res, 200, { ok: true, routebook: privateRead ? routebook : publicRoutebookView(routebook) });
+    return sendJson(res, 200, { ok: true, routebook: privateRead ? { ...routebook, ownerAccessVerified: true } : publicRoutebookView(routebook) });
   }),
   route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
-    const result = await withSingleProcessKeyLock(routebookMutationLocks, id, () => saveRoutebookVariant(id, body));
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const result = await withStorageEntityLock('routebook', id, () =>
+      saveRoutebookVariant(id, body, { verifiedProfileId: actor.verified ? actor.profileId : '' })
+    );
     return sendJson(res, 200, {
       ok: true,
       routebook: await enrichRoutebook(result.routebook),
@@ -190,14 +203,14 @@ export const routebookRoutes = [
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);
     const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${/** @type {any} */ (req).requestId}`;
-    const { routebook, enriched } = await withSingleProcessKeyLock(routebookMutationLocks, lockKey, async () => {
-      const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId });
+    const { routebook, enriched } = await withStorageEntityLock('routebook', lockKey, async () => {
+      const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId }, { verifiedProfileId: actor.verified ? actor.profileId : '' });
       await appendVersionedRoutebook(savedRoutebook, savedRoutebook.parentVersion ? 'draft-saved' : 'created');
       return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook) };
     });
     return sendJson(res, 200, {
       ok: true,
-      routebook: enriched,
+      routebook: { ...enriched, ownerAccessVerified: actor.verified },
       shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
     });
   }),

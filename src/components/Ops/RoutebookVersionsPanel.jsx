@@ -4,9 +4,12 @@ import { curatedRoutes } from '../../lib/content';
 import { getRoutebookVersions, getRoutebooks, updateRoutebookStatus } from '../../lib/api';
 import { EmptyState, ResourceNotice, firstValue, formatApiError, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
 import { sourceAuthorizationLabel } from '../ui/labels';
+import { submitRoutebookStatusWithRoutingGate } from './routebookPublication';
+import { recheckRoutebookRouting } from '../../lib/routingApi';
 
 const ROUTE_STATUSES = [
   ['draft', '草稿'],
+  ['pending_review', '待审核'],
   ['published', '已发布'],
   ['featured', '精选'],
   ['archived', '已归档']
@@ -44,17 +47,27 @@ export default function RoutebookVersionsPanel() {
         const versionData = await getRoutebookVersions(id);
         version = versionData?.currentVersion;
       }
-      const data = await updateRoutebookStatus(id, {
-        publishStatus,
-        sourceAuthorization: routebook.sourceAuthorization || routebook.creator?.sourceAuthorization || 'user-generated',
-        creator: routebook.creator,
-        ...(hasValue(version) ? { expectedVersion: Number(version) } : {})
+      const result = await submitRoutebookStatusWithRoutingGate({
+        publicId: id,
+        routebookTitle: routebook.title,
+        request: updateRoutebookStatus,
+        payload: {
+          publishStatus,
+          sourceAuthorization: routebook.sourceAuthorization || routebook.creator?.sourceAuthorization || 'user-generated',
+          creator: routebook.creator,
+          ...(hasValue(version) ? { expectedVersion: Number(version) } : {})
+        }
       });
+      if (result.cancelled) {
+        setRowStates((previous) => ({ ...previous, [id]: { status: 'ready', error: null, message: '已取消例外发布，路书状态保持不变。' } }));
+        return;
+      }
+      const data = result.data;
       routebooksResource.replaceData((previous) => replaceRoutebook(previous, data.routebook));
       setRowStates((previous) => ({ ...previous, [id]: { status: 'ready', error: null, message: `已更新为${statusLabel(data.routebook?.publishStatus)}` } }));
       if (selectedId === id) versionsResource.retry();
     } catch (error) {
-      if (error?.status === 409) {
+      if (error?.status === 409 && ['VERSION_CONFLICT', 'ROUTEBOOK_VERSION_CONFLICT', 'EXPECTED_VERSION_REQUIRED'].includes(error?.code)) {
         routebooksResource.retry();
         if (selectedId === id) versionsResource.retry();
       }
@@ -63,9 +76,30 @@ export default function RoutebookVersionsPanel() {
         [id]: {
           status: 'error',
           error,
-          message: error?.status === 409 ? '版本已变化，已刷新后请重试。' : ''
+          message:
+            error?.status === 409 && ['VERSION_CONFLICT', 'ROUTEBOOK_VERSION_CONFLICT', 'EXPECTED_VERSION_REQUIRED'].includes(error?.code)
+              ? '版本已变化，已刷新后请重试。'
+              : ''
         }
       }));
+    }
+  }
+
+  async function recheckRouting(routebook) {
+    const id = routeId(routebook);
+    setRowStates((previous) => ({ ...previous, [id]: { status: 'loading', error: null, message: '' } }));
+    try {
+      const data = await recheckRoutebookRouting(id, routebook.version);
+      routebooksResource.replaceData((previous) => replaceRoutebook(previous, data.routebook));
+      const verified = data.routebook?.routeLegs?.filter((leg) => leg.status === 'verified').length ?? 0;
+      const count = data.routebook?.routeLegs?.length ?? 0;
+      setRowStates((previous) => ({
+        ...previous,
+        [id]: { status: 'ready', error: null, message: `道路核验完成：${verified}/${count} 段已核验；未核验段不会显示精确道路耗时。` }
+      }));
+      if (selectedId === id) versionsResource.retry();
+    } catch (error) {
+      setRowStates((previous) => ({ ...previous, [id]: { status: 'error', error, message: '' } }));
     }
   }
 
@@ -130,6 +164,14 @@ export default function RoutebookVersionsPanel() {
                       <td>
                         <button className="btn btn-secondary btn-sm" type="button" onClick={() => setSelectedId(id)} aria-pressed={selectedId === id}>
                           <History size={13} /> 版本
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          type="button"
+                          onClick={() => recheckRouting(routebook)}
+                          disabled={state.status === 'loading'}
+                        >
+                          核验道路
                         </button>
                       </td>
                     </tr>
@@ -203,6 +245,12 @@ export default function RoutebookVersionsPanel() {
                         </span>
                       </div>
                       <p>{changeSummary(version)}</p>
+                      {version.routingPublication?.overridden && (
+                        <p>
+                          道路例外发布：{version.routingPublication.reason}（核验 {version.routingPublication.routing?.verifiedLegs ?? 0}/
+                          {version.routingPublication.routing?.expectedLegs ?? 0} 段）
+                        </p>
+                      )}
                       <small>
                         {actorLabel(version.actor || version.createdBy || version.reviewer || version.actorType)} ·{' '}
                         {formatOpsDate(firstValue(version.eventAt, version.updatedAt, version.createdAt, version.recordedAt))}

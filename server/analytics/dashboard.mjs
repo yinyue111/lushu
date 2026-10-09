@@ -1,5 +1,5 @@
 // Ops dashboard, product analytics and creator profiles.
-import { countBy, maxIso, sanitizePublicId, intersectSets, percent } from '../lib/util.mjs';
+import { countBy, sanitizePublicId, intersectSets, percent } from '../lib/util.mjs';
 import {
   CLICK_LOG_PATH,
   EXPOSURE_LOG_PATH,
@@ -12,7 +12,7 @@ import {
   TRAVEL_DAY_WINDOW_DAYS,
   PUBLIC_ROUTE_STATUSES
 } from '../config/index.mjs';
-import { readJsonLines } from '../storage/jsonl.mjs';
+import { readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { normalizeTravelDate, normalizeCreator } from '../routebooks/normalize.mjs';
 import { isEligibleTrustCheckin, isTravelDateCheckin, isTravelDateEvent } from '../trust/checkins.mjs';
@@ -20,71 +20,42 @@ import { totalRoutebookCopyCount, routebookCopyCount } from '../routebooks/copie
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mjs';
 import { publicRoutebookView } from '../routebooks/views.mjs';
+import { calculateOperationalMetrics } from './operationalMetrics.mjs';
+import { applyCheckinOpsOverlay, buildOpsAuditContext } from '../ops/audit.mjs';
+import { buildProductFunnelAnalytics } from './productFunnel.mjs';
+
+async function buildOperationalMetrics(asOf) {
+  const since = asOf - 37 * 86400000;
+  const inWindow = (row) => {
+    const timestamp = Date.parse(row?.createdAt ?? '');
+    return Number.isFinite(timestamp) && timestamp >= since && timestamp <= asOf;
+  };
+  const [aiLogs, exposures, ...activityGroups] = await Promise.all([
+    readJsonLines(AI_LOG_PATH, Number.POSITIVE_INFINITY),
+    ...[EXPOSURE_LOG_PATH, CHECKIN_LOG_PATH, FAVORITE_LOG_PATH, REVIEW_LOG_PATH, IMPORT_LOG_PATH, CLICK_LOG_PATH].map((path) =>
+      readMatchingJsonLines(path, inWindow, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY)
+    )
+  ]);
+  const metrics = calculateOperationalMetrics({ aiLogs, exposures, activityRows: activityGroups.flat(), asOf });
+  // No end-user feedback control currently produces these events. A zero must
+  // not masquerade as "no complaints" when collection has not been implemented.
+  for (const metric of ['aiSatisfactionRate', 'unusableComplaintRate']) {
+    metrics.funnel[metric] = null;
+    metrics.funnel[`${metric}Status`] = 'not-instrumented';
+  }
+  metrics.metricDefinitions.aiSatisfaction.status = 'not-instrumented';
+  metrics.metricDefinitions.unusableComplaint.status = 'not-instrumented';
+  return metrics;
+}
 
 export async function buildProductAnalytics(limit = 500, profileId = '') {
-  const clicks = await readJsonLines(CLICK_LOG_PATH, Math.max(limit, 50));
-  const exposures = await readJsonLines(EXPOSURE_LOG_PATH, Math.max(limit * 2, 100));
-  const scopedClicks = profileId ? clicks.filter((click) => normalizeProfileId(click.profileId) === profileId) : clicks;
-  const scopedExposures = profileId ? exposures.filter((item) => normalizeProfileId(item.profileId) === profileId) : exposures;
-  const productExposures = scopedExposures.filter((item) => item.itemType === 'product' || item.productId);
-  const aggregate = (keyFn, labelFn) => {
-    const map = new Map();
-    for (const click of scopedClicks) {
-      const key = keyFn(click);
-      if (!key) continue;
-      const item = map.get(key) ?? { key, label: labelFn(click), count: 0 };
-      item.count += 1;
-      item.lastClickedAt = maxIso(item.lastClickedAt, click.createdAt);
-      map.set(key, item);
-    }
-    return [...map.values()].sort((a, b) => b.count - a.count || String(b.lastClickedAt ?? '').localeCompare(String(a.lastClickedAt ?? ''))).slice(0, 12);
-  };
-  const exposureByProduct = countBy(productExposures, (item) => item.productId || item.itemId);
-  const clickByProduct = countBy(scopedClicks, (item) => item.productId || item.productTitle);
-  const ctrByProduct = [...exposureByProduct.entries()]
-    .map(([key, exposureCount]) => ({
-      key,
-      label:
-        scopedExposures.find((item) => (item.productId || item.itemId) === key)?.productTitle ||
-        scopedClicks.find((item) => (item.productId || item.productTitle) === key)?.productTitle ||
-        key,
-      exposureCount,
-      clickCount: clickByProduct.get(key) ?? 0,
-      ctr: exposureCount ? Math.round(((clickByProduct.get(key) ?? 0) / exposureCount) * 1000) / 10 : 0
-    }))
-    .sort((a, b) => b.clickCount - a.clickCount || b.exposureCount - a.exposureCount)
-    .slice(0, 12);
-  return {
-    totalExposures: productExposures.length,
-    totalClicks: scopedClicks.length,
-    overallCtr: productExposures.length ? Math.round((scopedClicks.length / productExposures.length) * 1000) / 10 : null,
-    topProducts: aggregate(
-      (click) => click.productId || click.productTitle,
-      (click) => click.productTitle || '未知商品'
-    ),
-    ctrByProduct,
-    byProvider: aggregate(
-      (click) => click.provider,
-      (click) => click.provider || '未知供应商'
-    ),
-    byType: aggregate(
-      (click) => click.type,
-      (click) => click.type || '未知类型'
-    ),
-    byPoi: aggregate(
-      (click) => click.poi || click.stopName,
-      (click) => click.poi || click.stopName || '未知 POI'
-    ),
-    byRoute: aggregate(
-      (click) => click.routeId || click.routeTitle,
-      (click) => click.routeTitle || click.routeId || '未知路书'
-    ),
-    byProfile: aggregate(
-      (click) => (click.profileId && click.profileId !== 'anonymous' ? click.profileId : ''),
-      (click) => click.profileId
-    ),
-    recentClicks: scopedClicks.slice(0, 20)
-  };
+  // Both sides must use the same complete population; independent tail windows skew CTR.
+  void limit;
+  const [clicks, exposures] = await Promise.all([
+    readJsonLines(CLICK_LOG_PATH, Number.POSITIVE_INFINITY),
+    readJsonLines(EXPOSURE_LOG_PATH, Number.POSITIVE_INFINITY)
+  ]);
+  return buildProductFunnelAnalytics({ clicks, exposures, profileId });
 }
 
 function journeyKey(row = {}) {
@@ -136,7 +107,8 @@ function indexJourneyDatesByBase(dateKeys) {
 }
 
 export async function buildPlatformDashboard(limit = 1000) {
-  const [aiLogs, routebooks, checkins, favorites, reviews, imports, clicks, exposures] = await Promise.all([
+  const asOf = Date.now();
+  const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics] = await Promise.all([
     readJsonLines(AI_LOG_PATH, limit),
     listSavedRoutebooks(Math.min(limit, 500)),
     readJsonLines(CHECKIN_LOG_PATH, limit),
@@ -144,8 +116,11 @@ export async function buildPlatformDashboard(limit = 1000) {
     readJsonLines(REVIEW_LOG_PATH, limit),
     readJsonLines(IMPORT_LOG_PATH, limit),
     readJsonLines(CLICK_LOG_PATH, limit),
-    readJsonLines(EXPOSURE_LOG_PATH, limit)
+    readJsonLines(EXPOSURE_LOG_PATH, limit),
+    buildOpsAuditContext(),
+    buildOperationalMetrics(asOf)
   ]);
+  const checkins = rawCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext));
   const generatedOk = aiLogs.filter((item) => item.kind === 'generate-routebook' && item.status === 'ok').length;
   const generateAttempts = aiLogs.filter((item) => item.kind === 'generate-routebook').length;
   const generatedRouteIds = new Set(
@@ -243,11 +218,14 @@ export async function buildPlatformDashboard(limit = 1000) {
     legacyJourneyEventsMissingTravelDate,
     exposureCount: exposures.length,
     clickCount: clicks.length,
-    clickThroughRate: productAnalytics.overallCtr
+    clickThroughRate: productAnalytics.overallCtr,
+    ...operationalMetrics.funnel
   };
   return {
     funnel,
     metricDefinitions: {
+      ...operationalMetrics.metricDefinitions,
+      legacyCounters: { scope: 'recent-records', limit, note: '原有漏斗和商品 CTR 基于各事件流最近 N 条，非固定日期全量；新增运营指标单独标注滚动窗口和分母' },
       tripDayOpen: {
         numerator: '保存事件冻结的 profileId + routeId + travelDate，与同日期快照的 trip-open 关联，且打开时间在该日期前后 1 天',
         denominator: '保存事件中带有效 travelDate 快照的 profileId + routeId + travelDate 组合；缺失快照的历史事件不回填',
@@ -276,7 +254,7 @@ export async function buildPlatformDashboard(limit = 1000) {
 }
 
 function aggregateRoutebooksByCity(routebooks, checkins) {
-  const checkinsByCity = countBy(checkins, (item) => item.city);
+  const checkinsByCity = countBy(checkins.filter(isEligibleTrustCheckin), (item) => item.city);
   const map = new Map();
   for (const routebook of routebooks) {
     const city = routebook.city || '未知城市';
@@ -296,10 +274,7 @@ function aggregateRoutebooksByCity(routebooks, checkins) {
 }
 
 function aggregateCreators(routebooks, checkins = [], favorites = [], clicks = [], exposures = []) {
-  const validCheckinsByRoute = countBy(
-    checkins.filter((item) => item.arrival?.valid),
-    (item) => item.routeId || item.routeTitle
-  );
+  const validCheckinsByRoute = countBy(checkins.filter(isEligibleTrustCheckin), (item) => item.routeId || item.routeTitle);
   const favoritesByRoute = countBy(favorites, (item) => item.routeId || item.routeTitle);
   const clicksByCreator = countBy(clicks, (item) => item.creatorId);
   const map = new Map();

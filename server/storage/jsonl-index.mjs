@@ -8,6 +8,8 @@
 // or a new inode (rotation/replacement) triggers a rebuild. Lookups read exactly
 // one row from disk, so memory stays O(number of keys).
 import { open, stat } from 'node:fs/promises';
+import { usesPostgresStorage, getPostgresStorage } from './runtime.mjs';
+import { eventStreamNameForPath } from './contract.mjs';
 
 const NEWLINE = 0x0a;
 const CHUNK_BYTES = 1024 * 1024;
@@ -21,26 +23,27 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
   let state = null;
   /** @type {Promise<void> | null} */
   let syncing = null;
+  let revision = 0;
 
   async function syncOnce() {
-    let stats;
+    const startedRevision = revision;
+    let handle;
     try {
-      stats = await stat(filePath);
-    } catch {
-      state = null;
+      handle = await open(filePath, 'r');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      if (revision === startedRevision) state = null;
       return;
     }
-    if (!state || state.ino !== stats.ino || stats.size < state.indexedBytes) {
-      state = { ino: stats.ino, indexedBytes: 0, readBytes: 0, offsets: new Map() };
-    }
-    const targetSize = stats.size;
-    if (state.indexedBytes >= targetSize) {
-      state.readBytes = targetSize;
-      return;
-    }
-    const handle = await open(filePath, 'r');
     try {
-      let position = state.indexedBytes;
+      // Bind offsets to the opened inode, not a path stat that can race rename.
+      // Accumulate changes locally so another reader/reset cannot invalidate an
+      // in-progress build or observe its partially populated index.
+      const stats = await handle.stat();
+      const previous = state?.ino === stats.ino && stats.size >= state.indexedBytes ? state : null;
+      const targetSize = stats.size;
+      const updates = new Map();
+      let position = previous?.indexedBytes ?? 0;
       let pending = Buffer.alloc(0);
       let pendingStart = position;
       while (position < targetSize) {
@@ -52,7 +55,7 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
         const data = pending.length ? Buffer.concat([pending, buffer.subarray(0, bytesRead)]) : buffer.subarray(0, bytesRead);
         let lineStart = 0;
         for (let index = data.indexOf(NEWLINE); index !== -1; index = data.indexOf(NEWLINE, lineStart)) {
-          indexLine(data, lineStart, index, pendingStart + lineStart);
+          indexLine(updates, data, lineStart, index, pendingStart + lineStart);
           lineStart = index + 1;
         }
         pendingStart += lineStart;
@@ -60,14 +63,20 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
       }
       // Only complete (newline-terminated) rows are indexed; a partially written
       // tail is re-read on the next sync.
-      state.indexedBytes = pendingStart;
-      state.readBytes = targetSize;
+      const current = await stat(filePath).catch((error) => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (revision !== startedRevision || !current || current.ino !== stats.ino || current.size < targetSize) return;
+      const offsets = previous?.offsets ?? new Map();
+      for (const [key, entry] of updates) offsets.set(key, entry);
+      state = { ino: stats.ino, indexedBytes: pendingStart, readBytes: targetSize, offsets };
     } finally {
       await handle.close();
     }
   }
 
-  function indexLine(buffer, start, end, absoluteOffset) {
+  function indexLine(offsets, buffer, start, end, absoluteOffset) {
     const text = buffer.subarray(start, end).toString('utf8').trim();
     if (!text) return;
     let row;
@@ -77,28 +86,29 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
       return; // corrupted historical row: same as the reverse scanners, skip it
     }
     const key = keyFn(row);
-    if (key) state?.offsets.set(String(key), { offset: absoluteOffset, length: end - start });
+    if (key) offsets.set(String(key), { offset: absoluteOffset, length: end - start });
   }
 
   /** Brings the index up to at least the file size observed when called. */
   async function ensureSynced() {
-    let targetSize = 0;
-    try {
-      targetSize = (await stat(filePath)).size;
-    } catch {
-      state = null;
-      return;
-    }
     // A sync that started before our caller's append may finish short of the new
-    // size; loop so callers always read their own writes.
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      if (state && state.readBytes >= targetSize) return;
+    // size or index the pre-rewrite inode. Recheck the path after every wait.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      let stats;
+      try {
+        stats = await stat(filePath);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        state = null;
+        return false;
+      }
+      if (state?.ino === stats.ino && stats.size >= state.indexedBytes && state.readBytes >= stats.size) return true;
       syncing ??= syncOnce().finally(() => {
         syncing = null;
       });
       await syncing;
-      if (!state) return;
     }
+    return false;
   }
 
   return {
@@ -108,40 +118,44 @@ export function createJsonlKeyIndex({ filePath, keyFn }) {
      */
     async get(key) {
       if (!key) return null;
-      await ensureSynced();
-      const entry = state?.offsets.get(String(key));
-      if (!entry) return null;
-      const handle = await open(filePath, 'r');
-      try {
-        const buffer = Buffer.alloc(entry.length);
-        await handle.read(buffer, 0, entry.length, entry.offset);
-        const row = JSON.parse(buffer.toString('utf8').trim());
-        if (keyFn(row) === String(key)) return row;
-      } catch {
-        // fall through to rebuild
-      } finally {
-        await handle.close();
+      if (usesPostgresStorage()) return getPostgresStorage().findLatestJsonLine(eventStreamNameForPath(filePath), (row) => keyFn(row) === String(key));
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (!(await ensureSynced())) return null;
+        const snapshot = state;
+        const entry = snapshot?.offsets.get(String(key));
+        if (!entry) return null;
+        const handle = await open(filePath, 'r').catch((error) => {
+          if (error.code === 'ENOENT') return null;
+          throw error;
+        });
+        if (!handle) return null;
+        try {
+          const opened = await handle.stat();
+          if (opened.ino === snapshot.ino && opened.size >= snapshot.indexedBytes) {
+            const buffer = Buffer.alloc(entry.length);
+            const { bytesRead } = await handle.read(buffer, 0, entry.length, entry.offset);
+            if (bytesRead === entry.length) {
+              const row = JSON.parse(buffer.toString('utf8').trim());
+              const current = await stat(filePath);
+              if (current.ino === opened.ino && current.size >= snapshot.indexedBytes && keyFn(row) === String(key)) return row;
+            }
+          }
+        } catch {
+          // The file changed underneath us; rebuild against its current inode.
+        } finally {
+          await handle.close();
+        }
+        if (state === snapshot) {
+          state = null;
+          revision += 1;
+        }
       }
-      // The file changed underneath us in a way the size/inode check missed.
-      state = null;
-      await ensureSynced();
-      const retry = state?.offsets.get(String(key));
-      if (!retry) return null;
-      const again = await open(filePath, 'r');
-      try {
-        const buffer = Buffer.alloc(retry.length);
-        await again.read(buffer, 0, retry.length, retry.offset);
-        const row = JSON.parse(buffer.toString('utf8').trim());
-        return keyFn(row) === String(key) ? row : null;
-      } catch {
-        return null;
-      } finally {
-        await again.close();
-      }
+      return null;
     },
     /** Forces a full rebuild on the next lookup. */
     reset() {
       state = null;
+      revision += 1;
     },
     stats() {
       return { keys: state?.offsets.size ?? 0, indexedBytes: state?.indexedBytes ?? 0 };

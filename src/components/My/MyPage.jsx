@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
 import { getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
-import { flushAllCheckinQueues } from '../../lib/checkinQueue';
+import { flushAllCheckinQueues, pauseCheckinQueue } from '../../lib/checkinQueue';
 import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
-import { createProfileSyncCode, getProfile, parseProfileSyncCode, updateProfile } from '../../lib/profile';
+import { getProfile, hasProfileCloudRegistrationConsent, parseProfileSyncCode, resetProfile, updateProfile } from '../../lib/profile';
+import { deleteProfileRemote, exportProfileData, issueRecoveryCode, logoutProfileRemote } from '../../lib/profileApi';
+import { clearLocalProfileData, stripLocalExportSecrets } from '../../lib/profileData';
 import { adoptServerProfile } from '../../lib/profileSync';
 import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
@@ -126,6 +128,11 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     event.preventDefault();
     const next = updateProfile(profile);
     setProfile(next);
+    if (!hasProfileCloudRegistrationConsent(next)) {
+      setProfileMessage('偏好已保存在本机，未上传到云端');
+      onProfileChanged?.(next);
+      return;
+    }
     setProfileMessage('保存中...');
     try {
       const data = await saveProfile(next);
@@ -151,14 +158,15 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         setProfile(activeProfile);
         onProfileChanged?.(activeProfile);
       }
-      const code = createProfileSyncCode(activeProfile);
+      const issued = await issueRecoveryCode(activeProfile.id);
+      const code = issued.recoveryCode;
       setSyncCode(code);
       if (copy) {
         if (!navigator.clipboard?.writeText) throw new Error('浏览器未开放剪贴板权限');
         await navigator.clipboard.writeText(code);
         setProfileMessage('恢复码已复制，请只保存到自己的密码管理器或私密设备');
       } else {
-        setProfileMessage('恢复码已生成');
+        setProfileMessage('一次性恢复码已生成，有效期 7 天；恢复成功后旧设备凭据会失效');
       }
     } catch (err) {
       setProfileMessage(`恢复码生成失败：${err.message}`);
@@ -175,18 +183,71 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       const data = await saveProfile({
         id: credentials.profileId,
         profileId: credentials.profileId,
-        profileAccessToken: credentials.profileAccessToken
+        ...credentials
       });
       const adoption = adoptServerProfile({ ...data.profile, previousLocalId: profile.id }, profile);
       const next = adoption.profile;
       setProfile(next);
-      setSyncCode(createProfileSyncCode(next));
+      setSyncCode('');
       setRecoveryCode('');
       onProfileChanged?.(next);
       setProfileMessage(`账号已恢复${adoption.migratedCount ? `，并迁移 ${adoption.migratedCount} 条本机资产` : ''}`);
     } catch (err) {
       setProfileMessage(`账号恢复失败：${err.message}`);
     } finally {
+      setSyncBusy(false);
+    }
+  }
+
+  async function exportAccount() {
+    setSyncBusy(true);
+    try {
+      const cloud = profile.profileAccessToken ? (await exportProfileData(profile.id)).export : null;
+      const payload = stripLocalExportSecrets({
+        exportedAt: new Date().toISOString(),
+        cloud,
+        local: { profile, routebooks: localBooks, checkins: localCheckins, clicks: localClicks, favorites: localFavorites }
+      });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `路书个人资料-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setProfileMessage('个人资料已导出，请妥善保管其中的行程和照片');
+    } catch (err) {
+      setProfileMessage(`导出失败：${err.message}`);
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
+  async function endAccount(action) {
+    const deleting = action === 'delete';
+    if (deleting && window.prompt('将永久删除云端账号、路书、打卡、照片及本机副本。建议先导出。请输入 DELETE 确认：') !== 'DELETE') return;
+    if (!deleting && !window.confirm('将撤销云端访问凭据并清除本机资料。再次访问需重新验证绑定身份，确认退出？')) return;
+    setSyncBusy(true);
+    let resumeQueue;
+    try {
+      resumeQueue = await pauseCheckinQueue();
+      if (profile.profileAccessToken) {
+        if (deleting) await deleteProfileRemote(profile.id, 'DELETE');
+        else await logoutProfileRemote(profile.id);
+      }
+      clearLocalProfileData(profile.id);
+      const fresh = resetProfile();
+      setProfile(fresh);
+      setServerData({ routebooks: [], checkins: [], clicks: [], favorites: [] });
+      setSyncCode('');
+      setRecoveryCode('');
+      setLocalDataVersion((value) => value + 1);
+      onProfileChanged?.(fresh);
+      onLocalBooksChanged?.();
+      setProfileMessage(deleting ? '账号及本机资料已删除；备份副本按运营保留策略处理' : '已退出，云端访问凭据已撤销');
+    } catch (err) {
+      setProfileMessage(`${deleting ? '注销' : '退出'}未完成：${err.message}`);
+    } finally {
+      resumeQueue?.();
       setSyncBusy(false);
     }
   }
@@ -460,6 +521,9 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             onSave={handleProfileSave}
             onPrepareSyncCode={prepareSyncCode}
             onRecover={recoverProfile}
+            onExport={exportAccount}
+            onLogout={() => endAccount('logout')}
+            onDelete={() => endAccount('delete')}
             onOpenCreator={onOpenCreator}
           />
         </Tabs.Content>

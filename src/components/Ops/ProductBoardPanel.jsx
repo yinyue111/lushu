@@ -9,7 +9,7 @@ export default function ProductBoardPanel() {
   const analytics = analyticsResource.data?.analytics ?? null;
   const analyticsReady = analyticsResource.status === 'ready' || analyticsResource.status === 'empty' || analyticsResource.status === 'refreshing';
   const ctrRows = asArray(analytics?.ctrByProduct);
-  const recentClicks = asArray(analytics?.recentClicks);
+  const recentClicks = asArray(analytics?.rawRecentClicks);
 
   return (
     <div className="ops-workspace-stack">
@@ -17,7 +17,7 @@ export default function ProductBoardPanel() {
         <div className="ops-section-heading">
           <div>
             <h2 id="product-board-title">OTA 商品点击看板</h2>
-            <p>商品曝光、点击与 CTR，全部来自真实归因日志。</p>
+            <p>CTR 只统计能与同会话曝光严格匹配的点击；原始及历史未归因流水单独保留。</p>
           </div>
           <button className="btn btn-secondary btn-sm" type="button" onClick={analyticsResource.retry} disabled={analyticsResource.status === 'loading'}>
             <RefreshCw size={14} /> 刷新
@@ -25,9 +25,32 @@ export default function ProductBoardPanel() {
         </div>
         <ResourceNotice resource={analyticsResource} label="商品分析" />
         <div className="stats-grid ops-content-stats">
-          <BoardStat label="商品曝光" value={numberValue(analytics?.totalExposures)} />
-          <BoardStat label="商品点击" value={numberValue(analytics?.totalClicks)} />
-          <BoardStat label="整体 CTR" value={overallCtrDisplay(analytics, ctrRows)} />
+          <BoardStat label="可归因曝光" value={numberValue(analytics?.totalExposures)} />
+          <BoardStat label="去重归因点击" value={numberValue(analytics?.totalClicks)} />
+          <BoardStat label="匹配 CTR" value={overallCtrDisplay(analytics)} />
+          <BoardStat label="原始点击" value={numberValue(analytics?.rawClickCount)} />
+          <BoardStat label="未归因点击" value={numberValue(analytics?.unattributedClickCount)} />
+          <BoardStat label="历史重复点击" value={numberValue(analytics?.duplicateClickCount)} />
+        </div>
+        {analytics && (
+          <p className="text-caption">
+            {analytics.metricDefinition} 统计范围：全部已持久化事件；原始曝光 {numberValue(analytics.rawExposureCount)} 条，其中{' '}
+            {numberValue(analytics.unattributedExposureCount)} 条缺少关联凭据。
+          </p>
+        )}
+      </section>
+
+      <section className="ops-panel" aria-labelledby="product-funnel-title">
+        <div className="ops-panel-head">
+          <div>
+            <h2 id="product-funnel-title">商品归因漏斗</h2>
+            <p className="text-caption">每个曝光标识最多计一次点击，按 POI、路线、达人定位转化差异。</p>
+          </div>
+        </div>
+        <div className="stats-grid ops-metric-grid">
+          <FunnelTable title="按 POI" rows={asArray(analytics?.funnelByPoi)} />
+          <FunnelTable title="按路线" rows={asArray(analytics?.funnelByRoute)} />
+          <FunnelTable title="按达人" rows={asArray(analytics?.funnelByCreator)} />
         </div>
       </section>
 
@@ -90,7 +113,7 @@ export default function ProductBoardPanel() {
         <div className="ops-panel-head">
           <div>
             <h2 id="product-recent-title">最近点击流水</h2>
-            <p className="text-caption">最近 20 条点击归因，含种子商品兜底点击标注</p>
+            <p className="text-caption">最近 20 条原始流水，未归因数据不进入 CTR</p>
           </div>
           <span className="badge badge-blue">
             <MousePointerClick size={12} /> {analytics ? `${recentClicks.length} 条` : '—'}
@@ -105,6 +128,7 @@ export default function ProductBoardPanel() {
                   <th>商品</th>
                   <th>路线</th>
                   <th>来源</th>
+                  <th>归因状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,6 +144,7 @@ export default function ProductBoardPanel() {
                       {textValue(firstValue(click.source, click.sourcePosition))}
                       {click.sourcePosition && click.source ? ` · ${click.sourcePosition}` : ''}
                     </td>
+                    <td>{click.attributionStatus === 'attributed' ? '已匹配曝光' : click.attributionStatus === 'duplicate' ? '重复，未计入CTR' : '未归因'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -146,26 +171,41 @@ function isSeedFallbackClick(click) {
   return productId.startsWith('seed-product') || productId.startsWith('seed-');
 }
 
-// 整体 CTR 展示口径：服务端 overallCtr 的分子含 seed 兜底/未知来源点击（这类点击
-// 没有对应的商品曝光记录），会把 CTR 推过 100%。这里优先用 ctrByProduct（按曝光过
-// 的商品聚合，分子天然只含与商品曝光同源、即 route/poi 商品位产生的点击）重算整体
-// CTR；聚合缺失时退回服务端 overallCtr。显示值 clamp 到 0–100%，商品曝光为 0 时显示 —。
-function overallCtrDisplay(analytics, ctrRows) {
-  const exposures = Number(analytics?.totalExposures);
-  if (!Number.isFinite(exposures) || exposures <= 0) return '—';
-  let ratio = null;
-  if (ctrRows.length) {
-    const sameOriginClicks = ctrRows.reduce((sum, row) => {
-      const count = Number(row?.clickCount);
-      return sum + (Number.isFinite(count) && count > 0 ? count : 0);
-    }, 0);
-    ratio = (sameOriginClicks / exposures) * 100;
-  } else if (hasValue(analytics?.overallCtr) && Number.isFinite(Number(analytics.overallCtr))) {
-    ratio = Number(analytics.overallCtr);
-  }
-  if (ratio == null || !Number.isFinite(ratio)) return '—';
-  const clamped = Math.min(100, Math.max(0, ratio));
-  return `${Math.round(clamped * 10) / 10}%`;
+function overallCtrDisplay(analytics) {
+  const value = analytics?.overallCtr;
+  return value != null && Number.isFinite(Number(value)) ? String(value) + '%' : '—';
+}
+
+function FunnelTable({ title, rows }) {
+  return (
+    <div className="card-flat p-3">
+      <h3 className="mb-2 text-sm font-bold">{title}</h3>
+      {rows.length ? (
+        <table className="ops-data-table">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>曝光</th>
+              <th>点击</th>
+              <th>CTR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{row.label}</td>
+                <td>{row.exposureCount}</td>
+                <td>{row.clickCount}</td>
+                <td>{row.ctr}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-caption">暂无可归因曝光。</p>
+      )}
+    </div>
+  );
 }
 
 function BoardStat({ label, value }) {

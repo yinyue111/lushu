@@ -3,9 +3,11 @@ import { access, mkdir } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { DATA_DIR, APP_ID } from '../config/index.mjs';
 import { loadCodexRuntime } from '../ai/generate.mjs';
+import { usesPostgresStorage, getPostgresStorage } from '../storage/runtime.mjs';
 
 async function checkStorageReadiness() {
   try {
+    if (usesPostgresStorage()) return await getPostgresStorage().checkReadiness();
     await mkdir(DATA_DIR, { recursive: true });
     await access(DATA_DIR, fsConstants.R_OK | fsConstants.W_OK);
     return { ready: true, code: 'READY' };

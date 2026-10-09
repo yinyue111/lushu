@@ -1,23 +1,28 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, rm, lstat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
 import {
   CHECKIN_PHOTO_ID_PATTERN,
+  CHECKIN_LOG_PATH,
   CHECKIN_PHOTO_GPS_MATCH_METERS,
   CHECKIN_PHOTO_DIR,
   CHECKIN_PHOTO_LOG_PATH,
   CHECKIN_PHOTO_QUOTA_MAX,
   CHECKIN_PHOTO_QUOTA_WINDOW_MS,
-  MAX_CHECKIN_PHOTO_BYTES,
-  CHECKIN_PHOTO_EXTENSIONS
+  MAX_CHECKIN_PHOTO_BYTES
 } from '../config/index.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { distanceMeters, isValidCoordinate, sanitizePublicId, truncateString, createHttpError } from '../lib/util.mjs';
-import { appendJsonLine, findLatestJsonLine, readMatchingJsonLines } from '../storage/jsonl.mjs';
+import { appendJsonLine, findLatestJsonLine, readLatestUniqueJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { checkinPhotoExtension, detectImageMimeType, extractJpegExif, stripImageMetadata } from './image-metadata.mjs';
 import { requestIdHeaders, securityHeaders } from '../http/response.mjs';
+import { getSavedProfile } from '../storage/records.mjs';
+import { verifyProfileReadAccess } from '../auth/request-access.mjs';
+import { isUnavailableProfile, withActiveProfileMutation, withProfileMutationLock } from '../auth/profile-lifecycle.mjs';
+import { isPublicRoutebook } from '../routebooks/views.mjs';
+import { applyCheckinOpsOverlay, buildOpsAuditContext } from '../ops/audit.mjs';
+import { readCheckinPhotoContent } from './photo-content.mjs';
 
 // rank13：photoId 只放行 [A-Za-z0-9_-]{1,64}，其余一律置空。
 export function normalizeCheckinPhotoId(value) {
@@ -65,6 +70,10 @@ async function checkinPhotoResponse(row, deduplicated) {
 // rank13①：解码校验（大小/魔数）→ (profileId, routeId, clientLocalId) 幂等反扫
 // → 24 小时配额 → JPEG 提取 EXIF → 三格式元数据剥离（失败拒收）→ 落盘 + JSONL。
 export async function storeCheckinPhoto(body, actor) {
+  return withActiveProfileMutation(actor.profileId, () => storeCheckinPhotoLocked(body, actor));
+}
+
+async function storeCheckinPhotoLocked(body, actor) {
   const routeId = sanitizePublicId(body?.routeId || body?.publicId);
   const stopId = truncateString(body?.stopId, 80);
   const clientLocalId = truncateString(body?.clientLocalId, 120);
@@ -111,8 +120,10 @@ export async function storeCheckinPhoto(body, actor) {
     throw createHttpError('照片结构异常，无法安全剥离元数据，已拒绝存储', 400, 'PHOTO_INVALID');
   }
   const id = createCheckinPhotoId();
-  await mkdir(CHECKIN_PHOTO_DIR, { recursive: true });
-  await writeFile(join(CHECKIN_PHOTO_DIR, `${id}${checkinPhotoExtension(mimeType)}`), stored);
+  await mkdir(CHECKIN_PHOTO_DIR, { recursive: true, mode: 0o700 });
+  if ((await lstat(CHECKIN_PHOTO_DIR)).isSymbolicLink()) throw createHttpError('照片存储路径异常', 503, 'PHOTO_STORAGE_UNSAFE');
+  const photoPath = join(CHECKIN_PHOTO_DIR, `${id}${checkinPhotoExtension(mimeType)}`);
+  await writeFile(photoPath, stored, { flag: 'wx', mode: 0o600 });
   const row = {
     id,
     profileId: actor.profileId,
@@ -124,24 +135,58 @@ export async function storeCheckinPhoto(body, actor) {
     exif: exif ? { takenAt: exif.takenAt || '', lat: exif.lat, lng: exif.lng } : null,
     createdAt: new Date().toISOString()
   };
-  await appendJsonLine(CHECKIN_PHOTO_LOG_PATH, row);
+  try {
+    await appendJsonLine(CHECKIN_PHOTO_LOG_PATH, row, { profileMutationLocked: true });
+  } catch (error) {
+    await rm(photoPath, { force: true });
+    throw error;
+  }
   return checkinPhotoResponse(row, false);
 }
 
-export async function sendCheckinPhotoFile(res, photoId) {
-  for (const [mimeType, extension] of CHECKIN_PHOTO_EXTENSIONS) {
-    const filePath = join(CHECKIN_PHOTO_DIR, `${photoId}${extension}`);
-    if (!existsSync(filePath)) continue;
-    const bodyBuffer = await readFile(filePath);
+async function photoHasPublicWitness(photo) {
+  const routeId = sanitizePublicId(photo.routeId);
+  if (!routeId || !isPublicRoutebook(await getResolvableRoutebook(routeId))) return false;
+  const context = await buildOpsAuditContext();
+  const witnesses = await readLatestUniqueJsonLines(
+    CHECKIN_LOG_PATH,
+    (row) => sanitizePublicId(row?.id),
+    1,
+    Infinity,
+    (row) =>
+      row?.photoId === photo.id &&
+      row?.profileId === photo.profileId &&
+      sanitizePublicId(row?.routeId) === routeId &&
+      !row.deleted &&
+      !row.deletedAt &&
+      !row.tombstone &&
+      !applyCheckinOpsOverlay(row, context).opsDisposition.excluded
+  );
+  return witnesses.length > 0;
+}
+
+export async function sendCheckinPhotoFile(req, res, photoId) {
+  const initial = await findLatestJsonLine(CHECKIN_PHOTO_LOG_PATH, (row) => row?.id === photoId, Infinity);
+  if (!initial || initial.tombstone || initial.deletedAt || initial.deleted) return false;
+  return withProfileMutationLock(initial.profileId, async () => {
+    // Re-read metadata under the same owner lock used by deletion/upload. The
+    // delete endpoint cannot finish while this authorised response is reading.
+    const photo = await findLatestJsonLine(CHECKIN_PHOTO_LOG_PATH, (row) => row?.id === photoId, Infinity);
+    if (!photo || photo.tombstone || photo.deletedAt || photo.deleted || photo.profileId !== initial.profileId) return false;
+    const profile = await getSavedProfile(photo.profileId);
+    if (!profile || isUnavailableProfile(profile)) return false;
+    if (!(await verifyProfileReadAccess(req, photo.profileId)) && !(await photoHasPublicWitness(photo))) return false;
+    const content = await readCheckinPhotoContent(photoId);
+    if (!content) return false;
+    const { bodyBuffer, mimeType } = content;
     res.writeHead(200, {
       ...securityHeaders(),
       ...requestIdHeaders(res),
       'content-type': mimeType,
       'content-length': bodyBuffer.length,
-      'cache-control': 'public, max-age=31536000, immutable'
+      'cache-control': 'private, no-store'
     });
     res.end(bodyBuffer);
     return true;
-  }
-  return false;
+  });
 }

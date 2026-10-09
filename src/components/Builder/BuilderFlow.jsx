@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from 'lucide-react';
-import { analyzeGuideImages, generateRoutebook, getApiToken, getCities, importGuide, saveProfile, setApiToken } from '../../lib/api';
+import { analyzeGuideImages, checkHealth, generateRoutebook, getApiToken, getCities, importGuide, saveProfile, setApiToken } from '../../lib/api';
 import { trustedCities } from '../../lib/content';
 import { createRouteEditToken, getProfile, profileRoutebookFields, updateProfile } from '../../lib/profile';
 import { adoptServerProfile } from '../../lib/profileSync';
@@ -31,11 +31,14 @@ const builderStepLabels = ['选择目的地', '导入攻略与收藏', '设置�
 const BUILDER_DRAFT_PREFIX = 'trusted-routebook:builder-draft:v1';
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 
-/** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onBack?: Function }} props */
+/** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onModelHealth?: Function, onBack?: Function }} props */
 /** @param {Record<string, any>} props */
-export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onBack }) {
+export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onModelHealth, onBack }) {
   const [profile, setProfile] = useState(() => getProfile());
-  const [initialDraft] = useState(() => (hasBuilderDefaults(defaults) ? null : readBuilderDraft(profile.id)));
+  const [savedDraft] = useState(() => readBuilderDraft(profile.id));
+  const hasPendingDraft = hasBuilderDefaults(defaults) && Boolean(savedDraft);
+  const [draftResolution, setDraftResolution] = useState(() => (hasPendingDraft ? 'pending' : 'resolved'));
+  const initialDraft = hasBuilderDefaults(defaults) ? null : savedDraft;
   const [apiTokenInput, setApiTokenInput] = useState(() => getApiToken());
   const [step, setStep] = useState(() => Math.min(2, Math.max(0, Number(defaults.initialStep ?? initialDraft?.step) || 0)));
   const initialConstraints = useMemo(
@@ -73,9 +76,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [candidatePlaces, setCandidatePlaces] = useState(initialDraft?.candidatePlaces ?? []);
   const [manualPlace, setManualPlace] = useState(initialDraft?.manualPlace ?? '');
   const mountedRef = useRef(true);
+  const guideRef = useRef(defaults.guide ?? initialDraft?.guide ?? '');
+  const candidatePlacesRef = useRef(initialDraft?.candidatePlaces ?? []);
+  const importSourcesRef = useRef(initialDraft?.importedSources ?? []);
   const generationSequence = useRef(0);
   const generationAbort = useRef(null);
-  const generationInterval = useRef(null);
   const generationTimeout = useRef(null);
   const importAbort = useRef(null);
   const importPromise = useRef(null);
@@ -83,6 +88,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const ocrAbort = useRef(null);
 
   useEffect(() => {
+    // 带默认值进入新建流程时，先让用户决定是否覆盖已有草稿；在决定前不得覆盖旧草稿。
+    if (draftResolution === 'pending') return;
     writeBuilderDraft(profile.id, {
       step: Math.min(step, 2),
       city,
@@ -108,7 +115,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     ocrState.warnings,
     profile.id,
     screenshotNotes,
-    step
+    step,
+    draftResolution
   ]);
 
   useEffect(() => {
@@ -139,7 +147,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     .filter(Boolean)
     .join('\n');
 
-  const hasGuideInput = guide.trim().length > 0 || candidatePlaces.length > 0 || ocrState.places.length > 0;
+  const hasGuideInput = hasActionableGuideInput({ guide, sources: importState.sources, candidates: candidatePlaces, ocrPlaces: ocrState.places });
   const canProceed = step === 0 ? Boolean(cityQuery.trim()) : step === 1 ? hasGuideInput : step === 2;
   const urlsPendingImport = useMemo(() => findUnimportedUrls(guide, importState.sources), [guide, importState.sources]);
   const failedImportUrls = useMemo(() => findFailedImportUrls(guide, importState.sources), [guide, importState.sources]);
@@ -189,8 +197,17 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     const task = importGuide(uniqueUrls, ctrl.signal)
       .then((data) => {
         if (!mountedRef.current || ctrl.signal.aborted) return false;
-        setImportState((prev) => ({ loading: false, sources: mergeImportedSources(prev.sources, data.sources ?? []), error: '' }));
-        if (data.guideText) setGuide((prev) => (prev.includes(data.guideText) ? prev : [prev.trim(), data.guideText].filter(Boolean).join('\n\n')));
+        setImportState((prev) => {
+          const sources = mergeImportedSources(prev.sources, data.sources ?? []);
+          importSourcesRef.current = sources;
+          return { loading: false, sources, error: '' };
+        });
+        if (data.guideText)
+          setGuide((prev) => {
+            const next = prev.includes(data.guideText) ? prev : [prev.trim(), data.guideText].filter(Boolean).join('\n\n');
+            guideRef.current = next;
+            return next;
+          });
         addCandidatePlaces(extractCandidatePlacesFromSources(data.sources ?? []));
         return true;
       })
@@ -214,15 +231,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     generationAbort.current = ctrl;
     setLoading(true);
     setError('');
-    setGenSteps(['识别平台链接与用户偏好']);
-    const steps = ['提取 POI 与收藏地点', '按可信来源降权/加权', '检查时间、预算与步行强度', '编排分日地图动线', '生成可信分与行中提示'];
-    let i = 0;
-    generationInterval.current = setInterval(() => {
-      if (mountedRef.current && generationSequence.current === generationId && i < steps.length) {
-        setGenSteps((prev) => [...prev, steps[i]]);
-        i++;
-      }
-    }, 2500);
+    setGenSteps(['正在请求模型服务']);
 
     try {
       if (apiTokenInput.trim()) setApiToken(apiTokenInput);
@@ -262,9 +271,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         ctrl.signal
       );
       if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
-      clearInterval(generationInterval.current);
-      generationInterval.current = null;
-      setGenSteps((prev) => [...prev, '完成']);
+      setGenSteps(['模型已返回结构化路书', '正在交给行程页面保存']);
       generationTimeout.current = setTimeout(() => {
         if (mountedRef.current && generationSequence.current === generationId) {
           clearBuilderDraft(activeProfile.id);
@@ -272,11 +279,16 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         }
       }, 600);
     } catch (e) {
-      clearInterval(generationInterval.current);
-      generationInterval.current = null;
       if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
       setLoading(false);
       setError(e.status === 403 ? `${e.message}。如果是远程部署，请填写平台访问码后重试。` : e.message);
+      checkHealth()
+        .then((health) => {
+          if (mountedRef.current) onModelHealth?.(health);
+        })
+        .catch(() => {
+          if (mountedRef.current) onModelHealth?.({ ok: false, ready: false, reason: '模型服务检查失败' });
+        });
     }
   }
 
@@ -289,8 +301,6 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     generationSequence.current += 1;
     generationAbort.current?.abort();
     generationAbort.current = null;
-    clearInterval(generationInterval.current);
-    generationInterval.current = null;
     clearTimeout(generationTimeout.current);
     generationTimeout.current = null;
   }
@@ -311,6 +321,17 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       if (urlsPendingImport.length) {
         const imported = await handleImportLinks({ silentWhenComplete: true });
         if (!imported || !mountedRef.current) return;
+      }
+      if (
+        !hasActionableGuideInput({
+          guide: guideRef.current,
+          sources: importSourcesRef.current,
+          candidates: candidatePlacesRef.current,
+          ocrPlaces: ocrState.places
+        })
+      ) {
+        setError('还没有可分析的攻略正文或已确认地点。请粘贴至少一段正文/旅行需求，或手动添加地点；只有链接标题和截图文件名不能生成。');
+        return;
       }
       setStep(2);
       return;
@@ -430,8 +451,41 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           mustGo: place.mustGo ?? existing?.mustGo ?? false
         });
       }
-      return [...map.values()].slice(0, 24);
+      const next = [...map.values()].slice(0, 24);
+      candidatePlacesRef.current = next;
+      return next;
     });
+  }
+
+  function handleGuideChange(value) {
+    guideRef.current = value;
+    setGuide(value);
+    addCandidatePlaces(extractCandidatePlacesFromText(value));
+  }
+
+  function resumeSavedDraft() {
+    if (!savedDraft) return;
+    setCity(savedDraft.city ?? city);
+    setCityQuery(savedDraft.cityQuery ?? savedDraft.city ?? cityQuery);
+    guideRef.current = savedDraft.guide ?? '';
+    setGuide(savedDraft.guide ?? '');
+    setConstraints({ ...defaultConstraints, ...(savedDraft.constraints ?? {}) });
+    setScreenshotNotes(savedDraft.screenshotNotes ?? []);
+    const sources = savedDraft.importedSources ?? [];
+    importSourcesRef.current = sources;
+    setImportState({ loading: false, sources, error: '' });
+    const places = savedDraft.ocrPlaces ?? [];
+    setOcrState({ loading: false, places, warnings: savedDraft.ocrWarnings ?? [] });
+    const candidates = savedDraft.candidatePlaces ?? [];
+    candidatePlacesRef.current = candidates;
+    setCandidatePlaces(candidates);
+    setManualPlace(savedDraft.manualPlace ?? '');
+    setStep(Math.min(2, Math.max(0, Number(savedDraft.step) || 0)));
+    setDraftResolution('resume');
+  }
+
+  function startNewBuilder() {
+    setDraftResolution('new');
   }
 
   function addManualPlace() {
@@ -445,7 +499,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     setCandidatePlaces((prev) => prev.map((place, currentIndex) => (currentIndex === index ? { ...place, ...patch } : place)));
   }
 
-  const nextDisabled = !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
+  const nextDisabled = draftResolution === 'pending' || !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
 
   return (
     <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-32 lg:pt-8">
@@ -480,6 +534,22 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         </div>
       </header>
 
+      {draftResolution === 'pending' && savedDraft && (
+        <Notice role="alert" className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>发现一份未完成草稿（{formatDraftTime(savedDraft.updatedAt)}）。请选择继续草稿，或用本次入口的新内容开始，避免误覆盖。</span>
+            <span className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" onClick={resumeSavedDraft}>
+                继续草稿
+              </Button>
+              <Button size="sm" variant="primary" onClick={startNewBuilder}>
+                使用本次内容
+              </Button>
+            </span>
+          </div>
+        </Notice>
+      )}
+
       {!isTrustedCity && step > 0 && <Notice className="mt-5">{city} 是试验生成：地点、营业信息和导航都需要出发前人工核对。</Notice>}
 
       <div className="mt-8">
@@ -496,7 +566,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         {step === 1 && (
           <StepGuide
             guide={guide}
-            setGuide={setGuide}
+            setGuide={handleGuideChange}
             handleScreenshotFiles={handleScreenshotFiles}
             urlsPendingImport={urlsPendingImport}
             failedImportUrls={failedImportUrls}
@@ -596,6 +666,12 @@ function clearBuilderDraft(profileId) {
   }
 }
 
+function formatDraftTime(value) {
+  const time = Date.parse(String(value ?? ''));
+  if (!Number.isFinite(time)) return '时间未知';
+  return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(time);
+}
+
 function builderDraftKey(profileId) {
   return `${BUILDER_DRAFT_PREFIX}:${encodeURIComponent(String(profileId || 'anonymous'))}`;
 }
@@ -612,6 +688,31 @@ function buildCandidateGuide(candidatePlaces) {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function hasActionableGuideInput({ guide = '', sources = [], candidates = [], ocrPlaces = [] } = {}) {
+  if (Array.isArray(candidates) && candidates.length > 0) return true;
+  if (Array.isArray(ocrPlaces) && ocrPlaces.length > 0) return true;
+  if (
+    Array.isArray(sources) &&
+    sources.some((source) => {
+      if (source?.status !== 'fetched') return false;
+      return [source.description, source.excerpt, source.content, source.guideText].some((value) => String(value ?? '').trim().length >= 20);
+    })
+  ) {
+    return true;
+  }
+  const text = String(guide ?? '')
+    .split(/\r?\n/)
+    .filter((line) => {
+      const value = line.trim();
+      return value && !/^(?:来源\s*\d+|标题|摘要|公开正文摘录|可信信号|风险提示|链接)[:：]/.test(value) && !/^已上传截图[:：]/.test(value);
+    })
+    .join('\n')
+    .replace(/https?:\/\/[^\s"'<>，。；、)）]+/gi, '')
+    .replace(/截图暂未识别成功[^\n。]*[。]?/g, '')
+    .trim();
+  return text.length >= 8;
 }
 
 function extractCandidatePlacesFromSources(sources) {
@@ -640,6 +741,23 @@ function extractCandidatePlacesFromSources(sources) {
     }
   }
   return rows.slice(0, 18);
+}
+
+function extractCandidatePlacesFromText(text) {
+  const value = String(text ?? '');
+  const candidates = [
+    ...Array.from(
+      value.matchAll(
+        /[「“]?([\u4e00-\u9fa5A-Za-z0-9·]{2,18}(?:路|街|巷|寺|园|馆|湖|山|塔|桥|镇|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|咖啡|夜市))[」”]?/g
+      )
+    ).map((match) => match[1]),
+    ...Array.from(value.matchAll(/(?:去|逛|游|看|到|打卡|必去|推荐)\s*([\u4e00-\u9fa5A-Za-z0-9·]{2,18})/g)).map((match) => match[1])
+  ];
+  return candidates
+    .map(cleanPlaceName)
+    .filter(Boolean)
+    .slice(0, 18)
+    .map((name) => ({ name, source: '用户正文', confidence: 90, included: true, mustGo: false }));
 }
 
 function extractGuideUrls(value) {

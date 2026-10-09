@@ -7,6 +7,7 @@ import { normalizeRoutebookForStorage, getResolvableRoutebook } from '../routebo
 import { isPublicTrustEligibleCheckin, latestCheckinsByStop } from '../trust/checkins.mjs';
 import { isPublicRoutebook, publicCheckinForReview, publicRoutebookView, publicRoutebookStop } from '../routebooks/views.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
+import { applyCheckinOpsOverlay, buildOpsAuditContext, isOpsSuppressedCheckin } from '../ops/audit.mjs';
 
 export async function normalizeReviewShare(input, canonicalRoutebook = null, options = {}) {
   const routebook = canonicalRoutebook
@@ -27,7 +28,11 @@ export async function normalizeReviewShare(input, canonicalRoutebook = null, opt
           100000
         )
       : [];
-  const verifiedCheckins = persistedCheckins.filter((item) => isPublicTrustEligibleCheckin(item)).map(publicCheckinForReview);
+  const context = await buildOpsAuditContext();
+  const verifiedCheckins = persistedCheckins
+    .map((item) => applyCheckinOpsOverlay(item, context))
+    .filter(isPublicTrustEligibleCheckin)
+    .map((item) => ({ ...publicCheckinForReview(item), sourceCheckinId: sanitizePublicId(item.id) }));
   const checkins = latestCheckinsByStop(verifiedCheckins);
   const executionStops = normalizeReviewExecutionStops(input?.executionStops, routebook);
   const feedbackCheckins = checkins.filter((item) => item.worth !== '跳过' && item.status !== 'skipped');
@@ -98,4 +103,62 @@ export async function reviewIsStillPublic(review) {
   if (!routeId) return isPublicRoutebook(review?.routebook);
   const currentRoutebook = await getResolvableRoutebook(routeId);
   return isPublicRoutebook(currentRoutebook);
+}
+
+// Re-project append-only review snapshots against current moderation. Historical
+// rows without sourceCheckinId use only the same owner+route and matching stop.
+export async function applyOpsAuditsToReview(review, context = null) {
+  if (!review) return review;
+  context ??= await buildOpsAuditContext();
+  const suppressedIds = new Set(
+    [...context.checkinOverlays.values()].filter((event) => isOpsSuppressedCheckin({ opsDisposition: event.state })).map((event) => event.entityId)
+  );
+  if (!suppressedIds.size) return review;
+  const routeId = sanitizePublicId(review.routebookId || review.routebook?.publicId || review.routebook?.id);
+  const profileId = normalizeProfileId(review.profileId);
+  const legacySources =
+    profileId && profileId !== 'anonymous' && routeId
+      ? await readMatchingJsonLines(
+          CHECKIN_LOG_PATH,
+          (item) => suppressedIds.has(item.id) && normalizeProfileId(item.profileId) === profileId && sanitizePublicId(item.routeId) === routeId,
+          Number.POSITIVE_INFINITY,
+          Number.POSITIVE_INFINITY
+        )
+      : [];
+  const removed = [];
+  const checkins = (review.checkins ?? []).filter((item) => {
+    const id = sanitizePublicId(item.sourceCheckinId);
+    const suppressed = id ? suppressedIds.has(id) : legacySources.some((source) => reviewCheckinMatchesSource(item, source));
+    if (suppressed) removed.push(item);
+    return !suppressed;
+  });
+  const feedback = checkins.filter((item) => item.worth !== '跳过' && item.status !== 'skipped');
+  const valid = feedback.filter((item) => item.arrival?.valid === true);
+  const stopCount = review.routebook?.stops?.length ?? 0;
+  return {
+    ...review,
+    checkins,
+    executionStops: (review.executionStops ?? []).map((stop) =>
+      removed.some((item) => reviewCheckinMatchesSource({ stopId: stop.id, stopName: stop.name }, item) || (stop.photoId && stop.photoId === item.photoId))
+        ? { ...stop, tripStatus: 'pending', tripReplacementFor: '', photoId: '' }
+        : stop
+    ),
+    stats: {
+      ...review.stats,
+      completionRate: stopCount ? Math.min(100, Math.round((valid.length / stopCount) * 100)) : 0,
+      checkinCount: checkins.length,
+      feedbackCount: feedback.length,
+      validArrivalCount: valid.length,
+      lowConfidenceArrivalCount: feedback.filter((item) => ['weak', 'invalid'].includes(item.arrivalConfidence || item.arrival?.confidence)).length,
+      pitfallCount: checkins.filter((item) => item.worth === '踩坑' || item.pitfall).length
+    }
+  };
+}
+
+function reviewCheckinMatchesSource(review, source) {
+  if (review.status && source.status && review.status !== source.status) return false;
+  if (review.poiId && source.poiId && review.poiId === source.poiId) return true;
+  const keys = new Set([review.localStopKey, review.stopId].filter(Boolean).map(String));
+  if ([source.localStopKey, source.stopId].some((key) => key && keys.has(String(key)))) return true;
+  return Boolean(review.stopName && source.stopName && review.stopName === source.stopName);
 }

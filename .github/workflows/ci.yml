@@ -50,5 +50,9 @@ jobs:
         run: command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
       - name: PostgreSQL schema regression
         run: npm run test:postgres-schema
+      - name: PostgreSQL storage and concurrent-write regression
+        run: npm run test:postgres-storage
+      - name: PostgreSQL multi-instance API regression
+        run: npm run test:postgres-runtime
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high

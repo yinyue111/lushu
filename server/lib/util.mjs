@@ -19,13 +19,97 @@ export function stablePublicId(value, prefix = 'id') {
   return `${sanitizePublicId(prefix) || 'id'}-${Math.abs(hash || Date.now()).toString(36)}`.slice(0, 80);
 }
 
+/**
+ * Parse a user-facing money value without treating ranges, thousands
+ * separators, or placeholders as a list of unrelated integers.
+ *
+ * The old parser summed every digit group, so `80-120 元` became 200 and
+ * `1,200 元` became 201.  Keep the scalar parseMoney API for older callers,
+ * but make it return the range midpoint while exposing the structured range
+ * to callers that need to report uncertainty.
+ */
+export function parseMoneyRange(value) {
+  const raw = String(value ?? '').trim();
+  const text = raw
+    .replace(/，/g, ',')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ');
+  const normalized = text.toLocaleLowerCase('zh-CN');
+  const unknown = (reason = 'unknown') => ({
+    raw,
+    known: false,
+    isRange: false,
+    min: null,
+    max: null,
+    estimate: null,
+    reason
+  });
+
+  if (!text) return unknown('missing');
+  if (/^(?:免费|免票|无费用|无需费用|不收费|0(?:\s*元)?|zero|free)$/.test(normalized)) {
+    return { raw, known: true, isRange: false, min: 0, max: 0, estimate: 0, reason: 'free' };
+  }
+  if (/^(?:待估算|待确认|未知|不详|面议|价格待定|暂无|无数据|n\/a|na|none|null|-)$/i.test(normalized)) {
+    return unknown('unavailable');
+  }
+
+  // A range separator is only accepted when it has a number on both sides;
+  // this preserves dates and prose that happen to contain a hyphen.
+  const numberPattern = '(\\d[\\d,]*(?:\\.\\d+)?)';
+  const rangeMatch = text.match(new RegExp(`${numberPattern}\\s*(?:-|–|—|~|～|至|到)\\s*${numberPattern}`));
+  const toNumber = (token) => Number(String(token).replace(/[,\s]/g, ''));
+  if (rangeMatch) {
+    const left = toNumber(rangeMatch[1]);
+    const right = toNumber(rangeMatch[2]);
+    if (Number.isFinite(left) && Number.isFinite(right)) {
+      const min = Math.min(left, right);
+      const max = Math.max(left, right);
+      return {
+        raw,
+        known: true,
+        isRange: min !== max,
+        min,
+        max,
+        estimate: roundMoney((min + max) / 2),
+        reason: 'range'
+      };
+    }
+  }
+
+  const singleMatch = text.match(/\d[\d,]*(?:\.\d+)?/);
+  if (!singleMatch) return unknown('unavailable');
+  const amount = toNumber(singleMatch[0]);
+  if (!Number.isFinite(amount)) return unknown('unavailable');
+  return { raw, known: true, isRange: false, min: amount, max: amount, estimate: amount, reason: 'exact' };
+}
+
+/**
+ * Backwards-compatible scalar helper.  New validation code should prefer
+ * parseMoneyRange so it can preserve lower/upper bounds and unknown values.
+ */
 export function parseMoney(value) {
-  const matches = String(value ?? '').match(/\d+/g);
-  if (!matches?.length) return 0;
-  return matches
-    .map(Number)
-    .filter(Number.isFinite)
-    .reduce((sum, item) => sum + item, 0);
+  return parseMoneyRange(value).estimate ?? 0;
+}
+
+export function sumMoneyRanges(values = []) {
+  const rows = (Array.isArray(values) ? values : [values]).map(parseMoneyRange);
+  const known = rows.filter((row) => row.known);
+  const unknownCount = rows.length - known.length;
+  if (!known.length) {
+    return { knownCount: 0, unknownCount, allKnown: unknownCount === 0, min: null, max: null, estimate: null };
+  }
+  return {
+    knownCount: known.length,
+    unknownCount,
+    allKnown: unknownCount === 0,
+    min: roundMoney(known.reduce((sum, row) => sum + row.min, 0)),
+    max: roundMoney(known.reduce((sum, row) => sum + row.max, 0)),
+    estimate: roundMoney(known.reduce((sum, row) => sum + row.estimate, 0))
+  };
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value) * 100) / 100;
 }
 
 export function distanceMeters(a, b) {

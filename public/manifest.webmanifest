@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "AI 可信路书",
+  "short_name": "可信路书",
+  "description": "把攻略整理成可编辑、可执行、可验证的个人路书。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f3ec",
+  "theme_color": "#315f72",
+  "icons": [
+    {
+      "src": "/icons/routebook-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/routebook-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

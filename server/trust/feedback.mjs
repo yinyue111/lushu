@@ -28,6 +28,9 @@ import {
 import { routebookCopyCount } from '../routebooks/copies.mjs';
 import { listPoiKnowledge } from '../poi/knowledge.mjs';
 import { resolvePoiId, normalizePoiName } from '../poi/catalog.mjs';
+import { applyCheckinOpsOverlay, buildOpsAuditContext } from '../ops/audit.mjs';
+import { applyImportSourceOpsToRoutebook } from '../ops/sources.mjs';
+import { importSourceId } from '../ops/source-identity.mjs';
 
 // rank23①：GET /api/routebooks 列表等批量路径可先 buildRouteFeedbackContext() 一次性
 // 读齐 5 份 JSONL，再把同一份行数组传给每次 buildFeedbackSummary 复用，避免逐路书重扫。
@@ -35,14 +38,16 @@ const FEEDBACK_SCAN_MATCH_LIMIT = 5000;
 const FEEDBACK_SCAN_WINDOW = 100000;
 
 export async function buildRouteFeedbackContext() {
-  const [checkins, corrections, reviews, routebookHistory, exposures] = await Promise.all([
+  const [rawCheckins, corrections, reviews, routebookHistory, exposures, opsAuditContext] = await Promise.all([
     readRecentJsonlRows(CHECKIN_LOG_PATH, FEEDBACK_SCAN_WINDOW),
     readRecentJsonlRows(POI_CORRECTION_LOG_PATH, FEEDBACK_SCAN_WINDOW),
     readRecentJsonlRows(REVIEW_LOG_PATH, FEEDBACK_SCAN_WINDOW),
     readRecentJsonlRows(ROUTEBOOK_LOG_PATH, FEEDBACK_SCAN_WINDOW, ROUTEBOOK_HISTORY_PROJECTION),
-    readRecentJsonlRows(EXPOSURE_LOG_PATH, FEEDBACK_SCAN_WINDOW)
+    readRecentJsonlRows(EXPOSURE_LOG_PATH, FEEDBACK_SCAN_WINDOW),
+    buildOpsAuditContext()
   ]);
-  return { checkins, corrections, reviews, routebookHistory, exposures };
+  const checkins = rawCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext));
+  return { checkins, corrections, reviews, routebookHistory, exposures, opsAuditContext };
 }
 
 async function buildFeedbackSummary(routebook, feedbackContext = null) {
@@ -65,7 +70,7 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
   // 按 routeId/routeTitle 谓词精确反扫（匹配窗口 5000 行），替代全局尾窗 + filter：
   // 旧路径下热门路线会把冷路线的历史反馈挤出统计窗口。传入共享上下文时改为
   // 对同一份内存行数组过滤，谓词与窗口口径不变。
-  const [matchedCheckins, globalEligibleCheckins, corrections, matchedReviews, matchedHistory, matchedExposures] = feedbackContext
+  const [rawMatchedCheckins, rawGlobalEligibleCheckins, corrections, matchedReviews, matchedHistory, matchedExposures] = feedbackContext
     ? [
         collectMatchingRows(feedbackContext.checkins, matchesRouteCheckin, FEEDBACK_SCAN_MATCH_LIMIT),
         collectMatchingRows(feedbackContext.checkins, globalEligiblePredicate, FEEDBACK_SCAN_MATCH_LIMIT),
@@ -82,6 +87,9 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
         readMatchingJsonLines(ROUTEBOOK_LOG_PATH, historyPredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW, ROUTEBOOK_HISTORY_PROJECTION),
         readMatchingJsonLines(EXPOSURE_LOG_PATH, exposurePredicate, FEEDBACK_SCAN_MATCH_LIMIT, FEEDBACK_SCAN_WINDOW)
       ]);
+  const opsAuditContext = feedbackContext?.opsAuditContext ?? (await buildOpsAuditContext());
+  const matchedCheckins = rawMatchedCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext));
+  const globalEligibleCheckins = rawGlobalEligibleCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext)).filter(isEligibleTrustCheckin);
   const trustedRouteStops = [...(routebook?.stops ?? []), ...(routebook?.variants ?? []).flatMap((variant) => variant?.stops ?? [])];
   const profileAttestedCheckins = matchedCheckins.filter(
     (item) => isPublicTrustEligibleCheckin(item) && trustedRouteStops.some((stop) => isSameCheckinStop(stop, item))
@@ -240,6 +248,8 @@ async function buildFeedbackSummary(routebook, feedbackContext = null) {
 
 export async function enrichRoutebook(routebook, feedbackContext = null) {
   if (!routebook) return null;
+  const opsAuditContext = feedbackContext?.opsAuditContext ?? (await buildOpsAuditContext());
+  routebook = applyImportSourceOpsToRoutebook(routebook, opsAuditContext);
   const [feedbackSummary, poiKnowledge] = await Promise.all([
     buildFeedbackSummary(routebook, feedbackContext),
     listPoiKnowledge({ city: routebook.city, limit: 500 })
@@ -614,7 +624,11 @@ function buildStopFacts(routebook, stop, corrections, evidence) {
     },
     { id: 'fact-risk', field: '风险', value: stop.risk, confidence: 68, sourceLabel: 'AI 风险摘要', sourceType: 'routebook', status: '需复核' }
   ];
-  const merged = [...normalizeStopFacts(stop.facts), ...correctionFacts, ...sourceFacts, ...fallbackFacts];
+  // Source-derived snapshots are recomputed against today's authorization overlay.
+  const existingFacts = normalizeStopFacts(stop.facts).filter(
+    (fact) => !String(fact.id).startsWith('source-fact-') && !['matched-source', 'route-source'].includes(fact.sourceType)
+  );
+  const merged = [...existingFacts, ...correctionFacts, ...sourceFacts, ...fallbackFacts];
   const latestByField = new Map();
   for (const fact of normalizeStopFacts(merged)) {
     const key = `${fact.field}:${fact.value}`;
@@ -667,7 +681,8 @@ function isSamePoi(stop, item) {
 }
 
 function buildSourceEvidenceForStop(routebook, stop) {
-  const sources = normalizeImportedSources(routebook?.importedSources);
+  const authorizedIds = new Set((routebook?.importedSources ?? []).filter((source) => source.authorizationStatus === 'authorized-public').map(importSourceId));
+  const sources = normalizeImportedSources(routebook?.importedSources).filter((source) => authorizedIds.has(importSourceId(source)));
   if (!sources.length) return [];
   const stopName = String(stop?.name ?? '');
   const area = String(stop?.area ?? '');
@@ -676,8 +691,10 @@ function buildSourceEvidenceForStop(routebook, stop) {
     return (stopName && haystack.includes(stopName)) || (area && haystack.includes(area));
   });
   const selected = matched.length ? matched : sources.slice(0, 1);
-  return selected.slice(0, 3).map((source, index) => ({
-    id: `source-${index + 1}-${String(source.platformId ?? source.platform ?? 'web').replace(/[^A-Za-z0-9_-]/g, '')}`,
+  return selected.slice(0, 3).map((source) => ({
+    id: importSourceId(source),
+    sourceId: importSourceId(source),
+    authorizationStatus: 'authorized-public',
     type: matched.length ? 'matched-source' : 'route-source',
     label: `${source.platform || '导入来源'}｜可信 ${source.trustScore}`,
     detail: matched.length

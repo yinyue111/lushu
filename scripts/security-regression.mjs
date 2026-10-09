@@ -163,7 +163,9 @@ async function main() {
       summary: '用于验证草稿、发布和归档的公开边界。',
       profileId: 'security-owner',
       constraints: { date: shanghaiDate(), base: '西湖边私有住宿', budget: '人均 900' },
-      importedSources: [{ url: 'https://example.com/private-guide', platform: '小红书', excerpt: '私有攻略摘要' }],
+      // Public fixture is original content. Private/unsigned imports are tested
+      // separately below and may not bypass the new source-authorization gate.
+      importedSources: [],
       logs: [{ stage: '私有生成日志', input: '用户输入', result: '内部结果', status: '通过' }],
       provider: { name: 'security-provider', model: 'private-model', baseUrl: 'https://private-provider.example.com' },
       stops: [
@@ -277,7 +279,8 @@ async function main() {
     });
     if (
       !boundDraftOwnerRead.response.ok ||
-      !boundDraftOwnerRead.data.routebook?.editToken ||
+      !boundDraftOwnerRead.data.routebook?.ownerAccessVerified ||
+      Boolean(boundDraftOwnerRead.data.routebook?.editToken) ||
       boundDraftOwnerRead.data.routebook?.constraints?.base !== '西湖边某酒店'
     ) {
       throw new Error(`Owner token should read full private draft: ${JSON.stringify(boundDraftOwnerRead.data)}`);
@@ -598,13 +601,18 @@ async function main() {
     if (remoteDraftRoutebook.response.status !== 404) {
       throw new Error(`Remote draft routebook should be hidden, got HTTP ${remoteDraftRoutebook.response.status}`);
     }
-    const selfPublished = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}/publish`, {
+    const selfPublished = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ profileId: 'security-owner', editToken: ownerEditToken, expectedVersion: 2 })
+      headers: { 'content-type': 'application/json', 'x-routebook-admin-token': ADMIN_TOKEN },
+      body: JSON.stringify({
+        publishStatus: 'published',
+        expectedVersion: 2,
+        allowUnverifiedRouting: true,
+        routingOverrideReason: '隔离安全测试专用道路例外发布'
+      })
     });
-    if (!selfPublished.response.ok || selfPublished.data.routebook?.publishStatus !== 'published' || !selfPublished.data.shareUrl) {
-      throw new Error(`Owner publish endpoint should publish draft: ${JSON.stringify(selfPublished.data)}`);
+    if (!selfPublished.response.ok || selfPublished.data.routebook?.publishStatus !== 'published') {
+      throw new Error(`Admin reviewed fixture should publish with an audited road override: ${JSON.stringify(selfPublished.data)}`);
     }
     const ownerCheckin = await fetchJson(`${BASE_URL}/api/checkins`, {
       method: 'POST',
@@ -1005,7 +1013,12 @@ async function main() {
     const published = await fetchJson(`${BASE_URL}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-routebook-admin-token': ADMIN_TOKEN },
-      body: JSON.stringify({ publishStatus: 'published', expectedVersion: 3 })
+      body: JSON.stringify({
+        publishStatus: 'published',
+        expectedVersion: 3,
+        allowUnverifiedRouting: true,
+        routingOverrideReason: '隔离安全测试专用道路例外发布'
+      })
     });
     if (!published.response.ok) {
       throw new Error(`Publishing routebook failed: ${JSON.stringify(published.data)}`);
@@ -1202,8 +1215,8 @@ async function main() {
         expectedVersion: 1
       })
     });
-    if (!migratedLegacyPublish.response.ok || migratedLegacyPublish.data.routebook?.publishStatus !== 'published') {
-      throw new Error(`Migrated legacy draft should publish with edit token: ${JSON.stringify(migratedLegacyPublish.data)}`);
+    if (!migratedLegacyPublish.response.ok || migratedLegacyPublish.data.routebook?.publishStatus !== 'pending_review' || migratedLegacyPublish.data.shareUrl) {
+      throw new Error(`Migrated legacy draft should submit for review with edit token: ${JSON.stringify(migratedLegacyPublish.data)}`);
     }
 
     const logsForPrivacy = await fetchJson(`${BASE_URL}/api/logs`, {
@@ -1279,7 +1292,7 @@ async function main() {
         body: JSON.stringify({ products: originalProducts?.data?.products ?? [] })
       }).catch(() => {});
     }
-    child.kill('SIGTERM');
+    await stopTestServer(child);
     await rm(dataDir, { recursive: true, force: true }).catch(() => {});
     if (!child.killed && stderr.length) console.error(stderr.join(''));
   }
@@ -1462,7 +1475,9 @@ function recordTargetFailure(failures, condition, message) {
   if (!condition) failures.push(message);
 }
 
-async function assertUntrustedForwardedForCannotBypassRateLimit(dataDir) {
+async function assertUntrustedForwardedForCannotBypassRateLimit(_parentDataDir) {
+  // Each JSONL runtime owns its data directory exclusively.
+  const dataDir = await mkdtemp(join(tmpdir(), 'routebook-security-proxy-'));
   const port = PORT + 1;
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server.mjs'], {
@@ -1495,6 +1510,19 @@ async function assertUntrustedForwardedForCannotBypassRateLimit(dataDir) {
       throw new Error(`X-Forwarded-For should not bypass rate limit when proxy trust is disabled: ${JSON.stringify(rateStatuses)}`);
     }
   } finally {
-    child.kill('SIGTERM');
+    await stopTestServer(child);
+    await rm(dataDir, { recursive: true, force: true });
   }
+}
+
+async function stopTestServer(child) {
+  if (child.exitCode != null || child.signalCode != null) return;
+  await new Promise((resolve) => {
+    const timer = setTimeout(() => child.kill('SIGKILL'), 5000);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve(undefined);
+    });
+    child.kill('SIGTERM');
+  });
 }

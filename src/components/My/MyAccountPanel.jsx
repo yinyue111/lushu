@@ -1,4 +1,4 @@
-import { Copy, KeyRound, RotateCcw, Save, UserRound } from 'lucide-react';
+import { Copy, Download, KeyRound, LogOut, RotateCcw, Save, Trash2, UserRound } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
@@ -19,6 +19,9 @@ export function MyAccountPanel({
   onSave,
   onPrepareSyncCode,
   onRecover,
+  onExport,
+  onLogout,
+  onDelete,
   onOpenCreator
 }) {
   const set = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value }));
@@ -74,6 +77,16 @@ export function MyAccountPanel({
             <UserRound /> 我的达人主页
           </Button>
         </div>
+        <label className="mt-4 flex items-start gap-2 rounded-tile bg-canvas p-3 text-sm text-ink-2">
+          <input
+            type="checkbox"
+            className="mt-1 size-4"
+            checked={Boolean(profile.profileAccessToken || profile.cloudRegistrationConsentAt)}
+            disabled={Boolean(profile.profileAccessToken) || syncBusy}
+            onChange={(event) => setProfile((previous) => ({ ...previous, cloudRegistrationConsentAt: event.target.checked ? new Date().toISOString() : '' }))}
+          />
+          <span>同意将资料和旅行记录同步到云端，用于跨设备继续行程。未开启时仅保存在本机；已开启后可在下方注销并删除。</span>
+        </label>
         <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-3">
           {profileMessage}
         </p>
@@ -94,6 +107,32 @@ export function MyAccountPanel({
               {profile.identityBound ? '已有记录' : '即将开放'}
             </span>
           </div>
+        </section>
+        <section className="rounded-panel border border-line bg-white p-5">
+          <h2 className="text-lg font-extrabold">资料与隐私</h2>
+          <p className="mt-1 text-sm text-muted">
+            导出不含访问凭据。注销会删除当前服务中的资料、照片和本机副本；已被他人下载及运营备份中的副本不在即时删除范围。
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={syncBusy} onClick={onExport}>
+              <Download /> 导出资料
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={syncBusy || (Boolean(profile.profileAccessToken) && !profile.identityBound)}
+              onClick={onLogout}
+            >
+              <LogOut /> 退出账号
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={syncBusy} onClick={onDelete}>
+              <Trash2 /> 注销并删除
+            </Button>
+          </div>
+          {profile.profileAccessToken && !profile.identityBound && (
+            <p className="mt-2 text-xs text-muted">当前为恢复码账号，撤销凭据后无法重新登录，因此暂不支持直接退出；可先导出，再注销。</p>
+          )}
         </section>
 
         <section className="rounded-panel border border-line bg-white p-5">

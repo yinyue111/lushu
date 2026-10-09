@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Filter, Link2, RefreshCw } from 'lucide-react';
-import { getImports } from '../../lib/api';
+import { getOpsImports } from '../../lib/opsApi';
+import OpsAuditDialog from './OpsAuditDialog';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, numberValue, textValue, useOpsResource } from './OpsShared';
 
 const STATUS_FILTERS = [
@@ -10,12 +11,11 @@ const STATUS_FILTERS = [
   { id: 'failed', label: '抓取失败' }
 ];
 
-// 攻略来源管理（只读 V1）：列出 /api/imports 的导入分析记录，按来源逐行展开。
-// 「提取 POI 数」「关联 routebook」为防御式读取——当前导入日志尚未落这两个字段，
-// 缺失时显示为 —，待服务端补齐后自动出现。
+// 来源授权由服务端签名和追加审计共同决定，不采纳客户端自报授权。
 export default function ImportSourcesPanel() {
-  const importsResource = useOpsResource((signal) => getImports(100, signal));
+  const importsResource = useOpsResource((signal) => getOpsImports(100, signal));
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selected, setSelected] = useState(null);
   const rows = flattenImportSources(importsResource.data);
   const visibleRows = statusFilter === 'all' ? rows : rows.filter((row) => row.status === statusFilter);
   const listReady = ['ready', 'empty', 'refreshing'].includes(importsResource.status);
@@ -26,7 +26,7 @@ export default function ImportSourcesPanel() {
         <div className="ops-panel-head">
           <div>
             <h2 id="import-sources-title">攻略来源管理</h2>
-            <p className="text-caption">导入分析记录：来源抓取状态、可信分与风险提示</p>
+            <p className="text-caption">来源抓取、授权核验、撤权与精选；所有处置保留原因及历史</p>
           </div>
           <span className="badge badge-blue">
             <Link2 size={12} /> {importsResource.data ? `${visibleRows.length} 个来源` : '—'}
@@ -58,9 +58,10 @@ export default function ImportSourcesPanel() {
                   <th>来源</th>
                   <th>状态</th>
                   <th>可信分</th>
-                  <th>提取 POI</th>
+                  <th>明确引用 POI</th>
                   <th>关联路书</th>
                   <th>风险提示</th>
+                  <th>授权 / 处置</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,6 +87,17 @@ export default function ImportSourcesPanel() {
                     <td>{numberValue(row.poiCount)}</td>
                     <td>{textValue(firstValue(row.routebookTitle, row.routebookId))}</td>
                     <td>{row.warnings.length ? row.warnings.slice(0, 2).join('；') : '—'}</td>
+                    <td>
+                      <span className={`badge ${row.opsDisposition?.authorizationStatus === 'authorized-public' ? 'badge-green' : 'badge-orange'}`}>
+                        {authorizationLabel(row.opsDisposition?.authorizationStatus)}
+                        {row.opsFeatured ? ' · 精选' : ''}
+                      </span>
+                      {row.sourceId && (
+                        <button type="button" className="btn btn-secondary btn-sm mt-2" onClick={() => setSelected(row)}>
+                          维护 / 历史
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -98,6 +110,21 @@ export default function ImportSourcesPanel() {
           状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only 与 failed 计失败。
         </p>
       </section>
+      {selected && (
+        <OpsAuditDialog
+          key={selected.sourceId}
+          entity={{
+            type: 'import-source',
+            id: selected.sourceId,
+            title: selected.title,
+            disposition: selected.opsDisposition,
+            history: selected.opsAuditHistory,
+            proofReady: selected.proofReady
+          }}
+          onClose={() => setSelected(null)}
+          onSaved={importsResource.retry}
+        />
+      )}
     </div>
   );
 }
@@ -126,6 +153,11 @@ function flattenImportSources(data) {
     }
     return sources.map((source, index) => ({
       key: `${recordId}-${index}`,
+      sourceId: source?.sourceId,
+      opsDisposition: source?.opsDisposition,
+      opsAuditHistory: source?.opsAuditHistory,
+      opsFeatured: source?.opsFeatured,
+      proofReady: source?.proofReady,
       createdAt: firstValue(source?.fetchedAt, record?.createdAt),
       url: safeHttpUrl(source?.url),
       platform: textOrEmpty(source?.platform),
@@ -135,7 +167,7 @@ function flattenImportSources(data) {
       warnings: Array.isArray(source?.warnings) ? source.warnings.filter(Boolean).map(String) : [],
       poiCount: firstValue(source?.poiCount, source?.extractedPoiCount, record?.poiCount, record?.extractedPoiCount),
       routebookId: firstValue(source?.routebookId, record?.routebookId, record?.routeId),
-      routebookTitle: firstValue(record?.routebookTitle, record?.routeTitle)
+      routebookTitle: firstValue(source?.routebookTitle, record?.routebookTitle, record?.routeTitle)
     }));
   });
 }
@@ -160,4 +192,12 @@ function SourceStatusBadge({ value }) {
     failed: ['抓取失败', 'badge-red']
   }[String(value ?? '')] ?? ['未知', 'badge-blue'];
   return <span className={`badge ${presentation[1]}`}>{presentation[0]}</span>;
+}
+
+function authorizationLabel(status) {
+  return (
+    { 'personal-use-only': '仅个人使用', 'authorization-pending': '待核验', 'authorized-public': '公开授权', revoked: '已撤权', 'not-applicable': '无需授权' }[
+      status
+    ] || '待核验'
+  );
 }

@@ -1,7 +1,7 @@
 // Routebook writes: drafts, publish, copy, status changes and variants.
 import { createHttpError, truncateString, sanitizePublicId, normalizeCityName, clampNumber, isValidCoordinate, positiveInteger } from '../lib/util.mjs';
-import { ROUTEBOOK_STATUSES, EXPOSURE_LOG_PATH, ROUTEBOOK_LOG_PATH } from '../config/index.mjs';
-import { sanitizeEditToken, createRouteEditToken, normalizeProfileId, safeTokenEqual } from '../auth/tokens.mjs';
+import { ROUTEBOOK_STATUSES, PUBLIC_ROUTE_STATUSES, EXPOSURE_LOG_PATH, ROUTEBOOK_LOG_PATH } from '../config/index.mjs';
+import { sanitizeEditToken, createRouteEditToken, normalizeProfileId, safeTokenEqual, hashSecretToken } from '../auth/tokens.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
 import {
   normalizeCreator,
@@ -13,27 +13,51 @@ import {
   routebookValidationContext
 } from './normalize.mjs';
 import { appendVersionedRoutebook, routebookMutationMetadata, currentRoutebookVersion, assertExpectedRoutebookVersion } from './versions.mjs';
-import { appendJsonLine, readJsonLines, withSingleProcessKeyLock } from '../storage/jsonl.mjs';
+import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
+import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { copyActorKey, isRoutebookCopyExposure } from './copies.mjs';
 import { isPublicRoutebook } from './views.mjs';
 import { normalizeExposure } from '../analytics/exposures.mjs';
 import { normalizePoiName } from '../poi/catalog.mjs';
 import { coordinateForName } from '../geo/normalize-coordinate.mjs';
+import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
+import { summarizeRouteExecution } from '../routing/routeExecution.mjs';
+import { buildOpsAuditContext } from '../ops/audit.mjs';
+import { sourcesPreventPublicStatus } from '../ops/sources.mjs';
 
-export const routebookMutationLocks = new Map();
+export function requireVerifiedRoutingForPublicStatus(routebook, input = {}) {
+  const routing = summarizeRouteExecution(
+    routebook?.stops ?? [],
+    normalizeStoredRouteLegs(routebook?.routeLegs, routebook?.stops, routebook?.constraints?.transport)
+  );
+  if (routing.expectedLegs === 0 || routing.allVerified) return { overridden: false, reason: '', routing };
+  const reason = truncateString(input?.routingOverrideReason, 400);
+  if (input?.allowUnverifiedRouting !== true || reason.length < 8) {
+    throw createHttpError(
+      `路书仍有 ${routing.unverifiedLegs}/${routing.expectedLegs} 段道路未核验，不能公开发布；例外发布需要管理员显式确认并填写原因`,
+      409,
+      'ROUTEBOOK_ROUTING_UNVERIFIED'
+    );
+  }
+  return { overridden: true, reason, routing };
+}
 
 export async function updateRoutebookStatus(publicId, input) {
   const routebook = await getSavedRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   const publishStatus = truncateString(input?.publishStatus || input?.status, 40);
   if (publishStatus && !ROUTEBOOK_STATUSES.has(publishStatus)) {
-    throw createHttpError('发布状态只能是 draft/published/featured/archived', 400, 'BAD_ROUTEBOOK_STATUS');
+    throw createHttpError('路书状态不在允许范围内', 400, 'BAD_ROUTEBOOK_STATUS');
   }
   const nextStatus = publishStatus || routebook.publishStatus || 'draft';
   const versionMetadata = await routebookMutationMetadata(routebook, input, {
     changeReason: `运营状态变更：${routebook.publishStatus || 'draft'} -> ${nextStatus}`,
     actorType: 'admin'
   });
+  if (PUBLIC_ROUTE_STATUSES.has(nextStatus) && sourcesPreventPublicStatus(routebook, await buildOpsAuditContext())) {
+    throw createHttpError('导入来源尚未取得公开展示授权，不能公开发布', 409, 'SOURCE_PUBLIC_AUTHORIZATION_REQUIRED');
+  }
+  const routingPublication = PUBLIC_ROUTE_STATUSES.has(nextStatus) ? requireVerifiedRoutingForPublicStatus(routebook, input) : null;
   const creator = input?.creator ? normalizeCreator(input.creator) : normalizeCreator(routebook.creator);
   const updated = normalizeRoutebookForStorage(
     {
@@ -54,6 +78,7 @@ export async function updateRoutebookStatus(publicId, input) {
   const opsNote = truncateString(input?.opsNote, 400);
   await appendVersionedRoutebook(updated, 'status-changed', {
     previousStatus: routebook.publishStatus || 'draft',
+    ...(routingPublication ? { routingPublication } : {}),
     // normalizeRoutebookForStorage 不保留 opsNote 字段，运营备注写入审计明细。
     ...(opsNote ? { opsNote } : {})
   });
@@ -91,7 +116,10 @@ export async function copyRoutebook(publicId, input = {}) {
 }
 
 function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
-  const profileId = normalizeProfileId(input?.profileId || existingRoutebook?.profileId);
+  // An edit token authorizes editing, never transferring a registered owner's
+  // route to anonymous. Retaining the owner also preserves the deletion guard.
+  const existingProfileId = normalizeProfileId(existingRoutebook?.profileId);
+  const profileId = existingRoutebook && existingProfileId !== 'anonymous' ? existingProfileId : normalizeProfileId(input?.profileId);
   const hardenedInput = hardenDraftCoordinateProvenance(input, existingRoutebook);
   return normalizeRoutebookForStorage(
     {
@@ -99,7 +127,11 @@ function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
       profileId,
       creator: normalizeUserRouteCreator(hardenedInput, profileId),
       sourceAuthorization: 'user-generated',
-      editToken: sanitizeEditToken(hardenedInput?.editToken) || sanitizeEditToken(existingRoutebook?.editToken) || createRouteEditToken(),
+      editToken:
+        sanitizeEditToken(hardenedInput?.editToken) ||
+        sanitizeEditToken(existingRoutebook?.editToken) ||
+        (existingRoutebook?.editTokenHash ? '' : createRouteEditToken()),
+      editTokenHash: existingRoutebook?.editTokenHash || '',
       publishStatus: 'draft',
       copyCount: existingRoutebook ? (existingRoutebook.copyCount ?? hardenedInput?.copyCount ?? 0) : 0
     },
@@ -201,24 +233,28 @@ export function normalizeUserRouteCreator(input = {}, profileId = '') {
   };
 }
 
-function canOverwriteRoutebook(existingRoutebook, input) {
+function canOverwriteRoutebook(existingRoutebook, input, context = {}) {
   if (!existingRoutebook) return true;
+  const verifiedProfileId = normalizeProfileId(context?.verifiedProfileId);
+  if (verifiedProfileId !== 'anonymous' && verifiedProfileId === normalizeProfileId(existingRoutebook.profileId)) return true;
+  const provided = sanitizeEditToken(input?.editToken);
+  if (existingRoutebook.editTokenHash) return safeTokenEqual(hashSecretToken(provided), existingRoutebook.editTokenHash);
   const existingToken = sanitizeEditToken(existingRoutebook.editToken);
-  if (existingToken) return safeTokenEqual(sanitizeEditToken(input?.editToken), existingToken);
+  if (existingToken) return safeTokenEqual(provided, existingToken);
   return false;
 }
 
 export async function ensureDraftEditToken(routebook) {
-  if (!routebook || sanitizeEditToken(routebook.editToken) || (routebook.publishStatus || 'draft') !== 'draft') {
+  if (!routebook || routebook.editTokenHash || sanitizeEditToken(routebook.editToken) || (routebook.publishStatus || 'draft') !== 'draft') {
     return routebook;
   }
   const id = sanitizePublicId(routebook.publicId || routebook.id);
   if (!id) return routebook;
   // 并发读同一份无令牌历史草稿会补发多个不同 token：加互斥锁并在锁内重读
   // 最新快照，只有确认仍缺 token 时才补发一次。
-  return withSingleProcessKeyLock(routebookMutationLocks, id, async () => {
+  return withStorageEntityLock('routebook', id, async () => {
     const latest = (await getSavedRoutebook(id)) ?? routebook;
-    if (sanitizeEditToken(latest.editToken) || (latest.publishStatus || 'draft') !== 'draft') {
+    if (latest.editTokenHash || sanitizeEditToken(latest.editToken) || (latest.publishStatus || 'draft') !== 'draft') {
       return latest;
     }
     const currentVersion = await currentRoutebookVersion(id);
@@ -242,7 +278,7 @@ export async function ensureDraftEditToken(routebook) {
   });
 }
 
-export async function saveDraftRoutebook(input) {
+export async function saveDraftRoutebook(input, context = {}) {
   const requestedId = sanitizePublicId(input?.id || input?.publicId);
   if (requestedId && isCuratedRouteId(requestedId)) {
     throw createHttpError('精选路书 ID 为只读保留标识，请先复制为新的个人草稿', 403, 'CURATED_ROUTE_ID_RESERVED');
@@ -252,7 +288,7 @@ export async function saveDraftRoutebook(input) {
     if ((existing.publishStatus || 'draft') !== 'draft') {
       throw createHttpError('公开、精选或归档路书不能通过普通保存接口覆盖', 403, 'ROUTEBOOK_PUBLISHED_OVERWRITE_FORBIDDEN');
     }
-    if (!canOverwriteRoutebook(existing, input)) {
+    if (!canOverwriteRoutebook(existing, input, context)) {
       throw createHttpError('不能覆盖其他用户或公开来源的路书', 403, 'ROUTEBOOK_OVERWRITE_FORBIDDEN');
     }
   }
@@ -272,20 +308,20 @@ export async function saveDraftRoutebook(input) {
   return normalizeRoutebookDraftForStorage({ ...input, ...versionMetadata }, existing);
 }
 
-export async function publishOwnRoutebook(publicId, input = {}) {
+export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
   const routebook = await getSavedRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   if ((routebook.publishStatus || 'draft') === 'archived') {
     throw createHttpError('归档路书不能直接发布，请在运营台恢复状态', 403, 'ROUTEBOOK_ARCHIVED');
   }
-  if (!canOverwriteRoutebook(routebook, input)) {
+  if (!canOverwriteRoutebook(routebook, input, context)) {
     throw createHttpError('只能发布当前用户保存的路书', 403, 'ROUTEBOOK_OWNER_REQUIRED');
   }
   const versionMetadata = await routebookMutationMetadata(routebook, input, {
-    changeReason: '用户发布路书',
+    changeReason: '用户提交路书审核',
     actorType: 'user'
   });
-  if (routebook.publishStatus === 'published' || routebook.publishStatus === 'featured') {
+  if (['published', 'featured', 'pending_review'].includes(routebook.publishStatus)) {
     return routebook;
   }
   const profileId = normalizeProfileId(routebook.profileId || input?.profileId);
@@ -296,7 +332,7 @@ export async function publishOwnRoutebook(publicId, input = {}) {
       ...versionMetadata,
       profileId,
       editToken: sanitizeEditToken(routebook.editToken),
-      publishStatus: 'published',
+      publishStatus: 'pending_review',
       sourceAuthorization: 'user-generated',
       creator,
       provider: {
@@ -306,19 +342,19 @@ export async function publishOwnRoutebook(publicId, input = {}) {
     },
     routebook.publicId || routebook.id
   );
-  await appendVersionedRoutebook(updated, 'published', {
+  await appendVersionedRoutebook(updated, 'submitted-for-review', {
     previousStatus: routebook.publishStatus || 'draft'
   });
   return updated;
 }
 
-export async function saveRoutebookVariant(publicId, input) {
+export async function saveRoutebookVariant(publicId, input, context = {}) {
   const routebook = await getSavedRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   if ((routebook.publishStatus || 'draft') !== 'draft') {
     throw createHttpError('公开、精选或归档路书不能通过变体接口修改，请先定制为个人草稿', 403, 'ROUTEBOOK_VARIANT_FORBIDDEN');
   }
-  if (!canOverwriteRoutebook(routebook, input)) {
+  if (!canOverwriteRoutebook(routebook, input, context)) {
     throw createHttpError('只能修改当前用户保存的草稿变体', 403, 'ROUTEBOOK_OWNER_REQUIRED');
   }
   const versionMetadata = await routebookMutationMetadata(routebook, input, {

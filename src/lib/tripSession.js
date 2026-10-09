@@ -43,9 +43,22 @@ export function saveTripSession(routebook, profileId = 'anonymous', input = {}) 
     routeId,
     profileId: String(profileId ?? 'anonymous'),
     createdAt: previous?.createdAt || new Date().toISOString(),
+    localRevision: Math.max(0, Number(previous?.localRevision) || 0) + 1,
     stops: normalizeTripStops(routebook, input.stops ?? previous?.stops ?? routebook?.stops ?? []),
     updatedAt: new Date().toISOString()
   };
+  try {
+    localStorage.setItem(tripSessionStorageKey(routebook, profileId), JSON.stringify(session));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function restoreTripSession(routebook, profileId = 'anonymous', input = {}) {
+  const stops = normalizeTripStops(routebook, input.stops);
+  if (!stops.length) return false;
+  const session = { ...input, version: EXECUTION_VERSION, routeId: tripRoutebookId(routebook), profileId: String(profileId), stops };
   try {
     localStorage.setItem(tripSessionStorageKey(routebook, profileId), JSON.stringify(session));
     return true;

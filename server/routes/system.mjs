@@ -1,7 +1,7 @@
 // System/config API routes.
-import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, DATA_DIR, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
+import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
 import { hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { writeConfigDocument } from '../storage/config-documents.mjs';
 import { cities as supportedCities, getRegionForCity, isSupportedCity, regionCityGroups } from '../../src/lib/chinaCities.js';
 import { redactBaseUrl } from '../ai/runtime.mjs';
 import { normalizeCityName } from '../lib/util.mjs';
@@ -79,8 +79,7 @@ export const systemRoutes = [
     enforceRateLimit(req);
     verifyAdminAccess(req);
     const config = normalizeCmsConfig(await readJsonBody(req));
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(CMS_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    await writeConfigDocument(CMS_CONFIG_PATH, config);
     return sendJson(res, 200, { ok: true, config });
   }),
   route('GET', '/api/products', async ({ req, res }) => {
@@ -96,8 +95,7 @@ export const systemRoutes = [
     enforceRateLimit(req);
     verifyAdminAccess(req);
     const config = normalizeProductConfig(await readJsonBody(req), { strictUrl: true });
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(PRODUCT_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    await writeConfigDocument(PRODUCT_CONFIG_PATH, config);
     return sendJson(res, 200, {
       ok: true,
       products: config.products,

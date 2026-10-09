@@ -11,11 +11,32 @@ import {
 import { createHttpError } from '../lib/util.mjs';
 import { safeTokenEqual, hashSecretToken, normalizeProfileId, sanitizeEditToken } from './tokens.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
+import { isIP } from 'node:net';
 
 function isLocalAddress(address) {
   const normalized = normalizeRemoteAddress(address);
   if (!normalized) return false;
-  return normalized === '::1' || normalized === '127.0.0.1' || normalized.startsWith('127.');
+  return normalized === '::1' || (isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+// A loopback connection is not enough: a rebinding Host or a cross-site browser
+// request must never inherit the developer's local administrator privileges.
+function hasLocalRequestContext(req) {
+  const host = String(req.headers.host ?? '').trim();
+  if (!host || /[\s,@/\\?#]/.test(host)) return false;
+  const protocol = req.socket.encrypted ? 'https:' : 'http:';
+  try {
+    const target = new URL(`${protocol}//${host}`);
+    const hostname = target.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (hostname !== 'localhost' && !isLocalAddress(hostname)) return false;
+    if (String(req.headers['sec-fetch-site'] ?? '').toLowerCase() === 'cross-site') return false;
+    const origin = req.headers.origin;
+    if (origin == null) return true;
+    // Compare serialized origins without accepting paths, userinfo, or 'null'.
+    return String(origin) === target.origin;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeRemoteAddress(address) {
@@ -85,7 +106,7 @@ export function shouldTrustProxyHeaders(req) {
 // chain is proof the client is remote regardless of what the header claims.
 export function isLocalRequest(req) {
   if (shouldTrustProxyHeaders(req) && hasForwardedChain(req)) return false;
-  return isLocalAddress(req.socket.remoteAddress);
+  return isLocalAddress(req.socket.remoteAddress) && hasLocalRequestContext(req);
 }
 
 export function requestClientKey(req) {
@@ -131,12 +152,22 @@ export function verifySensitiveReadAccess(req) {
 export async function verifyProfileReadAccess(req, profileId) {
   const id = normalizeProfileId(profileId);
   if (!id || id === 'anonymous') return false;
+  const profile = await getSavedProfile(id);
+  if (
+    !profile ||
+    profile.tombstone ||
+    profile.deletedAt ||
+    profile.deletionStartedAt ||
+    profile.deletingAt ||
+    profile.status === 'deleted' ||
+    profile.status === 'deleting'
+  )
+    return false;
   if (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) return true;
   if (hasAdminAccess(req)) return true;
   const headerProfileId = normalizeProfileId(req.headers['x-routebook-profile-id']);
   const token = sanitizeEditToken(req.headers['x-routebook-profile-token']);
   if (headerProfileId !== id || !token) return false;
-  const profile = await getSavedProfile(id);
   return safeTokenEqual(hashSecretToken(token), profile?.accessTokenHash);
 }
 
@@ -146,7 +177,7 @@ export async function resolveWriteProfile(req, requestedProfileId, { requireRegi
     return { profileId: 'anonymous', verified: false, identityBound: false };
   }
   const profile = await getSavedProfile(profileId);
-  if (await verifyProfileReadAccess(req, profileId)) {
+  if (profile && (await verifyProfileReadAccess(req, profileId))) {
     return { profileId, verified: true, identityBound: profile?.identityBound === true };
   }
   if (profile) {

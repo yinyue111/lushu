@@ -172,6 +172,8 @@ function concurrentApprovedPoi(index) {
     value: `并发值 ${index}`,
     evidenceIds: [evidenceId]
   };
+  row.audits[0].id = `${poiId}-review-${index}`;
+  row.audits[0].note = `隔离回归审核并发证据与事实 ${index}`;
   return row;
 }
 
@@ -805,10 +807,15 @@ async function main() {
     assert.equal(missingPublishVersion.data.currentVersion, 3);
     assert.equal(await lineCount(routebookLogPath), routebookLinesBeforeMissingPublishVersion);
 
-    const published = await fetchJson(`${baseUrl}/api/routebooks/w3-w5-version-route/publish`, {
+    const published = await fetchJson(`${baseUrl}/api/routebooks/w3-w5-version-route/status`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ editToken, expectedVersion: 3 })
+      headers: adminHeaders(true),
+      body: JSON.stringify({
+        publishStatus: 'published',
+        expectedVersion: 3,
+        allowUnverifiedRouting: true,
+        routingOverrideReason: '隔离版本链回归专用道路例外'
+      })
     });
     assert.equal(published.response.status, 200);
     assert.equal(published.data.routebook.version, 4);
@@ -878,7 +885,7 @@ async function main() {
     assert.equal(history.data.audits.length, 5);
     assert.deepEqual(
       history.data.audits.map((row) => row.event),
-      ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']
+      ['created', 'draft-saved', 'variant-saved', 'status-changed', 'status-changed']
     );
     const routebookSnapshots = (await readFile(routebookLogPath, 'utf8'))
       .split('\n')
@@ -892,7 +899,7 @@ async function main() {
     );
     assert.deepEqual(
       routebookSnapshots.map((row) => row.versionAudit.event),
-      ['created', 'draft-saved', 'variant-saved', 'published', 'status-changed']
+      ['created', 'draft-saved', 'variant-saved', 'status-changed', 'status-changed']
     );
     assert.equal((await stat(routebookAuditLogPath)).isDirectory(), true, 'new mutations must not depend on the legacy audit sink');
 

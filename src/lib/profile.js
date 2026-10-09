@@ -1,5 +1,6 @@
 const PROFILE_KEY = 'trusted-routebook:profile:v1';
 const PROFILE_SYNC_PREFIX = 'trb1_';
+const PROFILE_REGISTRATION_KEY = 'trusted-routebook:profile-registration:v1';
 
 const defaultProfile = {
   homeCity: '杭州',
@@ -10,7 +11,8 @@ const defaultProfile = {
   transport: '步行 + 打车',
   themes: ['Citywalk'],
   creatorName: '',
-  creatorBio: ''
+  creatorBio: '',
+  cloudRegistrationConsentAt: ''
 };
 
 export function getProfile() {
@@ -43,8 +45,53 @@ export function replaceProfile(nextProfile) {
     themes: normalizeList(nextProfile.themes ?? current.themes).slice(0, 12),
     updatedAt: new Date().toISOString()
   };
-  writeProfile(next);
+  if (!writeProfile(next)) throw new Error('无法保存本机账号凭据，请检查浏览器存储空间');
   return next;
+}
+
+export function grantProfileCloudRegistrationConsent(profile = getProfile()) {
+  return replaceProfile({ ...profile, cloudRegistrationConsentAt: new Date().toISOString() });
+}
+
+export function hasProfileCloudRegistrationConsent(profile = getProfile()) {
+  return Boolean(profile?.profileAccessToken) || Number.isFinite(Date.parse(String(profile?.cloudRegistrationConsentAt ?? '')));
+}
+
+// Persist the random registration credential before the first request. Lost
+// responses can then retry without creating a second cloud account.
+export function prepareProfileSyncPayload(profile = getProfile()) {
+  if (profile?.profileAccessToken || profile?.recoveryProof || profile?.identity?.proof) return profile;
+  if (!hasProfileCloudRegistrationConsent(profile)) {
+    const error = Object.assign(new Error('尚未同意云端同步；偏好和行程继续保留在本机'), { code: 'PROFILE_CLOUD_REGISTRATION_CONSENT_REQUIRED' });
+    throw error;
+  }
+  let pending;
+  try {
+    pending = JSON.parse(safeGetItem(PROFILE_REGISTRATION_KEY) || 'null');
+  } catch {
+    pending = null;
+  }
+  if (pending?.localProfileId !== profile.id || !/^preg_[A-Za-z0-9_-]{43}$/.test(pending?.secret || '')) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const secret = `preg_${btoa(String.fromCharCode(...bytes))
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replaceAll('=', '')}`;
+    pending = { localProfileId: profile.id, secret };
+    if (!safeSetItem(PROFILE_REGISTRATION_KEY, JSON.stringify(pending))) throw new Error('无法保存注册凭据，未发送同步请求');
+  }
+  return { ...profile, pendingRegistrationSecret: pending.secret };
+}
+
+export function resetProfile() {
+  const fresh = { ...defaultProfile, id: createProfileId(), preferredCities: [...defaultProfile.preferredCities], themes: [...defaultProfile.themes] };
+  if (!writeProfile(fresh)) throw new Error('无法清除本机账号凭据，请在浏览器设置中清除本站数据');
+  try {
+    localStorage.removeItem(PROFILE_REGISTRATION_KEY);
+  } catch {
+    /* New profile does not reuse this record. */
+  }
+  return fresh;
 }
 
 export function profileRoutebookFields(profile = getProfile()) {
@@ -64,21 +111,6 @@ export function createRouteEditToken() {
   return `rt_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 18)}`;
 }
 
-export function createProfileSyncCode(profile = getProfile()) {
-  const profileId = String(profile?.id ?? '').trim();
-  const profileAccessToken = String(profile?.profileAccessToken ?? '').trim();
-  if (!isValidProfileId(profileId) || !isValidProfileToken(profileAccessToken)) {
-    throw new Error('当前账号尚未完成服务端同步，无法生成恢复码');
-  }
-  return `${PROFILE_SYNC_PREFIX}${encodeBase64Url(
-    JSON.stringify({
-      version: 1,
-      profileId,
-      profileAccessToken
-    })
-  )}`;
-}
-
 export function parseProfileSyncCode(value) {
   const code = String(value ?? '').trim();
   if (!code.startsWith(PROFILE_SYNC_PREFIX)) {
@@ -87,6 +119,10 @@ export function parseProfileSyncCode(value) {
   try {
     const payload = JSON.parse(decodeBase64Url(code.slice(PROFILE_SYNC_PREFIX.length)));
     const profileId = String(payload?.profileId ?? '').trim();
+    if (payload?.version === 2 && isValidProfileId(profileId) && /^[A-Za-z0-9_-]{16,80}$/.test(payload.nonce) && /^[a-f0-9]{64}$/.test(payload.proof)) {
+      if (!Number.isFinite(Date.parse(payload.expiresAt)) || Date.parse(payload.expiresAt) <= Date.now()) throw new Error('expired');
+      return { profileId, recoveryNonce: payload.nonce, recoveryExpiresAt: payload.expiresAt, recoveryProof: payload.proof };
+    }
     const profileAccessToken = String(payload?.profileAccessToken ?? '').trim();
     if (payload?.version !== 1 || !isValidProfileId(profileId) || !isValidProfileToken(profileAccessToken)) {
       throw new Error('invalid payload');
@@ -107,7 +143,7 @@ function readProfile() {
 }
 
 function writeProfile(profile) {
-  safeSetItem(PROFILE_KEY, JSON.stringify(profile));
+  return safeSetItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
 function createProfileId() {
@@ -129,15 +165,6 @@ function isValidProfileId(value) {
 
 function isValidProfileToken(value) {
   return /^[A-Za-z0-9_-]{16,96}$/.test(value);
-}
-
-function encodeBase64Url(value) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = '';
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function decodeBase64Url(value) {

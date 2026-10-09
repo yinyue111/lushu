@@ -1,6 +1,7 @@
 // Pure helpers for the in-trip page (progress, review, alternatives, navigation).
 // Extracted verbatim from the former monolithic TripView.jsx.
-import { coordinateForName, distanceKm } from '../../lib/coordinates';
+import { distanceKm } from '../../lib/coordinates';
+import { hasNearbyCoordinate, trustedKnowledgeStop } from '../../lib/nearbyRecommendations';
 import { normalizeTripStops, tripRoutebookId } from '../../lib/tripSession';
 import { greedyModeOrder } from '../../lib/routeModes';
 import { checkinEvidenceState, isLocallyProcessedCheckin, isServerSyncedCheckin, listQueuedCheckins } from '../../lib/checkinQueue';
@@ -177,7 +178,7 @@ export function publicTrustEvidenceLabel(row, evidence) {
 }
 
 export function buildAlternatives(current, routebook, activeStops, latestByStop, poiKnowledge = []) {
-  if (!current) return [];
+  if (!current || !hasNearbyCoordinate(current)) return [];
   const currentCategory = stopCategory(current);
   const decorate = (candidate) => {
     const category = stopCategory(candidate.stop);
@@ -190,6 +191,7 @@ export function buildAlternatives(current, routebook, activeStops, latestByStop,
   // 平台 POI 库（运营审核过的修正知识）按与当前站点的距离排序，取前 3 个。
   const platformCandidates = buildPlatformAlternatives(current, routebook, latestByStop, poiKnowledge)
     .map(decorate)
+    .filter((candidate) => Number.isFinite(candidate.distance) && candidate.distance > 0 && candidate.distance <= 8)
     .sort((a, b) => {
       const distanceA = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
       const distanceB = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
@@ -207,13 +209,13 @@ export function buildAlternatives(current, routebook, activeStops, latestByStop,
   for (const source of sources) {
     for (const stop of normalizeTripStops(routebook, source.stops)) {
       const key = stopKeyForStop(stop);
-      if (!key || key === stopKeyForStop(current) || isLocallyProcessedCheckin(latestByStop.get(key))) continue;
+      if (!key || !hasNearbyCoordinate(stop) || key === stopKeyForStop(current) || isLocallyProcessedCheckin(latestByStop.get(key))) continue;
       if (!candidates.has(key)) candidates.set(key, { stop, source: source.label });
     }
   }
   const routeCandidates = [...candidates.values()]
     .map(decorate)
-    .filter((candidate) => Number.isFinite(candidate.distance) || candidate.category !== '其他' || candidate.sameArea)
+    .filter((candidate) => Number.isFinite(candidate.distance) && candidate.distance <= 8)
     .sort((a, b) => {
       if (a.categoryMatch !== b.categoryMatch) return a.categoryMatch ? -1 : 1;
       if (a.sameArea !== b.sameArea) return a.sameArea ? -1 : 1;
@@ -239,24 +241,23 @@ export function buildAlternatives(current, routebook, activeStops, latestByStop,
   }));
 }
 
-// 把平台 POI 库知识行转换成可替换的候选站点；坐标从本地已知 POI 坐标表兜底解析。
+// 平台纠错内容本身不证明坐标可信，只有服务端明确核验的坐标可用于替换。
 export function buildPlatformAlternatives(current, routebook, latestByStop, poiKnowledge) {
   const seen = new Set();
   const candidates = [];
   for (const row of Array.isArray(poiKnowledge) ? poiKnowledge : []) {
-    const name = String(row?.stopName ?? '').trim();
+    const canonical = trustedKnowledgeStop(row, routebook?.city);
+    if (!canonical) continue;
+    const name = String(canonical.name).trim();
     if (!name || name === String(current?.name ?? '').trim() || seen.has(name)) continue;
     seen.add(name);
-    const coordinate = coordinateForName(name, routebook?.city);
     const stop = {
-      id: `poi-knowledge-${String(row?.id ?? name)}`,
+      ...canonical,
       name,
       day: current?.day,
       time: current?.time,
-      area: current?.area || routebook?.city || '',
       verify: `平台 POI 库运营审核：${row?.field || '综合信息'}${row?.value ? ` · ${row.value}` : ''}`.slice(0, 120),
-      risk: String(row?.reason ?? '').slice(0, 120),
-      ...(coordinate ? { lat: coordinate.lat, lng: coordinate.lng, geoConfidence: 75, coordinateSource: 'known-poi' } : {})
+      risk: String(row?.reason ?? '').slice(0, 120)
     };
     if (isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)))) continue;
     candidates.push({ stop, source: '平台 POI 库' });

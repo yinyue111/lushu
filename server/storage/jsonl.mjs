@@ -1,8 +1,12 @@
 // Append-only JSONL storage primitives: append + hooks, reverse scans, row cache.
 // This is the storage seam: a database backend would replace these readers/writers.
-import { appendFile, mkdir, stat, open } from 'node:fs/promises';
+import { appendFile, mkdir, stat, open, readFile, writeFile, rename, rm, chmod } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { DATA_DIR } from '../config/index.mjs';
+import { DATA_DIR, PROFILE_LOG_PATH, PROFILE_LIFECYCLE_LOG_PATH, ROUTEBOOK_LOG_PATH, PROFILE_ID_SECRET } from '../config/index.mjs';
+import { eventStreamNameForPath } from './contract.mjs';
+import { usesPostgresStorage, getPostgresStorage, withStorageEntityLock } from './runtime.mjs';
+import { sanitizeRoutebookSnapshotCredentials } from './routebookCredentials.mjs';
 
 const JSONL_SCAN_CHUNK_BYTES = 256 * 1024;
 const JSONL_NEWLINE_BYTE = 0x0a;
@@ -16,12 +20,92 @@ export function onJsonlAppend(filePath, hook) {
   jsonlAppendHooks.get(filePath).push(hook);
 }
 
-export async function appendJsonLine(filePath, payload) {
-  await mkdir(DATA_DIR, { recursive: true });
-  await appendFile(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
+let profileWriteGuard;
+export function registerProfileWriteGuard(guard) {
+  profileWriteGuard = guard;
+}
+
+export async function appendJsonLine(filePath, payload, { profileMutationLocked = false, expectedVersion = undefined } = {}) {
+  const ownerId = String(payload?.profileId ?? 'anonymous');
+  if (!profileMutationLocked && profileWriteGuard && ownerId !== 'anonymous' && ownerId && ![PROFILE_LOG_PATH, PROFILE_LIFECYCLE_LOG_PATH].includes(filePath)) {
+    return profileWriteGuard(ownerId, () => appendJsonLine(filePath, payload, { profileMutationLocked: true, expectedVersion }));
+  }
+  const persisted = filePath === ROUTEBOOK_LOG_PATH ? sanitizeRoutebookSnapshotCredentials(payload, { profileIdSecret: PROFILE_ID_SECRET }) : payload;
+  if (usesPostgresStorage()) {
+    if (filePath === ROUTEBOOK_LOG_PATH && expectedVersion !== undefined) await getPostgresStorage().appendVersionedRoutebook(persisted, { expectedVersion });
+    else await getPostgresStorage().appendJsonLine(eventStreamNameForPath(filePath), persisted);
+  } else {
+    await withStorageEntityLock('file', filePath, async () => {
+      await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+      await appendFile(filePath, `${JSON.stringify(persisted)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await chmod(filePath, 0o600);
+    });
+  }
   // rank23 读放大治理：写后主动失效对应文件的行缓存/派生缓存。
   invalidateJsonlRowsCache(filePath);
-  for (const hook of jsonlAppendHooks.get(filePath) ?? []) await hook(payload);
+  for (const hook of jsonlAppendHooks.get(filePath) ?? []) await hook(persisted);
+}
+
+export async function rewriteJsonlExcluding(filePath, predicate, _options = {}) {
+  return rewriteRows(filePath, (row) => (predicate(row) ? null : row), true);
+}
+
+export async function rewriteJsonlRows(filePath, transform, _options = {}) {
+  return rewriteRows(filePath, transform, false);
+}
+
+async function rewriteRows(filePath, transform, exclude) {
+  let changed;
+  if (usesPostgresStorage()) {
+    const adapter = getPostgresStorage();
+    changed = exclude
+      ? await adapter.rewriteJsonlExcluding(eventStreamNameForPath(filePath), (row) => transform(row) === null)
+      : await adapter.rewriteJsonlRows(eventStreamNameForPath(filePath), transform);
+  } else {
+    changed = await withStorageEntityLock('file', filePath, async () => {
+      let raw;
+      try {
+        raw = await readFile(filePath, 'utf8');
+      } catch (error) {
+        if (error.code === 'ENOENT') return 0;
+        throw error;
+      }
+      let count = 0;
+      const retained = [];
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        let row;
+        try {
+          row = JSON.parse(line);
+        } catch {
+          retained.push(line);
+          continue;
+        }
+        const next = transform(row);
+        if (exclude && next === null) {
+          count++;
+          continue;
+        }
+        const serialized = JSON.stringify(next);
+        retained.push(serialized);
+        if (serialized !== line.trim()) count++;
+      }
+      if (!count) return 0;
+      const temporary = `${filePath}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(temporary, retained.length ? `${retained.join('\n')}\n` : '', { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+        await rename(temporary, filePath);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      return count;
+    });
+  }
+  if (changed) {
+    invalidateJsonlRowsCache(filePath);
+    for (const hook of jsonlAppendHooks.get(filePath) ?? []) await hook(null);
+  }
+  return changed;
 }
 
 // rank23②：(path, mtimeMs, size) 键的进程级 JSONL 尾窗行缓存（LRU，上限 32 个文件）。
@@ -60,6 +144,7 @@ function invalidateJsonlRowsCache(filePath) {
 }
 
 export async function jsonlFileFingerprint(filePath) {
+  if (usesPostgresStorage()) return getPostgresStorage().streamFingerprint(eventStreamNameForPath(filePath));
   try {
     const stats = await stat(filePath);
     return `${stats.mtimeMs}:${stats.size}`;
@@ -126,6 +211,10 @@ async function scanRecentJsonlRows(filePath, maxRows, projection = null) {
 }
 
 export async function readRecentJsonlRows(filePath, maxRows, projection = null) {
+  if (usesPostgresStorage()) {
+    const rows = await getPostgresStorage().readJsonLines(eventStreamNameForPath(filePath), maxRows);
+    return projection?.project ? rows.map(projection.project) : rows;
+  }
   if (!existsSync(filePath)) return [];
   const safeMaxRows = Number.isFinite(maxRows) && maxRows > 0 ? Math.floor(maxRows) : Number.MAX_SAFE_INTEGER;
   const cacheKey = jsonlRowsCacheKey(filePath, projection);
@@ -164,6 +253,7 @@ export async function withSingleProcessKeyLock(lockMap, key, operation) {
 }
 
 export async function readJsonLines(filePath, limit = 50) {
+  if (usesPostgresStorage()) return getPostgresStorage().readJsonLines(eventStreamNameForPath(filePath), limit);
   if (!existsSync(filePath)) return [];
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
   const rows = await readRecentJsonlRows(filePath, safeLimit);
@@ -191,6 +281,7 @@ function splitTrailingJsonlLines(buffer) {
 }
 
 export async function findLatestJsonLine(filePath, predicate, scanLimit = 50000) {
+  if (usesPostgresStorage()) return getPostgresStorage().findLatestJsonLine(eventStreamNameForPath(filePath), predicate, scanLimit);
   if (!existsSync(filePath)) return null;
   const handle = await open(filePath, 'r');
   let pending = JSONL_EMPTY_BUFFER;
@@ -240,6 +331,7 @@ export async function findLatestJsonLine(filePath, predicate, scanLimit = 50000)
 // older routebooks of a city/profile disappear). A key whose latest row does not
 // match is excluded even if an older version would have matched.
 export async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, scanLimit = 50000, predicate = null) {
+  if (usesPostgresStorage()) return getPostgresStorage().readLatestUniqueJsonLines(eventStreamNameForPath(filePath), keyFn, limit, scanLimit, predicate);
   if (!existsSync(filePath)) return [];
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 100);
   const handle = await open(filePath, 'r');
@@ -295,6 +387,10 @@ export async function readLatestUniqueJsonLines(filePath, keyFn, limit = 100, sc
 // 租户把其他 profile/route 的历史行挤出统计；返回顺序与 readJsonLines 一致
 // （最新在前），保证各处「首个命中即最新」的去重语义不变。
 export async function readMatchingJsonLines(filePath, predicate, limit = 50, scanLimit = 50000, projection = null) {
+  if (usesPostgresStorage()) {
+    const rows = await getPostgresStorage().readMatchingJsonLines(eventStreamNameForPath(filePath), predicate, limit, scanLimit);
+    return projection?.project ? rows.map(projection.project) : rows;
+  }
   if (!existsSync(filePath)) return [];
   const safeLimit = Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : 50);
   const safeScanLimit = Number.isFinite(scanLimit) && scanLimit > 0 ? Math.floor(scanLimit) : 50000;

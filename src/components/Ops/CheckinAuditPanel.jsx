@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Filter, RefreshCw, ShieldAlert } from 'lucide-react';
-import { checkinPhotoUrl, getCheckins } from '../../lib/api';
+import { CheckinPhoto } from '../visual/CheckinPhoto';
+import { getOpsCheckins } from '../../lib/opsApi';
+import OpsAuditDialog from './OpsAuditDialog';
 import { EmptyState, ResourceNotice, firstValue, formatOpsDate, hasValue, textValue, useOpsResource } from './OpsShared';
 
 // 与 server/config/index.mjs CHECKIN_MAX_REPORTED_ACCURACY_METERS 默认值保持一致；
@@ -12,14 +14,15 @@ const FILTERS = [
   { id: 'weak', label: '弱定位' },
   { id: 'invalid', label: '无效到达' },
   { id: 'correction', label: '纠偏样本' },
-  { id: 'skipped', label: '跳过/替换' }
+  { id: 'skipped', label: '跳过/替换' },
+  { id: 'excluded', label: '已排除/商业激励' }
 ];
 
-// 打卡审核（只读风控视图 V1）：列出原始打卡行与到达证据，异常行高亮并标注原因。
-// 写操作（例如把某条样本从可信度统计中排除）留待后续版本。
+// 处置由追加审计驱动，保留原始打卡并实时投影至可信度与公开回顾。
 export default function CheckinAuditPanel() {
-  const checkinsResource = useOpsResource((signal) => getCheckins(200, signal));
+  const checkinsResource = useOpsResource((signal) => getOpsCheckins(200, signal));
   const [filter, setFilter] = useState('all');
+  const [selected, setSelected] = useState(null);
   const rows = normalizeCheckins(checkinsResource.data);
   const visibleRows = rows.filter((row) => matchesFilter(row, filter));
   const listReady = checkinsResource.status === 'ready' || checkinsResource.status === 'empty' || checkinsResource.status === 'refreshing';
@@ -29,8 +32,8 @@ export default function CheckinAuditPanel() {
       <section className="ops-panel" aria-labelledby="checkin-audit-title">
         <div className="ops-panel-head">
           <div>
-            <h2 id="checkin-audit-title">打卡审核（只读风控视图）</h2>
-            <p className="text-caption">核对到达证据、定位质量与照片；排除样本等写操作将在后续版本提供</p>
+            <h2 id="checkin-audit-title">打卡审核与可信样本处置</h2>
+            <p className="text-caption">核对定位与照片；排除、恢复及商业激励标记均需填写原因并保留审计</p>
           </div>
           <span className="badge badge-orange">
             <ShieldAlert size={12} /> {checkinsResource.data ? `${visibleRows.length} 条` : '—'}
@@ -64,6 +67,7 @@ export default function CheckinAuditPanel() {
                   <th>到达置信</th>
                   <th>距离 / 误差</th>
                   <th>照片</th>
+                  <th>运营处置</th>
                   <th>状态</th>
                   <th>值得</th>
                   <th>异常原因</th>
@@ -98,21 +102,15 @@ export default function CheckinAuditPanel() {
                       </small>
                     </td>
                     <td>
-                      {row.photoId ? (
-                        <a href={checkinPhotoUrl(row.photoId)} target="_blank" rel="noreferrer" title="打开打卡照片">
-                          <img
-                            src={checkinPhotoUrl(row.photoId)}
-                            alt={`${row.stopName || '打卡'}照片`}
-                            loading="lazy"
-                            style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, display: 'block' }}
-                            onError={(event) => {
-                              event.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        </a>
-                      ) : (
-                        '—'
-                      )}
+                      {row.photoId ? <CheckinPhoto photoId={row.photoId} access="admin" alt={`${row.stopName || '打卡'}照片`} className="size-11" /> : '—'}
+                    </td>
+                    <td>
+                      <span className={`badge ${row.opsDisposition?.excluded || row.opsDisposition?.commercialIncentive ? 'badge-orange' : 'badge-blue'}`}>
+                        {row.opsDisposition?.excluded ? '已排除' : row.opsDisposition?.commercialIncentive ? '商业激励' : '未处置'}
+                      </span>
+                      <button type="button" className="btn btn-secondary btn-sm mt-2" onClick={() => setSelected(row)}>
+                        处置 / 历史
+                      </button>
                     </td>
                     <td>
                       <StatusBadge value={row.status} />
@@ -142,6 +140,20 @@ export default function CheckinAuditPanel() {
           不一致（photoEvidence=gps-mismatch）或移动速度异常。部分字段（照片证据、纠偏标记）随服务端本波落库后才会出现。
         </p>
       </section>
+      {selected && (
+        <OpsAuditDialog
+          key={selected.id}
+          entity={{
+            type: 'checkin',
+            id: selected.id,
+            title: `${selected.routeTitle || '路书'} · ${selected.stopName || '打卡'}`,
+            disposition: selected.opsDisposition,
+            history: selected.opsAuditHistory
+          }}
+          onClose={() => setSelected(null)}
+          onSaved={checkinsResource.retry}
+        />
+      )}
     </div>
   );
 }
@@ -166,6 +178,8 @@ function normalizeCheckins(data) {
       trustState: item?.trustState,
       status: item?.status,
       worth: item?.worth,
+      opsDisposition: item?.opsDisposition,
+      opsAuditHistory: item?.opsAuditHistory,
       photoId: String(item?.photoId ?? '').trim(),
       arrival,
       arrivalValid: arrival?.valid,
@@ -195,6 +209,7 @@ function matchesFilter(row, filter) {
   if (filter === 'invalid') return row.arrivalValid === false;
   if (filter === 'correction') return row.usedCoordinateCorrection;
   if (filter === 'skipped') return ['skipped', 'replaced'].includes(String(row.status ?? ''));
+  if (filter === 'excluded') return row.opsDisposition?.excluded || row.opsDisposition?.commercialIncentive;
   return true;
 }
 
