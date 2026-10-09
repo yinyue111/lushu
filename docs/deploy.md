@@ -43,7 +43,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
 
-- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.30.80.1`（compose 里把子网固定为 `172.30.80.0/24`），所以 `TRUSTED_PROXY_CIDRS` 默认是 `172.30.80.1,127.0.0.1,::1`。如果这个子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `.env` 里的 `TRUSTED_PROXY_CIDRS`。
+- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `TRUSTED_PROXY_CIDRS` 默认是 `172.31.80.1,127.0.0.1,::1`。如果这个子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `.env` 里的 `TRUSTED_PROXY_CIDRS`。
 - 不用 Docker、直接 `npm start`：设 `HOST=127.0.0.1 PORT=3080 TRUST_PROXY_HEADERS=true`；`TRUSTED_PROXY_CIDRS` 的默认值 `127.0.0.1,::1` 正好是 Caddy。
 - 服务从右往左读 `X-Forwarded-For`，跳过可信代理，所以客户端自己伪造的最左项不会生效。带转发链的请求一律不算“本机”，生产环境也默认关闭本机免鉴权。
 
