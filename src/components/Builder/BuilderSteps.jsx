@@ -251,7 +251,7 @@ export function StepGuide(props) {
             {candidatePlaces.map((place, index) => (
               <li
                 key={`${place.name}-${index}`}
-                className={cn('flex items-center gap-2 rounded-tile border border-line p-2.5 pl-3', place.included ? 'bg-white' : 'bg-canvas opacity-70')}
+                className={cn('flex items-center gap-2 rounded-tile border border-line p-2.5 pl-3', place.included ? 'bg-white' : 'border-dashed bg-canvas')}
               >
                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
                   <input

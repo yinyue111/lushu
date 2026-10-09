@@ -13,6 +13,7 @@ import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
 import { RouteCard } from '../cards/RouteCard';
+import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { MyAccountPanel } from './MyAccountPanel';
 
@@ -316,11 +317,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn('mt-6 grid grid-cols-3 gap-2 sm:gap-3', clicks.length > 0 && 'lg:grid-cols-4')}>
         <Stat icon={Route} tone="bg-primary-soft text-primary-strong" label="我的路书" value={books.length} />
-        <Stat icon={Camera} tone="bg-success-soft text-success-ink" label="我的打卡" value={checkins.length} />
-        <Stat icon={Share2} tone="bg-sky-soft text-sky-ink" label="我的分享" value={sharedBooks.length} />
-        <Stat icon={Ticket} tone="bg-lemon-soft text-lemon-ink" label="商品点击" value={clicks.length} />
+        <Stat icon={Camera} label="我的打卡" value={checkins.length} />
+        <Stat icon={Share2} label="我的分享" value={sharedBooks.length} />
+        {/* Only meaningful once something was clicked; an always-zero tile was noise. */}
+        {clicks.length > 0 && <Stat icon={Ticket} label="商品点击" value={clicks.length} className="max-lg:hidden" />}
       </div>
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mt-8">
@@ -586,10 +588,10 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 }
 
 /** @param {Record<string, any>} props */
-function Stat({ icon: Icon, tone, label, value }) {
+function Stat({ icon: Icon, tone = 'bg-canvas text-ink-2', label, value, className }) {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-line bg-white p-3 shadow-card sm:p-4">
-      <span className={`grid size-10 shrink-0 place-items-center rounded-full ${tone}`}>
+    <div className={cn('flex items-center gap-3 rounded-card border border-line bg-white px-3 py-2.5 sm:p-4', className)}>
+      <span className={cn('grid size-10 shrink-0 place-items-center rounded-full max-sm:hidden', tone)}>
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <div>
