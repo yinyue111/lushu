@@ -39,6 +39,11 @@ export default function ReviewPage({ routebook, onBack }) {
   const latestByStop = useMemo(() => latestCheckinsByStop(checkins), [checkins]);
   const photoCheckins = useMemo(() => [...latestByStop.values()].filter((item) => String(item?.photoId ?? '').trim()), [latestByStop]);
   const isPublic = ['published', 'featured'].includes(routebook.publishStatus);
+  // PUBLIC_PUBLISHING=disabled: 「先发布」 would be a dead end, so say what is possible instead.
+  const publishingDisabled = Boolean(routebook.publication?.publishingDisabled);
+  const notPublicText = publishingDisabled
+    ? '这个站点暂不开放公开发布，回顾分享页也先不开放。想给同行的人看，可以在路书页生成朋友链接。'
+    : '这条路书还没发布。先在路书页发布，再生成公开回顾。';
   const dayCount = new Set(stops.map((stop) => stop.day || 'Day 1')).size || 1;
 
   const stats = useMemo(() => computeStats(checkins, stops), [checkins, stops]);
@@ -220,9 +225,7 @@ export default function ReviewPage({ routebook, onBack }) {
 
       <section className="mt-10 rounded-panel border border-line bg-white p-5 text-center shadow-card">
         <h2 className="text-lg font-extrabold">把这次旅程分享出去</h2>
-        <p className="mx-auto mt-1 max-w-md text-sm text-muted">
-          {isPublic ? '朋友能看到可信分、GPS 有效到达率和你的真实反馈。' : '这条路书还没发布。先在路书页发布，再生成公开回顾。'}
-        </p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted">{isPublic ? '朋友能看到可信分、GPS 有效到达率和你的真实反馈。' : notPublicText}</p>
         <Button variant="primary" size="lg" className="mt-4" onClick={createShare} disabled={shareState.loading || !isPublic}>
           <Share2 /> {shareState.loading ? '生成中...' : '生成回顾分享页'}
         </Button>
@@ -236,7 +239,7 @@ export default function ReviewPage({ routebook, onBack }) {
 
   async function createShare() {
     if (!isPublic) {
-      setShareState({ loading: false, message: '请先在路书页发布 H5 链接，再生成公开回顾', url: '' });
+      setShareState({ loading: false, message: publishingDisabled ? notPublicText : '请先在路书页发布 H5 链接，再生成公开回顾', url: '' });
       return;
     }
     setShareState({ loading: true, message: '', url: '' });

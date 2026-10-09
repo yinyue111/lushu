@@ -10,3 +10,9 @@ test('queued check-ins do not promise an automatic upload while 云端同步 is 
   assert.match(view, /syncStatusLabel\(statusEvidence\.syncStatus, statusCheckin, \{ cloudSyncOff \}\)/);
   assert.match(view, /「我的 → 账户」开启云端同步/);
 });
+
+test('review page does not send users to a publish step that is switched off', () => {
+  const review = readFileSync(new URL('../../src/components/Trip/ReviewPage.jsx', import.meta.url), 'utf8');
+  assert.match(review, /publication\?\.publishingDisabled/);
+  assert.match(review, /暂不开放公开发布/);
+});
