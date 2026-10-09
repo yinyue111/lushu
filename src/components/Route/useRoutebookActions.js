@@ -7,6 +7,7 @@ import { recordProductClick as recordProductClickTelemetry } from '../../lib/pro
 import { downloadTripIcs, requestTripNotification } from '../../lib/reminders';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { modeSlug, orderedDays, reorderStopsByMode, variantSummary } from '../../lib/routeModes';
+import { retimeReorderedDays } from '../../lib/stopTiming';
 import {
   adoptNewerServerVersionScalars,
   buildEditedMetrics,
@@ -109,7 +110,7 @@ export function useRoutebookActions({
     const target = dayIndexes[targetPosition];
     const nextStops = [...stops];
     [nextStops[index], nextStops[target]] = [nextStops[target], nextStops[index]];
-    updateRoutebook(nextStops);
+    updateRoutebook(retimeReorderedDays(nextStops, [activeDay]));
   }
 
   function moveStopBefore(sourceId, targetId) {
@@ -122,7 +123,8 @@ export function useRoutebookActions({
     const nextTargetIndex = nextStops.findIndex((stop) => stopKey(stop.id) === stopKey(targetId));
     nextStops.splice(nextTargetIndex, 0, moved);
     setDraggedStopId(null);
-    updateRoutebook(nextStops, { editReason: '拖拽排序' });
+    const sameDay = (moved.day || 'Day 1') === (nextStops[nextTargetIndex + 1]?.day || 'Day 1');
+    updateRoutebook(sameDay ? retimeReorderedDays(nextStops, [moved.day || 'Day 1']) : nextStops, { editReason: '拖拽排序' });
   }
 
   function moveStopToDayEnd(sourceId, day) {
@@ -230,7 +232,8 @@ export function useRoutebookActions({
   }
 
   function reorderByMode(mode) {
-    const nextStops = reorderStopsByMode(stops, mode, { preferredDays: routebook.days });
+    const reordered = reorderStopsByMode(stops, mode, { preferredDays: routebook.days });
+    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, routebook.days));
     updateRoutebook(nextStops, {
       editReason: `${mode}重排`,
       validations: [
@@ -260,7 +263,8 @@ export function useRoutebookActions({
     }
     const base = latestRoutebookRef.current;
     const operationSequence = ++routebookSyncSequenceRef.current;
-    const nextStops = Array.isArray(presetStops) && presetStops.length ? presetStops : reorderStopsByMode(base.stops ?? [], mode, { preferredDays: base.days });
+    const reordered = Array.isArray(presetStops) && presetStops.length ? presetStops : reorderStopsByMode(base.stops ?? [], mode, { preferredDays: base.days });
+    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, base.days));
     const variant = {
       id: `${modeSlug(mode)}-${Date.now()}`,
       mode,
