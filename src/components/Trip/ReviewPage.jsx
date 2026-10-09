@@ -149,7 +149,7 @@ export default function ReviewPage({ routebook, onBack }) {
                           <StopThumb stop={stop} compact className="size-12 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
-                              <strong className="truncate text-[15px] font-extrabold">{stop.name}</strong>
+                              <strong className="truncate text-copy font-extrabold">{stop.name}</strong>
                               <span className="num shrink-0 text-xs font-bold text-muted">{stop.time}</span>
                             </div>
                             {done ? (

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Clock,
   CloudCheck,
+  CloudOff,
   CloudRain,
   CloudUpload,
   Footprints,
@@ -461,26 +462,6 @@ export default function TripView({ routebook, onBack, onReview }) {
 
   return (
     <div className="min-h-dvh bg-canvas pb-[calc(96px+env(safe-area-inset-bottom))] text-ink lg:pb-12">
-      <section className="mx-auto max-w-[1200px] px-4 py-2 text-sm text-muted" aria-label="行中计划同步">
-        <p role="status" aria-live="polite">
-          {tripCloud.state.message}
-        </p>
-        {tripCloud.state.status === 'error' && (
-          <Button size="sm" variant="outline" onClick={tripCloud.retry}>
-            重试同步
-          </Button>
-        )}
-        {tripCloud.state.status === 'conflict' && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(true)}>
-              加载云端计划
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(false)}>
-              保留本机计划并同步
-            </Button>
-          </div>
-        )}
-      </section>
       {/* Sticky header with progress */}
       <header className="sticky top-0 z-[1200] border-b border-line bg-white/94 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1180px] items-center gap-3 px-4 lg:px-8">
@@ -488,13 +469,17 @@ export default function TripView({ routebook, onBack, onReview }) {
             <X />
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-extrabold">{routebook.title}</p>
-            <p className="truncate text-[13px] text-muted">{review}</p>
+            <p className="truncate text-copy font-extrabold">{routebook.title}</p>
+            <p className="truncate text-meta text-muted">{review}</p>
           </div>
+          <TripSyncBadge state={tripCloud.state} />
           <span className="num shrink-0 rounded-full bg-ink px-3 py-1.5 text-sm text-white">
             {effectiveIdx + 1} / {stops.length}
           </span>
         </div>
+        <p className="sr-only" role="status" aria-live="polite">
+          {tripCloud.state.message}
+        </p>
         <div className="h-1.5 bg-line" role="progressbar" aria-label="行程进度" aria-valuenow={Math.min(100, progress)} aria-valuemin={0} aria-valuemax={100}>
           <div
             className="h-full rounded-r-full transition-[width] duration-500"
@@ -505,6 +490,30 @@ export default function TripView({ routebook, onBack, onReview }) {
 
       <div className="mx-auto grid max-w-[1180px] gap-5 px-4 pt-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8 lg:px-8 lg:pt-8">
         <main className="flex min-w-0 flex-col gap-4">
+          {(tripCloud.state.status === 'error' || tripCloud.state.status === 'conflict') && (
+            <section className="rounded-card bg-lemon-soft px-4 py-3 text-sm text-lemon-ink" aria-label="行中计划同步">
+              <p className="flex items-start gap-2 font-semibold">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {tripCloud.state.message}
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {tripCloud.state.status === 'error' ? (
+                  <Button size="sm" variant="outline" onClick={tripCloud.retry}>
+                    重试同步
+                  </Button>
+                ) : (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(true)}>
+                      加载云端计划
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(false)}>
+                      保留本机计划并同步
+                    </Button>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
           {!trustedCities.includes(routebook.city) && (
             <p className="rounded-card bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink" role="status">
               {routebook.city}还在试运行：地点、营业时间和导航请出发前自己再核对。
@@ -518,7 +527,7 @@ export default function TripView({ routebook, onBack, onReview }) {
               <Chip tone={isFinished ? 'ok' : 'primary'}>
                 {isFinished ? '全部完成' : currentProcessed ? checkinStatusLabel(currentLatest) : '现在在这一站'}
               </Chip>
-              <h1 id="trip-current-title" className="mt-2.5 text-[28px] leading-tight font-extrabold tracking-tight lg:text-[34px]">
+              <h1 id="trip-current-title" className="mt-2.5 text-display-sm leading-tight font-extrabold tracking-tight lg:text-display-md">
                 {current.name}
               </h1>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -551,8 +560,8 @@ export default function TripView({ routebook, onBack, onReview }) {
                     <ChevronRight className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] text-muted">下一站 · {next.time}</p>
-                    <p className="truncate text-[15px] font-bold">{next.name}</p>
+                    <p className="text-meta text-muted">下一站 · {next.time}</p>
+                    <p className="truncate text-copy font-bold">{next.name}</p>
                   </div>
                   {nextStopCountdown && (
                     <Chip size="sm" tone={nextStopCountdown.overdue ? 'warn' : 'ok'} className="shrink-0">
@@ -609,10 +618,10 @@ export default function TripView({ routebook, onBack, onReview }) {
                 <p className="font-bold">
                   {statusEvidence.localCompleted ? checkinStatusLabel(statusCheckin) : '还没记录'} · {syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
                 </p>
-                <p className="mt-0.5 text-[13px] text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
-                {pendingSyncCount > 1 && <p className="mt-0.5 text-[13px] text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>}
+                <p className="mt-0.5 text-meta text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
+                {pendingSyncCount > 1 && <p className="mt-0.5 text-meta text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>}
                 {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
-                  <p className="mt-0.5 text-[13px] text-primary-strong">原因：{statusCheckin.clientSyncError}</p>
+                  <p className="mt-0.5 text-meta text-primary-strong">原因：{statusCheckin.clientSyncError}</p>
                 )}
               </div>
               {pendingSyncCount > 0 && (
@@ -625,8 +634,8 @@ export default function TripView({ routebook, onBack, onReview }) {
 
           <details className="group rounded-card bg-white shadow-card">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5">
-              <span className="text-[15px] font-bold">附近替代点与设施</span>
-              <span className="text-[13px] text-muted">{nearbyItems.length} 个</span>
+              <span className="text-copy font-bold">附近替代点与设施</span>
+              <span className="text-meta text-muted">{nearbyItems.length} 个</span>
             </summary>
             <div className="flex flex-wrap gap-2 border-t border-line p-3" aria-label="附近地点筛选">
               {NEARBY_FILTERS.map((filter) => (
@@ -660,8 +669,8 @@ export default function TripView({ routebook, onBack, onReview }) {
                 >
                   <StopThumb stop={item.stop} compact className="size-12 shrink-0 rounded-xl" />
                   <span className="min-w-0">
-                    <b className="block truncate text-[15px]">{item.name}</b>
-                    <span className="line-clamp-2 text-[13px] text-muted">
+                    <b className="block truncate text-copy">{item.name}</b>
+                    <span className="line-clamp-2 text-meta text-muted">
                       {item.type} · {item.reason}
                     </span>
                   </span>
@@ -680,7 +689,7 @@ export default function TripView({ routebook, onBack, onReview }) {
               <p className="text-sm text-ink-2">
                 到达验证 <b className="num">{progressStats.validArrivals}</b> 站 · 计入可信度 <b className="num">{progressStats.publicTrustSamples}</b> 站
               </p>
-              <p className="mt-1 text-[13px] text-muted">
+              <p className="mt-1 text-meta text-muted">
                 普通反馈 {progressStats.feedbackOnly} 站 · 定位偏离 {progressStats.lowConfidenceArrivals} 次 · 跳过 {progressStats.skipped} 站 · 替换{' '}
                 {progressStats.replaced} 次
               </p>
@@ -707,7 +716,7 @@ export default function TripView({ routebook, onBack, onReview }) {
                   >
                     <span
                       className={cn(
-                        'num relative z-[1] grid size-8 shrink-0 place-items-center rounded-full border-2 border-white text-[13px]',
+                        'num relative z-[1] grid size-8 shrink-0 place-items-center rounded-full border-2 border-white text-meta',
                         state === 'done' && 'bg-success-ink text-white',
                         state === 'current' && 'bg-primary-strong text-white shadow-[0_0_0_3px_rgba(232,85,61,.25)]',
                         state === 'upcoming' && 'bg-canvas text-ink-2'
@@ -717,8 +726,8 @@ export default function TripView({ routebook, onBack, onReview }) {
                       {processed ? checkinStatusIcon(statusKind) : idx + 1}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={cn('truncate text-[15px] font-bold', state === 'done' && 'text-muted line-through decoration-1')}>{stop.name}</p>
-                      <p className="truncate text-[13px] text-muted">{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</p>
+                      <p className={cn('truncate text-copy font-bold', state === 'done' && 'text-muted line-through decoration-1')}>{stop.name}</p>
+                      <p className="truncate text-meta text-muted">{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</p>
                     </div>
                     {state === 'current' && (
                       <Chip size="sm" tone="primary" className="mr-2">
@@ -782,4 +791,25 @@ function checkinLabel(isFinished, processed, syncing, row) {
   if (processed) return checkinStatusLabel(row);
   if (syncing) return '上传中';
   return '我到了，记录一下';
+}
+
+const TRIP_SYNC_BADGES = {
+  local: { icon: CloudOff, label: '本机', className: 'bg-canvas text-muted' },
+  loading: { icon: RefreshCw, label: '同步中', className: 'bg-sky-soft text-sky-ink', spin: true },
+  syncing: { icon: RefreshCw, label: '同步中', className: 'bg-sky-soft text-sky-ink', spin: true },
+  synced: { icon: CloudCheck, label: '已同步', className: 'bg-success-soft text-success-ink' },
+  error: { icon: TriangleAlert, label: '未同步', className: 'bg-lemon-soft text-lemon-ink' },
+  conflict: { icon: TriangleAlert, label: '有冲突', className: 'bg-lemon-soft text-lemon-ink' }
+};
+
+/** Compact cloud-sync state for the trip header; the full message is announced via the live region. */
+function TripSyncBadge({ state }) {
+  const badge = TRIP_SYNC_BADGES[state?.status] ?? TRIP_SYNC_BADGES.local;
+  const Icon = badge.icon;
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-meta font-bold ${badge.className}`} title={state?.message}>
+      <Icon className={`size-3.5 ${badge.spin ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
+      <span className="sr-only sm:not-sr-only">{badge.label}</span>
+    </span>
+  );
 }

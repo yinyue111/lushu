@@ -106,9 +106,7 @@ export default function ImportSourcesPanel() {
         ) : listReady ? (
           <EmptyState>{rows.length ? '当前筛选状态下没有导入来源。' : '导入分析尚无记录。用户在生成页粘贴攻略链接并解析后，会在这里出现来源明细。'}</EmptyState>
         ) : null}
-        <p className="text-caption" style={{ marginTop: 10 }}>
-          状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only 与 failed 计失败。
-        </p>
+        <p className="text-caption mt-2.5">状态口径与看板「来源解析率」一致：fetched 计成功，metadata-only 与 failed 计失败。</p>
       </section>
       {selected && (
         <OpsAuditDialog

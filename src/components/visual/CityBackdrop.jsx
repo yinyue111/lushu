@@ -30,7 +30,9 @@ export function CityBackdrop({ city, position = 'center 60%' }) {
         className="absolute inset-0 size-full object-cover object-[center_40%]"
         badge={<SceneBadge className="top-3 right-3 lg:top-auto lg:right-5 lg:bottom-5">城市示意图 · AI 生成</SceneBadge>}
       />
-      <span className="absolute right-[5%] bottom-4 text-[120px] leading-none font-black tracking-tight text-white/15 select-none lg:text-[180px]">{city}</span>
+      <span className="absolute right-[5%] bottom-4 text-watermark leading-none font-black tracking-tight text-white/15 select-none lg:text-watermark-lg">
+        {city}
+      </span>
     </div>
   );
 }

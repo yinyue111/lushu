@@ -63,13 +63,13 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
             ))}
           </div>
         )}
-        <h3 className="line-clamp-2 text-[17px] leading-snug font-extrabold">
+        <h3 className="line-clamp-2 text-lead leading-snug font-extrabold">
           <button type="button" onClick={onOpen} className="text-left hover:text-primary-strong">
             {routebook.title || `${routebook.city} 路书`}
           </button>
         </h3>
         {routebook.summary && <p className="line-clamp-2 text-sm text-muted">{routebook.summary}</p>}
-        <p className="mt-auto flex items-center gap-1 pt-1 text-[13px] font-semibold text-ink-2">
+        <p className="mt-auto flex items-center gap-1 pt-1 text-meta font-semibold text-ink-2">
           <MapPin className="size-3.5 text-primary-strong" aria-hidden="true" />
           {meta || `${routebook.city || '目的地'}${stopCount ? ` · ${stopCount} 站` : ''}`}
         </p>

@@ -48,7 +48,7 @@ export function Notice({ tone = 'warn', role = 'status', children, className }) 
 function StepTitle({ title, sub }) {
   return (
     <div className="mb-5">
-      <h2 className="text-2xl font-black tracking-tight lg:text-[28px]">{title}</h2>
+      <h2 className="text-2xl font-black tracking-tight lg:text-display-sm">{title}</h2>
       {sub && <p className="mt-1 text-sm text-muted">{sub}</p>}
     </div>
   );
@@ -91,7 +91,7 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => commitCity(item)}
             className={cn(
-              'inline-flex h-11 items-center gap-1.5 rounded-full border px-5 text-[15px] font-bold transition-colors',
+              'inline-flex h-11 items-center gap-1.5 rounded-full border px-5 text-copy font-bold transition-colors',
               item === city ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-ink hover:border-ink/40'
             )}
           >
@@ -148,7 +148,7 @@ export function StepGuide(props) {
             <ImageUp className="size-5" aria-hidden="true" />
           </span>
           <span>
-            <strong className="block text-[15px] font-extrabold">上传截图</strong>
+            <strong className="block text-copy font-extrabold">上传截图</strong>
             <span className="text-xs text-muted">自动识别地点、价格和时间</span>
           </span>
           <input
@@ -166,7 +166,7 @@ export function StepGuide(props) {
             <Link className="size-5" aria-hidden="true" />
           </span>
           <span>
-            <strong className="block text-[15px] font-extrabold">公开链接分析</strong>
+            <strong className="block text-copy font-extrabold">公开链接分析</strong>
             <span className="text-xs text-muted">不绕过登录墙，只读公开内容</span>
           </span>
         </div>
@@ -198,7 +198,7 @@ export function StepGuide(props) {
             {importState.sources.length} 条来源已分析，来源预测均分 {average}；该分数不代表真实到访验证
           </p>
           <div className="flex items-center justify-between gap-2">
-            <strong className="text-[15px] font-extrabold">已分析 {importState.sources.length} 条来源</strong>
+            <strong className="text-copy font-extrabold">已分析 {importState.sources.length} 条来源</strong>
             <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', TONES[sourcePredictionTone(average)])}>预测均分 {average}</span>
           </div>
           <ul className="mt-2 divide-y divide-line">
@@ -261,7 +261,7 @@ export function StepGuide(props) {
                     onChange={(event) => updateCandidate(index, { included: event.target.checked })}
                   />
                   <span className="min-w-0">
-                    <strong className="block truncate text-[15px] font-bold">{place.name}</strong>
+                    <strong className="block truncate text-copy font-bold">{place.name}</strong>
                     <span className="block truncate text-xs text-muted">
                       {place.source || '候选来源'} · 参考分 {place.confidence ?? '待计算'}
                       {place.note ? ` · ${place.note}` : ''}
@@ -442,7 +442,7 @@ export function StepGenerate({ error, loading, city, duration, genSteps, onRetry
       </p>
       <ol className="mx-auto mt-6 grid max-w-xs gap-2.5 text-left" aria-label="路书生成进度">
         {genSteps.map((s, i) => (
-          <li key={i} className="flex items-center gap-2.5 text-[15px]">
+          <li key={i} className="flex items-center gap-2.5 text-copy">
             {i === genSteps.length - 1 && loading ? (
               <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
             ) : (

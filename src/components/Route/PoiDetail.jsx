@@ -281,7 +281,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
             <strong className="text-sm font-extrabold">{poiTrustState.detailLabel}</strong>
             <Pill tone={trustTone}>{poiTrustState.verified ? `可信分 ${poiTrustState.value}` : poiTrustState.value}</Pill>
           </div>
-          <p className="mt-1 text-[13px] text-muted">{poiTrustState.detail}</p>
+          <p className="mt-1 text-meta text-muted">{poiTrustState.detail}</p>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas" aria-hidden="true">
             <div
               className={cn('h-full rounded-full', poiTrustState.tone === 'trial' ? 'bg-lemon' : poiTrustState.verified ? 'bg-success' : 'bg-sky')}
@@ -396,7 +396,7 @@ function InfoTile({ icon: Icon, iconClass, label, value, hint }) {
 function Section({ title, icon: Icon, children }) {
   return (
     <section className="mt-5">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[15px] font-extrabold">
+      <h3 className="mb-2 flex items-center gap-1.5 text-copy font-extrabold">
         {Icon && <Icon className="size-4 text-muted" aria-hidden="true" />}
         {title}
       </h3>

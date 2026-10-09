@@ -178,29 +178,31 @@ function overallCtrDisplay(analytics) {
 
 function FunnelTable({ title, rows }) {
   return (
-    <div className="card-flat p-3">
+    <div className="card-flat min-w-0 p-3">
       <h3 className="mb-2 text-sm font-bold">{title}</h3>
       {rows.length ? (
-        <table className="ops-data-table">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>曝光</th>
-              <th>点击</th>
-              <th>CTR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td>{row.label}</td>
-                <td>{row.exposureCount}</td>
-                <td>{row.clickCount}</td>
-                <td>{row.ctr}%</td>
+        <div className="ops-table-scroll" tabIndex={0} role="region" aria-label={`${title}（可横向滚动）`}>
+          <table className="ops-data-table is-compact">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>曝光</th>
+                <th>点击</th>
+                <th>CTR</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <td>{row.label}</td>
+                  <td>{row.exposureCount}</td>
+                  <td>{row.clickCount}</td>
+                  <td>{row.ctr}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <p className="text-caption">暂无可归因曝光。</p>
       )}
@@ -219,29 +221,29 @@ function BoardStat({ label, value }) {
 
 function GroupTable({ title, rows, ready }) {
   return (
-    <div className="card-flat" style={{ padding: 14 }}>
-      <h3 className="text-caption" style={{ fontWeight: 700, marginBottom: 8 }}>
-        {title}
-      </h3>
+    <div className="card-flat min-w-0 p-3.5">
+      <h3 className="text-caption mb-2 font-bold">{title}</h3>
       {rows.length ? (
-        <table className="ops-data-table">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>点击</th>
-              <th>最近点击</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.slice(0, 8).map((row, index) => (
-              <tr key={row.key || `${row.label}-${index}`}>
-                <td>{textValue(row.label || row.key)}</td>
-                <td>{numberValue(row.count)}</td>
-                <td>{formatOpsDate(row.lastClickedAt)}</td>
+        <div className="ops-table-scroll" tabIndex={0} role="region" aria-label={`${title}（可横向滚动）`}>
+          <table className="ops-data-table is-compact">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>点击</th>
+                <th>最近点击</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.slice(0, 8).map((row, index) => (
+                <tr key={row.key || `${row.label}-${index}`}>
+                  <td>{textValue(row.label || row.key)}</td>
+                  <td>{numberValue(row.count)}</td>
+                  <td>{formatOpsDate(row.lastClickedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : ready ? (
         <p className="text-caption">暂无点击数据。</p>
       ) : (

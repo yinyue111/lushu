@@ -56,8 +56,8 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               <MapPin className="size-3.5" aria-hidden="true" /> {story.kicker}
             </span>
             <h1 className="mt-3 text-4xl leading-tight font-black tracking-tight lg:text-6xl">{city}</h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/90 lg:text-lg">{story.summary}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[13px] font-semibold">
+            <p className="mt-3 max-w-xl text-copy leading-relaxed text-white/90 lg:text-lg">{story.summary}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-meta font-semibold">
               <HeroFact icon={ShieldCheck}>编辑样板 · 待真实验证</HeroFact>
               <HeroFact icon={Camera}>真实数据来自有效 GPS 打卡</HeroFact>
               <HeroFact icon={Route}>
@@ -143,7 +143,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               </Button>
               {onOpenDestination && (
                 <div className="mt-6">
-                  <p className="text-[13px] font-semibold text-muted">或先去已验证的目的地看看：</p>
+                  <p className="text-meta font-semibold text-muted">或先去已验证的目的地看看：</p>
                   <div className="mt-2 flex flex-wrap justify-center gap-2">
                     {trustedCities
                       .filter((item) => item !== city)

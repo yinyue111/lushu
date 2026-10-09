@@ -36,7 +36,7 @@ export function SceneBadge({ className, children = '示意图' }) {
   return (
     <span
       className={cn(
-        'pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full bg-ink/60 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm',
+        'pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full bg-ink/60 px-2 py-0.5 text-tag font-bold text-white backdrop-blur-sm',
         className
       )}
     >

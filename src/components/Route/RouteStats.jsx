@@ -22,12 +22,12 @@ export default function RouteStats({ routebook, trust, trustState }) {
     >
       <Tile className="min-w-[176px] bg-primary-soft text-primary-strong" icon={ShieldCheck}>
         {trustState.tone === 'verified' ? (
-          <span className="num block text-[28px] leading-tight sm:text-[32px]">
+          <span className="num block text-display-sm leading-tight sm:text-display">
             {trust.score}
-            <small className="ml-0.5 text-[15px]">/100</small>
+            <small className="ml-0.5 text-copy">/100</small>
           </span>
         ) : (
-          <span className="block text-[22px] leading-tight font-extrabold sm:text-2xl">{trial ? '待复核' : '待验证'}</span>
+          <span className="block text-title-sm leading-tight font-extrabold sm:text-2xl">{trial ? '待复核' : '待验证'}</span>
         )}
         <span className="text-sm font-semibold">可信分</span>
         {trustState.tone === 'verified' ? (
@@ -36,12 +36,12 @@ export default function RouteStats({ routebook, trust, trustState }) {
               <i className="block h-full bg-[#f6b2a6]" style={{ width: `${aiWeight}%` }} />
               <i className="block h-full bg-primary" style={{ width: `${feedbackWeight}%` }} />
             </div>
-            <small className="mt-1 block text-[13px] text-muted">
+            <small className="mt-1 block text-meta text-muted">
               AI 预测 {aiWeight}% + 真实打卡 {feedbackWeight}%
             </small>
           </>
         ) : trial ? (
-          <small className="mt-1 block text-[13px] text-muted">试运行城市，出发前请再核对</small>
+          <small className="mt-1 block text-meta text-muted">试运行城市，出发前请再核对</small>
         ) : (
           <>
             <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-white" aria-hidden="true">
@@ -50,28 +50,26 @@ export default function RouteStats({ routebook, trust, trustState }) {
                 style={{ width: `${(Math.min(samples, PUBLIC_TRUST_SAMPLE_THRESHOLD) / PUBLIC_TRUST_SAMPLE_THRESHOLD) * 100}%` }}
               />
             </div>
-            <small className="mt-1 block text-[13px] text-muted">{trust.sampleProgressText}</small>
+            <small className="mt-1 block text-meta text-muted">{trust.sampleProgressText}</small>
           </>
         )}
       </Tile>
       <Tile className="bg-success-soft text-success-ink" icon={CircleCheckBig}>
-        <span className="num block text-[28px] leading-tight sm:text-[32px]">{trial ? '—' : samples}</span>
+        <span className="num block text-display-sm leading-tight sm:text-display">{trial ? '—' : samples}</span>
         <span className="text-sm font-semibold">人到达验证</span>
-        <small className="mt-0.5 block text-[13px] text-muted">{samples && !trial ? `最近 ${latest}` : '还没有人打卡'}</small>
+        <small className="mt-0.5 block text-meta text-muted">{samples && !trial ? `最近 ${latest}` : '还没有人打卡'}</small>
       </Tile>
       <Tile className="bg-sky-soft text-sky-ink" icon={ThumbsUp}>
-        <span className="num block text-[28px] leading-tight sm:text-[32px]">
+        <span className="num block text-display-sm leading-tight sm:text-display">
           {samples && !trial ? `${Math.round(Number(feedback.pitfallRate) || 0)}%` : '—'}
         </span>
         <span className="text-sm font-semibold">踩坑率</span>
-        <small className="mt-0.5 block text-[13px] text-muted">
-          {samples && !trial ? `${Number(feedback.pitfallCount) || 0} 次踩坑反馈` : '有人走过后显示'}
-        </small>
+        <small className="mt-0.5 block text-meta text-muted">{samples && !trial ? `${Number(feedback.pitfallCount) || 0} 次踩坑反馈` : '有人走过后显示'}</small>
       </Tile>
       <Tile className="bg-lemon-soft text-lemon-ink" icon={PenLine}>
-        <span className="num block text-[28px] leading-tight sm:text-[32px]">{corrections}</span>
+        <span className="num block text-display-sm leading-tight sm:text-display">{corrections}</span>
         <span className="text-sm font-semibold">条纠错</span>
-        <small className="mt-0.5 block text-[13px] text-muted">{corrections && Number.isInteger(version) ? `已合并进 v${version}` : '发现不对可以纠错'}</small>
+        <small className="mt-0.5 block text-meta text-muted">{corrections && Number.isInteger(version) ? `已合并进 v${version}` : '发现不对可以纠错'}</small>
       </Tile>
     </div>
   );

@@ -119,7 +119,7 @@ export default function CheckinAuditPanel() {
                     <td>
                       {row.anomalies.length ? (
                         row.anomalies.map((reason) => (
-                          <span key={reason} className="badge badge-red" style={{ marginRight: 4 }}>
+                          <span key={reason} className="badge badge-red mr-1">
                             {reason}
                           </span>
                         ))
@@ -135,7 +135,7 @@ export default function CheckinAuditPanel() {
         ) : listReady ? (
           <EmptyState>{filter === 'all' ? '暂无打卡记录。' : '当前筛选条件下没有打卡记录。'}</EmptyState>
         ) : null}
-        <p className="text-caption" style={{ marginTop: 10 }}>
+        <p className="text-caption mt-2.5">
           异常判定：到达无效、上报定位误差超过 {ACCURACY_LIMIT_METERS}m、照片与 GPS
           不一致（photoEvidence=gps-mismatch）或移动速度异常。部分字段（照片证据、纠偏标记）随服务端本波落库后才会出现。
         </p>

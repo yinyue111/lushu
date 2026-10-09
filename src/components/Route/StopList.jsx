@@ -81,7 +81,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
         <StopThumb stop={stop} number={index + 1} time={stop.time} color={theme.ink} className="min-h-28 sm:min-h-[132px]" />
         <div className="min-w-0 py-1 pr-1.5">
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-            <h3 className="text-[17px] leading-snug font-extrabold sm:text-xl">
+            <h3 className="text-lead leading-snug font-extrabold sm:text-xl">
               <button
                 type="button"
                 className="text-left"
@@ -94,7 +94,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
                 {stop.name}
               </button>
             </h3>
-            {stop.area && <span className="text-[13px] text-muted sm:text-sm">{stop.area}</span>}
+            {stop.area && <span className="text-meta text-muted sm:text-sm">{stop.area}</span>}
             <div className="ml-auto flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
               <Button variant="ghost" size="icon-sm" onClick={() => handlers.detail(stop)} aria-label={`查看${stop.name}详情`}>
                 <Info />
@@ -155,9 +155,9 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               </Chip>
             )}
           </div>
-          {stop.verify && <p className="text-sm text-ink-2 sm:text-[15px]">{stop.verify}</p>}
+          {stop.verify && <p className="text-sm text-ink-2 sm:text-copy">{stop.verify}</p>}
           {stop.risk && (
-            <p className="mt-2 inline-flex items-start gap-1.5 rounded-[10px] bg-primary-soft px-2 py-1.5 text-[13px] font-semibold text-primary-strong sm:px-2.5 sm:text-sm">
+            <p className="mt-2 inline-flex items-start gap-1.5 rounded-[10px] bg-primary-soft px-2 py-1.5 text-meta font-semibold text-primary-strong sm:px-2.5 sm:text-sm">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               {stop.risk}
             </p>
@@ -192,7 +192,7 @@ function LegRow({ from, to, roadLeg }) {
   return (
     <li
       className={cn(
-        "relative ml-[52px] flex items-center gap-2.5 py-2 text-[13px] font-semibold text-muted before:absolute before:top-0 before:bottom-0 before:-left-4 before:border-l-[3px] before:border-dotted before:border-line-strong before:content-[''] sm:ml-24 sm:py-2.5 sm:text-sm",
+        "relative ml-[52px] flex items-center gap-2.5 py-2 text-meta font-semibold text-muted before:absolute before:top-0 before:bottom-0 before:-left-4 before:border-l-[3px] before:border-dotted before:border-line-strong before:content-[''] sm:ml-24 sm:py-2.5 sm:text-sm",
         !precise && 'text-lemon-ink'
       )}
     >
@@ -220,7 +220,7 @@ export function MiniStopCard({ stop, index, theme, selected, routeTrustTone, onS
       <StopThumb stop={stop} number={index + 1} color={theme.ink} compact className="min-h-[76px] rounded-xl" />
       <span className="min-w-0">
         <b className="block truncate text-base leading-snug font-extrabold">{stop.name}</b>
-        <small className="block truncate text-[13px] text-muted">
+        <small className="block truncate text-meta text-muted">
           {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`].filter(Boolean).join(' · ')}
         </small>
         {approximate ? (

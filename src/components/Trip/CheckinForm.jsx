@@ -114,16 +114,16 @@ export default function CheckinForm({ onSubmit, onCancel }) {
         <Button variant={gps ? 'soft' : 'dark'} className="w-full" onClick={locate}>
           <LocateFixed /> {gps ? '重新定位' : '用 GPS 证明我到了（选填）'}
         </Button>
-        <p className={cn('mt-2 text-[13px]', gpsError ? 'font-semibold text-lemon-ink' : 'text-muted')}>
+        <p className={cn('mt-2 text-meta', gpsError ? 'font-semibold text-lemon-ink' : 'text-muted')}>
           {gps ? `已定位 · 精度约 ${gps.accuracy} 米` : gpsError || '不开定位也能记录；只是这条会作为普通反馈，不算“到达验证”。'}
         </p>
       </div>
       <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />
       <ChoiceGroup label="现场人多吗" options={['空', '适中', '拥挤', '不建议']} value={crowd} onChange={setCrowd} />
       <details className="group rounded-card border border-line">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[15px] font-bold">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-copy font-bold">
           多说几句（选填）
-          <span className="text-[13px] font-normal text-muted">排队、花费、短评、照片</span>
+          <span className="text-meta font-normal text-muted">排队、花费、短评、照片</span>
         </summary>
         <div className="flex flex-col gap-3 border-t border-line p-4">
           <Field label="排队多久">
@@ -165,7 +165,7 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           >
             <input id={`${fieldPrefix}-photo`} className={`${inputClass} py-2`} type="file" accept="image/*" onChange={handlePhotoChange} />
           </Field>
-          {photoError && <p className="text-[13px] font-semibold text-lemon-ink">{photoError}</p>}
+          {photoError && <p className="text-meta font-semibold text-lemon-ink">{photoError}</p>}
         </div>
       </details>
       <div className="sticky bottom-0 -mx-5 flex gap-3 border-t border-line bg-white px-5 pt-3 pb-1">
@@ -193,7 +193,7 @@ function ChoiceGroup({ label, options, value, onChange }) {
             aria-pressed={value === option}
             onClick={() => onChange(value === option ? '' : option)}
             className={cn(
-              'h-10 min-w-16 rounded-full px-4 text-[15px] font-semibold',
+              'h-10 min-w-16 rounded-full px-4 text-copy font-semibold',
               value === option ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line'
             )}
           >

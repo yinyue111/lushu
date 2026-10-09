@@ -26,7 +26,7 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
       >
         <button
           type="button"
-          className="flex items-center gap-2.5 text-[19px] font-extrabold tracking-tight"
+          className="flex items-center gap-2.5 text-title-xs font-extrabold tracking-tight"
           onClick={() => onNavigate('home')}
           aria-label="可信路书首页"
         >
@@ -43,7 +43,7 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
               key={item.id}
               onClick={() => onNavigate(item.id)}
               aria-current={view === item.id ? 'page' : undefined}
-              className={cn('rounded-full px-4 py-2 text-[15px] font-semibold', view === item.id ? 'bg-ink text-white' : 'text-ink-2 hover:bg-canvas')}
+              className={cn('rounded-full px-4 py-2 text-copy font-semibold', view === item.id ? 'bg-ink text-white' : 'text-ink-2 hover:bg-canvas')}
             >
               {item.label}
             </button>
@@ -51,12 +51,12 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-[13px] font-semibold text-ink-2 sm:inline-flex">
+          <span className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex">
             <span className={cn('size-2 rounded-full', modelHealth?.ready ? 'bg-success' : 'bg-line-strong')} aria-hidden="true" />
             {modelHealth?.ready ? 'AI 已就绪' : 'AI 暂不可用'}
           </span>
-          <button type="button" onClick={() => onNavigate('my')} className="flex items-center gap-2.5 text-[15px] font-semibold" aria-label="我的">
-            <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-[15px] font-extrabold text-ink shadow-card">
+          <button type="button" onClick={() => onNavigate('my')} className="flex items-center gap-2.5 text-copy font-semibold" aria-label="我的">
+            <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-copy font-extrabold text-ink shadow-card">
               {name ? name.slice(0, 1) : <UserRound className="size-[18px]" />}
             </span>
             {name && <span className="hidden lg:inline">{name}</span>}

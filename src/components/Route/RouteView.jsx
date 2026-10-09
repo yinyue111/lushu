@@ -213,7 +213,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <h2 className="text-xl font-extrabold tracking-tight lg:text-2xl">
               Day {activeEntry?.number} · {activeEntry?.label}
             </h2>
-            <span className="text-[13px] text-muted lg:text-[15px]">{activeEntry?.summary}</span>
+            <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
           </div>
           {dayStops.length ? (
             <StopList
@@ -234,7 +234,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <RoutePreflight routebook={routebook} />
           <RouteProducts products={routeProducts} onClick={actions.recordProductClick} />
 
-          <p className="mt-8 text-[13px] leading-relaxed text-muted">
+          <p className="mt-8 text-meta leading-relaxed text-muted">
             可信分怎么算：近 30 天有效 GPS 到达、改动和踩坑反馈都会计入；AI 新生成的路线先显示预测，等真实打卡够了再出分。
           </p>
         </main>
@@ -272,7 +272,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                       )}
                     >
                       <i
-                        className="num grid size-[26px] place-items-center rounded-full text-[13px] text-white not-italic"
+                        className="num grid size-[26px] place-items-center rounded-full text-meta text-white not-italic"
                         style={{ background: entry.theme.ink }}
                       >
                         {entry.number}
@@ -320,7 +320,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               {tileWarning && (
                 <div
                   className={cn(
-                    'absolute right-3.5 z-[600] max-w-[320px] rounded-xl bg-white/95 px-3 py-2 text-[13px] text-ink-2 shadow-card',
+                    'absolute right-3.5 z-[600] max-w-[320px] rounded-xl bg-white/95 px-3 py-2 text-meta text-ink-2 shadow-card',
                     mapMode ? 'top-[calc(64px+env(safe-area-inset-top))]' : 'top-16'
                   )}
                 >
@@ -339,7 +339,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <b className="text-lg font-extrabold">
               Day {activeEntry.number} · {activeEntry.label}
             </b>
-            <span className="text-[13px] text-muted">{activeEntry.summary}</span>
+            <span className="text-meta text-muted">{activeEntry.summary}</span>
           </div>
           <p className="px-4 pb-2 text-xs text-muted">实线为已核验道路；虚线仅直线示意，不代表道路距离和耗时。</p>
           <div ref={carouselRef} className="no-scrollbar flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pt-0.5 pb-1.5">
@@ -365,7 +365,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             type="button"
             onClick={() => setMobileView(mapMode ? 'list' : 'map')}
             className={cn(
-              'fixed left-1/2 z-[1300] inline-flex h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-[18px] text-[15px] font-bold text-white shadow-pop',
+              'fixed left-1/2 z-[1300] inline-flex h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-[18px] text-copy font-bold text-white shadow-pop',
               mapMode ? 'bottom-[calc(300px+env(safe-area-inset-bottom))]' : 'bottom-[calc(90px+env(safe-area-inset-bottom))]'
             )}
           >

@@ -34,27 +34,21 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
   const core = (
     <>
       <AiObservabilityPanel summary={summary} />
-      {error && (
-        <p className="text-caption" style={{ marginTop: 10, color: 'var(--orange)' }}>
-          日志接口暂不可用：{error}
-        </p>
-      )}
+      {error && <p className="text-caption mt-2.5 text-lemon-ink">日志接口暂不可用：{error}</p>}
 
       <p className="mt-4 text-xs text-muted">流程示意（实际阶段耗时和失败情况以上方记录为准）</p>
-      <div className="pipeline" style={{ marginTop: embedded ? 0 : 32 }}>
+      <div className={`pipeline ${embedded ? 'mt-0' : 'mt-8'}`}>
         {PIPELINE_STAGES.map((stage, i) => (
           <div key={stage} className="card-flat pipeline-node">
             <span className="pipeline-num">{i + 1}</span>
-            <span className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>
-              {stage}
-            </span>
+            <span className="text-body text-meta font-semibold">{stage}</span>
           </div>
         ))}
       </div>
 
       {/* Log list */}
-      <div className="card" style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+      <div className="card mt-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-subtitle">最近生成链路</h2>
           {logs.length > 0 && <span className="badge badge-blue">{logs.length} 条</span>}
         </div>
@@ -63,10 +57,8 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
             {logs.map((log, i) => (
               <div key={i} className="log-item">
                 <span className="text-micro">{log.time}</span>
-                <div style={{ flex: 1 }}>
-                  <strong className="text-body" style={{ fontSize: 13, fontWeight: 600 }}>
-                    {log.stage}
-                  </strong>
+                <div className="flex-1">
+                  <strong className="text-body text-meta font-semibold">{log.stage}</strong>
                   <p className="text-caption">{log.result}</p>
                   {log.observability && <p className="mt-1 text-xs text-muted">{log.observability}</p>}
                 </div>
@@ -103,20 +95,15 @@ export default function LogsPage({ routebook, modelHealth, embedded = false }) {
   }
 
   return (
-    <div className="container page-enter" style={{ paddingTop: 40, paddingBottom: 60 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="container page-enter pt-10 pb-15">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-hero">AI 日志</h1>
-          <p className="text-body" style={{ color: 'var(--muted)', marginTop: 8 }}>
-            模型生成与校验链路追踪
-          </p>
+          <p className="text-body mt-2 text-muted">模型生成与校验链路追踪</p>
         </div>
         {modelHealth && (
-          <div
-            className={`card-flat ${modelHealth?.ready ? '' : 'model-offline'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px' }}
-          >
-            <Bot size={16} style={{ color: modelHealth?.ready ? 'var(--green)' : 'var(--muted)' }} />
+          <div className={`card-flat flex items-center gap-2 px-3.5 py-2 ${modelHealth?.ready ? '' : 'model-offline'}`}>
+            <Bot size={16} className={modelHealth?.ready ? 'text-success-ink' : 'text-muted'} aria-hidden="true" />
             <span className="text-caption">
               {modelHealth?.ready ? [modelHealth.provider, modelHealth.model].filter(Boolean).join(' · ') || '已就绪' : '未就绪'}
             </span>

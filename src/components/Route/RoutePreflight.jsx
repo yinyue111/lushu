@@ -88,7 +88,7 @@ function CheckTile({ icon: Icon, title, chip, tone, children }) {
         <b className="flex items-center justify-between gap-2 text-base">
           <span className="min-w-0">{title}</span>
           {chip && (
-            <Chip size="sm" tone={tone} className="h-6 text-[13px]">
+            <Chip size="sm" tone={tone} className="h-6 text-meta">
               {chip}
             </Chip>
           )}
@@ -125,7 +125,7 @@ export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop
       {(variants.length > 0 || variantState) && (
         <div className="mt-3">
           {variantState && (
-            <p className="mb-2 text-[13px] text-muted" role="status">
+            <p className="mb-2 text-meta text-muted" role="status">
               {variantState}
             </p>
           )}
@@ -140,8 +140,8 @@ export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop
                   routebook.activeVariantId === variant.id && 'border-transparent bg-primary-soft shadow-[0_0_0_2px_var(--color-primary)]'
                 )}
               >
-                <b className="block text-[15px]">{variant.label}</b>
-                <span className="line-clamp-2 block text-[13px] text-muted">{variant.summary}</span>
+                <b className="block text-copy">{variant.label}</b>
+                <span className="line-clamp-2 block text-meta text-muted">{variant.summary}</span>
                 <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站 · 还没人走过</small>
               </button>
             ))}
@@ -171,8 +171,8 @@ export function RouteProducts({ products, onClick }) {
             <Chip size="sm" tone="sky">
               <Ticket /> {item.type}
             </Chip>
-            <b className="mt-2 line-clamp-2 block text-[15px] leading-snug">{item.title}</b>
-            <small className="mt-1 block text-[13px] text-muted">{[item.poi, item.price, productLinkLabel(item)].filter(Boolean).join(' · ')}</small>
+            <b className="mt-2 line-clamp-2 block text-copy leading-snug">{item.title}</b>
+            <small className="mt-1 block text-meta text-muted">{[item.poi, item.price, productLinkLabel(item)].filter(Boolean).join(' · ')}</small>
           </button>
         ))}
       </div>

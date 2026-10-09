@@ -81,7 +81,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
                 {sourceAuthorizationLabel(creator.sourceAuthorization)}
               </span>
               <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{creator.name || creator.id}</h1>
-              <p className="mt-1 max-w-xl text-[15px] text-white/90">{creator.bio || '路线合集由真实保存、复制和打卡反馈持续校准。'}</p>
+              <p className="mt-1 max-w-xl text-copy text-white/90">{creator.bio || '路线合集由真实保存、复制和打卡反馈持续校准。'}</p>
             </div>
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:max-w-3xl">

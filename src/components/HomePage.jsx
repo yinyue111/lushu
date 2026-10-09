@@ -115,7 +115,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             <Chip tone="lemon">
               <MapPin /> {story.kicker}
             </Chip>
-            <h1 className="mt-4 text-[34px] leading-[1.15] font-extrabold tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,.25)] lg:text-[56px]">
+            <h1 className="mt-4 text-display-md leading-[1.15] font-extrabold tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,.25)] lg:text-display-xl">
               把收藏的攻略，
               <br />
               变成能照着走的路书
@@ -160,7 +160,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 className={`${inputClass} mt-1.5 min-h-[76px] resize-none`}
               />
             </label>
-            <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-[17px]" onClick={startFromImport} disabled={!guideSeed.trim()}>
+            <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
               <Link2 /> 导入并分析
             </Button>
 
@@ -206,7 +206,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               ))}
             </div>
             {!isTrustedCity && (
-              <p role="status" className="mt-2.5 rounded-tile bg-lemon-soft px-3 py-2 text-[13px] font-semibold text-lemon-ink">
+              <p role="status" className="mt-2.5 rounded-tile bg-lemon-soft px-3 py-2 text-meta font-semibold text-lemon-ink">
                 {city}还在试运行：AI 能帮你排路线，但地点、营业时间和导航要自己再核对。
               </p>
             )}
@@ -302,10 +302,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
         >
           <div className="flex flex-col justify-center">
             <span className="text-xs font-extrabold tracking-[0.08em] text-lemon">目的地专题</span>
-            <h2 id="home-destination-title" className="mt-2 text-[26px] leading-tight font-extrabold lg:text-[34px]">
+            <h2 id="home-destination-title" className="mt-2 text-title leading-tight font-extrabold lg:text-display-md">
               {city}，这个季节怎么玩
             </h2>
-            <p className="mt-3 text-[15px] text-white/85">{story.summary}</p>
+            <p className="mt-3 text-copy text-white/85">{story.summary}</p>
             <ul className="mt-4 flex flex-col gap-2 text-sm text-white/90">
               <li className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-lemon" /> 有足够真实打卡后才显示可信分

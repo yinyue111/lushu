@@ -35,6 +35,23 @@
   --color-success-soft: #e4f6ee;
   --color-danger: #b42318;
 
+  /* Type scale (B). Font-size only: line-height stays inherited or set via leading-*,
+     matching the previous arbitrary text-[Npx] values exactly. */
+  --text-tag: 11px;
+  --text-meta: 13px;
+  --text-copy: 15px;
+  --text-lead: 17px;
+  --text-title-xs: 19px;
+  --text-title-sm: 22px;
+  --text-title: 26px;
+  --text-display-sm: 28px;
+  --text-display: 32px;
+  --text-display-md: 34px;
+  --text-display-lg: 44px;
+  --text-display-xl: 56px;
+  --text-watermark: 120px;
+  --text-watermark-lg: 180px;
+
   --radius-chip: 999px;
   --radius-tile: 14px;
   --radius-card: 20px;

@@ -166,7 +166,7 @@ export default function ReviewQueuePanel() {
           <EmptyState>当前筛选条件下没有审核记录。</EmptyState>
         ) : null}
         {correctionsResource.data && (
-          <div className="ops-inline-actions" style={{ justifyContent: 'space-between', marginTop: 12 }}>
+          <div className="ops-inline-actions mt-3 justify-between">
             <span className="text-caption">
               第 {cursorStack.length} 页 · 当前 {visibleRows.length} 条 / 共 {Number.isFinite(Number(queue.total)) ? queue.total : '—'} 条
             </span>

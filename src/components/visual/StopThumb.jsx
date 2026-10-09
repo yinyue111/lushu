@@ -29,7 +29,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
             className="absolute inset-0 -z-10 size-full object-cover"
             fallback={
               !compact && (
-                <span className="absolute inset-x-2 top-1/2 line-clamp-2 -translate-y-1/2 text-center text-[13px] leading-tight font-bold text-white/95 drop-shadow-sm">
+                <span className="absolute inset-x-2 top-1/2 line-clamp-2 -translate-y-1/2 text-center text-meta leading-tight font-bold text-white/95 drop-shadow-sm">
                   <Icon aria-hidden="true" className="mx-auto mb-1 size-6" />
                   {category.label}
                 </span>
@@ -51,7 +51,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
         <span
           className={cn(
             'num absolute top-2 left-2 grid place-items-center rounded-full border-2 border-white text-white',
-            compact ? 'size-6 text-xs' : 'size-[30px] text-[15px]'
+            compact ? 'size-6 text-xs' : 'size-[30px] text-copy'
           )}
           style={{ background: color }}
         >

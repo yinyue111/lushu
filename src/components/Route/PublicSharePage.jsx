@@ -155,7 +155,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               </span>
             </div>
             <h1 className="mt-3 text-3xl leading-tight font-black tracking-tight lg:text-5xl">{routebook.title}</h1>
-            {routebook.summary && <p className="mt-2 max-w-2xl text-[15px] text-white/90">{routebook.summary}</p>}
+            {routebook.summary && <p className="mt-2 max-w-2xl text-copy text-white/90">{routebook.summary}</p>}
             {routebook.creator?.id && (
               <button
                 type="button"
@@ -195,7 +195,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                         <StopThumb stop={stop} number={index + 1} color={theme.ink} compact className="size-16 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <strong className="text-[15px] font-extrabold">{stop.name}</strong>
+                            <strong className="text-copy font-extrabold">{stop.name}</strong>
                             <span
                               className={cn(
                                 'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
@@ -210,7 +210,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                             </span>
                           </div>
                           <p className="num mt-0.5 text-xs font-semibold text-muted">{[stop.time, stop.stay, stop.cost].filter(Boolean).join(' · ')}</p>
-                          {stop.verify && <p className="mt-1 text-[13px] text-ink-2">{stop.verify}</p>}
+                          {stop.verify && <p className="mt-1 text-meta text-ink-2">{stop.verify}</p>}
                         </div>
                       </li>
                     );
@@ -234,7 +234,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           </div>
           {visibleMetrics.length > 0 && (
             <section className="rounded-panel border border-line bg-white p-4">
-              <h2 className="text-[15px] font-extrabold">可信依据</h2>
+              <h2 className="text-copy font-extrabold">可信依据</h2>
               <dl className="mt-3 grid grid-cols-2 gap-2">
                 {visibleMetrics.map((metric) => (
                   <div key={metric.label} className="rounded-tile bg-canvas p-2.5">
@@ -247,13 +247,13 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           )}
           {(routebook.validations ?? []).length > 0 && (
             <section className="rounded-panel border border-line bg-white p-4">
-              <h2 className="text-[15px] font-extrabold">出发前检查</h2>
+              <h2 className="text-copy font-extrabold">出发前检查</h2>
               <ul className="mt-2 grid gap-2.5">
                 {(routebook.validations ?? []).slice(0, 6).map((item) => (
                   <li key={item.id} className="text-sm">
                     <span className="mr-1.5 rounded-full bg-lemon-soft px-2 py-0.5 text-xs font-bold text-lemon-ink">{item.state}</span>
                     <strong className="font-bold">{item.label}</strong>
-                    {item.detail && <p className="mt-0.5 text-[13px] text-muted">{item.detail}</p>}
+                    {item.detail && <p className="mt-0.5 text-meta text-muted">{item.detail}</p>}
                   </li>
                 ))}
               </ul>

@@ -280,7 +280,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
             <Share2 /> 系统分享
           </Button>
           {shareUrl && (
-            <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-[15px] font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
+            <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
               <ExternalLink className="size-[18px]" aria-hidden="true" /> 打开公开页
             </a>
           )}

@@ -25,7 +25,7 @@ export function MenuItem({ className, ...props }) {
   return (
     <DropdownMenu.Item
       className={cn(
-        'flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-[15px] font-semibold text-ink outline-none select-none data-[disabled]:opacity-50 data-[highlighted]:bg-canvas [&_svg]:size-[18px] [&_svg]:text-muted',
+        'flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-copy font-semibold text-ink outline-none select-none data-[disabled]:opacity-50 data-[highlighted]:bg-canvas [&_svg]:size-[18px] [&_svg]:text-muted',
         className
       )}
       {...props}

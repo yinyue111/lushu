@@ -51,7 +51,7 @@ export default function RouteHero({
             className="absolute inset-0 size-full object-cover object-[center_40%]"
             badge={<SceneBadge className="top-16 right-3 lg:top-auto lg:right-5 lg:bottom-5">城市示意图 · AI 生成</SceneBadge>}
           />
-          <span className="absolute right-[6%] bottom-6 text-[120px] leading-none font-black tracking-tight text-white/10 select-none">{routebook.city}</span>
+          <span className="absolute right-[6%] bottom-6 text-watermark leading-none font-black tracking-tight text-white/10 select-none">{routebook.city}</span>
         </div>
       )}
       <div
@@ -98,11 +98,11 @@ export default function RouteHero({
               </Chip>
             )}
           </div>
-          <h1 className="max-w-[860px] text-[27px] leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:text-[44px] lg:leading-[1.18]">
+          <h1 className="max-w-[860px] text-display-sm leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:text-display-lg lg:leading-[1.18]">
             {routebook.title}
           </h1>
-          {routebook.summary && <p className="mt-2 hidden max-w-[760px] text-[17px] text-white/92 sm:block">{routebook.summary}</p>}
-          <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-[15px]">
+          {routebook.summary && <p className="mt-2 hidden max-w-[760px] text-lead text-white/92 sm:block">{routebook.summary}</p>}
+          <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy">
             <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
               {String(creatorName).slice(0, 1)}
             </span>
@@ -115,7 +115,7 @@ export default function RouteHero({
         </div>
 
         <div className="hidden w-[300px] shrink-0 flex-col gap-2.5 lg:flex">
-          <Button variant="primary" size="lg" className="h-14 text-[19px]" onClick={onStartTrip}>
+          <Button variant="primary" size="lg" className="h-14 text-title-xs" onClick={onStartTrip}>
             <Navigation /> 开始出行
           </Button>
           <div className="flex gap-2.5">

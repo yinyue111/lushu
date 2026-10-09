@@ -19,7 +19,7 @@ export const buttonVariants = cva(
       },
       size: {
         sm: 'h-9 rounded-chip px-3.5 text-sm [&_svg]:size-4',
-        md: 'h-11 rounded-chip px-5 text-[15px] [&_svg]:size-[18px]',
+        md: 'h-11 rounded-chip px-5 text-copy [&_svg]:size-[18px]',
         lg: 'h-14 rounded-chip px-6 text-lg [&_svg]:size-[22px]',
         icon: 'size-11 rounded-full [&_svg]:size-5',
         'icon-sm': 'size-9 rounded-full [&_svg]:size-4'

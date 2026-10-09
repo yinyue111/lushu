@@ -423,7 +423,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                   <li key={item.id ?? favoriteKeyOf(item)} className="flex flex-col gap-2 rounded-card border border-line bg-white p-4 shadow-card">
                     <span className="flex items-start gap-2">
                       <Heart className="mt-0.5 size-4 shrink-0 fill-primary text-primary" aria-hidden="true" />
-                      <strong className="line-clamp-2 text-[15px] font-extrabold">{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
+                      <strong className="line-clamp-2 text-copy font-extrabold">{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
                     </span>
                     <span className="text-xs text-muted">
                       {item.city || '城市待补充'} · 收藏于 {formatHistoryDate(item.createdAt)}
@@ -551,7 +551,7 @@ function Stat({ icon: Icon, tone, label, value }) {
 function SidePanel({ title, count, children }) {
   return (
     <section className="rounded-panel border border-line bg-white p-4">
-      <h2 className="mb-1 flex items-center justify-between text-[15px] font-extrabold">
+      <h2 className="mb-1 flex items-center justify-between text-copy font-extrabold">
         {title} <span className="num rounded-full bg-canvas px-2 text-xs text-muted">{count}</span>
       </h2>
       {children}

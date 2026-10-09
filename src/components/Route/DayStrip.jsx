@@ -57,8 +57,8 @@ export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
               <span className="num absolute top-3 left-3 inline-flex h-7 items-center rounded-full px-3 text-sm" style={{ background: entry.theme.ink }}>
                 DAY {entry.number}
               </span>
-              <b className="line-clamp-1 text-[17px] leading-tight font-extrabold sm:text-xl">{entry.label}</b>
-              <span className="text-[13px] text-white/92 sm:text-sm">{entry.summary}</span>
+              <b className="line-clamp-1 text-lead leading-tight font-extrabold sm:text-xl">{entry.label}</b>
+              <span className="text-meta text-white/92 sm:text-sm">{entry.summary}</span>
             </button>
           );
         })}
