@@ -46,6 +46,7 @@ import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
 import CheckinForm from './CheckinForm';
 import { useTripCloudSync } from './useTripCloudSync';
+import { stashCheckinPhoto } from '../../lib/photoStore';
 import {
   buildAlternativeStop,
   buildAlternatives,
@@ -83,6 +84,7 @@ export default function TripView({ routebook, onBack, onReview }) {
   const checkinsRef = useRef(checkins);
   const syncInFlightRef = useRef('');
   const tripOpenRef = useRef('');
+  const submittingCheckinRef = useRef(false);
   const [showCheckin, setShowCheckin] = useState(false);
   const [modeNote, setModeNote] = useState('');
   const [activeStops, setActiveStops] = useState(initialStops);
@@ -227,13 +229,25 @@ export default function TripView({ routebook, onBack, onReview }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- listeners/timers are scoped to the storage key; syncQueuedCheckins reads state through refs.
   }, [storageKey]);
 
-  function submitCheckin(data) {
-    if (!current || currentProcessed || currentSyncPending) return;
+  async function submitCheckin(data) {
+    if (!current || currentProcessed || currentSyncPending || submittingCheckinRef.current) return;
+    submittingCheckinRef.current = true;
+    try {
+      await submitCheckinRow(data);
+    } finally {
+      submittingCheckinRef.current = false;
+    }
+  }
+
+  async function submitCheckinRow(data) {
     const { photoData, ...fields } = data ?? {};
     const row = buildPendingCheckin(routebook, current, profile, { status: 'visited', ...fields }, { type: 'visit' });
     if (photoData) {
-      // 照片先随打卡行本地暂存（表单侧已限制 <=400KB），补传队列会先传照片拿 photoId 再传打卡行。
-      row.clientPhotoData = photoData;
+      // F09: photos go to IndexedDB (Blob) and the queue row keeps a reference; without
+      // IndexedDB we fall back to inlining (form caps it at <=400KB). The queue uploads
+      // the photo first to get a photoId, then the check-in row.
+      if (await stashCheckinPhoto(row.clientLocalId, photoData)) row.clientPhotoRef = row.clientLocalId;
+      else row.clientPhotoData = photoData;
       row.clientPhotoMimeType = 'image/jpeg';
     }
     setShowCheckin(false);

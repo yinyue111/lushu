@@ -1,4 +1,5 @@
 import * as api from './api.js';
+import { deleteCheckinPhoto, loadCheckinPhoto } from './photoStore.js';
 import { getProfile, hasProfileCloudRegistrationConsent } from './profile.js';
 import { adoptServerProfile } from './profileSync.js';
 
@@ -251,7 +252,13 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
         writeQueueRows(key, markCheckinSyncing(readQueueRows(key), clientLocalId));
         let row = readQueueRows(key).find((item) => clientIdOf(item) === clientLocalId);
         if (!row) continue;
-        if (row.clientPhotoData && !row.photoId) {
+        const photoData = !row.photoId && (row.clientPhotoData || (row.clientPhotoRef ? await loadCheckinPhoto(row.clientPhotoRef) : ''));
+        if (!row.photoId && row.clientPhotoRef && !photoData) {
+          // F09: the stashed photo is gone (site data cleared); keep the check-in, drop the photo.
+          writeQueueRows(key, clearQueuedPhotoData(readQueueRows(key), clientLocalId, ''));
+          row = readQueueRows(key).find((item) => clientIdOf(item) === clientLocalId) ?? row;
+        }
+        if (photoData) {
           try {
             const uploaded = await api.uploadCheckinPhoto(
               {
@@ -259,7 +266,7 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
                 routeId: row.routeId,
                 stopId: row.stopId,
                 clientLocalId: row.clientLocalId,
-                imageBase64: row.clientPhotoData,
+                imageBase64: photoData,
                 mimeType: row.clientPhotoMimeType || 'image/jpeg'
               },
               signal
@@ -415,9 +422,10 @@ function markCheckinForeignProfile(rows, clientLocalId, now = Date.now()) {
 
 // 已 synced 仍带本地照片 dataURL 的行在合并/写回时剥离，防照片永久滞留 localStorage。
 function stripSyncedPhotoData(row) {
-  if (!row || typeof row !== 'object' || !row.clientPhotoData) return row;
+  if (!row || typeof row !== 'object' || (!row.clientPhotoData && !row.clientPhotoRef)) return row;
   if (!isServerSyncedCheckin(row)) return row;
-  const { clientPhotoData: _clientPhotoData, ...rest } = row;
+  const { clientPhotoData: _clientPhotoData, clientPhotoRef, ...rest } = row;
+  if (clientPhotoRef) void deleteCheckinPhoto(clientPhotoRef);
   return rest;
 }
 
@@ -432,7 +440,8 @@ function sortCheckinsByTime(rows) {
 // 照片上传成功（或被服务端终态拒绝）后清掉本地暂存的 dataURL，防 localStorage 膨胀。
 function clearQueuedPhotoData(rows, clientLocalId, photoId) {
   return updateCheckin(rows, clientLocalId, (row) => {
-    const { clientPhotoData: _clientPhotoData, ...rest } = row;
+    const { clientPhotoData: _clientPhotoData, clientPhotoRef, ...rest } = row;
+    if (clientPhotoRef) void deleteCheckinPhoto(clientPhotoRef);
     return photoId ? { ...rest, photoId } : rest;
   });
 }
@@ -448,6 +457,7 @@ function checkinForApi(row) {
     clientSyncAttempts: _clientSyncAttempts,
     clientAction: _clientAction,
     clientPhotoData: _clientPhotoData,
+    clientPhotoRef: _clientPhotoRef,
     clientPhotoMimeType: _clientPhotoMimeType,
     storageKey: _storageKey,
     ...payload
