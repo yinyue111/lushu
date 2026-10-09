@@ -110,7 +110,7 @@ export const poiRoutes = [
     verifySensitiveReadAccess(req);
     return sendJson(res, 200, {
       ok: true,
-      corrections: await listPoiCorrections(clampNumber(url.searchParams.get('limit'), 1, 200, 50), {
+      corrections: await listPoiCorrections(clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 50), {
         status: truncateString(url.searchParams.get('status'), 24)
       })
     });
@@ -124,7 +124,7 @@ export const poiRoutes = [
       knowledge: await listPoiKnowledge({
         city,
         stopName,
-        limit: clampNumber(url.searchParams.get('limit'), 1, 200, 80)
+        limit: clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 80)
       })
     });
   }),

@@ -202,7 +202,7 @@ export const aiRoutes = [
     verifySensitiveReadAccess(req);
     return sendJson(res, 200, {
       ok: true,
-      imports: await readJsonLines(IMPORT_LOG_PATH, clampNumber(url.searchParams.get('limit'), 1, 200, 50))
+      imports: await readJsonLines(IMPORT_LOG_PATH, clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 50))
     });
   })
 ];

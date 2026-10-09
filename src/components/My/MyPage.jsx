@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
-import { getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
+import { deleteFavorite, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
 import { flushAllCheckinQueues, pauseCheckinQueue } from '../../lib/checkinQueue';
 import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
 import { getProfile, hasProfileCloudRegistrationConsent, parseProfileSyncCode, resetProfile, updateProfile } from '../../lib/profile';
 import { deleteProfileRemote, exportProfileData, issueRecoveryCode, logoutProfileRemote } from '../../lib/profileApi';
 import { clearLocalProfileData, stripLocalExportSecrets } from '../../lib/profileData';
 import { adoptServerProfile } from '../../lib/profileSync';
+import { listTripSessions } from '../../lib/tripSession';
 import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
@@ -28,6 +29,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [localDataVersion, setLocalDataVersion] = useState(0);
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');
+  const [expandedSections, setExpandedSections] = useState(() => new Set());
   /* eslint-disable react-hooks/exhaustive-deps -- localDataVersion is a cache-busting tick: bumping it re-reads localStorage. */
   const localBooks = useMemo(() => getStoredRoutebooks(profile.id), [profile.id, localDataVersion]);
   const localCheckins = useMemo(() => listStoredCheckins().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
@@ -106,13 +108,36 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const sharedBooks = books.filter((book) => ['published', 'featured'].includes(book.publishStatus));
   const creatorBooks = sharedBooks.filter((book) => book.creator?.id === profile.id || book.profileId === profile.id);
 
-  function handleRemoveFavorite(item) {
-    // 服务端暂无取消收藏接口：仅删除本地记录，并在本次会话中隐藏服务端返回的同一条。
+  async function handleRemoveFavorite(item) {
     removeFavorite(item, profile.id);
     const key = favoriteKeyOf(item);
     if (key) setRemovedFavoriteKeys((prev) => new Set(prev).add(key));
     setLocalDataVersion((value) => value + 1);
-    setFavoriteNotice('已取消收藏；服务端暂无取消接口，仅移除了本机记录。');
+    // F14: also remove the cloud copy when this route was favourited on the server.
+    const onServer = item.routeId && serverData.favorites.some((row) => row.routeId === item.routeId);
+    if (!onServer) {
+      setFavoriteNotice('已取消收藏。');
+      return;
+    }
+    try {
+      await deleteFavorite(profile.id, item.routeId);
+      setFavoriteNotice('已取消收藏（本机和云端都已移除）。');
+    } catch (removeError) {
+      setFavoriteNotice(`本机已取消收藏，云端取消失败：${removeError?.message || '请稍后重试'}`);
+    }
+  }
+
+  function toggleExpanded(section) {
+    setExpandedSections((previous) => {
+      const next = new Set(previous);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  }
+
+  function visibleRows(section, rows, collapsedCount) {
+    return expandedSections.has(section) ? rows : rows.slice(0, collapsedCount);
   }
 
   function handleDeleteBook(book) {
@@ -206,7 +231,14 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       const payload = stripLocalExportSecrets({
         exportedAt: new Date().toISOString(),
         cloud,
-        local: { profile, routebooks: localBooks, checkins: localCheckins, clicks: localClicks, favorites: localFavorites }
+        local: {
+          profile,
+          routebooks: localBooks,
+          checkins: localCheckins,
+          clicks: localClicks,
+          favorites: localFavorites,
+          tripSessions: listTripSessions(profile.id)
+        }
       });
       const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
       const link = document.createElement('a');
@@ -314,7 +346,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             {books.length ? (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {books.slice(0, 8).map((book) => {
+                  {visibleRows('books', books, 8).map((book) => {
                     const bookKey = book.publicId ?? book.id ?? `${book.city}-${book.title}`;
                     return (
                       <RouteCard
@@ -343,7 +375,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     );
                   })}
                 </div>
-                {books.length > 8 && <p className="mt-3 text-sm text-muted">只显示最近 8 条，共 {books.length} 条</p>}
+                <ShowAllToggle total={books.length} collapsedCount={8} expanded={expandedSections.has('books')} onToggle={() => toggleExpanded('books')} />
               </>
             ) : (
               <Empty
@@ -363,7 +395,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             <SidePanel title="我的公开路线" count={creatorBooks.length}>
               {creatorBooks.length ? (
                 <ul className="divide-y divide-line">
-                  {creatorBooks.slice(0, 8).map((book) => (
+                  {visibleRows('creatorBooks', creatorBooks, 8).map((book) => (
                     <li key={`creator-${book.publicId || book.title}`} className="py-2.5">
                       <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
                       <p className="mt-0.5 text-xs text-muted">
@@ -376,14 +408,19 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="text-sm text-muted">保存的路书会自动带上你的达人身份，发布后出现在这里。</p>
-              )}
+              ) : null}
+              <ShowAllToggle
+                total={creatorBooks.length}
+                collapsedCount={8}
+                expanded={expandedSections.has('creatorBooks')}
+                onToggle={() => toggleExpanded('creatorBooks')}
+              />
+              {creatorBooks.length ? null : <p className="text-sm text-muted">保存的路书会自动带上你的达人身份，发布后出现在这里。</p>}
             </SidePanel>
             <SidePanel title="我的分享" count={sharedBooks.length}>
               {sharedBooks.length ? (
                 <ul className="divide-y divide-line">
-                  {sharedBooks.slice(0, 8).map((book) => {
+                  {visibleRows('sharedBooks', sharedBooks, 8).map((book) => {
                     const url = book.shareUrl || `/share/${book.publicId}`;
                     return (
                       <li key={`${book.publicId}-${book.title}`} className="flex items-center justify-between gap-2 py-2.5">
@@ -405,9 +442,14 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     );
                   })}
                 </ul>
-              ) : (
-                <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>
-              )}
+              ) : null}
+              <ShowAllToggle
+                total={sharedBooks.length}
+                collapsedCount={8}
+                expanded={expandedSections.has('sharedBooks')}
+                onToggle={() => toggleExpanded('sharedBooks')}
+              />
+              {sharedBooks.length ? null : <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>}
             </SidePanel>
           </div>
         </Tabs.Content>
@@ -419,7 +461,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           {favorites.length ? (
             <>
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {favorites.slice(0, 12).map((item) => (
+                {visibleRows('favorites', favorites, 12).map((item) => (
                   <li key={item.id ?? favoriteKeyOf(item)} className="flex flex-col gap-2 rounded-card border border-line bg-white p-4 shadow-card">
                     <span className="flex items-start gap-2">
                       <Heart className="mt-0.5 size-4 shrink-0 fill-primary text-primary" aria-hidden="true" />
@@ -446,7 +488,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                   </li>
                 ))}
               </ul>
-              {favorites.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {favorites.length} 条</p>}
+              <ShowAllToggle
+                total={favorites.length}
+                collapsedCount={12}
+                expanded={expandedSections.has('favorites')}
+                onToggle={() => toggleExpanded('favorites')}
+              />
             </>
           ) : (
             <Empty icon={Heart} text="在路书页点“收藏”，喜欢的路线就会出现在这里。" />
@@ -461,7 +508,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             {checkins.length ? (
               <>
                 <ul className="grid gap-2.5">
-                  {checkins.slice(0, 12).map((item, index) => (
+                  {visibleRows('checkins', checkins, 12).map((item, index) => (
                     <li key={`${item.id ?? item.stopName}-${index}`} className="flex gap-3 rounded-card border border-line bg-white p-3.5">
                       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-success-ink">
                         <MapPin className="size-4" aria-hidden="true" />
@@ -476,7 +523,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     </li>
                   ))}
                 </ul>
-                {checkins.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {checkins.length} 条</p>}
+                <ShowAllToggle
+                  total={checkins.length}
+                  collapsedCount={12}
+                  expanded={expandedSections.has('checkins')}
+                  onToggle={() => toggleExpanded('checkins')}
+                />
               </>
             ) : (
               <Empty icon={Camera} text="出行时在路书里点“我到了”，GPS 和体验反馈会记在这里。" />
@@ -489,7 +541,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             {clicks.length ? (
               <>
                 <ul className="grid gap-2.5">
-                  {clicks.slice(0, 12).map((item, index) => (
+                  {visibleRows('clicks', clicks, 12).map((item, index) => (
                     <li key={`${item.productTitle ?? item.title}-${index}`} className="flex items-start gap-3 rounded-card border border-line bg-white p-3.5">
                       <span className="shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{item.type || '商品'}</span>
                       <span className="min-w-0">
@@ -501,7 +553,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     </li>
                   ))}
                 </ul>
-                {clicks.length > 12 && <p className="mt-3 text-sm text-muted">只显示最近 12 条，共 {clicks.length} 条</p>}
+                <ShowAllToggle total={clicks.length} collapsedCount={12} expanded={expandedSections.has('clicks')} onToggle={() => toggleExpanded('clicks')} />
               </>
             ) : (
               <Empty icon={Ticket} text="在路书里点过的门票或商品会记在这里。" />
@@ -638,4 +690,20 @@ function mergeRows(localRows, serverRows, keyFn) {
 function belongsToProfile(item, profileId) {
   if (!profileId) return false;
   return item?.profileId === profileId || item?.creator?.id === profileId;
+}
+
+/**
+ * F14: lists are no longer capped at the latest 8/12; this toggles the full list.
+ * @param {{ total: number, collapsedCount: number, expanded: boolean, onToggle: () => void }} props
+ */
+function ShowAllToggle({ total, collapsedCount, expanded, onToggle }) {
+  if (total <= collapsedCount) return null;
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+      {expanded ? `已显示全部 ${total} 条` : `显示最近 ${collapsedCount} 条，共 ${total} 条`}
+      <Button size="sm" variant="ghost" onClick={onToggle} aria-expanded={expanded}>
+        {expanded ? '收起' : '查看全部'}
+      </Button>
+    </p>
+  );
 }

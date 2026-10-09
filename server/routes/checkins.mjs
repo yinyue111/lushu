@@ -171,7 +171,7 @@ export const checkinRoutes = [
   route('GET', '/api/checkins', async ({ req, res, url }) => {
     const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
     await verifySensitiveOrProfileReadAccess(req, profileId);
-    const checkinLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 50);
+    const checkinLimit = clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 50);
     // 按 profileId 谓词精确反扫，替代「全局尾窗 + filter」：热门时段其他用户的
     // 打卡会把当前用户的历史行挤出窗口，导致个人记录凭空消失。
     const checkins = profileId
@@ -237,7 +237,7 @@ export const checkinRoutes = [
   route('GET', '/api/clicks', async ({ req, res, url }) => {
     const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
     await verifySensitiveOrProfileReadAccess(req, profileId);
-    const clickLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 50);
+    const clickLimit = clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 50);
     const clicks = profileId
       ? await readMatchingJsonLines(CLICK_LOG_PATH, (item) => normalizeProfileId(item?.profileId) === profileId, clickLimit, 100000)
       : await readJsonLines(CLICK_LOG_PATH, clickLimit);
@@ -248,7 +248,7 @@ export const checkinRoutes = [
     await verifySensitiveOrProfileReadAccess(req, profileId);
     return sendJson(res, 200, {
       ok: true,
-      analytics: await buildProductAnalytics(clampNumber(url.searchParams.get('limit'), 50, 2000, 500), profileId)
+      analytics: await buildProductAnalytics(clampNumber(url.searchParams.get('limit') || undefined, 50, 2000, 500), profileId)
     });
   })
 ];

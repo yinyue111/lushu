@@ -50,7 +50,7 @@ export const routebookRoutes = [
     }
     // H4: filter while scanning so `limit` counts matching routebooks, not the global window.
     // F17: optional keyset cursor over (updatedAt, id) of each routebook's latest row.
-    const pageLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 100);
+    const pageLimit = clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 100);
     const position = decodeCursor(url.searchParams.get('cursor') || '');
     const scanned = await listSavedRoutebooks(
       pageLimit + 1,
@@ -81,7 +81,7 @@ export const routebookRoutes = [
     verifySensitiveReadAccess(req);
     return sendJson(res, 200, {
       ok: true,
-      dashboard: await buildPlatformDashboard(clampNumber(url.searchParams.get('limit'), 100, 2000, 1000))
+      dashboard: await buildPlatformDashboard(clampNumber(url.searchParams.get('limit') || undefined, 100, 2000, 1000))
     });
   }),
   route('GET', '/api/creators/:id', async ({ req, res, params }) => {
@@ -262,13 +262,48 @@ export const routebookRoutes = [
     await appendJsonLine(FAVORITE_LOG_PATH, row);
     return sendJson(res, 200, { ok: true, favorite: row });
   }),
+  // F14: un-favorite appends a tombstone (the log stays append-only and auditable).
+  route('DELETE', '/api/favorites', async ({ req, res }) => {
+    enforceRateLimit(req, 'core-write');
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const routeId = sanitizePublicId(body?.routeId || body?.publicId);
+    if (!routeId) throw createHttpError('缺少要取消收藏的路线', 400, 'FAVORITE_ROUTE_REQUIRED');
+    const row = { id: cryptoRandomId(), type: 'favorite-removed', profileId: actor.profileId, routeId, createdAt: new Date().toISOString() };
+    await appendJsonLine(FAVORITE_LOG_PATH, row);
+    return sendJson(res, 200, { ok: true, removed: { routeId, removedAt: row.createdAt } });
+  }),
   route('GET', '/api/favorites', async ({ req, res, url }) => {
     const profileId = url.searchParams.get('profileId') ? normalizeProfileId(url.searchParams.get('profileId')) : '';
     await verifySensitiveOrProfileReadAccess(req, profileId);
-    const favoriteLimit = clampNumber(url.searchParams.get('limit'), 1, 200, 80);
-    const favorites = profileId
-      ? await readMatchingJsonLines(FAVORITE_LOG_PATH, (item) => normalizeProfileId(item?.profileId) === profileId, favoriteLimit, 100000)
-      : await readJsonLines(FAVORITE_LOG_PATH, favoriteLimit);
-    return sendJson(res, 200, { ok: true, favorites });
+    const favoriteLimit = clampNumber(url.searchParams.get('limit') || undefined, 1, 200, 80);
+    const rows = profileId
+      ? await readMatchingJsonLines(FAVORITE_LOG_PATH, (item) => normalizeProfileId(item?.profileId) === profileId, 100000, 100000)
+      : await readJsonLines(FAVORITE_LOG_PATH, 100000);
+    return sendJson(res, 200, { ok: true, favorites: activeFavorites(rows).slice(0, favoriteLimit) });
   })
 ];
+
+/**
+ * Newest-first favorites with removed routes dropped: a tombstone hides every
+ * earlier favorite row for the same profile + route; a later re-favorite shows again.
+ * Repeated favorites of one route collapse to the newest.
+ * @param {any[]} rows newest first
+ */
+export function activeFavorites(rows) {
+  const decided = new Set();
+  const active = [];
+  for (const row of rows ?? []) {
+    const key = `${normalizeProfileId(row?.profileId)}|${sanitizePublicId(row?.routeId)}`;
+    if (row?.type === 'favorite-removed') {
+      decided.add(key);
+      continue;
+    }
+    if (sanitizePublicId(row?.routeId)) {
+      if (decided.has(key)) continue;
+      decided.add(key);
+    }
+    active.push(row);
+  }
+  return active;
+}

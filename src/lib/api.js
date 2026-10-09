@@ -204,6 +204,10 @@ export async function createFavorite(favorite, signal) {
   return postJson('/favorites', favorite, signal, ownerHeaders(favorite?.profileId));
 }
 
+export async function deleteFavorite(profileId, routeId, signal) {
+  return deleteJson('/favorites', { profileId, routeId }, signal, ownerHeaders(profileId));
+}
+
 export async function getMyFavorites(profileId, limit = 80, signal) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (profileId) params.set('profileId', profileId);

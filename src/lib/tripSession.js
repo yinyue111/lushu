@@ -97,3 +97,25 @@ function hashString(value) {
   }
   return (hash >>> 0).toString(36);
 }
+
+/**
+ * F15: every saved trip session for a profile, for the local data export.
+ * @param {string} profileId
+ * @param {Storage} [storage]
+ */
+export function listTripSessions(profileId = 'anonymous', storage = globalThis.localStorage) {
+  const prefix = `${TRIP_SESSION_PREFIX}:${encodeURIComponent(String(profileId ?? 'anonymous'))}:`;
+  const sessions = [];
+  if (!storage) return sessions;
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (!key?.startsWith(prefix)) continue;
+    try {
+      const session = JSON.parse(storage.getItem(key) ?? 'null');
+      if (session && typeof session === 'object') sessions.push({ routeId: decodeURIComponent(key.slice(prefix.length)), ...session });
+    } catch {
+      // Skip a corrupted session rather than failing the whole export.
+    }
+  }
+  return sessions;
+}
