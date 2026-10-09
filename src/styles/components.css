@@ -1314,4 +1314,10 @@
   .ops-data-table td {
     white-space: nowrap;
   }
+  /* Inside a focusable scroll region the wrapper scrolls; a second, unfocusable
+     scroller on the table itself fails axe scrollable-region-focusable. */
+  .ops-table-scroll > .ops-data-table {
+    display: table;
+    overflow: visible;
+  }
 }
