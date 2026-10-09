@@ -773,10 +773,23 @@ export default function TripView({ routebook, onBack, onReview }) {
 
       {/* Phone action bar */}
       <div className="fixed inset-x-0 bottom-0 z-[1300] flex gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
-        <Button variant="dark" size="lg" className="h-[54px] flex-1 text-base" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
+        <Button
+          variant="dark"
+          size="lg"
+          className="h-auto min-h-[54px] min-w-0 flex-1 py-2 text-base leading-tight whitespace-normal"
+          onClick={openNavigation}
+          disabled={!isNavigableCoordinate(current)}
+        >
           <Navigation /> 导航
         </Button>
-        <Button variant="primary" size="lg" className="h-[54px] flex-[2]" onClick={() => setShowCheckin(true)} disabled={actionDisabled}>
+        <Button
+          variant="primary"
+          size="lg"
+          // Large system fonts: the label wraps onto two lines instead of being clipped.
+          className="h-auto min-h-[54px] min-w-0 flex-[2] py-2 leading-tight whitespace-normal"
+          onClick={() => setShowCheckin(true)}
+          disabled={actionDisabled}
+        >
           <Camera /> {checkinLabel(isFinished, currentProcessed, currentSyncPending, currentLatest)}
         </Button>
       </div>
