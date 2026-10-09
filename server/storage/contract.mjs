@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 
 export const POSTGRES_SCHEMA = 'trusted_routebook';
-export const POSTGRES_STORAGE_SCHEMA_VERSION = 6;
+export const POSTGRES_STORAGE_SCHEMA_VERSION = 7;
 
 export const EVENT_STREAMS = Object.freeze([
   { name: 'ai-logs', fileName: 'ai-logs.jsonl' },
@@ -21,7 +21,10 @@ export const EVENT_STREAMS = Object.freeze([
   { name: 'reviews', fileName: 'reviews.jsonl' },
   { name: 'imports', fileName: 'imports.jsonl' },
   { name: 'favorites', fileName: 'favorites.jsonl' },
-  { name: 'checkin-photos', fileName: 'checkin-photos.jsonl' }
+  { name: 'checkin-photos', fileName: 'checkin-photos.jsonl' },
+  { name: 'poi-merges', fileName: 'poi-merges.jsonl' },
+  { name: 'moderation-queue', fileName: 'moderation-queue.jsonl' },
+  { name: 'shadow-judgments', fileName: 'shadow-judgments.jsonl' }
 ]);
 
 export const CONFIG_DOCUMENTS = Object.freeze([

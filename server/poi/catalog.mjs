@@ -15,7 +15,8 @@ import {
   hashText
 } from '../lib/util.mjs';
 import { coordinateDistanceWarning } from '../geo/coordinates.mjs';
-import { PROFILE_ID_SECRET, POI_LOG_PATH } from '../config/index.mjs';
+import { PROFILE_ID_SECRET, POI_LOG_PATH, POI_MERGE_LOG_PATH } from '../config/index.mjs';
+import { canonicalPoiIdFrom, replayPoiMergeDecisions } from './mergeRules.mjs';
 import { safeTokenEqual } from '../auth/tokens.mjs';
 import { readJsonLines, appendJsonLine, onJsonlAppend } from '../storage/jsonl.mjs';
 import { usesPostgresStorage, withStorageEntityLock } from '../storage/runtime.mjs';
@@ -557,7 +558,7 @@ function seedPoiSnapshot(seed) {
 // 指纹失效；本进程 appendJsonLine 落 POI 批次时主动失效，外部直写靠指纹兜底。
 // 同步加载（readFileSync）是为了让 findTrustedPoi/resolvePoiId 等同步调用链
 // 也能读到运营 POI；文件仅在批次提交时增长，重建频率低。
-const mergedPoiCache = { fingerprint: null, pois: null, trustedLookup: null, checkedAtMs: 0 };
+const mergedPoiCache = { fingerprint: null, pois: null, trustedLookup: null, mergeState: replayPoiMergeDecisions([]), checkedAtMs: 0 };
 const MERGED_POI_FINGERPRINT_TTL_MS = 2000;
 
 function invalidateMergedPoiCache() {
@@ -567,10 +568,32 @@ function invalidateMergedPoiCache() {
   mergedPoiCache.checkedAtMs = 0;
 }
 
-onJsonlAppend(POI_LOG_PATH, async () => {
-  invalidateMergedPoiCache();
-  if (usesPostgresStorage()) await refreshPoiCatalog({ force: true });
-});
+for (const path of [POI_LOG_PATH, POI_MERGE_LOG_PATH]) {
+  onJsonlAppend(path, async () => {
+    invalidateMergedPoiCache();
+    if (usesPostgresStorage()) await refreshPoiCatalog({ force: true });
+  });
+}
+
+function readJsonlFileSync(path) {
+  if (!existsSync(path)) return [];
+  let text = '';
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return [];
+  }
+  const rows = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      rows.push(JSON.parse(line));
+    } catch {
+      // Skip corrupted historical JSONL rows.
+    }
+  }
+  return rows;
+}
 
 let postgresPoiRefresh = null;
 
@@ -588,7 +611,8 @@ export async function refreshPoiCatalog({ force = false } = {}) {
       for (const row of envelope.rows) if (sanitizePublicId(row?.poiId)) merged.set(row.poiId, row);
     }
     mergedPoiCache.pois = [...merged.values()];
-    mergedPoiCache.trustedLookup = buildTrustedPoiLookup(mergedPoiCache.pois);
+    mergedPoiCache.mergeState = replayPoiMergeDecisions((await readJsonLines(POI_MERGE_LOG_PATH, Number.POSITIVE_INFINITY)).reverse());
+    mergedPoiCache.trustedLookup = buildTrustedPoiLookup(mergedPoiCache.pois, mergedPoiCache.mergeState.redirects);
     mergedPoiCache.checkedAtMs = Date.now();
     return mergedPoiCache;
   })();
@@ -600,12 +624,16 @@ export async function refreshPoiCatalog({ force = false } = {}) {
 }
 
 function poiLogFingerprintSync() {
-  try {
-    const stats = statSync(POI_LOG_PATH);
-    return `${stats.mtimeMs}:${stats.size}`;
-  } catch {
-    return 'missing';
-  }
+  return [POI_LOG_PATH, POI_MERGE_LOG_PATH]
+    .map((path) => {
+      try {
+        const stats = statSync(path);
+        return `${stats.mtimeMs}:${stats.size}`;
+      } catch {
+        return 'missing';
+      }
+    })
+    .join('/');
 }
 
 export function refreshMergedPoiCatalog() {
@@ -621,29 +649,16 @@ export function refreshMergedPoiCatalog() {
   mergedPoiCache.checkedAtMs = now;
   if (mergedPoiCache.pois && mergedPoiCache.fingerprint === fingerprint) return mergedPoiCache;
   const merged = new Map(TRUSTED_POI_CATALOG.map((seed) => [seed.poiId, seedPoiSnapshot(seed)]));
-  if (existsSync(POI_LOG_PATH)) {
-    let text = '';
-    try {
-      text = readFileSync(POI_LOG_PATH, 'utf8');
-    } catch {
-      text = '';
-    }
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        const envelope = JSON.parse(line);
-        if (envelope?.kind !== 'poi-batch' || !Array.isArray(envelope.rows)) continue;
-        for (const row of envelope.rows) {
-          const poiId = sanitizePublicId(row?.poiId || row?.id);
-          if (poiId) merged.set(poiId, row);
-        }
-      } catch {
-        // Skip corrupted historical JSONL rows.
-      }
+  for (const envelope of readJsonlFileSync(POI_LOG_PATH)) {
+    if (envelope?.kind !== 'poi-batch' || !Array.isArray(envelope.rows)) continue;
+    for (const row of envelope.rows) {
+      const poiId = sanitizePublicId(row?.poiId || row?.id);
+      if (poiId) merged.set(poiId, row);
     }
   }
   mergedPoiCache.pois = [...merged.values()];
-  mergedPoiCache.trustedLookup = buildTrustedPoiLookup(mergedPoiCache.pois);
+  mergedPoiCache.mergeState = replayPoiMergeDecisions(readJsonlFileSync(POI_MERGE_LOG_PATH));
+  mergedPoiCache.trustedLookup = buildTrustedPoiLookup(mergedPoiCache.pois, mergedPoiCache.mergeState.redirects);
   mergedPoiCache.fingerprint = fingerprint;
   return mergedPoiCache;
 }
@@ -655,17 +670,19 @@ export async function listMergedPois() {
 // rank12①：把「运营已审核 POI」映射为 findTrustedPoi 可用的可信条目：
 // location 事实映射为坐标，营业时间事实映射为 openHours。种子目录先建索引，
 // 同名（同城规范化名称）时运营 approved 数据覆盖种子。
-function buildTrustedPoiLookup(pois) {
+function buildTrustedPoiLookup(pois, redirects = new Map()) {
   const lookup = new Map();
+  const entriesById = new Map();
   const seedsById = new Map(TRUSTED_POI_CATALOG.map((seed) => [seed.poiId, seed]));
   const register = (entry) => {
     for (const name of [entry.name, ...(entry.aliases ?? [])]) {
       const normalizedName = normalizePoiName(name);
       if (normalizedName) lookup.set(`${entry.city}::${normalizedName}`, entry);
     }
+    entriesById.set(entry.poiId, entry);
   };
   for (const poi of pois ?? []) {
-    if (poi?.sourceKind !== 'seed') continue;
+    if (poi?.sourceKind !== 'seed' || redirects.has(poi.poiId)) continue;
     const seed = seedsById.get(poi.poiId);
     if (!seed) continue;
     register({
@@ -680,7 +697,7 @@ function buildTrustedPoiLookup(pois) {
     });
   }
   for (const poi of pois ?? []) {
-    if (poi?.sourceKind === 'seed' || poi?.reviewStatus !== 'approved') continue;
+    if (poi?.sourceKind === 'seed' || poi?.reviewStatus !== 'approved' || redirects.has(poi.poiId)) continue;
     register({
       poiId: poi.poiId,
       city: poi.city,
@@ -694,7 +711,32 @@ function buildTrustedPoiLookup(pois) {
       sourceKind: 'operational'
     });
   }
+  // Human-confirmed merges: the duplicate's names and aliases become aliases of the
+  // canonical entry, so stops naming either resolve to one POI id and one fact set.
+  const poisById = new Map((pois ?? []).map((poi) => [poi?.poiId, poi]));
+  for (const [duplicateId] of [...redirects.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const canonical = entriesById.get(canonicalPoiIdFrom(redirects, duplicateId));
+    const duplicate = poisById.get(duplicateId);
+    if (!canonical || !duplicate || duplicate.city !== canonical.city) continue;
+    canonical.mergedPoiIds = [...(canonical.mergedPoiIds ?? []), duplicateId];
+    for (const name of [duplicate.name, ...(Array.isArray(duplicate.aliases) ? duplicate.aliases : [])]) {
+      const normalizedName = normalizePoiName(name);
+      if (normalizedName) lookup.set(`${canonical.city}::${normalizedName}`, canonical);
+    }
+  }
   return lookup;
+}
+
+/** Canonical id after human-confirmed merges (identity when the POI was never merged). */
+export function canonicalPoiId(poiId) {
+  const id = sanitizePublicId(poiId);
+  if (!id) return id;
+  const redirects = (usesPostgresStorage() ? mergedPoiCache : refreshMergedPoiCatalog()).mergeState?.redirects;
+  return canonicalPoiIdFrom(redirects, id);
+}
+
+export function poiMergeState() {
+  return (usesPostgresStorage() ? mergedPoiCache : refreshMergedPoiCatalog()).mergeState;
 }
 
 const POI_WEEKDAY_CHAR_MAP = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
@@ -1179,10 +1221,10 @@ export function findTrustedPoi(stop, city = '') {
 
 export function resolvePoiId(stop, city = '') {
   const normalizedName = normalizePoiName(stop?.name || stop?.stopName);
-  if (!normalizedName) return sanitizePublicId(stop?.poiId);
+  if (!normalizedName) return canonicalPoiId(stop?.poiId);
   const trusted = findTrustedPoi(stop, city);
   if (trusted) return trusted.poiId;
   const cityName = truncateString(city || stop?.city, 40);
   const normalizedCity = cityName ? normalizeCityName(cityName) : '未知';
-  return `poi-${hashText(`${normalizedCity}:${normalizedName}`)}`;
+  return canonicalPoiId(`poi-${hashText(`${normalizedCity}:${normalizedName}`)}`);
 }

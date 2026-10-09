@@ -55,7 +55,7 @@ export function isOpsSuppressedCheckin(checkin) {
   return checkin?.opsDisposition?.excluded === true || checkin?.opsDisposition?.commercialIncentive === true;
 }
 
-function validateInput(input) {
+export function validateOpsAuditInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw createHttpError('处置请求必须是对象', 400, 'OPS_AUDIT_INPUT_INVALID');
   for (const field of ['id', 'createdAt', 'updatedAt', 'actor', 'state']) {
     if (Object.hasOwn(input, field)) throw createHttpError('审计事件 ID、时间、处置人和状态只能由服务端生成', 400, 'OPS_AUDIT_SERVER_FIELDS_FORBIDDEN');
@@ -74,9 +74,15 @@ async function findImportSource(sourceId) {
   return null;
 }
 
+/** Pseudonymous ops actor: an HMAC of the admin token, never the token itself. */
+export function opsActorForRequest(req) {
+  const token = String(req?.headers?.['x-routebook-admin-token'] ?? '');
+  return token ? `admin-${createHmac('sha256', PROFILE_ID_SECRET).update(`ops-actor:${token}`).digest('hex').slice(0, 12)}` : 'local-admin';
+}
+
 export async function createOpsAuditEvent(req, entityType, entityId, input = {}) {
   if (!ENTITY_TYPES.has(entityType) || !sanitizePublicId(entityId)) throw createHttpError('审计对象不合法', 400, 'OPS_AUDIT_ENTITY_INVALID');
-  const reason = validateInput(input);
+  const reason = validateOpsAuditInput(input);
   const action = truncateString(input.action, 60);
   return withStorageEntityLock('ops-audit', `${entityType}:${entityId}`, async () => {
     const context = await buildOpsAuditContext();
@@ -116,8 +122,7 @@ export async function createOpsAuditEvent(req, entityType, entityId, input = {})
       if (action === 'feature') state.featured = true;
       if (action === 'unfeature' || state.authorizationStatus !== 'authorized-public') state.featured = false;
     }
-    const token = String(req.headers['x-routebook-admin-token'] ?? '');
-    const actor = token ? `admin-${createHmac('sha256', PROFILE_ID_SECRET).update(`ops-actor:${token}`).digest('hex').slice(0, 12)}` : 'local-admin';
+    const actor = opsActorForRequest(req);
     const event = { id: cryptoRandomId(), entityType, entityId, action, reason, actor, createdAt: new Date().toISOString(), state };
     await appendJsonLine(OPS_AUDIT_LOG_PATH, event);
     return {

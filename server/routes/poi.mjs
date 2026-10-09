@@ -58,6 +58,7 @@ export const poiRoutes = [
       poi: {
         matched: true,
         name: truncateString(trusted?.name, 80) || name,
+        poiId: trusted?.poiId ?? '',
         lat: canonical.lat,
         lng: canonical.lng,
         geoConfidence: canonical.confidence,

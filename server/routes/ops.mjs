@@ -9,6 +9,7 @@ import { CHECKIN_OPS_FILTERS, checkinMatchesOpsFilter } from '../../src/lib/chec
 import { paginateRows } from '../ops/paging.mjs';
 import { applyCheckinOpsOverlay, buildImportOperationsView, buildOpsAuditContext, createOpsAuditEvent, listOpsAuditEvents } from '../ops/audit.mjs';
 import { listReviewQueue } from '../ops/reviewQueue.mjs';
+import { listPoiDuplicateQueue, listPoiMergeDecisions, recordPoiMergeDecision } from '../poi/merges.mjs';
 
 // Upper bound for one ops check-in scan; readJsonLines treats non-finite limits as 50.
 const OPS_CHECKIN_SCAN_LIMIT = 200000;
@@ -88,5 +89,26 @@ export const opsRoutes = [
       ok: true,
       ...(await createOpsAuditEvent(req, 'import-source', sanitizePublicId(safeDecodePathSegment(params.id)), await readJsonBody(req)))
     });
+  }),
+  route('GET', '/api/ops/poi-duplicates', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'ops-read');
+    verifyAdminAccess(req);
+    return sendJson(res, 200, {
+      ok: true,
+      ...(await listPoiDuplicateQueue({
+        city: url.searchParams.get('city') || '',
+        limit: clampNumber(url.searchParams.get('limit') || undefined, 1, 500, 100)
+      }))
+    });
+  }),
+  route('GET', '/api/ops/poi-merges', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'ops-read');
+    verifyAdminAccess(req);
+    return sendJson(res, 200, { ok: true, decisions: await listPoiMergeDecisions(clampNumber(url.searchParams.get('limit') || undefined, 1, 1000, 200)) });
+  }),
+  route('POST', '/api/ops/poi-merges', async ({ req, res }) => {
+    enforceRateLimit(req);
+    verifyAdminAccess(req);
+    return sendJson(res, 200, { ok: true, ...(await recordPoiMergeDecision(req, await readJsonBody(req))) });
   })
 ];

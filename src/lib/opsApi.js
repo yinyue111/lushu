@@ -14,3 +14,13 @@ export function saveOpsDisposition(entityType, entityId, payload, signal) {
   const resource = entityType === 'checkin' ? 'checkins' : 'import-sources';
   return postJson(`/ops/${resource}/${encodeURIComponent(entityId)}/audits`, payload, signal, adminHeaders());
 }
+
+export function getOpsPoiDuplicates(city = '', signal) {
+  const params = new URLSearchParams({ limit: '100' });
+  if (city) params.set('city', city);
+  return getJson(`/ops/poi-duplicates?${params.toString()}`, signal, adminHeaders());
+}
+
+export function saveOpsPoiMergeDecision(payload, signal) {
+  return postJson('/ops/poi-merges', payload, signal, adminHeaders());
+}

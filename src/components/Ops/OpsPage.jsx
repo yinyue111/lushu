@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Bot, ClipboardCheck, Footprints, History, LayoutDashboard, Link2, MapPinned, MousePointerClick, Settings, ShieldCheck } from 'lucide-react';
+import { Bot, ClipboardCheck, Footprints, GitMerge, History, LayoutDashboard, Link2, MapPinned, MousePointerClick, Settings, ShieldCheck } from 'lucide-react';
 import CheckinAuditPanel from './CheckinAuditPanel';
 import ImportSourcesPanel from './ImportSourcesPanel';
 import LogsPage from './LogsPage';
 import OpsConfigPanel from './OpsConfigPanel';
 import OpsOverview from './OpsOverview';
 import PoiContentPanel from './PoiContentPanel';
+import PoiDedupPanel from './PoiDedupPanel';
 import ProductBoardPanel from './ProductBoardPanel';
 import ReviewQueuePanel from './ReviewQueuePanel';
 import RoutebookVersionsPanel from './RoutebookVersionsPanel';
@@ -13,6 +14,7 @@ import RoutebookVersionsPanel from './RoutebookVersionsPanel';
 const OPS_TABS = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
   { id: 'content', label: 'POI 内容', icon: MapPinned },
+  { id: 'poi-dedup', label: '重复 POI', icon: GitMerge },
   { id: 'checkins', label: '打卡审核', icon: Footprints },
   { id: 'reviews', label: '审核队列', icon: ClipboardCheck },
   { id: 'imports', label: '攻略来源', icon: Link2 },
@@ -97,6 +99,7 @@ export default function OpsPage() {
       <main id={`ops-panel-${activeTab}`} className="ops-workspace" role="tabpanel" aria-labelledby={`ops-tab-${activeTab}`} tabIndex={0}>
         {activeTab === 'overview' && <OpsOverview />}
         {activeTab === 'content' && <PoiContentPanel />}
+        {activeTab === 'poi-dedup' && <PoiDedupPanel />}
         {activeTab === 'checkins' && <CheckinAuditPanel />}
         {activeTab === 'reviews' && <ReviewQueuePanel />}
         {activeTab === 'imports' && <ImportSourcesPanel />}
