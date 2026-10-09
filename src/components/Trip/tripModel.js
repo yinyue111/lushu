@@ -134,10 +134,13 @@ export function checkinForStatusDisplay(checkins) {
   );
 }
 
-export function syncStatusLabel(status, row) {
+/** @param {{ cloudSyncOff?: boolean }} [options] cloudSyncOff: this device has not turned on 云端同步 yet. */
+export function syncStatusLabel(status, row, { cloudSyncOff = false } = {}) {
   if (status === 'syncing') return '正在上传';
   if (status === 'synced') return '已保存到云端';
   if (status === 'failed') return row?.clientSyncRetryable === false ? '上传失败，请手动重试' : '上传失败，稍后自动重试';
+  // Without 云端同步 nothing uploads, online or not; do not promise an automatic upload.
+  if (cloudSyncOff) return '只存在这台设备上';
   return '联网后自动上传';
 }
 

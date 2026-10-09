@@ -18,7 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
-import { getProfile } from '../../lib/profile';
+import { getProfile, hasProfileCloudRegistrationConsent } from '../../lib/profile';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import { buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
@@ -68,6 +68,7 @@ export default function TripView({ routebook, onBack, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
   const [profile, setProfile] = useState(() => getProfile());
   const [initialSession] = useState(() => readTripSession(routebook, profile.id));
+  const cloudSyncOff = Boolean(profile?.id && profile.id !== 'anonymous' && !profile.profileAccessToken && !hasProfileCloudRegistrationConsent(profile));
   const initialStops = initialSession?.stops ?? normalizeTripStops(routebook);
   const [currentIdx, setCurrentIdx] = useState(() => {
     const storedIndex = initialStops.findIndex((stop) => stopKeyForStop(stop) === String(initialSession?.currentStopId ?? ''));
@@ -637,10 +638,16 @@ export default function TripView({ routebook, onBack, onReview }) {
               </span>
               <div className="min-w-0 flex-1 text-sm">
                 <p className="font-bold">
-                  {statusEvidence.localCompleted ? checkinStatusLabel(statusCheckin) : '还没记录'} · {syncStatusLabel(statusEvidence.syncStatus, statusCheckin)}
+                  {statusEvidence.localCompleted ? checkinStatusLabel(statusCheckin) : '还没记录'} ·{' '}
+                  {syncStatusLabel(statusEvidence.syncStatus, statusCheckin, { cloudSyncOff })}
                 </p>
                 <p className="mt-0.5 text-meta text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
-                {pendingSyncCount > 1 && <p className="mt-0.5 text-meta text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>}
+                {cloudSyncOff && statusEvidence.syncStatus !== 'synced' && (
+                  <p className="mt-0.5 text-meta text-ink-2">要让打卡计入路线可信度，请先在「我的 → 账户」开启云端同步，开启后会自动补传。</p>
+                )}
+                {pendingSyncCount > 1 && !cloudSyncOff && (
+                  <p className="mt-0.5 text-meta text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>
+                )}
                 {statusEvidence.syncStatus === 'failed' && statusCheckin.clientSyncError && (
                   <p className="mt-0.5 text-meta text-primary-strong">原因：{statusCheckin.clientSyncError}</p>
                 )}
