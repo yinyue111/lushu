@@ -156,6 +156,41 @@ async function fetchVerifiedTile(upstream, tileRequest, signal) {
   return tile;
 }
 
+const RETRYABLE_NETWORK_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNABORTED', 'UND_ERR_SOCKET']);
+
+// Raw socket errors from the upstream (e.g. a CDN edge resetting the
+// connection) carry no HTTP status and used to surface as a generic 500.
+// Map them to a 502 with a stable code; the message never includes the
+// upstream URL, so a tile key in the query string cannot leak.
+export function normalizeTileUpstreamError(error) {
+  if (error && Number.isInteger(error.statusCode)) return error;
+  const networkCode = typeof error?.code === 'string' ? error.code : 'unknown';
+  const normalized = createHttpError('地图上游连接中断', 502, 'MAP_TILE_UPSTREAM_NETWORK');
+  normalized.upstreamCode = networkCode;
+  return normalized;
+}
+
+function isRetryableTileError(error) {
+  if (!error || Number.isInteger(error.statusCode)) return false;
+  return RETRYABLE_NETWORK_CODES.has(error.code) || /socket hang up/i.test(String(error.message ?? ''));
+}
+
+// One immediate retry for a transient network error (single-provider setups
+// such as amap-only have no fallback provider to absorb a reset).
+export async function fetchTileWithRetry(fetchTile, upstream, tileRequest, signal) {
+  try {
+    return await fetchTile(upstream, tileRequest, signal);
+  } catch (error) {
+    if (signal?.aborted || !isRetryableTileError(error)) throw normalizeTileUpstreamError(error);
+    try {
+      return await fetchTile(upstream, tileRequest, signal);
+    } catch (retryError) {
+      if (signal?.aborted) throw retryError;
+      throw normalizeTileUpstreamError(retryError);
+    }
+  }
+}
+
 function sendMapTileConfig(res) {
   return sendJson(res, 200, describeMapTileProviders(MAP_TILE_UPSTREAMS));
 }
@@ -185,7 +220,7 @@ export async function handleMapTile(req, res, url) {
     const available = upstreams.filter((upstream) => (providerCooldowns.get(upstream.id) ?? 0) <= now);
     for (const upstream of available.length ? available : upstreams) {
       try {
-        tile = await fetchVerifiedTile(upstream, tileRequest, controller.signal);
+        tile = await fetchTileWithRetry(fetchVerifiedTile, upstream, tileRequest, controller.signal);
         break;
       } catch (error) {
         if (controller.signal.aborted) throw error;
