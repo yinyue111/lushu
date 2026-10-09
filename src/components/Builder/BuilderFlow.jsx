@@ -8,7 +8,7 @@ import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGenerate, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
 import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
-import { extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
+import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
 
 const defaultConstraints = {
@@ -77,11 +77,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [genSteps, setGenSteps] = useState([]);
   const [importState, setImportState] = useState({ loading: false, sources: initialDraft?.importedSources ?? [], error: '' });
   const [ocrState, setOcrState] = useState({ loading: false, places: initialDraft?.ocrPlaces ?? [], warnings: initialDraft?.ocrWarnings ?? [] });
-  const [candidatePlaces, setCandidatePlaces] = useState(initialDraft?.candidatePlaces ?? []);
+  const [initialCandidatePlaces] = useState(() =>
+    defaults.guide ? candidatesForPrefilledGuide(defaults.guide, [], { knownPlaces: knownPlacesForCity(initialCity) }) : (initialDraft?.candidatePlaces ?? [])
+  );
+  const [candidatePlaces, setCandidatePlaces] = useState(initialCandidatePlaces);
   const [manualPlace, setManualPlace] = useState(initialDraft?.manualPlace ?? '');
   const mountedRef = useRef(true);
   const guideRef = useRef(defaults.guide ?? initialDraft?.guide ?? '');
-  const candidatePlacesRef = useRef(initialDraft?.candidatePlaces ?? []);
+  const candidatePlacesRef = useRef(initialCandidatePlaces);
   const importSourcesRef = useRef(initialDraft?.importedSources ?? []);
   const generationSequence = useRef(0);
   const generationAbort = useRef(null);

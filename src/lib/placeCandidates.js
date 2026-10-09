@@ -15,7 +15,7 @@ const PLACE_SUFFIX =
   /(?:路|街|巷|弄|寺|庙|观|宫|园|馆|湖|山|峰|塔|桥|镇|村|坞|埠|堤|岛|洞|泉|溪|潭|古城|景区|公园|广场|商场|市场|码头|茶园|博物馆|美术馆|夜市|祠|院|草堂|基地|古镇|步行街|阁|楼|谷|书店|咖啡馆|老街|故居|遗址|大厦|中心|车站|东站|西站|南站|北站)$/;
 // Leading intent/verb words stripped before judging a clause.
 const LEADING_INTENT =
-  /^(?:我|我们|他们|还|也|再|就|先|然后|最后|顺便|一定要|必须|必|想要|想|希望|打算|准备|计划|去|逛逛|逛|游览|游|看看|看|到|打卡|推荐|可以|和|还有|以及|喝|吃|拍)+/;
+  /^(?:首先|其次|接着|另外|我|我们|他们|还|也|再|就|先|然后|最后|顺便|一定要|必须|必|想要|想|希望|打算|准备|计划|去|逛逛|逛|游览|游|看看|看|到|打卡|推荐|可以|和|还有|以及|喝|吃|拍)+/;
 // Clauses that state a preference, a constraint or an activity, not a place.
 const PREFERENCE_CLAUSE =
   /^(?:不想|不要|不去|别|避开|避免|少|尽量|最好|不喜欢|喜欢|希望|怕|不能|不用|不需要|带|跟|和朋友|一个人)|走路|太多|太累|太远|人多|排队|预算|小时|分钟|天|晚上|早上|上午|下午|中午|时间|休息|拍照|好吃|好看|好玩|轻松|松弛|适合|亲子|老人|孩子/;
@@ -26,6 +26,21 @@ const AVOID_INTENT = /^(?:不想去|不要去|别去|避开|不去)/;
 const DAY_LABEL = /^(?:(?:day|d)\s*\d{1,2}|第[一二三四五六七八九十\d]{1,3}[天日站]|[上下中]午|傍晚|晚上|p\d{1,2})\s*[:：.、-]?\s*/i;
 // Route separators used by 小红书 / 抖音 / X itineraries ("春熙路—大慈寺", "A → B", "A➡️B", "A-->B", "A | B").
 const ROUTE_SEPARATOR = /\s*(?:-{1,2}>|=>|[—–→⇒➡►▶>＞|｜/／~～]|\s-\s)\s*/;
+
+// Spoken prose (video transcripts): trailing particles, and the place after a motion verb
+// ("顺着路走就会看到巴金故居" → "巴金故居", "就可以到达宋庆林故居" → "宋庆林故居").
+const TRAILING_PARTICLES = /[啦哦呢吧了啊呀嘛哈喔]+$/;
+const MOTION_BEFORE_PLACE = /(?:看到|看见|到达|来到|走到|前往|就是|直达|一家在|位于)/;
+const PROSE_FRAGMENT = /[是的走逛好超真别会就要在有都很太这那么吗呀哦啦呢吧了啊个感照样然意框量站荐]|^(?:注意|收藏|首先|最近|下次|评论)/;
+
+function placeTail(clause) {
+  const text = String(clause ?? '')
+    .replace(TRAILING_PARTICLES, '')
+    .trim();
+  const parts = text.split(MOTION_BEFORE_PLACE);
+  const tail = parts[parts.length - 1].trim();
+  return parts.length > 1 && tail.length >= 2 ? tail : text;
+}
 
 /** Same normalization as the stored place keys (NFKC, no spaces/punctuation, lowercase). */
 export function normalizeCandidateKey(value) {
@@ -80,7 +95,7 @@ export function extractPlaceCandidates(text, { knownPlaces = [] } = {}) {
   // 2) Clause by clause: strip intent words, skip preferences, then judge the rest.
   const clauses = value
     .replace(/\uFE0F/g, '')
-    .split(/[，,。.；;、\n\r!！?？]+|(?:还有|以及|然后|和|跟|再去|再到|顺便|之后|喝|吃|拍)/)
+    .split(/[，,。.；;、\n\r!！?？#＃]+|(?:还有|以及|然后|和|跟|再去|再到|顺便|之后|喝|吃|拍)/)
     .flatMap((part) => String(part ?? '').split(ROUTE_SEPARATOR));
   for (const rawClause of clauses) {
     const clause = String(rawClause ?? '')
@@ -89,7 +104,7 @@ export function extractPlaceCandidates(text, { knownPlaces = [] } = {}) {
       .trim();
     if (!clause) continue;
     const intent = AVOID_INTENT.test(clause) ? 'avoid' : 'visit';
-    const stripped = clause.replace(AVOID_INTENT, '').replace(LEADING_INTENT, '').trim();
+    const stripped = placeTail(clause.replace(AVOID_INTENT, '').replace(LEADING_INTENT, '').trim());
     if (!stripped || (intent === 'visit' && PREFERENCE_CLAUSE.test(clause))) continue;
     const key = normalizeCandidateKey(stripped);
     if (known.has(key)) {
@@ -101,8 +116,9 @@ export function extractPlaceCandidates(text, { knownPlaces = [] } = {}) {
       add(stripped, 'suffix', intent);
       continue;
     }
-    // A short bare word in a list ("西湖、法喜寺、龙井") is probably a place name.
-    if (/^[\u4e00-\u9fa5]{2,6}$/.test(stripped)) add(stripped, 'listed', intent);
+    // A short bare word in a list ("西湖、法喜寺、龙井") is probably a place name — but not a spoken-prose fragment
+    // ("好逛好", "注意哦", "一路逛") from a 抖音 transcript.
+    if (/^[\u4e00-\u9fa5]{2,6}$/.test(stripped) && !PROSE_FRAGMENT.test(stripped)) add(stripped, 'listed', intent);
   }
   // Several aliases of one catalog place ("柳浪闻莺" inside "柳浪闻莺公园"): keep the longest.
   const values = [...found.values()];
@@ -156,4 +172,17 @@ export function reconcileTextCandidates(previous, extracted, { max = 24 } = {}) 
     });
   }
   return next.slice(0, max);
+}
+
+/**
+ * Candidates for a guide that arrives pre-filled (e.g. text pasted on the home page). Without this the builder only
+ * extracted on typing, so a pasted 抖音 transcript reached step 2 with "0 个会排进路线".
+ * @param {string} guide
+ * @param {any[]} previous
+ * @param {{ knownPlaces?: string[] }} [options]
+ */
+export function candidatesForPrefilledGuide(guide, previous = [], options = {}) {
+  const text = String(guide ?? '');
+  if (!text.trim()) return Array.isArray(previous) ? previous : [];
+  return reconcileTextCandidates(previous, extractPlaceCandidates(text, options));
 }

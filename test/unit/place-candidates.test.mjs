@@ -70,3 +70,26 @@ test('arrow emoji, ASCII arrows and 第N天 labels split into places', () => {
   const found = names(extractPlaceCandidates('第一天：断桥残雪➡️白堤→平湖秋月 --> 雷峰塔\n第二天 灵隐寺 | 法喜寺 / 龙井村'));
   for (const name of ['断桥残雪', '白堤', '平湖秋月', '雷峰塔', '灵隐寺', '法喜寺', '龙井村']) assert.ok(found.includes(name), `${name} in ${found.join(',')}`);
 });
+
+test('spoken 抖音 transcript prose: places after motion verbs and hashtags, no particle fragments', async () => {
+  const { extractPlaceCandidates } = await import('../../src/lib/placeCandidates.js');
+  const text =
+    '上海武康路安福路city walk路线！好逛好拍！#上海citywalk #武康大楼 #安福路\n首先乘坐地铁出发，步行几百米就能看到武康大楼同框啦！往右边这条路直行就可以到达宋庆林故居。注意哦，周一是闭馆日！顺着路走就会看到巴金故居和罗密欧阳台啦！首先推荐一家在常熟路转角口的汉堡店。';
+  const names = extractPlaceCandidates(text).map((item) => item.name);
+  for (const expected of ['武康大楼', '安福路', '宋庆林故居', '巴金故居', '罗密欧阳台']) assert.ok(names.includes(expected), `${expected} in ${names}`);
+  for (const noise of ['注意', '好逛好', '注意哦', '顺着路走就会看到巴金故居']) assert.ok(!names.includes(noise), `${noise} not in ${names}`);
+});
+
+test('a guide pre-filled from the home page already has candidates when step 2 opens', async () => {
+  const { candidatesForPrefilledGuide } = await import('../../src/lib/placeCandidates.js');
+  const rows = candidatesForPrefilledGuide('西湖、法喜寺、龙井村', [], {});
+  assert.deepEqual(
+    rows.map((row) => [row.name, row.origin, row.included]),
+    [
+      ['西湖', 'guide-text', false],
+      ['法喜寺', 'guide-text', false],
+      ['龙井村', 'guide-text', false]
+    ]
+  );
+  assert.deepEqual(candidatesForPrefilledGuide('   ', [{ name: 'x' }]), [{ name: 'x' }]);
+});
