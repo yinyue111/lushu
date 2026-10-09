@@ -69,7 +69,7 @@ async function startInstance(label) {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: hermeticServerEnv({
       STORAGE_BACKEND: 'postgres',
-      PGHOST: '/tmp',
+      ...postgresClientEnv,
       PGDATABASE: database,
       POSTGRES_URL: '',
       DATABASE_URL: '',
@@ -108,6 +108,13 @@ async function startInstance(label) {
   throw new Error(`${label} did not become ready: ${state.logs}`);
 }
 
+// Honour the standard libpq environment (CI uses PGHOST=127.0.0.1 + password
+// auth); fall back to the /tmp socket only when nothing is configured.
+const postgresClientEnv = Object.fromEntries(
+  ['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD'].filter((key) => process.env[key]).map((key) => [key, process.env[key]])
+);
+if (!postgresClientEnv.PGHOST) postgresClientEnv.PGHOST = '/tmp';
+
 function identity(phone, nonce) {
   const issuedAt = new Date().toISOString();
   const signature = createHmac('sha256', identitySecret).update(`trusted-routebook:phone:${phone}:${issuedAt}:${nonce}`).digest('hex');
@@ -115,9 +122,9 @@ function identity(phone, nonce) {
 }
 
 try {
-  await run('createdb', ['--host', '/tmp', '--no-password', '--template', 'template0', '--encoding', 'UTF8', database]);
+  await run('createdb', ['--host', postgresClientEnv.PGHOST, '--no-password', '--template', 'template0', '--encoding', 'UTF8', database]);
   created = true;
-  pool = createPostgresPool({ connectionString: '', environment: {}, host: '/tmp', database, applicationName: 'lushu-runtime-regression' });
+  pool = createPostgresPool({ connectionString: '', environment: {}, host: postgresClientEnv.PGHOST, database, applicationName: 'lushu-runtime-regression' });
   await applyPostgresMigrations(pool);
   const adapter = createPostgresAdapter({ pool, profileIdSecret: profileSecret });
   const snapshot = await loadFilesystemStorageSnapshot(dataDir, { profileIdSecret: profileSecret });
@@ -247,6 +254,6 @@ try {
     })
   );
   await pool?.end();
-  if (created) await run('dropdb', ['--host', '/tmp', '--no-password', '--if-exists', database]);
+  if (created) await run('dropdb', ['--host', postgresClientEnv.PGHOST, '--no-password', '--if-exists', database]);
   await rm(dataDir, { recursive: true, force: true });
 }
