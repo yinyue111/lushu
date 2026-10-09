@@ -308,7 +308,7 @@ export function buildEditedMetrics(stops, existingMetrics = []) {
     ? '待补充'
     : `约 ${budget.min === budget.max ? budget.min : `${budget.min}–${budget.max}`} 元${budget.unknownCount ? `（另有 ${budget.unknownCount} 处待补充）` : ''}`;
   const calculated = [
-    { label: '道路核验', value: '编辑后待重新核验' },
+    { label: '道路核验', value: '受影响路段待重新核验' },
     { label: '道路距离', value: '待道路服务核验' },
     { label: '道路耗时', value: '待道路服务核验' },
     { label: '资料核验分', value: evidence.score == null ? '—' : `${evidence.score}` },

@@ -21,6 +21,7 @@ import {
   stableStopId,
   stopKey
 } from './routebookModel';
+import { preserveUnaffectedRouteLegs } from '../../lib/routeLegEdits';
 
 /**
  * All routebook mutations of the route page (edit, reorder, variants, save, copy,
@@ -61,7 +62,8 @@ export function useRoutebookActions({
       ...base,
       ...extra,
       stops: normalizedStops,
-      routeLegs: [],
+      // F12: only legs touched by this edit lose their road verification.
+      routeLegs: preserveUnaffectedRouteLegs(base.stops ?? [], normalizedStops, base.routeLegs ?? []),
       days: orderedDays(normalizedStops, base.days),
       trustScore: calculateLocalTrustScore(normalizedStops),
       trustMeta: {
