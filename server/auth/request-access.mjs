@@ -121,8 +121,16 @@ export function verifyApiAccess(req) {
   if (isLocalRequest(req) && ALLOW_LOCAL_API_BYPASS) return;
 
   const providedToken = String(req.headers['x-routebook-token'] ?? '').trim();
-  if (!PUBLIC_MODEL_PROXY_ALLOWED || !safeTokenEqual(providedToken, API_TOKEN)) {
-    throw createHttpError('API 仅允许本机访问；如需公开暴露请显式配置访问令牌', 403, 'LOCAL_ONLY');
+  // No access code configured at all: remote callers cannot use the model on this deployment.
+  if (!PUBLIC_MODEL_PROXY_ALLOWED || !API_TOKEN) {
+    throw createHttpError('这个站点暂未开放在线生成。', 403, 'LOCAL_ONLY');
+  }
+  // An access code is configured: tell the user exactly what to do.
+  if (!providedToken) {
+    throw createHttpError('需要访问码：请在「高级设置」里填写访问码后再试。', 403, 'ACCESS_CODE_REQUIRED');
+  }
+  if (!safeTokenEqual(providedToken, API_TOKEN)) {
+    throw createHttpError('访问码不对：请在「高级设置」里检查后重新填写。', 403, 'ACCESS_CODE_INVALID');
   }
 }
 

@@ -84,7 +84,9 @@ test('wait copy is honest: typical range, recent median and slower-than-usual', 
 
 test('failure copy is specific for timeouts, access codes and quota', () => {
   assert.match(generationFailureCopy({ code: 'MODEL_TIMEOUT' }).detail, /自动停止/);
-  assert.match(generationFailureCopy({ code: 'LOCAL_ONLY' }).title, /访问码/);
+  assert.match(generationFailureCopy({ code: 'ACCESS_CODE_REQUIRED' }).title, /访问码/);
+  assert.match(generationFailureCopy({ code: 'ACCESS_CODE_INVALID' }).detail, /高级设置/);
+  assert.match(generationFailureCopy({ code: 'LOCAL_ONLY' }).title, /暂未开放/);
   assert.match(generationFailureCopy({ code: 'GENERATION_QUOTA_EXCEEDED', message: '生成次数已达上限' }).detail, /上限/);
   assert.equal(generationFailureCopy({ message: '别的错误' }).detail, '别的错误');
 });

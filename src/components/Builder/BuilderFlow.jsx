@@ -6,6 +6,7 @@ import {
   clearActiveGenerationJob,
   followGenerationJob,
   generationFailureCopy,
+  isAccessCodeError,
   readActiveGenerationJob,
   saveActiveGenerationJob
 } from '../../lib/generationJob';
@@ -54,6 +55,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [draftResolution, setDraftResolution] = useState(() => (hasPendingDraft ? 'pending' : 'resolved'));
   const initialDraft = hasBuilderDefaults(defaults) ? null : savedDraft;
   const [apiTokenInput, setApiTokenInput] = useState(() => getApiToken());
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const apiTokenInputRef = useRef(null);
   const [step, setStep] = useState(() => Math.min(2, Math.max(0, Number(defaults.initialStep ?? initialDraft?.step) || 0)));
   const initialConstraints = useMemo(
     () => ({
@@ -246,6 +249,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         if (!mountedRef.current || ctrl.signal.aborted) return false;
         setImportState((prev) => ({ ...prev, loading: false, error: e.message }));
         setError(e.message);
+        if (isAccessCodeError(e)) openAccessCode();
         return false;
       })
       .finally(() => {
@@ -385,6 +389,12 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     failGeneration(job.error ?? {});
   }
 
+  // Opens 高级设置 and focuses the access-code field (before the user spends time on the form).
+  function openAccessCode() {
+    setAdvancedOpen(true);
+    window.setTimeout(() => apiTokenInputRef.current?.focus(), 0);
+  }
+
   function refreshModelHealth() {
     checkHealth()
       .then((health) => {
@@ -397,6 +407,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     setLoading(false);
     setGenerationOutcome('failed');
     setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '' });
+    if (isAccessCodeError(e)) openAccessCode();
     checkHealth()
       .then((health) => {
         if (mountedRef.current) onModelHealth?.(health);
@@ -649,6 +660,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   const needsAccessCode = modelHealth?.access === 'needs-access-code' && modelHealth?.modelReady !== false;
+  // Open 高级设置 once when the site turns out to need an access code; the user can still close it.
+  useEffect(() => {
+    if (needsAccessCode) setAdvancedOpen(true);
+  }, [needsAccessCode]);
   const nextDisabled = draftResolution === 'pending' || !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
 
   return (
@@ -657,7 +672,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
         </Button>
-        <details className="group relative text-sm" open={needsAccessCode || undefined}>
+        <details className="group relative text-sm" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
           <summary
             className={cn(
               'cursor-pointer list-none rounded-full px-3 py-1.5 font-semibold hover:bg-canvas',
@@ -667,9 +682,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             高级设置{needsAccessCode ? ' · 需要访问码' : ''}
           </summary>
           <div className="absolute right-0 z-20 mt-2 w-72 rounded-card border border-line bg-white p-4 shadow-pop">
-            <Field label="平台访问码" hint="远程部署启用模型代理时填写">
+            <Field label="访问码" hint="向站点运营方获取">
               <input
                 id="builder-api-token"
+                ref={apiTokenInputRef}
                 className={inputClass}
                 type="password"
                 value={apiTokenInput}
@@ -678,19 +694,28 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                   setApiToken(apiTokenInput);
                   refreshModelHealth();
                 }}
-                placeholder="本地使用可留空"
+                placeholder="填写访问码"
                 aria-invalid={needsAccessCode || undefined}
                 aria-describedby={needsAccessCode ? 'builder-api-token-hint' : undefined}
               />
             </Field>
             {needsAccessCode && (
               <p id="builder-api-token-hint" className="mt-2 text-xs font-semibold text-lemon-ink">
-                这个部署需要平台访问码才能生成。填写后离开输入框会自动重新检查。
+                {apiTokenInput ? '访问码不对，请检查后重新填写。' : '这个站点生成路书需要访问码。填好后点别处，会自动检查。'}
               </p>
             )}
           </div>
         </details>
       </div>
+
+      {needsAccessCode && step < 3 && (
+        <Notice className="mt-3">
+          这个站点生成路书需要访问码。先在右上角「高级设置」里填好，再导入攻略、挑地点。{' '}
+          <button type="button" className="font-bold underline underline-offset-2" onClick={openAccessCode}>
+            填写访问码
+          </button>
+        </Notice>
+      )}
 
       <header className="mt-3">
         <span className="text-xs font-extrabold tracking-[0.08em] text-primary-strong">

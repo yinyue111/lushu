@@ -167,11 +167,20 @@ export function generationFailureCopy(error) {
       return { title: '已有路书正在生成', detail: error?.message || '请等它完成或取消后再试。' };
     case 'GENERATION_JOB_NOT_FOUND':
       return { title: '生成任务已失效', detail: '服务可能刚重启，这次的进度没有保留下来。你的攻略和偏好还在，重新生成即可。' };
+    case 'ACCESS_CODE_REQUIRED':
+      return { title: '需要访问码', detail: '请在右上角「高级设置」里填写访问码后再生成。你填的攻略和偏好都还在。' };
+    case 'ACCESS_CODE_INVALID':
+      return { title: '访问码不对', detail: '请在右上角「高级设置」里检查访问码后重试。你填的攻略和偏好都还在。' };
     case 'LOCAL_ONLY':
-      return { title: '需要平台访问码', detail: '这个部署只对持有访问码的用户开放生成。请在右上角「高级设置」填写访问码后重试。' };
+      return { title: '这个站点暂未开放在线生成', detail: '可以先看看现成的路书。' };
     case 'RATE_LIMITED':
       return { title: '操作有点频繁', detail: '请稍等一分钟再试。' };
     default:
       return { title: '这次没能生成路书', detail: error?.message || '请稍后重试。' };
   }
+}
+
+/** True for the 403 codes that mean "fill in / fix the access code". */
+export function isAccessCodeError(error) {
+  return ['ACCESS_CODE_REQUIRED', 'ACCESS_CODE_INVALID'].includes(error?.code);
 }
