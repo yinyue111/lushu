@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, CalendarClock, HardDrive, MapPinOff, RotateCcw } from 'lucide-react';
+import { AlertCircle, CalendarClock, HardDrive, MapPinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
 import { EmptyArt } from '../visual/EmptyArt';
 
@@ -151,6 +151,24 @@ export function StorageNoticeBanner({ text, onDismiss }) {
     <Banner icon={HardDrive} role="alert" tone="border-lemon/50 bg-lemon-soft text-lemon-ink" title="本地存储已满" text={text}>
       <Button size="sm" variant="ghost" onClick={onDismiss}>
         知道了
+      </Button>
+    </Banner>
+  );
+}
+
+/** A routebook generation keeps running on the server after leaving the builder. */
+/** @param {Record<string, any>} props */
+export function GenerationRunningBanner({ job, onOpen }) {
+  return (
+    <Banner
+      icon={Sparkles}
+      role="status"
+      tone="border-primary/25 bg-primary-soft text-ink"
+      title={`${job.city || ''}路书正在后台生成`}
+      text="通常需要 2–3 分钟，完成后在这里打开结果；也可以在进度页取消。"
+    >
+      <Button size="sm" variant="primary" onClick={onOpen}>
+        查看进度
       </Button>
     </Banner>
   );

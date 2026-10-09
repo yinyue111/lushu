@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CalendarDays, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Sparkles, Train, X } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Train, X } from 'lucide-react';
 import { trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
@@ -427,54 +427,3 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options })
 }
 
 /** @param {Record<string, any>} props */
-export function StepGenerate({ error, loading, city, duration, genSteps, onRetry, onBackToPrefs }) {
-  return (
-    <section className="mx-auto max-w-md pt-6 text-center">
-      <div
-        className={cn(
-          'mx-auto grid size-20 place-items-center rounded-full',
-          error ? 'bg-primary-soft text-primary-strong' : 'bg-[linear-gradient(135deg,#e8553d,#ffc93c)] text-white shadow-cta',
-          loading && !error && 'animate-pulse'
-        )}
-      >
-        {error ? <AlertCircle className="size-9" aria-hidden="true" /> : <Sparkles className="size-9" aria-hidden="true" />}
-      </div>
-      <h2 className="mt-5 text-2xl font-black tracking-tight">{error ? '这次没能生成路书' : loading ? '正在生成路书' : '路书生成完成'}</h2>
-      <p className="mt-1 text-sm text-muted">
-        {city} · {duration}
-      </p>
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {genSteps.length ? `生成进度：${genSteps.at(-1)}` : '正在准备生成'}
-      </p>
-      <ol className="mx-auto mt-6 grid max-w-xs gap-2.5 text-left" aria-label="路书生成进度">
-        {genSteps.map((s, i) => (
-          <li key={i} className="flex items-center gap-2.5 text-copy">
-            {i === genSteps.length - 1 && loading ? (
-              <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
-            ) : (
-              <span className="grid size-4 shrink-0 place-items-center rounded-full bg-success text-white">
-                <Check className="size-3" strokeWidth={3} aria-hidden="true" />
-              </span>
-            )}
-            <span className="text-ink-2">{s}</span>
-          </li>
-        ))}
-      </ol>
-      {error && (
-        <div role="alert" className="mt-6 rounded-card border border-primary/30 bg-primary-soft p-4 text-left">
-          <p className="flex items-start gap-2 text-sm font-semibold text-primary-strong">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> {error}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="primary" size="sm" onClick={onRetry}>
-              <Sparkles /> 再试一次
-            </Button>
-            <Button variant="outline" size="sm" onClick={onBackToPrefs}>
-              <ArrowLeft /> 改改偏好
-            </Button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}

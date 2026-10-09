@@ -1,5 +1,12 @@
 import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
-import { ErrorBoundary, PageLoadingFallback, RouteLoadFallback, StorageNoticeBanner, TripReminderBanner } from './components/Layout/AppFallbacks';
+import {
+  ErrorBoundary,
+  GenerationRunningBanner,
+  PageLoadingFallback,
+  RouteLoadFallback,
+  StorageNoticeBanner,
+  TripReminderBanner
+} from './components/Layout/AppFallbacks';
 import TopNav from './components/Layout/TopNav';
 import HomePage from './components/HomePage';
 import { checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
@@ -7,6 +14,7 @@ import { flushAllCheckinQueues } from './lib/checkinQueue';
 import { createRouteEditToken, getProfile, profileRoutebookFields } from './lib/profile';
 import { adoptServerProfile } from './lib/profileSync';
 import { dismissTripReminder, dueTripReminders } from './lib/reminders';
+import { readActiveGenerationJob } from './lib/generationJob';
 import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRoutebook } from './lib/storage';
 import { preserveRoutebookConflictDraft } from './lib/routebookConflict';
 import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './components/Route/routebookModel';
@@ -89,6 +97,7 @@ export default function App() {
   const [dueReminder, setDueReminder] = useState(null);
   const [storageNotice, setStorageNotice] = useState('');
   const [routebookRefreshNotice, setRoutebookRefreshNotice] = useState('');
+  const [activeGeneration, setActiveGeneration] = useState(() => readActiveGenerationJob());
   const routebookRef = useRef(null);
   const profileRef = useRef(profile);
   const routebookRefreshConflictsRef = useRef(new Set());
@@ -136,6 +145,11 @@ export default function App() {
     // rank25④：仅在切回首页/我的页时全量重读本机路书，编辑过程中走轻量就地替换。
     if (view === VIEWS.home || view === VIEWS.my) setSavedBooks(getStoredRoutebooks(profile.id));
   }, [profile.id, view]);
+
+  useEffect(() => {
+    // The builder clears the stored job when it finishes; re-read it on every view change.
+    setActiveGeneration(readActiveGenerationJob());
+  }, [view]);
 
   useEffect(() => {
     if (PUBLIC_VIEWS.has(view)) return;
@@ -480,6 +494,9 @@ export default function App() {
               setDueReminder(null);
             }}
           />
+        )}
+        {activeGeneration && view !== VIEWS.builder && !PUBLIC_VIEWS.has(view) && view !== VIEWS.trip && (
+          <GenerationRunningBanner job={activeGeneration} onOpen={() => navigate(VIEWS.builder)} />
         )}
         {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
         {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (

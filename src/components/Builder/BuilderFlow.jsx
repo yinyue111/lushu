@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from 'lucide-react';
-import { analyzeGuideImages, checkHealth, generateRoutebook, getApiToken, getCities, importGuide, saveProfile, setApiToken } from '../../lib/api';
+import { analyzeGuideImages, checkHealth, getApiToken, getCities, importGuide, saveProfile, setApiToken, startGenerationJob } from '../../lib/api';
+import {
+  cancelActiveGeneration,
+  clearActiveGenerationJob,
+  followGenerationJob,
+  generationFailureCopy,
+  readActiveGenerationJob,
+  saveActiveGenerationJob
+} from '../../lib/generationJob';
 import { trustedCities } from '../../lib/content';
 import { createRouteEditToken, getProfile, profileRoutebookFields, updateProfile } from '../../lib/profile';
 import { adoptServerProfile } from '../../lib/profileSync';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
-import { Notice, StepCity, StepGenerate, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
+import { Notice, StepCity, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
+import { GenerationProgress } from './GenerationProgress';
 import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
 import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
@@ -74,7 +83,12 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [screenshotNotes, setScreenshotNotes] = useState(initialDraft?.screenshotNotes ?? []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [genSteps, setGenSteps] = useState([]);
+  // Async generation job (server snapshot) and how this run ended.
+  const [generationJob, setGenerationJob] = useState(null);
+  const [generationOutcome, setGenerationOutcome] = useState(null);
+  const [generationFailure, setGenerationFailure] = useState(null);
+  const [cancelState, setCancelState] = useState({ busy: false, error: '' });
+  const activeJobRef = useRef(null);
   const [importState, setImportState] = useState({ loading: false, sources: initialDraft?.importedSources ?? [], error: '' });
   const [ocrState, setOcrState] = useState({ loading: false, places: initialDraft?.ocrPlaces ?? [], warnings: initialDraft?.ocrWarnings ?? [] });
   const [initialCandidatePlaces] = useState(() =>
@@ -128,12 +142,21 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
   useEffect(() => {
     mountedRef.current = true;
+    // A job started before a reload (or before leaving the builder) is resumed, not restarted.
+    const active = readActiveGenerationJob();
+    let resumeTimer = 0;
+    if (active && (!active.profileId || active.profileId === getProfile().id)) {
+      resumeTimer = window.setTimeout(() => resumeGeneration(active), 0);
+    }
     return () => {
       mountedRef.current = false;
-      cancelGeneration();
+      window.clearTimeout(resumeTimer);
+      // Leaving only stops watching: the server job keeps running and can be resumed.
+      stopFollowingGeneration();
       importAbort.current?.abort();
       ocrAbort.current?.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on mount.
   }, []);
 
   // 占位/取消状态的截图备注（正在 OCR 识别 / 已取消）只用于界面提示，
@@ -232,13 +255,16 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   async function handleGenerate() {
-    cancelGeneration();
+    stopFollowingGeneration();
     const generationId = generationSequence.current;
     const ctrl = new AbortController();
     generationAbort.current = ctrl;
     setLoading(true);
     setError('');
-    setGenSteps(['正在请求模型服务']);
+    setGenerationFailure(null);
+    setCancelState({ busy: false, error: '' });
+    setGenerationJob(null);
+    setGenerationOutcome('starting');
 
     try {
       if (apiTokenInput.trim()) setApiToken(apiTokenInput);
@@ -263,12 +289,13 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         if (ctrl.signal.aborted || generationSequence.current !== generationId) return;
         activeProfile = localProfile;
       }
-      const data = await generateRoutebook(
+      const data = await startGenerationJob(
         {
           city,
           guide: fullGuide,
           profileId: activeProfile.id,
           editToken: createRouteEditToken(),
+          guideOrigins: ocrState.places.length ? ['ocr'] : [],
           constraints: {
             ...constraints,
             // Places marked 必去 in the candidate list are must-go constraints too, so the
@@ -281,24 +308,107 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         ctrl.signal
       );
       if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
-      setGenSteps(['模型已返回结构化路书', '正在交给行程页面保存']);
+      saveActiveGenerationJob({ jobId: data.job.jobId, profileId: activeProfile.id, city, duration: constraints.duration, startedAt: data.job.createdAt });
+      await followJob(data.job, activeProfile.id, ctrl, generationId);
+    } catch (e) {
+      if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
+      failGeneration(e);
+    }
+  }
+
+  function resumeGeneration(active) {
+    stopFollowingGeneration();
+    const generationId = generationSequence.current;
+    const ctrl = new AbortController();
+    generationAbort.current = ctrl;
+    if (active.city) {
+      setCity(active.city);
+      setCityQuery(active.city);
+    }
+    if (active.duration) setConstraints((prev) => ({ ...prev, duration: active.duration }));
+    setStep(3);
+    setLoading(true);
+    setGenerationFailure(null);
+    setGenerationOutcome('running');
+    followJob({ jobId: active.jobId, seq: 0, status: 'running', elapsedMs: 0, createdAt: active.startedAt, stages: [] }, active.profileId, ctrl, generationId, {
+      resumed: true
+    }).catch((e) => {
+      if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
+      clearActiveGenerationJob(active.jobId);
+      failGeneration(e);
+    });
+  }
+
+  async function followJob(initialJob, profileId, ctrl, generationId, { resumed = false } = {}) {
+    activeJobRef.current = { jobId: initialJob.jobId, profileId };
+    const stale = () => !mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId;
+    if (!resumed) setGenerationJob({ ...initialJob, receivedAt: Date.now() });
+    setGenerationOutcome('running');
+    const final = ['succeeded', 'failed', 'cancelled'].includes(initialJob.status)
+      ? initialJob
+      : await followGenerationJob(initialJob.jobId, {
+          profileId,
+          after: resumed ? 0 : initialJob.seq,
+          signal: ctrl.signal,
+          onUpdate: (job) => {
+            if (!stale()) setGenerationJob({ ...job, receivedAt: Date.now() });
+          }
+        });
+    if (stale()) return;
+    finishGeneration(final);
+  }
+
+  function finishGeneration(job) {
+    clearActiveGenerationJob(job.jobId);
+    activeJobRef.current = null;
+    setGenerationJob({ ...job, receivedAt: Date.now() });
+    setCancelState({ busy: false, error: '' });
+    if (job.status === 'succeeded') {
+      setGenerationOutcome('succeeded');
+      const generationId = generationSequence.current;
+      const activeProfile = getProfile();
+      // A short pause shows the completed checklist before the routebook opens.
       generationTimeout.current = setTimeout(() => {
         if (mountedRef.current && generationSequence.current === generationId) {
           clearBuilderDraft(activeProfile.id);
-          onGenerated({ ...data, ...profileRoutebookFields(activeProfile) });
+          onGenerated({ ...job.result, ...profileRoutebookFields(activeProfile) });
         }
-      }, 600);
+      }, 900);
+      return;
+    }
+    setLoading(false);
+    if (job.status === 'cancelled') {
+      setGenerationOutcome('cancelled');
+      return;
+    }
+    failGeneration(job.error ?? {});
+  }
+
+  function failGeneration(e) {
+    setLoading(false);
+    setGenerationOutcome('failed');
+    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '' });
+    checkHealth()
+      .then((health) => {
+        if (mountedRef.current) onModelHealth?.(health);
+      })
+      .catch(() => {
+        if (mountedRef.current) onModelHealth?.({ ok: false, ready: false, reason: '模型服务检查失败' });
+      });
+  }
+
+  async function handleCancelGeneration() {
+    const active = activeJobRef.current;
+    if (!active || cancelState.busy) return;
+    setCancelState({ busy: true, error: '' });
+    try {
+      const data = await cancelActiveGeneration(active.jobId, active.profileId);
+      if (!mountedRef.current) return;
+      stopFollowingGeneration();
+      finishGeneration(data.job);
     } catch (e) {
-      if (!mountedRef.current || ctrl.signal.aborted || generationSequence.current !== generationId) return;
-      setLoading(false);
-      setError(e.status === 403 ? `${e.message}。如果是远程部署，请填写平台访问码后重试。` : e.message);
-      checkHealth()
-        .then((health) => {
-          if (mountedRef.current) onModelHealth?.(health);
-        })
-        .catch(() => {
-          if (mountedRef.current) onModelHealth?.({ ok: false, ready: false, reason: '模型服务检查失败' });
-        });
+      if (!mountedRef.current) return;
+      setCancelState({ busy: false, error: `取消没有成功：${e.message}。生成仍在进行，可以稍后再试。` });
     }
   }
 
@@ -307,7 +417,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     handleGenerate();
   }
 
-  function cancelGeneration() {
+  function stopFollowingGeneration() {
     generationSequence.current += 1;
     generationAbort.current?.abort();
     generationAbort.current = null;
@@ -316,7 +426,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   function leaveBuilder() {
-    cancelGeneration();
+    stopFollowingGeneration();
     onBack();
   }
 
@@ -621,17 +731,26 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           />
         )}
         {step === 3 && (
-          <StepGenerate
-            error={error}
-            loading={loading}
+          <GenerationProgress
+            job={generationJob}
+            outcome={generationOutcome}
+            failure={generationFailure}
             city={city}
             duration={constraints.duration}
-            genSteps={genSteps}
+            cancelling={cancelState.busy}
+            cancelError={cancelState.error}
+            onCancel={handleCancelGeneration}
             onRetry={retryGenerate}
             onBackToPrefs={() => setStep(2)}
           />
         )}
       </div>
+
+      {step < 3 && error && (
+        <Notice role="alert" tone="bad" className="mt-6">
+          {error}
+        </Notice>
+      )}
 
       {step === 2 && !modelHealth?.ready && (
         <Notice role="alert" className="mt-6">
