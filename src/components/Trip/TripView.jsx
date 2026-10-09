@@ -563,8 +563,8 @@ export default function TripView({ routebook, onBack, onReview }) {
                 )}
               </div>
               {current.risk && (
-                <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-primary-soft px-3 py-2 text-sm font-semibold text-primary-strong">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn-ink">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />
                   {current.risk}
                 </p>
               )}

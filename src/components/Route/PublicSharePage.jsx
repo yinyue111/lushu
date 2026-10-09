@@ -179,15 +179,17 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                   {routebook.summary}
                 </p>
                 {routebook.summary.length > 60 && (
-                  <button
-                    type="button"
-                    aria-expanded={summaryOpen}
-                    aria-controls="share-summary"
-                    onClick={() => setSummaryOpen((open) => !open)}
-                    className="-mt-1 inline-flex min-h-11 items-center text-meta font-bold text-white underline-offset-4 hover:underline sm:hidden"
-                  >
-                    {summaryOpen ? '收起' : '展开全文'}
-                  </button>
+                  <div className="sm:hidden">
+                    <button
+                      type="button"
+                      aria-expanded={summaryOpen}
+                      aria-controls="share-summary"
+                      onClick={() => setSummaryOpen((open) => !open)}
+                      className="-mt-1 inline-flex min-h-11 items-center text-meta font-bold text-white underline-offset-4 hover:underline"
+                    >
+                      {summaryOpen ? '收起' : '展开全文'}
+                    </button>
+                  </div>
                 )}
               </>
             )}
