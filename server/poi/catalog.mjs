@@ -896,6 +896,19 @@ export function countVerifiedPoiFacts(trusted, nowMs = Date.now()) {
   }).length;
 }
 
+// F02: value of an approved fact that is backed by approved, traceable evidence
+// and still inside its validity window. Stale or evidence-free facts return ''.
+export function currentPoiFactValue(poi, fieldPattern, nowMs = Date.now()) {
+  if (!poi || poi.reviewStatus !== 'approved') return '';
+  const evidenceById = new Map((poi.evidence ?? []).map((evidence) => [evidence.id, evidence]));
+  const fact = (Array.isArray(poi.facts) ? poi.facts : []).find((item) => {
+    if (!fieldPattern.test(String(item?.field ?? '')) || !String(item?.value ?? '').trim()) return false;
+    const state = poiFactFreshnessState(item, evidenceById, nowMs);
+    return state === 'fresh' || state === 'expiringSoon';
+  });
+  return fact ? String(fact.value).trim() : '';
+}
+
 export function publicOperationalPoiView(poi, nowMs = Date.now()) {
   const state = derivePoiOperationalState(poi, nowMs);
   return {

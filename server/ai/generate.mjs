@@ -14,7 +14,7 @@ import {
 } from '../config/index.mjs';
 import { createHttpError, truncateString, clampNumber, isValidCoordinate, normalizeCityName, mapWithConcurrency } from '../lib/util.mjs';
 import { hasImageMagicBytes } from '../photos/image-metadata.mjs';
-import { refreshMergedPoiCatalog } from '../poi/catalog.mjs';
+import { currentPoiFactValue, refreshMergedPoiCatalog } from '../poi/catalog.mjs';
 import { normalizeProfileId, sanitizeEditToken, cryptoRandomId } from '../auth/tokens.mjs';
 import {
   normalizeImportedSources,
@@ -211,17 +211,15 @@ function systemPrompt() {
 // 让生成结果优先复用运营核验过的坐标/营业时间/停留建议。
 const MAX_PROMPT_POI_CANDIDATES = 40;
 
-function approvedFactValue(poi, fieldPattern) {
-  const fact = (Array.isArray(poi?.facts) ? poi.facts : []).find(
-    (item) => item?.reviewStatus === 'approved' && fieldPattern.test(String(item?.field ?? '')) && String(item?.value ?? '').trim()
-  );
-  return fact ? truncateString(fact.value, 60) : '';
+function approvedFactValue(poi, fieldPattern, nowMs) {
+  // F02: only facts with approved evidence that have not expired reach the prompt.
+  return truncateString(currentPoiFactValue(poi, fieldPattern, nowMs), 60);
 }
 
-function buildApprovedPoiPromptCandidates(city) {
+export function buildApprovedPoiPromptCandidates(city, pois = refreshMergedPoiCatalog().pois, nowMs = Date.now()) {
   const normalizedCity = normalizeCityName(city);
   const candidates = [];
-  for (const poi of refreshMergedPoiCatalog().pois) {
+  for (const poi of pois) {
     if (candidates.length >= MAX_PROMPT_POI_CANDIDATES) break;
     if (poi?.sourceKind === 'seed' || poi?.reviewStatus !== 'approved' || poi?.city !== normalizedCity) continue;
     const lat = Number(poi?.location?.lat);
@@ -229,9 +227,9 @@ function buildApprovedPoiPromptCandidates(city) {
     const parts = [
       truncateString(poi?.name, 48),
       isValidCoordinate(lat, lng) ? `坐标:${lat.toFixed(6)},${lng.toFixed(6)}` : '坐标:未核验',
-      `开放:${approvedFactValue(poi, /开放时间|营业时间/) || '未知'}`,
-      `建议停留:${approvedFactValue(poi, /建议停留|停留时长|停留/) || '未知'}`,
-      `适合:${approvedFactValue(poi, /适合人群|人群/) || '不限'}`
+      `开放:${approvedFactValue(poi, /开放时间|营业时间/, nowMs) || '未核验'}`,
+      `建议停留:${approvedFactValue(poi, /建议停留|停留时长|停留/, nowMs) || '未知'}`,
+      `适合:${approvedFactValue(poi, /适合人群|人群/, nowMs) || '未核验'}`
     ];
     if (!parts[0]) continue;
     candidates.push(parts.join('|'));
