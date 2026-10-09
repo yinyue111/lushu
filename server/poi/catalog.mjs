@@ -19,6 +19,7 @@ import { PROFILE_ID_SECRET, POI_LOG_PATH } from '../config/index.mjs';
 import { safeTokenEqual } from '../auth/tokens.mjs';
 import { readJsonLines, appendJsonLine, onJsonlAppend } from '../storage/jsonl.mjs';
 import { usesPostgresStorage, withStorageEntityLock } from '../storage/runtime.mjs';
+import { parseOpeningHoursText } from '../../src/lib/openingHours.js';
 
 // openHours is only filled where the pattern is structural and stable (always-open
 // streets and stations, museum rest days). Anything time-sensitive stays absent so the
@@ -700,15 +701,37 @@ const POI_WEEKDAY_CHAR_MAP = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, �
 
 // 只有能确定闭馆日（或明确全天开放）时才产出 openHours；无法判定时返回 undefined，
 // 让营业时间校验如实报告「无数据」而不是虚构班表。
-function operationalOpenHoursFromFacts(poi) {
+export function operationalOpenHoursFromFacts(poi) {
   const facts = Array.isArray(poi?.facts) ? poi.facts : [];
   const fact = facts.find(
     (item) => item?.reviewStatus === 'approved' && /开放时间|营业时间/.test(String(item?.field ?? '')) && String(item?.value ?? '').trim()
   );
   if (!fact) return undefined;
   const value = String(fact.value);
-  if (/全天|24\s*小时|不打烊|全年无休/.test(value)) {
-    return { alwaysOpen: true, closedWeekdays: [], note: truncateString(value, 60) };
+  // Phase 2: carry the fact's provenance so the planner can tell verified,
+  // expiring and evidence-free hours apart (normalizePoiOpenHours decides).
+  const evidenceById = new Map((poi.evidence ?? []).map((evidence) => [evidence.id, evidence]));
+  const evidence = approvedEvidenceForFact(fact, evidenceById);
+  const capturedTimes = evidence.map((item) => Date.parse(item.capturedAt)).filter(Number.isFinite);
+  const provenance = {
+    note: truncateString(value, 60),
+    factId: truncateString(fact.id, 80),
+    validUntil: truncateString(fact.validUntil, 40),
+    ...(evidence.length
+      ? {
+          verifiedAt: new Date(Math.max(...capturedTimes)).toISOString(),
+          evidenceId: truncateString(evidence[0].id, 80),
+          source: {
+            type: truncateString(evidence[0].sourceType, 32),
+            url: truncateString(evidence[0].url, 300),
+            label: truncateString(evidence[0].title || evidence[0].label, 80)
+          }
+        }
+      : {})
+  };
+  const timing = parseOpeningHoursText(value);
+  if (timing?.alwaysOpen) {
+    return { alwaysOpen: true, closedWeekdays: [], ...provenance };
   }
   const closedWeekdays = new Set();
   const closurePattern =
@@ -725,8 +748,41 @@ function operationalOpenHoursFromFacts(poi) {
       day = (day + 1) % 7;
     }
   }
-  if (!closedWeekdays.size) return undefined;
-  return { closedWeekdays: [...closedWeekdays].sort(), note: truncateString(value, 60) };
+  if (!closedWeekdays.size && !timing) return undefined;
+  return {
+    closedWeekdays: [...closedWeekdays].sort(),
+    ...(timing ? { openTime: timing.openTime, closeTime: timing.closeTime, lastEntryTime: timing.lastEntryTime, overnight: timing.overnight } : {}),
+    ...provenance
+  };
+}
+
+/**
+ * Phase 2: reviewed price for a trusted POI entry — approved, evidence-backed
+ * and unexpired fact only; null otherwise (never guessed).
+ */
+export function currentPoiPrice(trusted, nowMs = Date.now()) {
+  if (!trusted || trusted.sourceKind !== 'operational') return null;
+  const evidenceById = new Map((trusted.evidence ?? []).map((evidence) => [evidence.id, evidence]));
+  for (const fact of trusted.facts ?? []) {
+    if (!/门票|票价|价格|费用/.test(String(fact?.field ?? '')) || !String(fact?.value ?? '').trim()) continue;
+    const state = poiFactFreshnessState(fact, evidenceById, nowMs);
+    if (state !== 'fresh' && state !== 'expiringSoon') continue;
+    const evidence = approvedEvidenceForFact(fact, evidenceById);
+    const capturedTimes = evidence.map((item) => Date.parse(item.capturedAt)).filter(Number.isFinite);
+    return {
+      text: truncateString(fact.value, 80),
+      field: truncateString(fact.field, 40),
+      verifiedAt: capturedTimes.length ? new Date(Math.max(...capturedTimes)).toISOString() : '',
+      expiresAt: truncateString(fact.validUntil, 40),
+      state,
+      source: {
+        type: truncateString(evidence[0]?.sourceType, 32),
+        url: truncateString(evidence[0]?.url, 300),
+        label: truncateString(evidence[0]?.title || evidence[0]?.label, 80)
+      }
+    };
+  }
+  return null;
 }
 
 function summarizePoiValidationRows(rows) {

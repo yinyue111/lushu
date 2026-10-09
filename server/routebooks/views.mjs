@@ -1,4 +1,5 @@
 // Public (redacted) views of routebooks, reviews and trust data.
+import { safeSourceUrl } from '../lib/urls.mjs';
 import { PUBLIC_ROUTE_STATUSES, PUBLIC_TRUST_SAMPLE_THRESHOLD, MAX_ROUTEBOOK_STOPS } from '../config/index.mjs';
 import { clampNumber, normalizeCityName, positiveInteger, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { normalizeCreator } from './normalize.mjs';
@@ -131,6 +132,15 @@ export function publicRoutebookStop(stop = {}) {
     score: null,
     provenance: publicStopProvenance(stop.provenance),
     costInfo: publicCostInfo(stop.costInfo),
+    verifiedPrice: stop.verifiedPrice?.text
+      ? {
+          text: truncateString(stop.verifiedPrice.text, 80),
+          verifiedAt: truncateString(stop.verifiedPrice.verifiedAt, 40),
+          expiresAt: truncateString(stop.verifiedPrice.expiresAt, 40),
+          source: { label: truncateString(stop.verifiedPrice.source?.label, 80), url: safeSourceUrl(stop.verifiedPrice.source?.url) || '' },
+          costInfo: publicCostInfo(stop.verifiedPrice.costInfo)
+        }
+      : null,
     lat: Number.isFinite(Number(stop.lat)) ? Number(stop.lat) : null,
     lng: Number.isFinite(Number(stop.lng)) ? Number(stop.lng) : null,
     geoConfidence: stop.geoConfidence == null ? null : clampNumber(stop.geoConfidence, 0, 100, 0),

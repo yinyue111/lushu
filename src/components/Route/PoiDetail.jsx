@@ -159,7 +159,17 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
       <div className="mt-4 grid grid-cols-2 gap-2.5">
         <InfoTile icon={Clock} iconClass="text-sky-ink bg-sky-soft" label="建议停留" value={stop.stay || '—'} />
-        <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="预计费用" value={stop.cost || '—'} />
+        {stop.verifiedPrice?.text ? (
+          <InfoTile
+            icon={Wallet}
+            iconClass="text-success-ink bg-success-soft"
+            label="已核验费用"
+            value={stop.verifiedPrice.text}
+            hint={verifiedPriceHint(stop.verifiedPrice)}
+          />
+        ) : (
+          <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="预计费用（未核验）" value={stop.cost || '—'} />
+        )}
         <InfoTile
           icon={MapPin}
           iconClass="text-primary-strong bg-primary-soft"
@@ -382,8 +392,16 @@ function Pill({ tone = 'sky', children }) {
   return <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold [&_svg]:size-3.5', tones[tone])}>{children}</span>;
 }
 
+/** @param {any} price */
+function verifiedPriceHint(price) {
+  const day = (value) => (value ? String(value).slice(0, 10) : '');
+  return [price.source?.label || '运营核验', price.verifiedAt ? `核验于 ${day(price.verifiedAt)}` : '', price.expiresAt ? `有效至 ${day(price.expiresAt)}` : '']
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** @param {Record<string, any>} props */
-function InfoTile({ icon: Icon, iconClass, label, value, hint }) {
+function InfoTile({ icon: Icon, iconClass, label, value, hint = '' }) {
   return (
     <div className="flex gap-2.5 rounded-tile bg-canvas p-3">
       <span className={cn('grid size-8 shrink-0 place-items-center rounded-full', iconClass)}>

@@ -213,7 +213,8 @@ export function formatCostInfo(info) {
 
 /** Sum of stop costs, keeping unknowns separate (never treated as 0). */
 export function sumStopCosts(stops = []) {
-  const rows = (Array.isArray(stops) ? stops : []).map(stopCostInfo);
+  // A reviewed POI price (attached by the server at read time) beats the model's estimate.
+  const rows = (Array.isArray(stops) ? stops : []).map((stop) => (stop?.verifiedPrice?.costInfo?.known ? stop.verifiedPrice.costInfo : stopCostInfo(stop)));
   const known = rows.filter((row) => row.known);
   return {
     knownCount: known.length,

@@ -118,8 +118,19 @@ test('expired or evidence-free operational hours are not planning usable', () =>
     { sourceKind: 'operational' },
     now
   );
-  assert.equal(noLatestEntry.timingKnown, false);
-  assert.equal(noLatestEntry.planningUsable, false);
+  // Phase 2: an opening window is enough to compare arrival times; a missing last
+  // entry is tracked separately so the check can never report '通过' without it.
+  assert.equal(noLatestEntry.timingKnown, true);
+  assert.equal(noLatestEntry.lastEntryKnown, false);
+  assert.equal(noLatestEntry.planningUsable, false, 'operational hours without a validity window are not planning facts');
+
+  const windowOnly = normalizePoiOpenHours(
+    { closedWeekdays: [], openTime: '09:00', closeTime: '17:00', evidenceId: 'e1', validUntil: '2027-01-01' },
+    { sourceKind: 'operational' },
+    now
+  );
+  assert.equal(windowOnly.planningUsable, true);
+  assert.equal(windowOnly.lastEntryKnown, false);
 });
 
 test('constraint validation surfaces missing must-go and included avoid terms', () => {

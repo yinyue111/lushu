@@ -3,7 +3,8 @@
 // server-signed imported sources and the reviewed POI catalog); the model is
 // never asked to report its own sources.
 import { createHmac } from 'node:crypto';
-import { countVerifiedPoiFacts, findTrustedPoi } from '../poi/catalog.mjs';
+import { countVerifiedPoiFacts, currentPoiPrice, findTrustedPoi } from '../poi/catalog.mjs';
+import { parseCostText } from '../../src/lib/cost.js';
 import { truncateString } from '../lib/util.mjs';
 import { PROFILE_ID_SECRET } from '../config/index.mjs';
 import { safeEqualHex } from '../auth/tokens.mjs';
@@ -112,8 +113,16 @@ export function normalizeStopProvenance(stop, name, { city = '', importedSources
 /** Recomputes catalog-derived signals (facts expire) and returns the evidence score. */
 export function routebookEvidence(routebook, nowMs = Date.now()) {
   const stops = (routebook?.stops ?? []).map((stop) => {
-    const { reviewedPoi, verifiedFactCount } = catalogSignals(stop?.name, routebook?.city, nowMs);
-    return { ...stop, provenance: { ...(stop?.provenance ?? { origin: 'unknown' }), reviewedPoi, verifiedFactCount } };
+    const { trusted, reviewedPoi, verifiedFactCount } = catalogSignals(stop?.name, routebook?.city, nowMs);
+    // Phase 2: a reviewed, evidence-backed, unexpired price fact is attached at
+    // read time (never stored), so it disappears when the fact expires.
+    const price = currentPoiPrice(trusted, nowMs);
+    const { verifiedPrice: _stale, ...rest } = stop ?? {};
+    return {
+      ...rest,
+      provenance: { ...(stop?.provenance ?? { origin: 'unknown' }), reviewedPoi, verifiedFactCount },
+      ...(price ? { verifiedPrice: { ...price, costInfo: { ...parseCostText(price.text), source: 'poi-fact' } } } : {})
+    };
   });
   return { stops, ...routeEvidenceScore(stops) };
 }

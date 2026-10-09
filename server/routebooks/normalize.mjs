@@ -29,6 +29,7 @@ import { getSavedRoutebook } from '../storage/records.mjs';
 import { normalizeStoredRouteLegs, normalizeStopTransportMode } from '../routing/provenance.mjs';
 import { routeExecutionMetricRows, routeExecutionValidationRows, summarizeRouteExecution } from '../routing/routeExecution.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
+import { checkVisitWindow } from '../../src/lib/openingHours.js';
 import { normalizeStopProvenance } from '../trust/provenance.mjs';
 import { coordinateVerificationLevel, normalizePlaceText, placeNameVariants, routeEvidenceScore } from '../../src/lib/trustSignals.js';
 import { formatCostInfo, stopCostInfo, sumStopCosts } from '../../src/lib/cost.js';
@@ -215,11 +216,13 @@ function parseTimestamp(value, endOfDay = false) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+// Timing is known when the place is always open or we have an opening window;
+// last entry is tracked separately (lastEntryKnown) so '通过' still needs it.
 function hasScheduleTiming(hours) {
+  if (hours?.alwaysOpen === true) return true;
   const hasOpeningTime = Boolean(hours?.openTime || hours?.openingTime);
   const hasClosingTime = Boolean(hours?.closeTime || hours?.closingTime);
-  const hasLatestEntry = Boolean(hours?.lastEntryTime || hours?.latestEntryTime);
-  return hasOpeningTime && hasClosingTime && hasLatestEntry;
+  return hasOpeningTime && hasClosingTime;
 }
 
 function hasScheduleEvidence(hours, trusted) {
@@ -235,11 +238,14 @@ export function normalizePoiOpenHours(hours, trusted, nowMs = Date.now()) {
   const validUntil = hours.validUntil || hours.expiresAt || hours.expiry;
   const expiry = parseTimestamp(validUntil, true);
   const freshnessInvalid = Boolean(validUntil) && !Number.isFinite(expiry);
-  const stale = freshnessInvalid || (Number.isFinite(expiry) && expiry < nowMs);
+  // Operational facts must carry a validity window to be trusted for planning.
+  const freshnessMissing = trusted?.sourceKind === 'operational' && !validUntil;
+  const stale = freshnessInvalid || freshnessMissing || (Number.isFinite(expiry) && expiry < nowMs);
   const hasEvidence = hasScheduleEvidence(hours, trusted);
   const timingKnown = hasScheduleTiming(hours);
   return {
     ...hours,
+    lastEntryKnown: hours.alwaysOpen === true || Boolean(hours.lastEntryTime || hours.latestEntryTime),
     stale,
     freshnessInvalid,
     hasEvidence,
@@ -265,6 +271,9 @@ function openingHoursConflicts(stops, city, travelDate, nowMs = Date.now()) {
   let timingUnknownStops = 0;
   let staleStops = 0;
   let evidenceMissingStops = 0;
+  let arrivalUnknownStops = 0;
+  let lastEntryUnknownStops = 0;
+  const timeConflicts = [];
   for (const stop of stops) {
     const schedule = poiOpenHours(stop, city, nowMs);
     if (!schedule) {
@@ -277,6 +286,22 @@ function openingHoursConflicts(stops, city, travelDate, nowMs = Date.now()) {
     if (!hours.hasEvidence) evidenceMissingStops += 1;
     if (!hours.timingKnown) timingUnknownStops += 1;
     if (!hours.planningUsable) unknownStops += 1;
+    if (hours.planningUsable) {
+      const window = checkVisitWindow(
+        {
+          ...hours,
+          openTime: hours.openTime || hours.openingTime,
+          closeTime: hours.closeTime || hours.closingTime,
+          lastEntryTime: hours.lastEntryTime || hours.latestEntryTime
+        },
+        stop.time,
+        stop.stay
+      );
+      if (window.status === 'unknown') arrivalUnknownStops += 1;
+      else if (window.status !== 'ok')
+        timeConflicts.push({ name: truncateString(stop.name, 48), day: truncateString(stop.day, 24) || 'Day 1', status: window.status, detail: window.detail });
+      else if (!window.lastEntryKnown) lastEntryUnknownStops += 1;
+    }
     const weekday = weekdayForDayLabel(travelDate, stop.day);
     if (weekday == null || !hours.closureCheckable || !hours.closedWeekdays.includes(weekday)) continue;
     closures.push({
@@ -289,11 +314,40 @@ function openingHoursConflicts(stops, city, travelDate, nowMs = Date.now()) {
       hasEvidence: hours.hasEvidence
     });
   }
-  return { closures, checkedStops, unknownStops, timingUnknownStops, staleStops, evidenceMissingStops };
+  return {
+    closures,
+    timeConflicts,
+    checkedStops,
+    unknownStops,
+    timingUnknownStops,
+    staleStops,
+    evidenceMissingStops,
+    arrivalUnknownStops,
+    lastEntryUnknownStops
+  };
 }
 
 export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = Date.now() } = {}) {
-  const { closures, checkedStops, unknownStops, timingUnknownStops, staleStops, evidenceMissingStops } = openingHoursConflicts(stops, city, travelDate, nowMs);
+  const {
+    closures,
+    timeConflicts,
+    checkedStops,
+    unknownStops,
+    timingUnknownStops,
+    staleStops,
+    evidenceMissingStops,
+    arrivalUnknownStops,
+    lastEntryUnknownStops
+  } = openingHoursConflicts(stops, city, travelDate, nowMs);
+  if (timeConflicts.length) {
+    const first = timeConflicts[0];
+    return {
+      id: 'edit-hours',
+      label: '营业时间',
+      state: '时段冲突',
+      detail: `${first.day} ${first.name}：${first.detail}。${timeConflicts.length > 1 ? `另有 ${timeConflicts.length - 1} 处时段冲突。` : ''}请调整到达时间或停留时长。`
+    };
+  }
   if (!travelDate) {
     return {
       id: 'edit-hours',
@@ -337,7 +391,20 @@ export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = D
       detail: `已有营业日历信号，但 ${staleStops ? `${staleStops} 个站点事实已过期或有效期无效` : ''}${staleStops && evidenceMissingStops ? '，' : ''}${evidenceMissingStops ? `${evidenceMissingStops} 个站点缺少有效证据` : ''}；不能作为规划可用条件。到达时段/最晚入场未知。`
     };
   }
-  if (timingUnknownStops || unknownStops) {
+  if (timingUnknownStops || unknownStops || arrivalUnknownStops || lastEntryUnknownStops) {
+    const gaps = [
+      unknownStops ? `${unknownStops} 个站点没有可用营业事实` : '',
+      arrivalUnknownStops ? `${arrivalUnknownStops} 个站点计划到达时间未知` : '',
+      lastEntryUnknownStops ? `${lastEntryUnknownStops} 个站点最晚入场未知` : ''
+    ].filter(Boolean);
+    if (!timingUnknownStops && gaps.length) {
+      return {
+        id: 'edit-hours',
+        label: '营业时间',
+        state: '部分待复核',
+        detail: `已核对 ${checkedStops} 个站点未发现闭馆或时段冲突；${gaps.join('，')}，需出发前确认。`
+      };
+    }
     return {
       id: 'edit-hours',
       label: '营业时间',
