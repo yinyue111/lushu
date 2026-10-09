@@ -69,3 +69,25 @@ test('evaluateStartupSafety: production without PUBLIC_BASE_URL warns', () => {
   const result = evaluateStartupSafety({ ...base, publicBaseUrl: '' });
   assert.match(result.warnings.join('\n'), /PUBLIC_BASE_URL/);
 });
+
+test('production refuses OSM / keyless basemaps unless explicitly overridden; development allows them', () => {
+  const osm = [{ id: 'osm-de' }, { id: 'osm-fr' }];
+  const refused = evaluateStartupSafety({ ...base, mapTileProviders: osm });
+  assert.ok(refused.errors.some((error) => error.includes('osm-de, osm-fr')));
+  const overridden = evaluateStartupSafety({ ...base, mapTileProviders: osm, allowOsmBasemapInProduction: true });
+  assert.ok(!overridden.errors.some((error) => error.includes('Basemap')));
+  assert.ok(overridden.warnings.some((warning) => warning.includes('ALLOW_OSM_BASEMAP_IN_PRODUCTION')));
+  assert.ok(!evaluateStartupSafety({ ...base, mapTileProviders: [{ id: 'tianditu', key: 'k' }] }).errors.some((error) => error.includes('Basemap')));
+  assert.ok(evaluateStartupSafety({ ...base, mapTileProviders: [{ id: 'amap', key: '' }] }).errors.some((error) => error.includes('amap')));
+  assert.ok(!evaluateStartupSafety({ ...base, mapTileProviders: [{ id: 'amap', key: 'k' }] }).errors.some((error) => error.includes('Basemap')));
+  assert.ok(!evaluateStartupSafety({ ...base, isProduction: false, mapTileProviders: osm }).errors.some((error) => error.includes('Basemap')));
+});
+
+test('production warns (does not refuse) when the model region or moderation provider is not domestic', () => {
+  const result = evaluateStartupSafety({ ...base, aiProviderRegion: '', moderationProvider: 'keyword' });
+  assert.ok(result.warnings.some((warning) => warning.includes('AI_PROVIDER_REGION=unset')));
+  assert.ok(result.warnings.some((warning) => warning.includes('MODERATION_PROVIDER=keyword')));
+  assert.ok(!result.errors.some((error) => error.includes('AI_PROVIDER_REGION')));
+  const domestic = evaluateStartupSafety({ ...base, aiProviderRegion: 'domestic', moderationProvider: 'domestic' });
+  assert.ok(!domestic.warnings.some((warning) => warning.includes('AI_PROVIDER_REGION') || warning.includes('MODERATION_PROVIDER')));
+});

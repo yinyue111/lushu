@@ -24,3 +24,11 @@ export function getOpsPoiDuplicates(city = '', signal) {
 export function saveOpsPoiMergeDecision(payload, signal) {
   return postJson('/ops/poi-merges', payload, signal, adminHeaders());
 }
+
+export function getOpsModeration(status = 'open', signal) {
+  return getJson(`/ops/moderation?status=${encodeURIComponent(status)}&limit=100`, signal, adminHeaders());
+}
+
+export function saveOpsModerationDecision(entityType, entityId, payload, signal) {
+  return postJson(`/ops/moderation/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, payload, signal, adminHeaders());
+}

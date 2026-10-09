@@ -41,7 +41,11 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   trustProxyHeaders: boolean,
  *   allowBypassOnPublicHost: boolean,
  *   profileSecretSource: string,
- *   publicBaseUrl?: string
+ *   publicBaseUrl?: string,
+ *   mapTileProviders?: Array<{ id: string, key?: string }>,
+ *   allowOsmBasemapInProduction?: boolean,
+ *   aiProviderRegion?: string,
+ *   moderationProvider?: string
  * }} input
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -79,6 +83,32 @@ export function evaluateStartupSafety(input) {
   } else if (input.profileSecretSource === 'dev-default' && publicHost) {
     warnings.push(
       'PROFILE_ID_SECRET is not set and the public development default is in use on a non-loopback HOST; profile tokens are forgeable. Set PROFILE_ID_SECRET.'
+    );
+  }
+
+  // Maps shown to the public in mainland China need a basemap with 审图号: 天地图 (key) or
+  // 高德 (with its own key under its terms). OpenStreetMap is fine for development only.
+  if (input.isProduction && Array.isArray(input.mapTileProviders)) {
+    const unapproved = input.mapTileProviders
+      .filter((provider) => !(provider.id === 'tianditu' && provider.key) && !(provider.id === 'amap' && provider.key))
+      .map((provider) => provider.id);
+    if (unapproved.length) {
+      const message = `Basemap provider(s) ${unapproved.join(', ')} are not approved for production. Set TIANDITU_KEY (MAP_TILE_PROVIDERS=tianditu) or AMAP_TILE_KEY (MAP_TILE_PROVIDERS=amap).`;
+      if (input.allowOsmBasemapInProduction) warnings.push(`${message} Allowed only because ALLOW_OSM_BASEMAP_IN_PRODUCTION=true.`);
+      else errors.push(`${message} Refusing to start; ALLOW_OSM_BASEMAP_IN_PRODUCTION=true overrides this for non-public demos.`);
+    }
+  }
+
+  // Compliance reminders (warnings only: the decisions belong to the operator, see
+  // 合规决策清单 / docs/domestic-model-provider.md).
+  if (input.isProduction && input.aiProviderRegion !== undefined && input.aiProviderRegion !== 'domestic') {
+    warnings.push(
+      `AI_PROVIDER_REGION=${input.aiProviderRegion || 'unset'}: serving the public in mainland China needs a filed (备案) domestic model or your own 生成式AI服务备案. Set AI_PROVIDER_REGION=domestic once the configured provider is one.`
+    );
+  }
+  if (input.isProduction && input.moderationProvider !== undefined && input.moderationProvider !== 'domestic') {
+    warnings.push(
+      `MODERATION_PROVIDER=${input.moderationProvider}: public user content is only keyword pre-filtered; connect a domestic content-safety service before launch.`
     );
   }
 

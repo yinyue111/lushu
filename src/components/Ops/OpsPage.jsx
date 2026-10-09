@@ -7,6 +7,7 @@ import OpsConfigPanel from './OpsConfigPanel';
 import OpsOverview from './OpsOverview';
 import PoiContentPanel from './PoiContentPanel';
 import PoiDedupPanel from './PoiDedupPanel';
+import ModerationPanel from './ModerationPanel';
 import ProductBoardPanel from './ProductBoardPanel';
 import ReviewQueuePanel from './ReviewQueuePanel';
 import RoutebookVersionsPanel from './RoutebookVersionsPanel';
@@ -17,6 +18,7 @@ const OPS_TABS = [
   { id: 'poi-dedup', label: '重复 POI', icon: GitMerge },
   { id: 'checkins', label: '打卡审核', icon: Footprints },
   { id: 'reviews', label: '审核队列', icon: ClipboardCheck },
+  { id: 'moderation', label: '内容审核', icon: ShieldCheck },
   { id: 'imports', label: '攻略来源', icon: Link2 },
   { id: 'products', label: '商品看板', icon: MousePointerClick },
   { id: 'versions', label: '路书版本', icon: History },
@@ -102,6 +104,7 @@ export default function OpsPage() {
         {activeTab === 'poi-dedup' && <PoiDedupPanel />}
         {activeTab === 'checkins' && <CheckinAuditPanel />}
         {activeTab === 'reviews' && <ReviewQueuePanel />}
+        {activeTab === 'moderation' && <ModerationPanel />}
         {activeTab === 'imports' && <ImportSourcesPanel />}
         {activeTab === 'products' && <ProductBoardPanel />}
         {activeTab === 'versions' && <RoutebookVersionsPanel />}

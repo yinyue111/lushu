@@ -20,7 +20,8 @@ const OWNED_STREAMS = [
   ['exposures', config.EXPOSURE_LOG_PATH],
   ['aiLogs', config.AI_LOG_PATH],
   ['corrections', config.POI_CORRECTION_LOG_PATH],
-  ['imports', config.IMPORT_LOG_PATH]
+  ['imports', config.IMPORT_LOG_PATH],
+  ['moderation', config.MODERATION_QUEUE_LOG_PATH]
 ];
 
 export function isUnavailableProfile(profile) {

@@ -30,6 +30,8 @@ export function hermeticServerEnv(overrides = {}) {
     OPENAI_API_KEY: 'test-fake-key',
     OPENAI_MODEL: 'test-fake-model',
     OPENAI_WIRE_API: 'responses',
+    // Test servers run with --production but fetch no real tiles; the basemap gate has its own test.
+    ALLOW_OSM_BASEMAP_IN_PRODUCTION: 'true',
     ...overrides
   };
 }

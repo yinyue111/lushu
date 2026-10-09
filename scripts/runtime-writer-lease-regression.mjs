@@ -63,6 +63,7 @@ function startServer(port) {
     env: {
       ...process.env,
       NODE_ENV: 'production',
+      ALLOW_OSM_BASEMAP_IN_PRODUCTION: 'true',
       HOST: '127.0.0.1',
       PORT: String(port),
       STORAGE_BACKEND: 'jsonl',

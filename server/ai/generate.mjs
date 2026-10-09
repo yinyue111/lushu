@@ -177,7 +177,9 @@ const RESPONSE_SCHEMA = {
   }
 };
 
-function openAiEndpoint(baseUrl, wireApi) {
+// A base URL that already ends in a version segment (/v1, /api/v3, /api/paas/v4 …) is used
+// as is; otherwise /v1 is appended. Domestic OpenAI-compatible providers use /v3 and /v4.
+export function openAiEndpoint(baseUrl, wireApi) {
   let trimmed = '';
   try {
     trimmed = new URL(baseUrl).toString().replace(/\/+$/, '');
@@ -185,7 +187,7 @@ function openAiEndpoint(baseUrl, wireApi) {
     throw createHttpError('OPENAI_BASE_URL 不是合法 URL', 503, 'BAD_BASE_URL');
   }
   const path = wireApi === 'chat_completions' ? 'chat/completions' : 'responses';
-  return trimmed.endsWith('/v1') ? `${trimmed}/${path}` : `${trimmed}/v1/${path}`;
+  return /\/v\d+$/.test(trimmed) ? `${trimmed}/${path}` : `${trimmed}/v1/${path}`;
 }
 
 function systemPrompt() {

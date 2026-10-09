@@ -7,6 +7,8 @@ import {
   ALLOW_LOCAL_API_BYPASS,
   HOST,
   IS_PRODUCTION,
+  MAP_TILE_UPSTREAMS,
+  MODERATION_PROVIDER,
   PORT,
   PROFILE_ID_SECRET_SOURCE,
   PUBLIC_BASE_URL,
@@ -29,7 +31,11 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     trustProxyHeaders: TRUST_PROXY_HEADERS,
     allowBypassOnPublicHost: envFlag('ALLOW_LOCAL_BYPASS_ON_PUBLIC_HOST', false),
     profileSecretSource: PROFILE_ID_SECRET_SOURCE,
-    publicBaseUrl: PUBLIC_BASE_URL
+    publicBaseUrl: PUBLIC_BASE_URL,
+    mapTileProviders: MAP_TILE_UPSTREAMS,
+    allowOsmBasemapInProduction: envFlag('ALLOW_OSM_BASEMAP_IN_PRODUCTION', false),
+    aiProviderRegion: String(process.env.AI_PROVIDER_REGION ?? '').trim(),
+    moderationProvider: MODERATION_PROVIDER
   });
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));

@@ -11,6 +11,7 @@ import { getSavedReview } from '../storage/records.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { isPublicRoutebook } from '../routebooks/views.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
+import { refreshModerationState } from '../moderation/index.mjs';
 import { reviewIsStillPublic } from '../reviews/reviews.mjs';
 import { shouldTrustProxyHeaders } from '../auth/request-access.mjs';
 
@@ -204,6 +205,7 @@ function escapeHtmlText(value) {
 
 async function buildShareLandingMeta(target) {
   try {
+    await refreshModerationState();
     if (target.kind === 'share') {
       const routebook = await getResolvableRoutebook(target.id);
       if (!routebook || !isPublicRoutebook(routebook)) return null;

@@ -9,6 +9,7 @@ import { CHECKIN_OPS_FILTERS, checkinMatchesOpsFilter } from '../../src/lib/chec
 import { paginateRows } from '../ops/paging.mjs';
 import { applyCheckinOpsOverlay, buildImportOperationsView, buildOpsAuditContext, createOpsAuditEvent, listOpsAuditEvents } from '../ops/audit.mjs';
 import { listReviewQueue } from '../ops/reviewQueue.mjs';
+import { decideModeration, listModerationQueue } from '../moderation/index.mjs';
 import { listPoiDuplicateQueue, listPoiMergeDecisions, recordPoiMergeDecision } from '../poi/merges.mjs';
 
 // Upper bound for one ops check-in scan; readJsonLines treats non-finite limits as 50.
@@ -110,5 +111,25 @@ export const opsRoutes = [
     enforceRateLimit(req);
     verifyAdminAccess(req);
     return sendJson(res, 200, { ok: true, ...(await recordPoiMergeDecision(req, await readJsonBody(req))) });
+  }),
+  route('GET', '/api/ops/moderation', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'ops-read');
+    verifyAdminAccess(req);
+    const status = String(url.searchParams.get('status') || 'open');
+    if (!['open', 'pending', 'blocked', 'approved', 'rejected', 'passed', 'all'].includes(status)) {
+      throw createHttpError('审核状态筛选不支持', 400, 'INVALID_MODERATION_FILTER');
+    }
+    return sendJson(res, 200, {
+      ok: true,
+      ...(await listModerationQueue({ status, limit: clampNumber(url.searchParams.get('limit') || undefined, 1, 500, 100) }))
+    });
+  }),
+  route('POST', '/api/ops/moderation/:entityType/:entityId', async ({ req, res, params }) => {
+    enforceRateLimit(req);
+    verifyAdminAccess(req);
+    return sendJson(res, 200, {
+      ok: true,
+      ...(await decideModeration(req, safeDecodePathSegment(params.entityType), safeDecodePathSegment(params.entityId), await readJsonBody(req)))
+    });
   })
 ];

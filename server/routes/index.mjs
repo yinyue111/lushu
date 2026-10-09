@@ -9,6 +9,7 @@ import { opsRoutes } from './ops.mjs';
 import { routingRoutes } from './routing.mjs';
 import { tripRoutes } from './trips.mjs';
 import { refreshPoiCatalog } from '../poi/catalog.mjs';
+import { refreshModerationState } from '../moderation/index.mjs';
 import { createRouter } from '../http/router.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { sendJson } from '../http/response.mjs';
@@ -51,7 +52,7 @@ export function createApiHandler({ router, refreshCatalog }) {
   };
 }
 
-export const handleApi = createApiHandler({ router: apiRouter, refreshCatalog: () => refreshPoiCatalog() });
+export const handleApi = createApiHandler({ router: apiRouter, refreshCatalog: () => Promise.all([refreshPoiCatalog(), refreshModerationState()]) });
 
 function sendApiError(req, res, error) {
   if (error.upstreamDetail) {

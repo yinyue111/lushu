@@ -22,6 +22,7 @@ import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook, listRoutebookAudits, listRoutebookVersionRows } from '../routebooks/versions.mjs';
 import { isPublicRoutebook, publicRoutebookView } from '../routebooks/views.mjs';
+import { moderateAndQueue } from '../moderation/index.mjs';
 import {
   copyRoutebook,
   ensureDraftEditToken,
@@ -58,6 +59,8 @@ export const routebookRoutes = [
         (!city || routebook.city === city) &&
         (!profileId || normalizeProfileId(routebook.profileId) === profileId) &&
         (!statuses.length || statuses.includes(routebook.publishStatus || 'draft')) &&
+        // Anonymous public listings skip routebooks withheld by moderation.
+        (privilegedRead || profileId || !allRequestedStatusesPublic || isPublicRoutebook(routebook)) &&
         isAfterCursor({ ...routebook, id: routebook.publicId || routebook.id }, position)
     );
     const ordered = scanned.sort((left, right) => compareRowsDesc({ ...left, id: left.publicId || left.id }, { ...right, id: right.publicId || right.id }));
@@ -112,10 +115,27 @@ export const routebookRoutes = [
     const routebook = await withStorageEntityLock('routebook', id, () =>
       publishOwnRoutebook(id, body, { verifiedProfileId: actor.verified ? actor.profileId : '' })
     );
+    // Content safety when submitted for publication: flagged routebooks stay private until
+    // ops approve them, even if their publish status later becomes public.
+    const moderation =
+      routebook?.publishStatus && routebook.publishStatus !== 'draft'
+        ? await moderateAndQueue({
+            entityType: 'routebook',
+            entityId: sanitizePublicId(routebook.publicId || routebook.id),
+            profileId: normalizeProfileId(routebook.profileId),
+            scene: 'routebook',
+            fields: {
+              title: String(routebook.title ?? ''),
+              summary: String(routebook.summary ?? ''),
+              stops: (routebook.stops ?? []).map((stop) => [stop?.name, stop?.note, stop?.tip].filter(Boolean).join(' ')).join('\n')
+            }
+          })
+        : { status: null };
     return sendJson(res, 200, {
       ok: true,
       routebook: await enrichRoutebook(routebook),
-      shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : ''
+      shareUrl: isPublicRoutebook(routebook) ? `/share/${routebook.publicId}` : '',
+      ...(moderation.status && moderation.status !== 'passed' ? { moderation: { status: moderation.status } } : {})
     });
   }),
   route('POST', '/api/routebooks/:id/copy', async ({ req, res, params }) => {

@@ -6,9 +6,12 @@ import { normalizeCreator } from './normalize.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
 import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
+import { isModerationWithheld } from '../moderation/index.mjs';
 
 export function isPublicRoutebook(routebook) {
-  return PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft');
+  if (!PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft')) return false;
+  // A published routebook flagged by moderation stays private until ops approve it.
+  return !isModerationWithheld('routebook', sanitizePublicId(routebook?.publicId || routebook?.id));
 }
 
 function hasPublicTrustSamples(sampleCount) {
@@ -318,7 +321,14 @@ export function publicReviewView(review) {
     routebookId: sanitizePublicId(review.routebookId || review.routebook?.publicId || review.routebook?.id),
     routebook: publicReviewRoutebookView(review.routebook),
     executionStops: Array.isArray(review.executionStops) ? review.executionStops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicReviewExecutionStop) : [],
-    checkins: Array.isArray(review.checkins) ? review.checkins.slice(0, MAX_ROUTEBOOK_STOPS).map(publicCheckinForReview) : [],
+    checkins: Array.isArray(review.checkins)
+      ? review.checkins.slice(0, MAX_ROUTEBOOK_STOPS).map((item) => {
+          const view = publicCheckinForReview(item);
+          // Free text held by moderation is withheld; the structured check-in stays.
+          if (!isModerationWithheld('checkin', sanitizePublicId(item?.sourceCheckinId))) return view;
+          return { ...view, comment: '', pitfall: '', queue: '', cost: '', textWithheld: true };
+        })
+      : [],
     stats: publicReviewStats(review.stats)
   };
 }

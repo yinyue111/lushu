@@ -8,6 +8,17 @@ import { ADMIN_TOKEN, API_TOKEN, PROJECT_ROOT, adminHeaders, fetchJson, jsonHead
 
 const HAS_DIST = existsSync(join(PROJECT_ROOT, 'dist', 'index.html'));
 
+test('production refuses the OSM basemap without TIANDITU_KEY / AMAP_TILE_KEY', async () => {
+  const server = await startServer({ waitFor: 'none', env: { ALLOW_OSM_BASEMAP_IN_PRODUCTION: null } });
+  try {
+    const { code } = await waitForExit(server);
+    assert.notEqual(code, 0);
+    assert.match(server.output.join(''), /not approved for production/);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('M3: invalid numeric env values fall back to defaults instead of blocking requests', async () => {
   const server = await startServer({ env: { RATE_LIMIT_MAX: 'abc', MAX_JSON_BODY_BYTES: '' } });
   try {

@@ -207,3 +207,13 @@ export const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2'
 };
+
+// Content moderation (see docs/compliance.md). keyword = local pre-filter only (default);
+// domestic = pre-filter + domestic content-safety API adapter; none = disabled (dev only).
+export const MODERATION_PROVIDER = ['keyword', 'domestic', 'none'].includes(String(process.env.MODERATION_PROVIDER ?? '').trim())
+  ? String(process.env.MODERATION_PROVIDER).trim()
+  : 'keyword';
+export const MODERATION_KEYWORDS_FILE = String(process.env.MODERATION_KEYWORDS_FILE ?? '').trim();
+export const MODERATION_API_URL = String(process.env.MODERATION_API_URL ?? '').trim();
+export const MODERATION_API_KEY = String(process.env.MODERATION_API_KEY ?? '').trim();
+export const MODERATION_TIMEOUT_MS = envNumber('MODERATION_TIMEOUT_MS', 3000, { min: 200, max: 20000 });

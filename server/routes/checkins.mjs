@@ -23,6 +23,7 @@ import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { cryptoRandomId, normalizeProfileId } from '../auth/tokens.mjs';
 import { resolveWriteProfile, verifySensitiveOrProfileReadAccess } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
+import { moderateAndQueue } from '../moderation/index.mjs';
 import { route } from '../http/router.mjs';
 import { consumeRateLimit, enforceRateLimit, sendTelemetryThrottled } from '../http/rate-limit.mjs';
 import { resolvePoiId } from '../poi/catalog.mjs';
@@ -160,8 +161,17 @@ export const checkinRoutes = [
         arrivalConfidence: arrival.confidence,
         createdAt: new Date().toISOString()
       };
+      // Public free text goes through the content-safety pre-filter / provider; flagged
+      // text is queued for ops and withheld from public reviews until approved.
+      const moderation = await moderateAndQueue({
+        entityType: 'checkin',
+        entityId: row.id,
+        profileId: row.profileId,
+        scene: 'checkin',
+        fields: { comment: row.comment, pitfall: row.pitfall, audience: row.audience, queue: row.queue, cost: row.cost }
+      });
       await appendJsonLine(CHECKIN_LOG_PATH, row);
-      return { checkin: row, deduplicated: false };
+      return { checkin: row, deduplicated: false, ...(moderation.status ? { moderation: { status: moderation.status } } : {}) };
     };
     const result = clientLocalId
       ? await withStorageEntityLock('checkin', JSON.stringify([actor.profileId, routeId, clientLocalId]), persistCheckin)
