@@ -778,7 +778,7 @@ export default function TripView({ routebook, onBack, onReview }) {
         <Button
           variant="dark"
           size="lg"
-          className="h-[54px] flex-1 text-base @max-[22rem]:flex-none @max-[22rem]:px-4"
+          className="h-[54px] flex-1 text-base @max-[22rem]:flex-none @max-[22rem]:px-3"
           onClick={openNavigation}
           disabled={!isNavigableCoordinate(current)}
           aria-label="导航"
@@ -788,7 +788,7 @@ export default function TripView({ routebook, onBack, onReview }) {
         <Button
           variant="primary"
           size="lg"
-          className="h-auto min-h-[54px] min-w-0 flex-[2] py-2 leading-tight whitespace-normal @max-[22rem]:flex-1"
+          className="h-auto min-h-[54px] min-w-0 flex-[2] py-2 text-base leading-tight whitespace-normal @max-[22rem]:flex-1 @max-[22rem]:gap-1.5 @max-[22rem]:rounded-2xl @max-[22rem]:px-3"
           onClick={() => setShowCheckin(true)}
           disabled={actionDisabled}
         >
