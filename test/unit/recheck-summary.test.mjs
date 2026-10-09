@@ -13,3 +13,9 @@ test('re-check summary is plain Chinese', () => {
   );
   assert.match(recheckSummaryText(null, Object.assign(new Error('x'), { status: 429 })), /太频繁/);
 });
+
+test('recheck summary explains when road verification is not configured', () => {
+  const text = recheckSummaryText({ geocoded: [], unresolved: [], routingConfigured: false, routing: { expectedLegs: 6, verifiedLegs: 0 } });
+  assert.match(text, /道路核验服务暂未开启/);
+  assert.doesNotMatch(text, /0\/6/);
+});

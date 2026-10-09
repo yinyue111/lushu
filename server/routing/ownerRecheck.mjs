@@ -43,5 +43,6 @@ export async function recheckOwnerRoutebook(routebook, signal, deps = {}) {
     return { ...stop, ...fields };
   });
   const routed = await attach({ ...routebook, stops }, signal, undefined, { reuseVerifiedLegs: true });
-  return { routebook: routed, geocoded, unresolved, routing: summarizeRouteExecution(routed.stops, routed.routeLegs), geocodingConfigured };
+  const routingConfigured = !(routed.routeLegs ?? []).some((leg) => leg?.error?.code === 'ROUTING_PROVIDER_NOT_CONFIGURED');
+  return { routebook: routed, geocoded, unresolved, routing: summarizeRouteExecution(routed.stops, routed.routeLegs), geocodingConfigured, routingConfigured };
 }

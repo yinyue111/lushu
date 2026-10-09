@@ -1,7 +1,7 @@
 // Plain-Chinese summary of POST /api/routebooks/:id/recheck.
 
 /**
- * @param {{ geocoded?: string[], unresolved?: string[], geocodingConfigured?: boolean, routing?: { verifiedLegs?: number, expectedLegs?: number } } | null} result
+ * @param {{ geocoded?: string[], unresolved?: string[], geocodingConfigured?: boolean, routingConfigured?: boolean, routing?: { verifiedLegs?: number, expectedLegs?: number } } | null} result
  * @param {(Error & { status?: number, code?: string, retryAfterSeconds?: number }) | null} [error]
  */
 export function recheckSummaryText(result, error = null) {
@@ -22,6 +22,7 @@ export function recheckSummaryText(result, error = null) {
     );
   }
   const routing = result?.routing;
-  if (routing?.expectedLegs) parts.push(`道路 ${routing.verifiedLegs ?? 0}/${routing.expectedLegs} 段已核验`);
+  if (routing?.expectedLegs && result?.routingConfigured === false) parts.push('道路核验服务暂未开启，路段先按直线估算，出发前请自己看一下导航');
+  else if (routing?.expectedLegs) parts.push(`道路 ${routing.verifiedLegs ?? 0}/${routing.expectedLegs} 段已核验`);
   return parts.length ? `${parts.join('；')}。` : '核验完成，没有需要重新定位的站点。';
 }

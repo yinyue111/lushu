@@ -203,7 +203,8 @@ export const TRAVEL_DAY_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
 });
 
 export const AMAP_GEOCODE_KEY = String(process.env.AMAP_GEOCODE_KEY ?? '').trim();
-export const AMAP_ROUTING_KEY = String(process.env.AMAP_ROUTING_KEY ?? AMAP_GEOCODE_KEY).trim();
+// An empty AMAP_ROUTING_KEY= line (common in .env templates) must fall back too, not disable routing.
+export const AMAP_ROUTING_KEY = String(process.env.AMAP_ROUTING_KEY ?? '').trim() || AMAP_GEOCODE_KEY;
 export const ROUTING_TIMEOUT_MS = envNumber('ROUTING_TIMEOUT_MS', 8000, { min: 100, max: 60000 });
 export const ROUTING_CONCURRENCY = envNumber('ROUTING_CONCURRENCY', 3, { min: 1, max: 8 });
 // Requests per second across all AMap Web-service calls (personal keys: about 3).
