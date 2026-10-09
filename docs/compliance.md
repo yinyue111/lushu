@@ -29,3 +29,8 @@
 
 ## 模型
 - 见 `docs/domestic-model-provider.md`。生产环境 `AI_PROVIDER_REGION` 不是 `domestic` 时启动告警。
+
+## 分享卡片（微信）
+
+- 分享页服务端输出了 `og:*`、`canonical` 和 `<noscript>` 预渲染，适用于大多数抓取 OG 的平台。
+- 微信内自定义分享卡片（标题、描述、缩略图）一般需要通过微信 JS-SDK（`updateAppMessageShareData` 等）配置，前提是已认证的公众号和已设置的 JS 接口安全域名（通常要求域名已完成 ICP 备案）。仓库里**没有**接入 JS-SDK，因为这些前置条件都未就绪；具体要求以微信官方文档为准，接入前需核实。
