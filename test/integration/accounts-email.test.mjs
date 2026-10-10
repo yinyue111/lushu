@@ -185,6 +185,8 @@ test('email accounts: reset, change email, legacy phone-only account adds email,
   assert.equal(sent.status, 200, JSON.stringify(sent.data));
   const resetCode = codeIn(await lastMailTo(server.dataDir, email));
   assert.match(resetCode, /^\d{6}$/);
+  const empty = await resetter.post('/api/auth/reset-password', { email, emailCode: '', password: NEW_PASSWORD });
+  assert.equal(empty.data.code, 'EMAIL_CODE_REQUIRED', 'empty code is named, not a human-check error');
   const reset = await resetter.post('/api/auth/reset-password', { email, emailCode: resetCode, password: NEW_PASSWORD });
   assert.equal(reset.status, 200, JSON.stringify(reset.data));
   assert.match((await lastMailTo(server.dataDir, email)).subject, /密码已重设/);

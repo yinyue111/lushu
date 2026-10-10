@@ -461,6 +461,7 @@ function ForgotByEmail({ onAuthenticated }) {
     if (!isEmail(email)) return setEmailError('邮箱格式不对，检查一下');
     setEmailError('');
     run(async () => {
+      if (!/^\d{6}$/.test(emailCode)) throw Object.assign(new Error('请填邮箱收到的 6 位验证码'), { status: 400 });
       const data = await resetPasswordWithEmail({ email: email.trim(), emailCode, password });
       await onAuthenticated(data.account);
     });

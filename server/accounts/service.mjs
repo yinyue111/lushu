@@ -275,6 +275,10 @@ export async function loginAccount(req, res, input = {}) {
 
 export async function resetPasswordWithRecovery(req, res, input = {}) {
   if (String(input.emailCode ?? '').trim()) return resetPasswordWithEmail(req, res, input);
+  // Email-code reset with the code left empty: say so, instead of a confusing human-check error.
+  if (input.email !== undefined && !String(input.recoveryCode ?? '').trim()) {
+    throw createHttpError('请填邮箱收到的 6 位验证码', 400, 'EMAIL_CODE_REQUIRED');
+  }
   const id = parseIdentifier(input);
   const hash = id.hash;
   const keys = [ipKey(req), `${id.kind}:reset-${hash.slice(0, 34)}`];
