@@ -5,6 +5,7 @@ import { safeEqualHex } from '../auth/tokens.mjs';
 import { normalizeRouteLeg, unverifiedRouteLeg } from './routeLegs.mjs';
 import { RoutingError, ROUTING_ERROR_CODES } from './errors.mjs';
 import { routingCoordinateForStop } from './coordinates.mjs';
+import { distanceMeters } from '../lib/util.mjs';
 
 export function normalizeStopTransportMode(value) {
   const mode = String(value ?? '')
@@ -21,6 +22,39 @@ export function normalizeStopTransportMode(value) {
   if (/公交|地铁|公共交通|巴士|transit|metro|subway|\bbus\b/.test(mode)) return 'transit';
   if (/步行|走路|walking|\bwalk\b/.test(mode)) return 'walking';
   return '';
+}
+
+// Straight-line threshold shared with the client's leg estimate (src/lib/coordinates.js routeLegLabel):
+// hops longer than this are planned as a ride, not a walk.
+export const WALKING_LEG_MAX_METERS = 1200;
+
+function mixedRideMode(text) {
+  const ride = /打车|出租|网约车|自驾|驾车|开车|taxi|driv|\bcar\b/.exec(text);
+  const transit = /地铁|公交|公共交通|巴士|transit|metro|subway|\bbus\b/.exec(text);
+  if (ride && transit) return ride.index <= transit.index ? 'driving' : 'transit';
+  if (transit) return 'transit';
+  return 'driving';
+}
+
+/**
+ * The mode a leg is planned (and therefore verified) with:
+ * 1. an explicit per-stop transportMode wins;
+ * 2. a single-mode preference ("地铁", "自驾") applies to every leg;
+ * 3. a mixed or missing preference ("步行 + 打车", "") walks short hops and rides long ones,
+ *    matching what the route page tells the traveller.
+ */
+export function plannedLegMode(from, to, transport) {
+  const explicit = normalizeStopTransportMode(to?.transportMode);
+  if (explicit) return explicit;
+  const text = String(transport ?? '')
+    .trim()
+    .toLowerCase();
+  const preferred = normalizeStopTransportMode(text);
+  const mixedWalking = preferred === 'walking' && /[+＋/、和与或]|打车|出租|地铁|公交/.test(text);
+  if (preferred && !mixedWalking) return preferred;
+  const meters = distanceMeters(from, to);
+  if (meters == null || meters <= WALKING_LEG_MAX_METERS) return 'walking';
+  return mixedWalking ? mixedRideMode(text) : 'driving';
 }
 
 function proofPayload(leg, from, to) {
@@ -51,7 +85,7 @@ export function normalizeStoredRouteLegs(routeLegs, stops = [], transport = '') 
     seen.add(key);
     const leg = normalizeRouteLeg(candidate);
     if (leg.status !== 'verified') return [leg];
-    const expectedMode = normalizeStopTransportMode(pair.to.transportMode) || normalizeStopTransportMode(transport) || 'walking';
+    const expectedMode = plannedLegMode(pair.from, pair.to, transport);
     let coordinatesUsable = true;
     try {
       routingCoordinateForStop(pair.from);

@@ -2,7 +2,7 @@ import { AMAP_API_BASE_URL, AMAP_ROUTING_KEY, ROUTING_TIMEOUT_MS, ROUTING_CONCUR
 import { buildRouteLegs } from './routeLegs.mjs';
 import { createAmapRoutingProvider } from './amapProvider.mjs';
 import { pacedAmapFetch } from '../geo/amap.mjs';
-import { normalizeStopTransportMode, signRouteLeg } from './provenance.mjs';
+import { normalizeStopTransportMode, plannedLegMode, signRouteLeg } from './provenance.mjs';
 import { buildRoutebookMetrics, buildRoutebookValidations, routebookValidationContext } from '../routebooks/normalize.mjs';
 
 const routingProvider = createAmapRoutingProvider({
@@ -49,7 +49,7 @@ export async function attachServerRouteLegs(routebook, signal, provider = routin
     routebook,
     provider: reuseVerifiedLegs ? reuseVerifiedLegsProvider(provider, routebook?.routeLegs) : provider,
     defaultMode,
-    modeForLeg: ({ to }) => normalizeStopTransportMode(to?.transportMode) || defaultMode,
+    modeForLeg: ({ from, to }) => plannedLegMode(from, to, routebook?.constraints?.transport),
     concurrency: ROUTING_CONCURRENCY,
     signal
   });
