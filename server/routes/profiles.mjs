@@ -4,7 +4,7 @@ import { PROFILE_LOG_PATH, REVIEW_LOG_PATH } from '../config/index.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { getSavedReview } from '../storage/records.mjs';
-import { resolveWriteProfile, requireLoginForWrites } from '../auth/request-access.mjs';
+import { accountOwnsProfile, resolveWriteProfile, requireLoginForWrites } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -19,6 +19,10 @@ export const profileRoutes = [
   route('POST', '/api/profile', async ({ req, res }) => {
     enforceRateLimit(req);
     const body = await readJsonBody(req);
+    // Signed-in accounts already own a server profile: confirm the id, never mint a second profile.
+    const accountProfileId = normalizeProfileId(body?.id || body?.profileId);
+    if (await accountOwnsProfile(req, accountProfileId)) return sendJson(res, 200, { ok: true, profile: { id: accountProfileId } });
+    await requireLoginForWrites(req);
     // 同一 profile 的「读旧行-合并-追加」需要互斥，否则并发更新会彼此覆盖。
     const profileLockKey = await profileMutationKey(body);
     const publicProfile = await withProfileMutationLock(profileLockKey, async () => {

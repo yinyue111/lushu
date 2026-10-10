@@ -21,6 +21,7 @@ import { GenerationProgress } from './GenerationProgress';
 import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
 import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
+import { useAccount } from '../Account/AccountProvider';
 
 const defaultConstraints = {
   duration: '2 天 1 晚',
@@ -50,6 +51,15 @@ const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 /** @param {Record<string, any>} props */
 export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onModelHealth, onBack }) {
   const [profile, setProfile] = useState(() => getProfile());
+  const { required: loginRequired, account, requireLogin, openLogin } = useAccount();
+  const needsLogin = loginRequired && !account;
+  // Guests can look around and type; the steps that call AI ask for a login first, then carry on.
+  const nextRef = useRef(/** @type {() => void} */ (() => {}));
+  const guardLogin = (reason, resume) =>
+    requireLogin(reason, () => {
+      setProfile(getProfile());
+      resume?.();
+    });
   const [savedDraft] = useState(() => readBuilderDraft(profile.id));
   const hasPendingDraft = hasBuilderDefaults(defaults) && Boolean(savedDraft);
   const [draftResolution, setDraftResolution] = useState(() => (hasPendingDraft ? 'pending' : 'resolved'));
@@ -434,6 +444,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
   function retryGenerate() {
     if (loading) return;
+    if (!guardLogin('生成路书要用到 AI。登录后会接着生成。', () => handleGenerate())) return;
     handleGenerate();
   }
 
@@ -451,6 +462,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   async function next() {
+    if (step >= 1 && !guardLogin('导入攻略、生成路书要用到 AI。登录后会接着刚才这一步，你填的内容都在。', () => nextRef.current())) return;
     if (step === 0) {
       // 城市为空或被清空时留在本步，属预期校验拦截。
       if (!commitCity()) return;
@@ -482,6 +494,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     } else setStep((s) => s + 1);
   }
 
+  nextRef.current = next;
+
   const hasUrls = /https?:\/\/[^\s"'<>，。；、)）]+/i.test(guide);
   const isTrustedCity = trustedCities.includes(city);
 
@@ -511,6 +525,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     const files = Array.from(event.target.files ?? []).slice(0, 4);
     event.target.value = '';
     if (!files.length) return;
+    if (!guardLogin('识别截图要用到 AI，登录后再选一次截图就行。')) return;
     const oversizedFiles = files.filter((file) => file.size > MAX_SCREENSHOT_BYTES);
     if (oversizedFiles.length) {
       const names = oversizedFiles.map((file) => file.name).join('、');
@@ -672,41 +687,52 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
         </Button>
-        <details className="group relative text-sm" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
-          <summary
-            className={cn(
-              'cursor-pointer list-none rounded-full px-3 py-1.5 font-semibold hover:bg-canvas',
-              needsAccessCode ? 'bg-lemon-soft text-lemon-ink' : 'text-muted'
-            )}
-          >
-            高级设置{needsAccessCode ? ' · 需要访问码' : ''}
-          </summary>
-          <div className="absolute right-0 z-20 mt-2 w-72 rounded-card border border-line bg-white p-4 shadow-pop">
-            <Field label="访问码" hint="向站点运营方获取">
-              <input
-                id="builder-api-token"
-                ref={apiTokenInputRef}
-                className={inputClass}
-                type="password"
-                value={apiTokenInput}
-                onChange={(event) => setApiTokenInput(event.target.value)}
-                onBlur={() => {
-                  setApiToken(apiTokenInput);
-                  refreshModelHealth();
-                }}
-                placeholder="填写访问码"
-                aria-invalid={needsAccessCode || undefined}
-                aria-describedby={needsAccessCode ? 'builder-api-token-hint' : undefined}
-              />
-            </Field>
-            {needsAccessCode && (
-              <p id="builder-api-token-hint" className="mt-2 text-xs font-semibold text-lemon-ink">
-                {apiTokenInput ? '访问码不对，请检查后重新填写。' : '这个站点生成路书需要访问码。填好后点别处，会自动检查。'}
-              </p>
-            )}
-          </div>
-        </details>
+        {!loginRequired && (
+          <details className="group relative text-sm" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+            <summary
+              className={cn(
+                'cursor-pointer list-none rounded-full px-3 py-1.5 font-semibold hover:bg-canvas',
+                needsAccessCode ? 'bg-lemon-soft text-lemon-ink' : 'text-muted'
+              )}
+            >
+              高级设置{needsAccessCode ? ' · 需要访问码' : ''}
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 w-72 rounded-card border border-line bg-white p-4 shadow-pop">
+              <Field label="访问码" hint="向站点运营方获取">
+                <input
+                  id="builder-api-token"
+                  ref={apiTokenInputRef}
+                  className={inputClass}
+                  type="password"
+                  value={apiTokenInput}
+                  onChange={(event) => setApiTokenInput(event.target.value)}
+                  onBlur={() => {
+                    setApiToken(apiTokenInput);
+                    refreshModelHealth();
+                  }}
+                  placeholder="填写访问码"
+                  aria-invalid={needsAccessCode || undefined}
+                  aria-describedby={needsAccessCode ? 'builder-api-token-hint' : undefined}
+                />
+              </Field>
+              {needsAccessCode && (
+                <p id="builder-api-token-hint" className="mt-2 text-xs font-semibold text-lemon-ink">
+                  {apiTokenInput ? '访问码不对，请检查后重新填写。' : '这个站点生成路书需要访问码。填好后点别处，会自动检查。'}
+                </p>
+              )}
+            </div>
+          </details>
+        )}
       </div>
+
+      {needsLogin && step < 3 && (
+        <Notice className="mt-3" tone="sky">
+          填写和挑地点不用登录。到「下一步」导入攻略、生成路书时，需要先登录。{' '}
+          <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+            现在登录
+          </button>
+        </Notice>
+      )}
 
       {needsAccessCode && step < 3 && (
         <Notice className="mt-3">

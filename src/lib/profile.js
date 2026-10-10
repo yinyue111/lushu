@@ -53,14 +53,22 @@ export function grantProfileCloudRegistrationConsent(profile = getProfile()) {
   return replaceProfile({ ...profile, cloudRegistrationConsentAt: new Date().toISOString() });
 }
 
+/** Whether this device can talk to the cloud as its profile: a device token, or a signed-in account (cookie). */
+export function canSyncToCloud(profile = getProfile()) {
+  return Boolean(profile?.profileAccessToken || profile?.accountUserId);
+}
+
 export function hasProfileCloudRegistrationConsent(profile = getProfile()) {
-  return Boolean(profile?.profileAccessToken) || Number.isFinite(Date.parse(String(profile?.cloudRegistrationConsentAt ?? '')));
+  return (
+    Boolean(profile?.accountUserId) || Boolean(profile?.profileAccessToken) || Number.isFinite(Date.parse(String(profile?.cloudRegistrationConsentAt ?? '')))
+  );
 }
 
 // Persist the random registration credential before the first request. Lost
 // responses can then retry without creating a second cloud account.
 export function prepareProfileSyncPayload(profile = getProfile()) {
-  if (profile?.profileAccessToken || profile?.recoveryProof || profile?.identity?.proof) return profile;
+  // Signed-in accounts own their server profile through the login cookie; no device registration.
+  if (profile?.accountUserId || profile?.profileAccessToken || profile?.recoveryProof || profile?.identity?.proof) return profile;
   if (!hasProfileCloudRegistrationConsent(profile)) {
     const error = Object.assign(new Error('尚未同意云端同步；偏好和行程继续保留在本机'), { code: 'PROFILE_CLOUD_REGISTRATION_CONSENT_REQUIRED' });
     throw error;

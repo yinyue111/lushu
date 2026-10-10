@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, Clock, FileText, Flag, MapPin, Share2, ShieldCheck, Wallet, X } from 'lucide-react';
 import { createReviewShare, getMyCheckins } from '../../lib/api';
-import { getProfile } from '../../lib/profile';
+import { canSyncToCloud, getProfile } from '../../lib/profile';
 import { checkinStorageKey } from '../../lib/storage';
 import { normalizeTripStops, readTripSession, tripRoutebookId } from '../../lib/tripSession';
 import { flushAllCheckinQueues, isServerSyncedCheckin } from '../../lib/checkinQueue';
@@ -15,6 +15,7 @@ import { dayTheme } from '../visual/theme';
 export default function ReviewPage({ routebook, onBack }) {
   // 打开回顾页会触发一次全局补传；补传可能注册身份并迁移本地存储 key，因此 profile 用 state。
   const [profile, setProfile] = useState(() => getProfile());
+  const cloudCapable = canSyncToCloud(profile);
   const [shareState, setShareState] = useState({ loading: false, message: '', url: '' });
   const [serverCheckins, setServerCheckins] = useState([]);
   const [localTick, setLocalTick] = useState(0);
@@ -71,13 +72,13 @@ export default function ReviewPage({ routebook, onBack }) {
 
   useEffect(() => {
     // 未注册（无 profile token）时服务端只会回 401/403，直接跳过拉取、只用本地记录（对齐我的页做法）。
-    if (!profile.profileAccessToken) return undefined;
+    if (!cloudCapable) return undefined;
     const ctrl = new AbortController();
     getMyCheckins(profile.id, 200, ctrl.signal)
       .then((data) => setServerCheckins(data.checkins ?? []))
       .catch(() => {});
     return () => ctrl.abort();
-  }, [profile.id, profile.profileAccessToken, localTick]);
+  }, [profile.id, cloudCapable, localTick]);
 
   const days = [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
   const doneCount = stops.filter((stop) => {

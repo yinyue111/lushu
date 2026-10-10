@@ -2,7 +2,9 @@ import { Compass, Link2, MapPin, UserRound } from 'lucide-react';
 import { useMemo } from 'react';
 import { getProfile } from '../../lib/profile';
 import { cn } from '../ui/cn';
+import { Button } from '../ui/button';
 import { modelStatusLabel } from '../../lib/modelStatus';
+import { useAccount } from '../Account/AccountProvider';
 
 const navItems = [
   { id: 'home', label: '发现', icon: Compass },
@@ -13,6 +15,7 @@ const navItems = [
 export default function TopNav({ view, onNavigate, modelHealth, hidden = false }) {
   const modelStatus = modelStatusLabel(modelHealth);
   const profile = useMemo(() => getProfile(), []);
+  const { enabled: accountsEnabled, account, ready: accountReady, openLogin } = useAccount();
   if (hidden) return null;
   const name = String(profile?.creatorName || '').trim();
   // The route page has its own phone action bar: no tab bar and no header below lg.
@@ -63,11 +66,25 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
             />
             {modelStatus.label}
           </span>
-          <button type="button" onClick={() => onNavigate('my')} className="flex items-center gap-2.5 text-copy font-semibold" aria-label="我的">
+          {accountsEnabled && accountReady && !account && (
+            <Button variant="dark" size="sm" onClick={() => openLogin('login')}>
+              登录
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={() => onNavigate('my')}
+            className={cn('flex items-center gap-2.5 text-copy font-semibold', accountsEnabled && !account && 'max-sm:hidden')}
+            aria-label={account ? `我的账号 ${account.phoneMasked}` : '我的'}
+          >
             <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-copy font-extrabold text-ink shadow-card">
               {name ? name.slice(0, 1) : <UserRound className="size-[18px]" />}
             </span>
-            {name && <span className="hidden lg:inline">{name}</span>}
+            {account ? (
+              <span className="hidden lg:inline">{name || `尾号 ${String(account.phoneMasked).slice(-4)}`}</span>
+            ) : (
+              name && <span className="hidden lg:inline">{name}</span>
+            )}
           </button>
         </div>
       </header>

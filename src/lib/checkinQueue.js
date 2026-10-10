@@ -210,7 +210,7 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
     } catch {
       // profile 存储不可用时沿用调用方传入的 profile。
     }
-    if (activeProfile?.id && activeProfile.id !== 'anonymous' && !activeProfile.profileAccessToken) {
+    if (activeProfile?.id && activeProfile.id !== 'anonymous' && !activeProfile.profileAccessToken && !activeProfile.accountUserId) {
       if (!hasProfileCloudRegistrationConsent(activeProfile)) {
         result.registrationError = '尚未开启云端同步';
         result.guidance = '反馈保留在本机；请在「我的 → 账户」明确开启云端同步后再补传';

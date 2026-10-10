@@ -18,7 +18,8 @@ import {
   X
 } from 'lucide-react';
 import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
-import { getProfile, hasProfileCloudRegistrationConsent } from '../../lib/profile';
+import { canSyncToCloud, getProfile, hasProfileCloudRegistrationConsent } from '../../lib/profile';
+import { useAccount } from '../Account/AccountProvider';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import { buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
@@ -68,7 +69,11 @@ export default function TripView({ routebook, onBack, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
   const [profile, setProfile] = useState(() => getProfile());
   const [initialSession] = useState(() => readTripSession(routebook, profile.id));
-  const cloudSyncOff = Boolean(profile?.id && profile.id !== 'anonymous' && !profile.profileAccessToken && !hasProfileCloudRegistrationConsent(profile));
+  const { required: loginRequired, account, requireLogin } = useAccount();
+  // Guests keep the whole trip on this device; logging in uploads it.
+  const guestLocalOnly = loginRequired && !account;
+  const cloudSyncOff =
+    guestLocalOnly || Boolean(profile?.id && profile.id !== 'anonymous' && !profile.profileAccessToken && !hasProfileCloudRegistrationConsent(profile));
   const initialStops = initialSession?.stops ?? normalizeTripStops(routebook);
   const [currentIdx, setCurrentIdx] = useState(() => {
     const storedIndex = initialStops.findIndex((stop) => stopKeyForStop(stop) === String(initialSession?.currentStopId ?? ''));
@@ -159,7 +164,7 @@ export default function TripView({ routebook, onBack, onReview }) {
   useEffect(() => {
     if (!routeId) return undefined;
     // 未注册（无 profile token）时服务端只会回 401/403，直接跳过回填、只用本地记录（对齐我的页做法）。
-    if (!profile.profileAccessToken) return undefined;
+    if (!canSyncToCloud(profile)) return undefined;
     const ctrl = new AbortController();
     getMyCheckins(profile.id, 200, ctrl.signal)
       .then((data) => {
@@ -188,7 +193,7 @@ export default function TripView({ routebook, onBack, onReview }) {
       .catch(() => {});
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the identity or route changes; commitCheckins is recreated every render.
-  }, [profile.id, profile.profileAccessToken, routeId]);
+  }, [profile.id, profile.profileAccessToken, profile.accountUserId, routeId]);
 
   // 平台 POI 库（运营审核过的修正知识）作为行中替代候选来源；失败回退路书内候选。
   useEffect(() => {
@@ -642,7 +647,20 @@ export default function TripView({ routebook, onBack, onReview }) {
                   {syncStatusLabel(statusEvidence.syncStatus, statusCheckin, { cloudSyncOff })}
                 </p>
                 <p className="mt-0.5 text-meta text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
-                {cloudSyncOff && statusEvidence.syncStatus !== 'synced' && (
+                {guestLocalOnly && statusEvidence.syncStatus !== 'synced' && (
+                  <p className="mt-0.5 text-meta text-ink-2">
+                    打卡先存在这台手机上。
+                    <button
+                      type="button"
+                      className="font-bold underline underline-offset-2"
+                      onClick={() => requireLogin('登录后，打卡和照片会自动上传，计入路线可信度。', () => setProfile(getProfile()))}
+                    >
+                      登录
+                    </button>
+                    后会自动上传，计入路线可信度。
+                  </p>
+                )}
+                {cloudSyncOff && !guestLocalOnly && statusEvidence.syncStatus !== 'synced' && (
                   <p className="mt-0.5 text-meta text-ink-2">要让打卡计入路线可信度，请先在「我的 → 账户」开启云端同步，开启后会自动补传。</p>
                 )}
                 {pendingSyncCount > 1 && !cloudSyncOff && (

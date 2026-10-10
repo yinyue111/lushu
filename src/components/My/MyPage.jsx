@@ -43,7 +43,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     setServerData({ routebooks: [], checkins: [], clicks: [], favorites: [] });
     setError('');
     // 未注册（无 profile token）时服务端只会回 401/403，直接跳过请求、渲染本地数据。
-    if (!profile.profileAccessToken) return () => ctrl.abort();
+    if (!profile.profileAccessToken && !profile.accountUserId) return () => ctrl.abort();
     Promise.allSettled([
       getMyRoutebooks(profile.id, 80, ctrl.signal),
       getMyCheckins(profile.id, 80, ctrl.signal),
@@ -71,7 +71,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       );
     });
     return () => ctrl.abort();
-  }, [profile.id, profile.profileAccessToken]);
+  }, [profile.id, profile.profileAccessToken, profile.accountUserId]);
 
   useEffect(() => {
     if (activeTab !== 'checkins') return;

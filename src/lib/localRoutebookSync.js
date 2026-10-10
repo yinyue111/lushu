@@ -35,7 +35,7 @@ export function isLocalOnlyRoutebook(book) {
 export async function uploadLocalOnlyRoutebooks({ profile, books, profileFields, save, fetchRemote, persist, preserveConflict }) {
   /** @type {{ uploaded: string[], conflicts: string[], failed: string[], skipped?: string }} */
   const result = { uploaded: [], conflicts: [], failed: [] };
-  if (!profile?.profileAccessToken) return { ...result, skipped: 'cloud-sync-disabled' };
+  if (!(profile?.profileAccessToken || profile?.accountUserId)) return { ...result, skipped: 'cloud-sync-disabled' };
   for (const book of books.filter(isLocalOnlyRoutebook)) {
     const id = String(book.publicId || book.id || '');
     const local = { ...book, ...profileFields(profile) };

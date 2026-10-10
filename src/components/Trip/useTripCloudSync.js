@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTripSessionRemote, saveTripSessionRemote } from '../../lib/tripApi.js';
 import { readTripSession, restoreTripSession, tripRoutebookId } from '../../lib/tripSession.js';
 import { tripSyncErrorMessage } from '../../lib/tripSyncMessages.js';
+import { canSyncToCloud } from '../../lib/profile.js';
 
 // Execution plans are private owner data. CAS prevents two devices from silently
 // replacing each other's reordered/alternative stops; conflicts require a choice.
 export function useTripCloudSync(routebook, profile, onRestore) {
   const routeId = tripRoutebookId(routebook);
+  const cloudCapable = canSyncToCloud(profile);
   const contextRef = useRef({ routebook, profile, onRestore });
   contextRef.current = { routebook, profile, onRestore };
   const controllerRef = useRef(null);
@@ -20,7 +22,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
     const controller = controllerRef.current;
     if (!readyRef.current || !controller || controller.signal.aborted || conflictRef.current || navigator.onLine === false) return;
     const context = contextRef.current;
-    if (!context.profile.profileAccessToken) return;
+    if (!canSyncToCloud(context.profile)) return;
     chainRef.current = chainRef.current
       .catch(() => {})
       .then(async () => {
@@ -56,7 +58,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
     controllerRef.current = controller;
     readyRef.current = false;
     conflictRef.current = null;
-    if (!profile.profileAccessToken) {
+    if (!cloudCapable) {
       setState({ status: 'local', message: '行中计划保存在本机；开启云端同步后可跨设备继续' });
       return () => controller.abort();
     }
@@ -90,7 +92,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
       controller.abort();
       window.removeEventListener('online', reconnect);
     };
-  }, [profile.id, profile.profileAccessToken, routeId, refresh, sync]);
+  }, [profile.id, cloudCapable, routeId, refresh, sync]);
 
   async function resolveConflict(useCloud) {
     const context = contextRef.current;

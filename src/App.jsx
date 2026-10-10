@@ -8,6 +8,7 @@ import {
   TripReminderBanner
 } from './components/Layout/AppFallbacks';
 import TopNav from './components/Layout/TopNav';
+import { AccountProvider } from './components/Account/AccountProvider';
 import HomePage from './components/HomePage';
 import { checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
 import { flushAllCheckinQueues } from './lib/checkinQueue';
@@ -123,7 +124,7 @@ export default function App() {
   // cloud token (and again whenever the network comes back); conflicts keep a 冲突副本.
   const localUploadRef = useRef(false);
   useEffect(() => {
-    if (!profile.profileAccessToken) return undefined;
+    if (!profile.profileAccessToken && !profile.accountUserId) return undefined;
     const upload = () => {
       if (localUploadRef.current) return;
       localUploadRef.current = true;
@@ -149,7 +150,7 @@ export default function App() {
     upload();
     window.addEventListener('online', upload);
     return () => window.removeEventListener('online', upload);
-  }, [profile.profileAccessToken]);
+  }, [profile.profileAccessToken, profile.accountUserId]);
 
   useEffect(() => {
     // rank7①：挂载与网络恢复时补传离线打卡队列；flush 幂等、离线自动跳过，失败保持静默。
@@ -429,7 +430,7 @@ export default function App() {
         .catch((error) => error);
       let savedDraft = draft;
       let syncError = null;
-      if (activeProfile.profileAccessToken || !profileSyncError) {
+      if (activeProfile.profileAccessToken || activeProfile.accountUserId || !profileSyncError) {
         try {
           const data = await saveRoutebookRemote(draft);
           savedDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
@@ -508,124 +509,133 @@ export default function App() {
   const navHidden = PUBLIC_VIEWS.has(view) || view === VIEWS.trip;
   const showTabBar = !navHidden && view !== VIEWS.route;
 
+  const handleAccountProfileChanged = (nextProfile) => {
+    handleProfileChanged(nextProfile);
+    checkHealth()
+      .then(setModelHealth)
+      .catch(() => {});
+  };
+
   return (
-    <div className={`app-root view-${view}`}>
-      <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={navHidden} />
-      <main className={`app-main ${showTabBar ? 'max-md:pb-[calc(56px+env(safe-area-inset-bottom))]' : ''}`}>
-        {dueReminder && !PUBLIC_VIEWS.has(view) && (
-          <TripReminderBanner
-            reminder={dueReminder}
-            onOpen={() => {
-              const book = dueReminder.routebook || getStoredRoutebookById(dueReminder.routeId);
-              if (book) {
-                setRoutebook(book);
-                navigate(VIEWS.trip, { routeId: book.publicId || book.id });
-              }
-              dismissTripReminder(dueReminder.routeId);
-              setDueReminder(null);
-            }}
-            onDismiss={() => {
-              dismissTripReminder(dueReminder.routeId);
-              setDueReminder(null);
-            }}
-          />
-        )}
-        {activeGeneration && view !== VIEWS.builder && !PUBLIC_VIEWS.has(view) && view !== VIEWS.trip && (
-          <GenerationRunningBanner job={activeGeneration} onOpen={() => navigate(VIEWS.builder)} />
-        )}
-        {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
-        {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (
-          <StorageNoticeBanner text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
-        )}
-        <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
-          <Suspense fallback={<PageLoadingFallback />}>
-            {view === VIEWS.home && (
-              <HomePage
-                books={savedBooks}
-                onNewBook={handleNewBook}
-                onOpenBook={handleOpenBook}
-                onOpenDestination={handleOpenDestination}
-                onRefresh={() => setSavedBooks(getStoredRoutebooks(profile.id))}
-              />
-            )}
-            {view === VIEWS.destination && (
-              <DestinationPage
-                city={destinationCity}
-                onBack={handleBack}
-                onOpenBook={handleOpenBook}
-                onNewBook={handleNewBook}
-                onOpenDestination={handleOpenDestination}
-              />
-            )}
-            {view === VIEWS.builder && (
-              <BuilderFlow
-                modelHealth={modelHealth}
-                defaults={builderDefaults}
-                onGenerated={handleGenerated}
-                onProfileChanged={handleProfileChanged}
-                onModelHealth={setModelHealth}
-                onBack={handleBack}
-              />
-            )}
-            {view === VIEWS.route && routebookMatchesLocation && (
-              <RouteView
-                routebook={routebook}
-                setRoutebook={setRoutebook}
-                onSaved={handleRouteViewSaved}
-                onCustomize={handleCustomize}
-                onStartTrip={handleStartTrip}
-                onBack={handleBack}
-              />
-            )}
-            {view === VIEWS.route && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
-            {view === VIEWS.share && sharePublicId && (
-              <PublicSharePage
-                publicId={sharePublicId}
-                onBack={handleBack}
-                onSave={handleSaveSharedRoutebook}
-                onUse={handleUseSharedRoutebook}
-                onCustomize={handleCustomize}
-                onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
-              />
-            )}
-            {view === VIEWS.publicReview && sharePublicId && <PublicReviewPage publicId={sharePublicId} onBack={handleBack} />}
-            {view === VIEWS.trip && routebookMatchesLocation && (
-              <TripView
-                key={activeRouteId}
-                routebook={routebook}
-                onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })}
-                onReview={handleShowReview}
-              />
-            )}
-            {view === VIEWS.trip && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
-            {view === VIEWS.review && routebookMatchesLocation && (
-              <ReviewPage routebook={routebook} onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })} />
-            )}
-            {view === VIEWS.review && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
-            {view === VIEWS.ops && <OpsPage />}
-            {view === VIEWS.my && (
-              <MyPage
-                onOpenBook={handleOpenBook}
-                onNewBook={handleNewBook}
-                onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
-                onProfileChanged={handleProfileChanged}
-                onLocalBooksChanged={handleLocalBooksChanged}
-              />
-            )}
-            {view === VIEWS.creator && creatorId && (
-              <CreatorPage
-                creatorId={creatorId}
-                onBack={handleBack}
-                onOpenBook={handleOpenBook}
-                onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}
-              />
-            )}
-            {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
-            {view === VIEWS.privacy && <PrivacyPage onBack={() => navigate(VIEWS.home)} />}
-          </Suspense>
-        </ErrorBoundary>
-      </main>
-    </div>
+    <AccountProvider onProfileChanged={handleAccountProfileChanged}>
+      <div className={`app-root view-${view}`}>
+        <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={navHidden} />
+        <main className={`app-main ${showTabBar ? 'max-md:pb-[calc(56px+env(safe-area-inset-bottom))]' : ''}`}>
+          {dueReminder && !PUBLIC_VIEWS.has(view) && (
+            <TripReminderBanner
+              reminder={dueReminder}
+              onOpen={() => {
+                const book = dueReminder.routebook || getStoredRoutebookById(dueReminder.routeId);
+                if (book) {
+                  setRoutebook(book);
+                  navigate(VIEWS.trip, { routeId: book.publicId || book.id });
+                }
+                dismissTripReminder(dueReminder.routeId);
+                setDueReminder(null);
+              }}
+              onDismiss={() => {
+                dismissTripReminder(dueReminder.routeId);
+                setDueReminder(null);
+              }}
+            />
+          )}
+          {activeGeneration && view !== VIEWS.builder && !PUBLIC_VIEWS.has(view) && view !== VIEWS.trip && (
+            <GenerationRunningBanner job={activeGeneration} onOpen={() => navigate(VIEWS.builder)} />
+          )}
+          {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
+          {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (
+            <StorageNoticeBanner text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
+          )}
+          <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
+            <Suspense fallback={<PageLoadingFallback />}>
+              {view === VIEWS.home && (
+                <HomePage
+                  books={savedBooks}
+                  onNewBook={handleNewBook}
+                  onOpenBook={handleOpenBook}
+                  onOpenDestination={handleOpenDestination}
+                  onRefresh={() => setSavedBooks(getStoredRoutebooks(profile.id))}
+                />
+              )}
+              {view === VIEWS.destination && (
+                <DestinationPage
+                  city={destinationCity}
+                  onBack={handleBack}
+                  onOpenBook={handleOpenBook}
+                  onNewBook={handleNewBook}
+                  onOpenDestination={handleOpenDestination}
+                />
+              )}
+              {view === VIEWS.builder && (
+                <BuilderFlow
+                  modelHealth={modelHealth}
+                  defaults={builderDefaults}
+                  onGenerated={handleGenerated}
+                  onProfileChanged={handleProfileChanged}
+                  onModelHealth={setModelHealth}
+                  onBack={handleBack}
+                />
+              )}
+              {view === VIEWS.route && routebookMatchesLocation && (
+                <RouteView
+                  routebook={routebook}
+                  setRoutebook={setRoutebook}
+                  onSaved={handleRouteViewSaved}
+                  onCustomize={handleCustomize}
+                  onStartTrip={handleStartTrip}
+                  onBack={handleBack}
+                />
+              )}
+              {view === VIEWS.route && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+              {view === VIEWS.share && sharePublicId && (
+                <PublicSharePage
+                  publicId={sharePublicId}
+                  onBack={handleBack}
+                  onSave={handleSaveSharedRoutebook}
+                  onUse={handleUseSharedRoutebook}
+                  onCustomize={handleCustomize}
+                  onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
+                />
+              )}
+              {view === VIEWS.publicReview && sharePublicId && <PublicReviewPage publicId={sharePublicId} onBack={handleBack} />}
+              {view === VIEWS.trip && routebookMatchesLocation && (
+                <TripView
+                  key={activeRouteId}
+                  routebook={routebook}
+                  onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })}
+                  onReview={handleShowReview}
+                />
+              )}
+              {view === VIEWS.trip && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+              {view === VIEWS.review && routebookMatchesLocation && (
+                <ReviewPage routebook={routebook} onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })} />
+              )}
+              {view === VIEWS.review && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
+              {view === VIEWS.ops && <OpsPage />}
+              {view === VIEWS.my && (
+                <MyPage
+                  onOpenBook={handleOpenBook}
+                  onNewBook={handleNewBook}
+                  onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
+                  onProfileChanged={handleProfileChanged}
+                  onLocalBooksChanged={handleLocalBooksChanged}
+                />
+              )}
+              {view === VIEWS.creator && creatorId && (
+                <CreatorPage
+                  creatorId={creatorId}
+                  onBack={handleBack}
+                  onOpenBook={handleOpenBook}
+                  onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}
+                />
+              )}
+              {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
+              {view === VIEWS.privacy && <PrivacyPage onBack={() => navigate(VIEWS.home)} />}
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    </AccountProvider>
   );
 }
 

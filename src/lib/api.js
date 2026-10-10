@@ -14,6 +14,8 @@ async function readApiResponse(response) {
     error.status = response.status;
     error.code = data.code;
     error.requestId = requestId;
+    // Lets the account layer offer the login sheet wherever a gated action was refused.
+    if (data.code === 'LOGIN_REQUIRED' && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('lushu:login-required'));
     if (data.details && typeof data.details === 'object') error.details = data.details;
     if (Number.isInteger(Number(data.currentVersion)) && Number(data.currentVersion) >= 0) {
       error.currentVersion = Number(data.currentVersion);
