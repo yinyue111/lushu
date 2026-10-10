@@ -68,3 +68,39 @@ export function createClient(baseUrl) {
   };
   return client;
 }
+
+/** Mails written by MAIL_TRANSPORT=file under <dataDir>/mail-outbox, oldest first. */
+export async function readOutbox(dataDir) {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const dir = join(dataDir, 'mail-outbox');
+  let names = [];
+  try {
+    names = (await readdir(dir)).sort();
+  } catch {
+    return [];
+  }
+  return Promise.all(names.map(async (name) => JSON.parse(await readFile(join(dir, name), 'utf8'))));
+}
+export const lastMailTo = async (dataDir, to) => (await readOutbox(dataDir)).filter((m) => m.to === to).at(-1) ?? null;
+export const codeIn = (mail) => /\b(\d{6})\b/.exec(mail?.text ?? '')?.[1] ?? '';
+
+/**
+ * Full sign-up with an emailed code (works whether or not EMAIL_VERIFICATION_REQUIRED is on).
+ * @param {{ dataDir: string }} server @param {any} client @param {string} email @param {{ phone?: string, password: string }} options
+ */
+export async function signUpWithEmail(server, client, email, { phone = '', password }) {
+  await client.request('/api/auth/register/code', { method: 'POST', body: { email, humanCheck: await client.humanCheck('mail') } });
+  return client.request('/api/auth/register', {
+    method: 'POST',
+    body: {
+      email,
+      phone,
+      password,
+      inviteCode: INVITE,
+      acceptPrivacy: true,
+      emailCode: codeIn(await lastMailTo(server.dataDir, email)),
+      humanCheck: await client.humanCheck('register')
+    }
+  });
+}

@@ -13,13 +13,16 @@ import {
   verifyProfileReadAccess,
   verifySensitiveOrProfileReadAccess,
   verifySensitiveReadAccess,
-  requireLoginForWrites
+  requireLoginForWrites,
+  requestAccount
 } from '../auth/request-access.mjs';
+import { accountProfileIds } from '../accounts/service.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { getCuratedRoutebook, getResolvableRoutebook, isCuratedRouteId } from '../routebooks/normalize.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
+import { getSavedRoutebook } from '../storage/records.mjs';
 import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook, listRoutebookAudits, listRoutebookVersionRows } from '../routebooks/versions.mjs';
 import { isPublicRoutebook, publicRoutebookView } from '../routebooks/views.mjs';
@@ -100,8 +103,13 @@ export const routebookRoutes = [
       .filter(Boolean);
     const allRequestedStatusesPublic = statuses.length > 0 && statuses.every((status) => PUBLIC_ROUTE_STATUSES.has(status));
     const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
+    // Signed in and asking for the account's own profile: list every profile the account owns
+    // (claimed device profiles too), so "我的路书" is the same on every device.
+    let ownedProfiles = profileId ? new Set([profileId]) : null;
     if (profileId) {
       await verifySensitiveOrProfileReadAccess(req, profileId);
+      const account = await requestAccount(req);
+      if (account && account.user.primaryProfileId === profileId) ownedProfiles = new Set(await accountProfileIds(account.user));
     } else if (!privilegedRead && !allRequestedStatusesPublic) {
       verifyAdminAccess(req);
     }
@@ -113,7 +121,7 @@ export const routebookRoutes = [
       pageLimit + 1,
       (routebook) =>
         (!city || routebook.city === city) &&
-        (!profileId || normalizeProfileId(routebook.profileId) === profileId) &&
+        (!ownedProfiles || ownedProfiles.has(normalizeProfileId(routebook.profileId))) &&
         (!statuses.length || statuses.includes(routebook.publishStatus || 'draft')) &&
         // Anonymous public listings skip routebooks withheld by moderation.
         (privilegedRead || profileId || !allRequestedStatusesPublic || isPublicRoutebook(routebook)) &&
@@ -244,6 +252,30 @@ export const routebookRoutes = [
       versions,
       audits
     });
+  }),
+  // Owner deletes a saved routebook (cloud copy). Append-only: a new version carrying deletedAt;
+  // listings, reads and exports skip it. Public share links stop working.
+  route('DELETE', '/api/routebooks/:id', async ({ req, res, params }) => {
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    if (!id || isCuratedRouteId(id)) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+    const result = await withStorageEntityLock('routebook', id, async () => {
+      const current = await getSavedRoutebook(id);
+      if (!current || current.tombstone || current.deletedAt) return { deleted: false, alreadyGone: true };
+      const owner = normalizeProfileId(current.profileId);
+      const ownerOk = owner !== 'anonymous' && (await verifyProfileReadAccess(req, owner));
+      const editToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
+      const tokenOk = owner === 'anonymous' && editToken && current.editTokenHash && safeTokenEqual(hashSecretToken(editToken), current.editTokenHash);
+      if (!ownerOk && !tokenOk) throw createHttpError('只能删除自己的路书', 403, 'ROUTEBOOK_DELETE_FORBIDDEN');
+      const version = Math.max(1, Number(current.version) || 1);
+      const now = new Date().toISOString();
+      await appendVersionedRoutebook(
+        { ...current, version: version + 1, parentVersion: version, updatedAt: now, deletedAt: now, changeReason: '用户删除' },
+        'deleted-by-owner'
+      );
+      return { deleted: true };
+    });
+    return sendJson(res, 200, { ok: true, id, ...result });
   }),
   route('GET', '/api/routebooks/:id', async ({ req, res, params }) => {
     // 单路书详情要做全文件反扫 + enrich，读放大明显，挂公共读桶防刷。
