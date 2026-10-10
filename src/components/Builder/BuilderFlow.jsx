@@ -462,7 +462,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   async function next() {
-    if (step >= 1 && !guardLogin('导入攻略、生成路书要用到 AI。登录后会接着刚才这一步，你填的内容都在。', () => nextRef.current())) return;
+    if (step >= 1 && !guardLogin('这一步要用 AI，需要先登录。你填的内容都在，登录后接着往下走。', () => nextRef.current())) return;
     if (step === 0) {
       // 城市为空或被清空时留在本步，属预期校验拦截。
       if (!commitCity()) return;
@@ -727,7 +727,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
-          填写和挑地点不用登录。到「下一步」导入攻略、生成路书时，需要先登录。{' '}
+          可以先填着。点「下一步」之前要先登录。{' '}
           <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             现在登录
           </button>

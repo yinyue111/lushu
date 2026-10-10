@@ -18,9 +18,7 @@ export function AccountSection() {
           账号
         </h2>
         <p className="mt-1 text-sm text-muted">
-          {required
-            ? '现在没登录：看路线、在本机走行程都可以。导入攻略、生成路书、打卡和跨设备同步需要登录。'
-            : '登录后，路书和行程跟着账号走，换手机也能接着用。'}
+          {required ? '没登录也能看路线、在本机走行程。导入攻略、生成路书、打卡和换设备同步，要先登录。' : '登录后，路书和行程跟着账号走，换手机也能接着用。'}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="primary" size="sm" onClick={() => openLogin('login')}>
