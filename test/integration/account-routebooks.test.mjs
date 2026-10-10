@@ -31,7 +31,7 @@ test('routebooks generated while signed in are saved to the account and survive 
   });
   await new Promise((resolve) => provider.listen(0, '127.0.0.1', () => resolve(undefined)));
   const port = /** @type {import('node:net').AddressInfo} */ (provider.address()).port;
-  const server = await startServer({ env: authEnv('login', { OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`, GENERATION_JOB_POLL_WAIT_MS: '2000' }) });
+  const server = await startServer({ env: authEnv('login', { OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`, GENERATION_JOB_POLL_WAIT_MS: '2000', GENERATION_DEDUP_TTL_MS: '600000' }) });
   t.after(async () => {
     await server.stop();
     provider.closeAllConnections();
