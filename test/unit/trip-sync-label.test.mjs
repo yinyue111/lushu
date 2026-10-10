@@ -8,7 +8,7 @@ test('queued check-ins do not promise an automatic upload while 云端同步 is 
   assert.match(model, /if \(cloudSyncOff\) return '只存在这台设备上';/);
   const view = readFileSync(new URL('../../src/components/Trip/TripView.jsx', import.meta.url), 'utf8');
   assert.match(view, /syncStatusLabel\(statusEvidence\.syncStatus, statusCheckin, \{ cloudSyncOff \}\)/);
-  assert.match(view, /「我的 → 账户」开启云端同步/);
+  assert.match(view, /「我的 → 账号」开启云端同步/);
 });
 
 test('review page does not send users to a publish step that is switched off', () => {

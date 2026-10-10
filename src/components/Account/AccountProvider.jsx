@@ -133,6 +133,8 @@ export function AccountProvider({ children, onProfileChanged }) {
       {children}
       {sheet && (
         <LoginSheet
+          // The sheet keeps its own view state; remount when it switches to the recovery codes.
+          key={sheet.view === 'codes' ? 'codes' : 'auth'}
           initialView={sheet.view}
           reason={sheet.reason}
           codes={sheet.codes}

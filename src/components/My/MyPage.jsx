@@ -289,7 +289,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     { id: 'routebooks', icon: Route, label: '路书', count: books.length },
     { id: 'favorites', icon: Heart, label: '收藏', count: favorites.length },
     { id: 'checkins', icon: Camera, label: '打卡', count: checkins.length },
-    { id: 'account', icon: UserRound, label: '账户' }
+    { id: 'account', icon: UserRound, label: '账号' }
   ];
   const displayName = profile.creatorName || '旅行者';
 

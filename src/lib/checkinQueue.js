@@ -213,7 +213,7 @@ export async function flushAllCheckinQueues({ profile, signal } = {}) {
     if (activeProfile?.id && activeProfile.id !== 'anonymous' && !activeProfile.profileAccessToken && !activeProfile.accountUserId) {
       if (!hasProfileCloudRegistrationConsent(activeProfile)) {
         result.registrationError = '尚未开启云端同步';
-        result.guidance = '反馈保留在本机；请在「我的 → 账户」明确开启云端同步后再补传';
+        result.guidance = '反馈保留在本机；请在「我的 → 账号」明确开启云端同步后再补传';
         return result;
       }
       try {

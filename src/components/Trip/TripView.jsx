@@ -661,7 +661,7 @@ export default function TripView({ routebook, onBack, onReview }) {
                   </p>
                 )}
                 {cloudSyncOff && !guestLocalOnly && statusEvidence.syncStatus !== 'synced' && (
-                  <p className="mt-0.5 text-meta text-ink-2">要让打卡计入路线可信度，请先在「我的 → 账户」开启云端同步，开启后会自动补传。</p>
+                  <p className="mt-0.5 text-meta text-ink-2">要让打卡计入路线可信度，请先在「我的 → 账号」开启云端同步，开启后会自动补传。</p>
                 )}
                 {pendingSyncCount > 1 && !cloudSyncOff && (
                   <p className="mt-0.5 text-meta text-muted">另有 {pendingSyncCount - 1} 条记录等待上传，联网后会自动补传。</p>

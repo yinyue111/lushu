@@ -49,7 +49,7 @@ export function Notice({ tone = 'warn', role = 'status', children, className }) 
 function StepTitle({ title, sub }) {
   return (
     <div className="mb-5">
-      <h2 className="text-2xl font-black tracking-tight lg:text-display-sm">{title}</h2>
+      <h1 className="text-2xl font-black tracking-tight lg:text-display-sm">{title}</h1>
       {sub && <p className="mt-1 text-sm text-muted">{sub}</p>}
     </div>
   );
