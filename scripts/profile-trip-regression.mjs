@@ -217,7 +217,9 @@ try {
   assert.equal((await request(`/profile/export?profileId=${profile.id}`, { profile })).status, 410);
   assert.equal((await fetch(`${base}/api/checkin-photos/${photoId}`, { headers: { 'x-routebook-admin-token': 'profile-trip-admin' } })).status, 404);
   const staleTokenSave = await request('/routebooks', { method: 'POST', body: { ...ownedDraft, profileId: 'anonymous', expectedVersion: 2 } });
-  assert.equal(staleTokenSave.status, 403, JSON.stringify(staleTokenSave.data));
+  // Deleted with the profile: the id is tombstoned, so the stale copy gets a clear 410, not a generic 403.
+  assert.equal(staleTokenSave.status, 410, JSON.stringify(staleTokenSave.data));
+  assert.equal(staleTokenSave.data.code, 'ROUTEBOOK_DELETED');
   const adminBooksAfterDeletion = await request('/routebooks', { admin: true });
   assert.equal(adminBooksAfterDeletion.status, 200);
   assert.equal(
