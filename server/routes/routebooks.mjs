@@ -12,7 +12,8 @@ import {
   verifyAdminAccess,
   verifyProfileReadAccess,
   verifySensitiveOrProfileReadAccess,
-  verifySensitiveReadAccess
+  verifySensitiveReadAccess,
+  requireLoginForWrites
 } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
@@ -55,6 +56,7 @@ async function ownerPublicationFields(routebook) {
  */
 function friendLinkRoute(method) {
   return route(method, '/api/routebooks/:id/friend-link', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
@@ -162,6 +164,7 @@ export const routebookRoutes = [
     });
   }),
   route('POST', '/api/routebooks/:id/publish', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
@@ -193,6 +196,7 @@ export const routebookRoutes = [
     });
   }),
   route('POST', '/api/routebooks/:id/copy', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
@@ -273,6 +277,7 @@ export const routebookRoutes = [
     });
   }),
   route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);
@@ -287,6 +292,7 @@ export const routebookRoutes = [
     });
   }),
   route('POST', '/api/routebooks', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);
@@ -330,6 +336,7 @@ export const routebookRoutes = [
     });
   }),
   route('POST', '/api/favorites', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);
@@ -348,6 +355,7 @@ export const routebookRoutes = [
   }),
   // F14: un-favorite appends a tombstone (the log stays append-only and auditable).
   route('DELETE', '/api/favorites', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);

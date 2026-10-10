@@ -45,7 +45,11 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   mapTileProviders?: Array<{ id: string, key?: string }>,
  *   allowOsmBasemapInProduction?: boolean,
  *   aiProviderRegion?: string,
- *   moderationProvider?: string
+ *   moderationProvider?: string,
+ *   authEnabled?: boolean,
+ *   authPhoneHashSecret?: string,
+ *   registrationMode?: string,
+ *   registrationInviteCode?: string
  * }} input
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -114,6 +118,18 @@ export function evaluateStartupSafety(input) {
 
   if (input.isProduction && !input.publicBaseUrl) {
     warnings.push('PUBLIC_BASE_URL is not set; share pages fall back to the request Host header for og:image URLs.');
+  }
+  if (input.authEnabled) {
+    if (!input.authPhoneHashSecret) {
+      errors.push(
+        'AUTH_MODE enables accounts but AUTH_PHONE_HASH_SECRET is missing (>=32 random bytes; back it up: losing it makes every account unfindable).'
+      );
+    } else if (input.isProduction && String(input.authPhoneHashSecret).length < 32) {
+      errors.push('AUTH_PHONE_HASH_SECRET must be at least 32 characters.');
+    }
+    if (input.isProduction && input.registrationMode === 'invite' && !input.registrationInviteCode) {
+      warnings.push('REGISTRATION_MODE=invite without REGISTRATION_INVITE_CODE or ROUTEBOOK_API_TOKEN: nobody can register.');
+    }
   }
   return { errors, warnings };
 }

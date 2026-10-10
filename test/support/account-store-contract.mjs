@@ -13,8 +13,11 @@ export async function runAccountStoreContract(store) {
   };
   const user = await store.createUser({ ...base, id: 'u_a', phoneHash: 'h1', primaryProfileId: 'p_a' });
   assert.equal(user.id, 'u_a');
-  await assert.rejects(store.createUser({ ...base, id: 'u_b', phoneHash: 'h1', primaryProfileId: 'p_b' }), (e) => e.code === 'PHONE_TAKEN');
-  await assert.rejects(store.createUser({ ...base, id: 'u_c', phoneHash: 'h2', primaryProfileId: 'p_a' }), (e) => e.code === 'PROFILE_TAKEN');
+  await assert.rejects(store.createUser({ ...base, id: 'u_b', phoneHash: 'h1', primaryProfileId: 'p_b' }), (/** @type {any} */ e) => e.code === 'PHONE_TAKEN');
+  await assert.rejects(
+    store.createUser({ ...base, id: 'u_c', phoneHash: 'h2', primaryProfileId: 'p_a' }),
+    (/** @type {any} */ e) => e.code === 'PROFILE_TAKEN'
+  );
   assert.equal((await store.findUserByPhoneHash('h1')).id, 'u_a');
   assert.equal(await store.findUserByPhoneHash('nope'), null);
 
@@ -52,5 +55,8 @@ export async function runAccountStoreContract(store) {
   assert.equal(await store.findUserIdByProfile('p_old'), 'u_d');
   assert.equal(await store.findUserIdByProfile('p_d'), 'u_d');
   assert.deepEqual(await store.listLinkedProfiles('u_d'), ['p_old']);
-  await assert.rejects(store.createUser({ ...base, id: 'u_e', phoneHash: 'h9', primaryProfileId: 'p_old' }), (e) => e.code === 'PROFILE_TAKEN');
+  await assert.rejects(
+    store.createUser({ ...base, id: 'u_e', phoneHash: 'h9', primaryProfileId: 'p_old' }),
+    (/** @type {any} */ e) => e.code === 'PROFILE_TAKEN'
+  );
 }

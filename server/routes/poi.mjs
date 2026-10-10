@@ -1,6 +1,6 @@
 // POI API routes.
 import { safeDecodePathSegment, sanitizePublicId, clampNumber, createHttpError, normalizeCityName, truncateString } from '../lib/util.mjs';
-import { verifyAdminAccess, verifySensitiveReadAccess } from '../auth/request-access.mjs';
+import { verifyAdminAccess, verifySensitiveReadAccess, requireLoginForWrites } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { updatePoiCorrectionStatus, listPoiCorrections, listPoiKnowledge, normalizePoiCorrection } from '../poi/knowledge.mjs';
@@ -102,6 +102,7 @@ export const poiRoutes = [
     return sendJson(res, 200, { ok: true, ...(await buildPoiCoverageSnapshot()) });
   }),
   route('POST', '/api/poi-corrections', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req);
     const correction = normalizePoiCorrection(await readJsonBody(req));
     await appendJsonLine(POI_CORRECTION_LOG_PATH, correction);

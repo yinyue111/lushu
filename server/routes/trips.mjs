@@ -1,5 +1,6 @@
 import { safeDecodePathSegment, sanitizePublicId } from '../lib/util.mjs';
 import { route } from '../http/router.mjs';
+import { requireLoginForWrites } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { requireProfileOwnerAccess } from '../auth/profile-lifecycle.mjs';
@@ -7,6 +8,7 @@ import { getTripSessionSnapshot, requireTripSessionRouteAccess, saveTripSessionS
 
 export const tripRoutes = [
   route('GET', '/api/trip-sessions/:id', async ({ req, res, url, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'public-read');
     const actor = await requireProfileOwnerAccess(req, url.searchParams.get('profileId'));
     const routeId = sanitizePublicId(safeDecodePathSegment(params.id));
@@ -14,6 +16,7 @@ export const tripRoutes = [
     return sendJson(res, 200, { ok: true, session: await getTripSessionSnapshot(routeId, actor.profileId) });
   }),
   route('POST', '/api/trip-sessions/:id', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const actor = await requireProfileOwnerAccess(req, body.profileId);

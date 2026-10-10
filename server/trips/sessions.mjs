@@ -83,3 +83,24 @@ export async function saveTripSessionSnapshot(routeId, input, actor) {
     return snapshot;
   });
 }
+
+/**
+ * Login claim: carries a device profile's in-progress trip over to the account's profile, unless the
+ * account already has one for this route. Returns true when a copy was written.
+ */
+export async function copyTripSessionToProfile(routeId, fromProfileId, toProfileId) {
+  const from = normalizeProfileId(fromProfileId);
+  const to = normalizeProfileId(toProfileId);
+  if (from === to || from === 'anonymous' || to === 'anonymous') return false;
+  return withActiveProfileMutation(to, async () => {
+    const source = await getTripSessionSnapshot(routeId, from);
+    if (!source || (await getTripSessionSnapshot(routeId, to))) return false;
+    const key = sessionKey(routeId, to);
+    await appendJsonLine(
+      TRIP_SESSION_LOG_PATH,
+      { ...source, id: key, sessionKey: key, profileId: to, revision: 1, updatedAt: new Date().toISOString() },
+      { profileMutationLocked: true }
+    );
+    return true;
+  });
+}

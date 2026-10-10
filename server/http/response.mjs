@@ -80,6 +80,8 @@ export async function readJsonBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
   }
   const raw = Buffer.concat(chunks).toString('utf8');
   if (!raw) return {};
+  // A body without a Content-Type is how a cross-site no-cors request would look; JSON callers always declare it.
+  if (!contentType) throw createHttpError('请求 Content-Type 必须是 application/json', 415, 'UNSUPPORTED_MEDIA_TYPE');
   try {
     return JSON.parse(raw);
   } catch {

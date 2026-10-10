@@ -53,6 +53,6 @@ test('human check: signed, purpose-bound, single use', () => {
   assert.throws(() => assertHumanCheck({ challenge: challenge.replace(/.$/, '0'), nonce }, 'register'));
   assert.throws(
     () => assertHumanCheck({}, 'register'),
-    (e) => e.code === 'HUMAN_CHECK_REQUIRED'
+    (/** @type {any} */ e) => e.code === 'HUMAN_CHECK_REQUIRED'
   );
 });

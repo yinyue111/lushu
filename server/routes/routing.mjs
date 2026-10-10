@@ -1,7 +1,7 @@
 // Manual re-verification of persisted routes is an audited operator action.
 import { route } from '../http/router.mjs';
 import { bindRequestAbortSignal, readJsonBody, sendJson } from '../http/response.mjs';
-import { resolveWriteProfile, verifyAdminAccess } from '../auth/request-access.mjs';
+import { resolveWriteProfile, verifyAdminAccess, requireLoginForWrites } from '../auth/request-access.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { createHttpError, safeDecodePathSegment, sanitizePublicId } from '../lib/util.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
@@ -57,6 +57,7 @@ export const routingRoutes = [
   // Owner self-service: re-geocode replaced/moved stops and re-verify the legs they touch.
   // Drafts only (public routebooks are re-checked by ops above); rate-limited (AMap quota).
   route('POST', '/api/routebooks/:id/recheck', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'recheck');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const body = await readJsonBody(req);

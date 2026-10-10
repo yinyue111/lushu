@@ -8,6 +8,7 @@ import { getSavedProfile, getSavedRoutebook } from '../storage/records.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { cryptoRandomId, hashSecretToken, hmacText, normalizeProfileId, safeTokenEqual, sanitizeEditToken } from './tokens.mjs';
 import { readCheckinPhotoContent } from '../photos/photo-content.mjs';
+import { accountOwnsProfile } from './request-access.mjs';
 
 const OWNED_STREAMS = [
   ['routebooks', config.ROUTEBOOK_LOG_PATH],
@@ -52,6 +53,18 @@ export function installProfileWriteGuard() {
 
 export async function requireProfileOwnerAccess(req, requestedProfileId, { allowDeleted = false } = {}) {
   const profileId = normalizeProfileId(requestedProfileId);
+  // A signed-in account owns its primary and claimed profiles without the device token.
+  const account = profileId !== 'anonymous' ? await accountOwnsProfile(req, profileId) : null;
+  if (account) {
+    const profile = await getSavedProfile(profileId);
+    if (!profile) throw createHttpError('个人资料不存在或尚未同步', 404, 'PROFILE_NOT_FOUND');
+    const tokenHash = hashSecretToken(`account:${account.user.id}`);
+    if (isUnavailableProfile(profile)) {
+      if (allowDeleted && safeTokenEqual(tokenHash, profile.deletionTokenHash)) return { profileId, profile, tokenHash, deleted: true };
+      throw createHttpError('该个人资料已注销', 410, 'PROFILE_DELETED');
+    }
+    return { profileId, profile, tokenHash, deleted: false };
+  }
   const headerId = normalizeProfileId(req.headers['x-routebook-profile-id']);
   const token = sanitizeEditToken(req.headers['x-routebook-profile-token']);
   if (profileId === 'anonymous' || headerId !== profileId || !token) {

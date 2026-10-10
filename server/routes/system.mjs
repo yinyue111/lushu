@@ -1,6 +1,6 @@
 // System/config API routes.
 import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
-import { apiAccessState, hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
+import { planningAccessState, hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
 import { writeConfigDocument } from '../storage/config-documents.mjs';
 import { cities as supportedCities, getRegionForCity, isSupportedCity, regionCityGroups } from '../../src/lib/chinaCities.js';
 import { redactBaseUrl } from '../ai/runtime.mjs';
@@ -51,10 +51,16 @@ export const systemRoutes = [
       const runtime = await loadCodexRuntime();
       // `ready` means "this caller can generate now": the model is configured AND the
       // caller has API access (a production deployment without the access code is not ready).
-      const access = apiAccessState(req);
+      const access = await planningAccessState(req);
       const ready = runtime.ready && access === 'open';
       const accessReason =
-        access === 'needs-access-code' ? '需要平台访问码：请在「高级设置」填写访问码' : access === 'disabled' ? '此部署暂未开放在线生成' : '';
+        access === 'needs-login'
+          ? '登录后就能生成路书'
+          : access === 'needs-access-code'
+            ? '需要平台访问码：请在「高级设置」填写访问码'
+            : access === 'disabled'
+              ? '此部署暂未开放在线生成'
+              : '';
       // L5: provider/model/base URL and the precise not-ready reason describe the
       // deployment's configuration; in production only operators get them.
       const detailed = !IS_PRODUCTION || (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);

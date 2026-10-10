@@ -4,7 +4,7 @@ import { PROFILE_LOG_PATH, REVIEW_LOG_PATH } from '../config/index.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 import { getSavedReview } from '../storage/records.mjs';
-import { resolveWriteProfile } from '../auth/request-access.mjs';
+import { resolveWriteProfile, requireLoginForWrites } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -52,6 +52,7 @@ export const profileRoutes = [
     return sendJson(res, 200, { ok: true, ...(await deleteProfileData(req, await readJsonBody(req))) });
   }),
   route('POST', '/api/reviews', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const routeId = sanitizePublicId(body?.routebookId || body?.routeId || body?.publicId || body?.routebook?.publicId || body?.routebook?.id);

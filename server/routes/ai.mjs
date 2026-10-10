@@ -17,7 +17,8 @@ import {
   hasAdminAccess,
   requestClientKey,
   resolveWriteProfile,
-  verifyApiAccess,
+  verifyPlanningAccess,
+  requestAccount,
   verifyProfileReadAccess,
   verifySensitiveReadAccess
 } from '../auth/request-access.mjs';
@@ -38,15 +39,22 @@ import {
   waitForGenerationJob
 } from '../ai/generationJobs.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
+import { quotaForUser } from '../accounts/service.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { buildAiObservabilitySummary, normalizeAiGenerationStages, normalizeCostEstimate, normalizeStoredModelUsage } from '../analytics/aiObservability.mjs';
 
 const IMPORT_STATUS_TEXT = { fetched: '已读取公开内容', 'metadata-only': '只识别到链接', unavailable: '页面已删除或需登录', failed: '抓取失败' };
 
+// Signed-in accounts use their own quota (ops can override it per user); everyone else the default.
+async function quotaOptionsFor(req) {
+  const account = await requestAccount(req);
+  return account ? { quota: quotaForUser(account.user) } : {};
+}
+
 export const aiRoutes = [
   route('POST', '/api/ocr-guide', async ({ req, res }) => {
     enforceRateLimit(req, 'ai');
-    verifyApiAccess(req);
+    await verifyPlanningAccess(req);
     const body = await readJsonBody(req, MAX_OCR_REQUEST_BYTES);
     const images = (Array.isArray(body?.images) ? body.images : []).slice(0, MAX_OCR_IMAGES).map((image, index) => normalizeOcrImage(image, index));
     if (!images.length) throw createHttpError('请上传至少 1 张攻略截图', 400, 'OCR_IMAGE_REQUIRED');
@@ -56,21 +64,21 @@ export const aiRoutes = [
     // Synchronous (legacy) generation: holds the request until the routebook is saved.
     // The web app uses /api/generation-jobs; this stays for scripts and older clients.
     enforceRateLimit(req, 'ai');
-    verifyApiAccess(req);
+    await verifyPlanningAccess(req);
     const sanitizedPayload = sanitizePayload(await readJsonBody(req));
     const actor = await resolveWriteProfile(req, sanitizedPayload.profileId);
     const payload = { ...sanitizedPayload, profileId: actor.profileId };
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
-      await enforceGenerationQuota(normalizeProfileId(payload.profileId));
+      await enforceGenerationQuota(normalizeProfileId(payload.profileId), await quotaOptionsFor(req));
       return generateAndStoreRoutebook(payload, { signal: bindRequestAbortSignal(req), requestId });
     });
     return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
   }),
   route('POST', '/api/generation-jobs', async ({ req, res }) => {
     enforceRateLimit(req, 'ai');
-    verifyApiAccess(req);
+    await verifyPlanningAccess(req);
     const sanitizedPayload = sanitizePayload(await readJsonBody(req));
     const actor = await resolveWriteProfile(req, sanitizedPayload.profileId);
     const payload = { ...sanitizedPayload, profileId: actor.profileId };
@@ -83,7 +91,7 @@ export const aiRoutes = [
       : '';
     const duplicate = findDuplicateGenerationJob(dedupKey);
     if (duplicate) return sendJson(res, 200, { ok: true, deduplicated: true, job: generationJobSnapshot(duplicate) });
-    await enforceGenerationQuota(profileId);
+    await enforceGenerationQuota(profileId, await quotaOptionsFor(req));
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
     const { job, deduplicated } = startGenerationJob({
       dedupKey,
@@ -105,7 +113,7 @@ export const aiRoutes = [
     '/api/generation-jobs/:id',
     async ({ req, res, params, url }) => {
       enforceRateLimit(req, 'public-read');
-      verifyApiAccess(req);
+      await verifyPlanningAccess(req);
       const job = await readableGenerationJob(req, params.id);
       const after = Number(url.searchParams.get('after'));
       if (Number.isInteger(after) && after >= 0) {
@@ -120,7 +128,7 @@ export const aiRoutes = [
     '/api/generation-jobs/:id/cancel',
     async ({ req, res, params }) => {
       enforceRateLimit(req, 'core-write');
-      verifyApiAccess(req);
+      await verifyPlanningAccess(req);
       const job = await readableGenerationJob(req, params.id);
       cancelGenerationJob(job);
       return sendJson(res, 200, { ok: true, job: generationJobSnapshot(job) });
@@ -144,7 +152,7 @@ export const aiRoutes = [
   }),
   route('POST', '/api/import-guide', async ({ req, res }) => {
     enforceRateLimit(req, 'ai');
-    verifyApiAccess(req);
+    await verifyPlanningAccess(req);
     const body = await readJsonBody(req);
     const urls = Array.isArray(body?.urls) ? body.urls.map((item) => truncateString(item, 800)).filter(Boolean) : extractUrls(body?.text);
     if (!urls.length) {

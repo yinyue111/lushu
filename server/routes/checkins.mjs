@@ -21,7 +21,7 @@ import {
 import { appendJsonLine, findLatestJsonLine, readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { withStorageEntityLock } from '../storage/runtime.mjs';
 import { cryptoRandomId, normalizeProfileId } from '../auth/tokens.mjs';
-import { resolveWriteProfile, verifySensitiveOrProfileReadAccess } from '../auth/request-access.mjs';
+import { resolveWriteProfile, verifySensitiveOrProfileReadAccess, requireLoginForWrites } from '../auth/request-access.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { moderateAndQueue } from '../moderation/index.mjs';
 import { route } from '../http/router.mjs';
@@ -45,6 +45,7 @@ import { resolveProductAttribution } from '../content/cms.mjs';
 export const checkinRoutes = [
   // rank13①：照片打卡上传，鉴权与 POST /api/checkins 同级（rate limit + owner headers）。
   route('POST', '/api/checkin-photos', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req, MAX_CHECKIN_PHOTO_REQUEST_BYTES);
     // 照片必须归属已注册身份：resolveWriteProfile 对缺失/anonymous profileId
@@ -76,6 +77,7 @@ export const checkinRoutes = [
     throw createHttpError('照片不存在或已清理', 404, 'PHOTO_NOT_FOUND');
   }),
   route('POST', '/api/checkins', async ({ req, res }) => {
+    await requireLoginForWrites(req);
     enforceRateLimit(req, 'core-write');
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId, { requireRegistered: true });

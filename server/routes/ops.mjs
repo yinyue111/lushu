@@ -2,8 +2,10 @@ import { NO_POI_CATALOG, route } from '../http/router.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { verifyAdminAccess } from '../auth/request-access.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
-import { CHECKIN_LOG_PATH } from '../config/index.mjs';
-import { readJsonLines } from '../storage/jsonl.mjs';
+import { AI_LOG_PATH, AUTH_ENABLED, CHECKIN_LOG_PATH, GENERATION_QUOTA_WINDOW_MS } from '../config/index.mjs';
+import { readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
+import { opsListUsers, opsUpdateUser } from '../accounts/service.mjs';
+import { opsActorForRequest } from '../ops/audit.mjs';
 import { clampNumber, createHttpError, safeDecodePathSegment, sanitizePublicId } from '../lib/util.mjs';
 import { CHECKIN_OPS_FILTERS, checkinMatchesOpsFilter } from '../../src/lib/checkinOpsFilter.js';
 import { paginateRows } from '../ops/paging.mjs';
@@ -16,7 +18,52 @@ import { listPoiDuplicateQueue, listPoiMergeDecisions, recordPoiMergeDecision } 
 // Upper bound for one ops check-in scan; readJsonLines treats non-finite limits as 50.
 const OPS_CHECKIN_SCAN_LIMIT = 200000;
 
+// Generations in the current quota window per profile (one scan for the whole page of users).
+async function generationCounts(profileIds) {
+  const wanted = new Set(profileIds);
+  const since = Date.now() - GENERATION_QUOTA_WINDOW_MS;
+  const rows = await readMatchingJsonLines(
+    AI_LOG_PATH,
+    (row) =>
+      row?.kind === 'generate-routebook' &&
+      wanted.has(row?.profileId) &&
+      row?.deduplicated !== true &&
+      row?.status !== 'cancelled' &&
+      Date.parse(row?.createdAt ?? '') >= since,
+    5000,
+    50000
+  );
+  const counts = new Map();
+  for (const row of rows) counts.set(row.profileId, (counts.get(row.profileId) ?? 0) + 1);
+  return counts;
+}
+
 export const opsRoutes = [
+  route(
+    'GET',
+    '/api/ops/users',
+    async ({ req, res, url }) => {
+      enforceRateLimit(req, 'ops-read');
+      verifyAdminAccess(req);
+      if (!AUTH_ENABLED) return sendJson(res, 200, { ok: true, enabled: false, users: [] });
+      const users = await opsListUsers({ query: url.searchParams.get('q') || '', limit: Number(url.searchParams.get('limit')) || 50 });
+      const counts = await generationCounts(users.map((user) => user.profileId));
+      return sendJson(res, 200, { ok: true, enabled: true, users: users.map((user) => ({ ...user, generationsInWindow: counts.get(user.profileId) ?? 0 })) });
+    },
+    NO_POI_CATALOG
+  ),
+  route(
+    'POST',
+    '/api/ops/users/:id',
+    async ({ req, res, params }) => {
+      enforceRateLimit(req, 'ops-read');
+      verifyAdminAccess(req);
+      if (!AUTH_ENABLED) throw createHttpError('账号功能未开启', 404, 'API_NOT_FOUND');
+      const body = await readJsonBody(req);
+      return sendJson(res, 200, { ok: true, ...(await opsUpdateUser(req, safeDecodePathSegment(params.id), body, opsActorForRequest(req))) });
+    },
+    NO_POI_CATALOG
+  ),
   route(
     'GET',
     '/api/ops/review-queue',

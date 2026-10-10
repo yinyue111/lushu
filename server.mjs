@@ -5,6 +5,10 @@ import { evaluateStartupSafety } from './server/config/startup-checks.mjs';
 import {
   ALLOW_LOCAL_ADMIN_BYPASS,
   ALLOW_LOCAL_API_BYPASS,
+  AUTH_ENABLED,
+  AUTH_PHONE_HASH_SECRET,
+  REGISTRATION_INVITE_CODE,
+  REGISTRATION_MODE,
   HOST,
   IS_PRODUCTION,
   MAP_TILE_UPSTREAMS,
@@ -36,7 +40,11 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     mapTileProviders: MAP_TILE_UPSTREAMS,
     allowOsmBasemapInProduction: envFlag('ALLOW_OSM_BASEMAP_IN_PRODUCTION', false),
     aiProviderRegion: String(process.env.AI_PROVIDER_REGION ?? '').trim(),
-    moderationProvider: MODERATION_PROVIDER
+    moderationProvider: MODERATION_PROVIDER,
+    authEnabled: AUTH_ENABLED,
+    authPhoneHashSecret: AUTH_PHONE_HASH_SECRET,
+    registrationMode: REGISTRATION_MODE,
+    registrationInviteCode: REGISTRATION_INVITE_CODE
   });
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));

@@ -6,12 +6,61 @@ import {
   API_TOKEN,
   PUBLIC_MODEL_PROXY_ALLOWED,
   ADMIN_API_TOKEN,
-  ALLOW_LOCAL_ADMIN_BYPASS
+  ALLOW_LOCAL_ADMIN_BYPASS,
+  AUTH_MODE,
+  AUTH_ENABLED
 } from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { safeTokenEqual, hashSecretToken, normalizeProfileId, sanitizeEditToken } from './tokens.mjs';
 import { getSavedProfile } from '../storage/records.mjs';
 import { isIP } from 'node:net';
+import { resolveSession } from '../accounts/session.mjs';
+import { accountStore } from '../accounts/store.mjs';
+
+/** The signed-in account for this request ({ session, user }), or null. Always null in AUTH_MODE=access-code. */
+export async function requestAccount(req) {
+  if (!AUTH_ENABLED) return null;
+  return resolveSession(req);
+}
+
+/** Whether the signed-in account owns this profile id (its primary profile or a claimed device profile). */
+export async function accountOwnsProfile(req, profileId) {
+  const account = await requestAccount(req);
+  if (!account) return null;
+  const id = normalizeProfileId(profileId);
+  if (id === account.user.primaryProfileId) return account;
+  if (id !== 'anonymous' && (await accountStore().findUserIdByProfile(id)) === account.user.id) return account;
+  return null;
+}
+
+export function loginRequired() {
+  return createHttpError('请先登录', 401, 'LOGIN_REQUIRED');
+}
+
+/**
+ * Planning features (import, OCR, generation, jobs). access-code: the old access code. both: a login or
+ * the access code. login: a login is required (also locally, so the flow can be tested end to end).
+ */
+export async function verifyPlanningAccess(req) {
+  if (AUTH_MODE === 'access-code') return verifyApiAccess(req);
+  const account = await requestAccount(req);
+  if (account) {
+    if (!PUBLIC_MODEL_PROXY_ALLOWED && !(isLocalRequest(req) && ALLOW_LOCAL_API_BYPASS)) {
+      throw createHttpError('这个站点暂未开放在线生成。', 403, 'LOCAL_ONLY');
+    }
+    return account;
+  }
+  if (AUTH_MODE === 'login') throw loginRequired();
+  return verifyApiAccess(req);
+}
+
+/** In AUTH_MODE=login, account-only writes (drafts, trips, check-ins, favourites, corrections) need a login. */
+export async function requireLoginForWrites(req) {
+  if (AUTH_MODE !== 'login') return null;
+  const account = await requestAccount(req);
+  if (!account) throw loginRequired();
+  return account;
+}
 
 function isLocalAddress(address) {
   const normalized = normalizeRemoteAddress(address);
@@ -135,6 +184,19 @@ export function verifyApiAccess(req) {
 }
 
 /**
+ * planningAccessState adds 'needs-login' (AUTH_MODE=login without a session) to apiAccessState.
+ * @param {import('node:http').IncomingMessage} req
+ * @returns {Promise<'open' | 'needs-access-code' | 'needs-login' | 'disabled'>}
+ */
+export async function planningAccessState(req) {
+  if (AUTH_MODE === 'access-code') return apiAccessState(req);
+  const account = await requestAccount(req);
+  if (account) return PUBLIC_MODEL_PROXY_ALLOWED || (isLocalRequest(req) && ALLOW_LOCAL_API_BYPASS) ? 'open' : 'disabled';
+  if (AUTH_MODE === 'login') return 'needs-login';
+  return apiAccessState(req);
+}
+
+/**
  * Whether this caller could actually use the model endpoints right now.
  * - open: local bypass, or the public proxy is enabled and the access code matches
  * - needs-access-code: the public proxy is enabled but no/invalid access code was sent
@@ -188,6 +250,7 @@ export async function verifyProfileReadAccess(req, profileId) {
     return false;
   if (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) return true;
   if (hasAdminAccess(req)) return true;
+  if (await accountOwnsProfile(req, id)) return true;
   const headerProfileId = normalizeProfileId(req.headers['x-routebook-profile-id']);
   const token = sanitizeEditToken(req.headers['x-routebook-profile-token']);
   if (headerProfileId !== id || !token) return false;
@@ -195,7 +258,14 @@ export async function verifyProfileReadAccess(req, profileId) {
 }
 
 export async function resolveWriteProfile(req, requestedProfileId, { requireRegistered = false } = {}) {
-  const profileId = normalizeProfileId(requestedProfileId);
+  const requested = normalizeProfileId(requestedProfileId);
+  // A signed-in account writes as the requested profile when it owns it, otherwise as its primary profile.
+  const account = await requestAccount(req);
+  if (account) {
+    const owned = requested !== 'anonymous' && (await accountOwnsProfile(req, requested));
+    return { profileId: owned ? requested : account.user.primaryProfileId, verified: true, identityBound: true, userId: account.user.id };
+  }
+  const profileId = requested;
   if (!profileId || profileId === 'anonymous') {
     return { profileId: 'anonymous', verified: false, identityBound: false };
   }

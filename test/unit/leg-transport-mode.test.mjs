@@ -47,7 +47,7 @@ test('recheck verifies each leg with its planned mode and the proof survives sto
     }
   };
   const routebook = { id: 'rb', city: '杭州', constraints: { transport: '步行 + 打车' }, stops: [s1, s2, s3, s4] };
-  const out = await attachServerRouteLegs(routebook, undefined, provider);
+  const out = await attachServerRouteLegs(routebook, undefined, /** @type {any} */ (provider));
   assert.deepEqual(seen.sort(), ['s1>s2:walking', 's2>s3:driving', 's3>s4:driving']);
   assert.deepEqual(
     out.routeLegs.map((leg) => `${leg.mode}:${leg.status}`),

@@ -8,11 +8,13 @@ import { checkinRoutes } from './checkins.mjs';
 import { opsRoutes } from './ops.mjs';
 import { routingRoutes } from './routing.mjs';
 import { tripRoutes } from './trips.mjs';
+import { authRoutes } from './auth.mjs';
 import { refreshPoiCatalog } from '../poi/catalog.mjs';
 import { refreshModerationState } from '../moderation/index.mjs';
 import { createRouter } from '../http/router.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { sendJson } from '../http/response.mjs';
+import { assertSameOriginWrite } from '../http/csrf.mjs';
 
 const apiRoutes = [
   ...systemRoutes,
@@ -23,7 +25,8 @@ const apiRoutes = [
   ...checkinRoutes,
   ...opsRoutes,
   ...routingRoutes,
-  ...tripRoutes
+  ...tripRoutes,
+  ...authRoutes
 ];
 
 const apiRouter = createRouter(apiRoutes);
@@ -44,6 +47,7 @@ export function createApiHandler({ router, refreshCatalog }) {
       // M5: table-driven routing with exact path-segment matching (`:id` never spans '/').
       const matched = router.match(req.method, url.pathname);
       if (!matched) throw createHttpError('接口不存在', 404, 'API_NOT_FOUND');
+      assertSameOriginWrite(req);
       if (matched.route.poiCatalog) await refreshCatalog();
       return await matched.route.handler({ req, res, url, params: matched.params });
     } catch (error) {
