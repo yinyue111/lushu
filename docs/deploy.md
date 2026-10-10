@@ -93,7 +93,8 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | 变量 | 默认 | 作用 |
 | --- | --- | --- |
 | `GENERATION_QUOTA_WINDOW_MS` | `86400000` | 配额滚动窗口（24 小时） |
-| `AI_TIMEOUT_MS` | `300000` | 单次模型调用超时；grok-4.7 生成两天路书实测 140–180 秒 |
+| `AI_TIMEOUT_MS` | `300000` | 一次生成的总时长上限（所有模型调用 + 定位 + 道路核验）；到点自动停止，报 MODEL_TIMEOUT。grok-4.7 单次调用实测 85–180 秒 |
+| `AI_CALL_TIMEOUT_MS` | 同 `AI_TIMEOUT_MS` | 单次模型调用上限，且不会超过剩余的总时长 |
 | `REQUEST_TIMEOUT_MS` | `AI_TIMEOUT_MS + 90000` | 同步生成接口的 HTTP 请求超时 |
 | `HEADERS_TIMEOUT_MS` / `SHUTDOWN_GRACE_MS` | `15000` / `10000` | 请求头超时；收到 SIGTERM 后的优雅退出等待时间 |
 | `GEOCODE_TIMEOUT_MS` / `ROUTING_TIMEOUT_MS` | `5000` / `8000` | 高德定位 / 路线校验超时 |
@@ -102,7 +103,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `IMPORT_TIMEOUT_MS` | `12000` | 抓取导入链接的超时 |
 | `GENERATION_MAX_ACTIVE_JOBS` | `2` | 每个客户端同时进行的生成任务数 |
 | `GENERATION_DEDUP_TTL_MS` | `600000` | 相同请求 10 分钟内复用结果 |
-| `AI_MAX_OUTPUT_TOKENS` / `_RETRY` | `6000` / `12000` | 输出 token 上限 |
+| `AI_MAX_OUTPUT_TOKENS` / `_RETRY` | `6000` / `12000` | 输出 token 上限。第一次被截断才用 `_RETRY` 再调一次（剩余时间不够就不重试）；推理型模型的思考也算输出，常被截断的话把 `AI_MAX_OUTPUT_TOKENS` 直接调到 12000，省掉第二次调用 |
 | `JEV_SHADOW_SAMPLE_RATE` | `1` | 影子评审抽样率（0–1） |
 | `JEV_SHADOW_TIMEOUT_MS` | `800` | 单次 Jev 调用超时 |
 | `JEV_SHADOW_MAX_IN_FLIGHT` | `8` | Jev 并发上限 |
