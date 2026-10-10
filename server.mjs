@@ -8,6 +8,13 @@ import {
   AUTH_ENABLED,
   AUTH_PHONE_HASH_SECRET,
   REGISTRATION_INVITE_CODE,
+  AUTH_EMAIL_HASH_SECRET,
+  AUTH_EMAIL_ENC_KEY,
+  EMAIL_VERIFICATION_REQUIRED,
+  MAIL_TRANSPORT,
+  MAIL_TRANSPORT_INVALID,
+  MAIL_FROM,
+  MAIL_API_KEY,
   REGISTRATION_MODE,
   HOST,
   IS_PRODUCTION,
@@ -44,7 +51,14 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     authEnabled: AUTH_ENABLED,
     authPhoneHashSecret: AUTH_PHONE_HASH_SECRET,
     registrationMode: REGISTRATION_MODE,
-    registrationInviteCode: REGISTRATION_INVITE_CODE
+    registrationInviteCode: REGISTRATION_INVITE_CODE,
+    authEmailHashSecret: AUTH_EMAIL_HASH_SECRET,
+    authEmailEncKey: AUTH_EMAIL_ENC_KEY,
+    emailVerificationRequired: EMAIL_VERIFICATION_REQUIRED,
+    mailTransport: MAIL_TRANSPORT,
+    mailTransportInvalid: MAIL_TRANSPORT_INVALID,
+    mailFrom: MAIL_FROM,
+    mailApiKey: MAIL_API_KEY
   });
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));

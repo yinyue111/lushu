@@ -199,6 +199,25 @@ export const AUTH_SESSION_MAX_DAYS = envNumber('AUTH_SESSION_MAX_DAYS', 90, { mi
 export const AUTH_COOKIE_SECURE = IS_PRODUCTION || process.env.AUTH_COOKIE_SECURE !== 'false';
 export const AUTH_POW_DIFFICULTY = envNumber('AUTH_POW_DIFFICULTY', 16, { min: 0 });
 export const AUTH_SCRYPT_CONCURRENCY = envNumber('AUTH_SCRYPT_CONCURRENCY', 2, { min: 1 });
+// ---- Email (verification codes, password reset) ---------------------------------------------
+// Emails are stored as an HMAC (lookup/uniqueness), AES-256-GCM ciphertext (to send mail) and a mask.
+export const AUTH_EMAIL_HASH_SECRET = String(process.env.AUTH_EMAIL_HASH_SECRET ?? '').trim() || (IS_PRODUCTION ? '' : `dev-only:${PROFILE_ID_SECRET}:email`);
+export const AUTH_EMAIL_ENC_KEY = String(process.env.AUTH_EMAIL_ENC_KEY ?? '').trim() || (IS_PRODUCTION ? '' : `dev-only:${PROFILE_ID_SECRET}:email-enc`);
+// false only while mail delivery is not set up: accounts are created with an unverified email.
+export const EMAIL_VERIFICATION_REQUIRED =
+  String(process.env.EMAIL_VERIFICATION_REQUIRED ?? 'true')
+    .trim()
+    .toLowerCase() !== 'false';
+const MAIL_TRANSPORTS = ['file', 'log', 'resend', 'disabled'];
+const mailTransportEnv = String(process.env.MAIL_TRANSPORT ?? '')
+  .trim()
+  .toLowerCase();
+export const MAIL_TRANSPORT = MAIL_TRANSPORTS.includes(mailTransportEnv) ? mailTransportEnv : IS_PRODUCTION ? 'disabled' : 'file';
+export const MAIL_TRANSPORT_INVALID = Boolean(mailTransportEnv) && !MAIL_TRANSPORTS.includes(mailTransportEnv);
+export const MAIL_FROM = String(process.env.MAIL_FROM ?? '').trim() || (IS_PRODUCTION ? '' : '路书 <no-reply@localhost>');
+export const MAIL_API_KEY = String(process.env.MAIL_API_KEY ?? '').trim();
+export const MAIL_API_URL = String(process.env.MAIL_API_URL ?? 'https://api.resend.com/emails').trim();
+export const MAIL_OUTBOX_DIR = String(process.env.MAIL_OUTBOX_DIR ?? '').trim() || join(DATA_DIR, 'mail-outbox');
 
 export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
 export const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';

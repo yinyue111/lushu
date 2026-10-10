@@ -78,10 +78,11 @@ try {
     '0005_trip_sessions_identity_nonces.sql',
     '0006_event_row_entity_keys.sql',
     '0007_poi_merges_moderation_shadow.sql',
-    '0008_accounts.sql'
+    '0008_accounts.sql',
+    '0009_account_email.sql'
   ]);
   assert.deepEqual(firstMigration.skipped, ['0001_event_rows.sql']);
-  assert.equal(secondMigration.skipped.length, 8);
+  assert.equal(secondMigration.skipped.length, 9);
   const legacyKeyState = await pool.query(`select count(*)::int as pending from trusted_routebook.event_rows where entity_key is null`);
   assert.equal(legacyKeyState.rows[0].pending, historicalCredentialRows.length, 'rows written before 0006 keep NULL entity keys until backfilled');
 
@@ -162,7 +163,7 @@ try {
   assert.equal(cutover.markedReady, true);
   const readiness = await adapter.checkReadiness();
   assert.equal(readiness.ready, true);
-  assert.equal(readiness.schemaVersion, 8);
+  assert.equal(readiness.schemaVersion, 9);
   const wrongSecretAdapter = createPostgresAdapter({
     pool,
     profileIdSecret: 'postgres-storage-regression-wrong-secret'

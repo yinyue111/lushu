@@ -49,7 +49,14 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   authEnabled?: boolean,
  *   authPhoneHashSecret?: string,
  *   registrationMode?: string,
- *   registrationInviteCode?: string
+ *   registrationInviteCode?: string,
+ *   authEmailHashSecret?: string,
+ *   authEmailEncKey?: string,
+ *   emailVerificationRequired?: boolean,
+ *   mailTransport?: string,
+ *   mailTransportInvalid?: boolean,
+ *   mailFrom?: string,
+ *   mailApiKey?: string
  * }} input
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -126,6 +133,24 @@ export function evaluateStartupSafety(input) {
       );
     } else if (input.isProduction && String(input.authPhoneHashSecret).length < 32) {
       errors.push('AUTH_PHONE_HASH_SECRET must be at least 32 characters.');
+    }
+    if (input.authEmailHashSecret !== undefined) {
+      if (!input.authEmailHashSecret)
+        errors.push('AUTH_MODE enables accounts but AUTH_EMAIL_HASH_SECRET is missing (>=32 random bytes; back it up like AUTH_PHONE_HASH_SECRET).');
+      else if (input.isProduction && String(input.authEmailHashSecret).length < 32) errors.push('AUTH_EMAIL_HASH_SECRET must be at least 32 characters.');
+      if (!input.authEmailEncKey)
+        errors.push('AUTH_MODE enables accounts but AUTH_EMAIL_ENC_KEY is missing (>=32 random bytes; losing it makes stored emails unreadable).');
+      else if (input.isProduction && String(input.authEmailEncKey).length < 32) errors.push('AUTH_EMAIL_ENC_KEY must be at least 32 characters.');
+      if (input.mailTransportInvalid) errors.push('MAIL_TRANSPORT must be one of file, log, resend, disabled.');
+      if (input.mailTransport === 'resend' && (!input.mailApiKey || !input.mailFrom)) errors.push('MAIL_TRANSPORT=resend needs MAIL_API_KEY and MAIL_FROM.');
+      const delivers = input.mailTransport === 'resend' || (!input.isProduction && input.mailTransport === 'file');
+      if (input.emailVerificationRequired && !delivers) {
+        const message = `EMAIL_VERIFICATION_REQUIRED=true but MAIL_TRANSPORT=${input.mailTransport} does not deliver mail: nobody can register or reset a password by email.`;
+        if (input.isProduction) errors.push(`${message} Configure a mail provider or set EMAIL_VERIFICATION_REQUIRED=false for now.`);
+        else warnings.push(message);
+      }
+      if (input.isProduction && input.mailTransport === 'file')
+        warnings.push('MAIL_TRANSPORT=file in production writes mails to disk instead of sending them.');
     }
     if (input.isProduction && input.registrationMode === 'invite' && !input.registrationInviteCode) {
       warnings.push('REGISTRATION_MODE=invite without REGISTRATION_INVITE_CODE or ROUTEBOOK_API_TOKEN: nobody can register.');

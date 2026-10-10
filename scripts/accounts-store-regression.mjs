@@ -21,7 +21,7 @@ try {
   await run('createdb', ['--no-password', '--template', 'template0', '--encoding', 'UTF8', databaseName]);
   pool = createPostgresPool({ database: databaseName, applicationName: 'accounts-store-regression', max: 4 });
   const migrations = await applyPostgresMigrations(pool);
-  if (!migrations.applied.includes('0008_accounts.sql')) throw new Error('0008_accounts.sql was not applied');
+  for (const name of ['0008_accounts.sql', '0009_account_email.sql']) if (!migrations.applied.includes(name)) throw new Error(`${name} was not applied`);
   const again = await applyPostgresMigrations(pool);
   if (again.applied.length) throw new Error('migrations are not idempotent');
   await runAccountStoreContract(createPostgresStore(() => pool));
