@@ -42,6 +42,8 @@ async function runJudgment(taskName, input) {
   try {
     assertNoPersonalData(request.state);
     if (request.shuffledState) assertNoPersonalData(request.shuffledState);
+    assertNoPersonalData(request.questions ?? {}, 'questions');
+    if (request.shuffledQuestions) assertNoPersonalData(request.shuffledQuestions, 'questions');
   } catch (error) {
     await appendJsonLine(SHADOW_JUDGMENT_LOG_PATH, { ...base, ok: false, error: 'blocked-personal-data', detail: String(error.message).slice(0, 120) });
     return;
