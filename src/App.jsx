@@ -131,6 +131,10 @@ export default function App() {
       dropDeletedLocalCopy(id);
       setSavedBooks(getStoredRoutebooks(getProfile().id));
       setRoutebook((current) => (current && (current.publicId === id || current.id === id) ? null : current));
+      // If this page is that routebook, say why it is gone (and offer no 重试).
+      if (decodeURIComponent(window.location.pathname).split('/').includes(id)) {
+        setRouteLoadState({ loading: false, error: '这份路书已经删除了，打不开，也不能再保存。', retryable: false });
+      }
       setStorageNotice('这份路书已经从账号里删除了（可能是在别的设备上删的），本机的副本也已移除。');
     };
     window.addEventListener(ROUTEBOOK_DELETED_EVENT, onDeleted);
@@ -302,6 +306,12 @@ export default function App() {
       })
       .catch((error) => {
         if (ctrl.signal.aborted) return;
+        // Deleted from the account: never fall back to the (already dropped) local copy.
+        if (Number(error?.status) === 410) {
+          setRoutebook(null);
+          setRouteLoadState({ loading: false, error: routeLoadErrorMessage(error), retryable: false });
+          return;
+        }
         if (fallbackBook) {
           setRouteLoadState({
             loading: false,
