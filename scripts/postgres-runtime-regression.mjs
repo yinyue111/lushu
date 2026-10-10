@@ -227,14 +227,16 @@ try {
   assert.equal((await request(b, `${tripPath}?profileId=${profile.id}`, { profile })).status, 410);
   assert.equal((await request(b, '/profile', { method: 'POST', body: profile })).status, 410);
   const staleTokenSave = await request(b, '/routebooks', { method: 'POST', body: { ...draft, profileId: 'anonymous', expectedVersion: 3 } });
-  assert.equal(staleTokenSave.status, 403, JSON.stringify(staleTokenSave.data));
+  // Deleted with the profile: tombstoned id, so a stale copy gets a clear 410 instead of a generic 403.
+  assert.equal(staleTokenSave.status, 410, JSON.stringify(staleTokenSave.data));
+  assert.equal(staleTokenSave.data.code, 'ROUTEBOOK_DELETED');
   const listedAfterDeletion = await request(b, '/routebooks', { admin: true });
   assert.equal(listedAfterDeletion.status, 200);
   assert.equal(
     listedAfterDeletion.data.routebooks.some((book) => book.id === routeId),
     false
   );
-  assert.equal((await request(b, `/routebooks/${routeId}`, { admin: true })).status, 404);
+  assert.equal((await request(b, `/routebooks/${routeId}`, { admin: true })).status, 410);
   const survivingOwnedRows = await pool.query(
     "select count(*)::int as count from trusted_routebook.event_rows where stream <> 'profiles' and payload->>'profileId'=$1",
     [profile.id]
