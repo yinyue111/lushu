@@ -3,7 +3,7 @@ import { deletedRoutebookIds } from '../routebooks/tombstones.mjs';
 import { clampNumber, createHttpError, safeDecodePathSegment, truncateString } from '../lib/util.mjs';
 import {
   AI_LOG_PATH,
-  AI_TIMEOUT_MS,
+  GENERATION_MODES,
   GENERATION_DEDUP_TTL_MS,
   GENERATION_JOB_POLL_WAIT_MS,
   IMPORT_LOG_PATH,
@@ -74,7 +74,11 @@ export const aiRoutes = [
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
       await enforceGenerationQuota(normalizeProfileId(payload.profileId), await quotaOptionsFor(req));
-      return generateAndStoreRoutebook(payload, { signal: bindRequestAbortSignal(req), requestId, deadline: Date.now() + AI_TIMEOUT_MS });
+      return generateAndStoreRoutebook(payload, {
+        signal: bindRequestAbortSignal(req),
+        requestId,
+        deadline: Date.now() + GENERATION_MODES[payload.mode].timeoutMs
+      });
     });
     return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
   }),
@@ -108,8 +112,9 @@ export const aiRoutes = [
       dedupKey,
       clientKey,
       profileId,
-      timeoutMs: AI_TIMEOUT_MS,
-      estimate: await recentGenerationEstimate(),
+      timeoutMs: GENERATION_MODES[payload.mode].timeoutMs,
+      mode: payload.mode,
+      estimate: await recentGenerationEstimate(undefined, Date.now(), payload.mode),
       parseDetail: [`${payload.guide.length} 字攻略`, payload.importedSources?.length ? `${payload.importedSources.length} 个导入来源` : '']
         .filter(Boolean)
         .join(' · '),

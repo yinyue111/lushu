@@ -11,6 +11,10 @@ import {
   AI_MAX_OUTPUT_TOKENS,
   AI_TIMEOUT_MS,
   AI_CALL_TIMEOUT_MS,
+  AI_STREAM,
+  GENERATION_DEFAULT_MODE,
+  GENERATION_MODES,
+  resolveGenerationMode,
   OCR_MAX_OUTPUT_TOKENS,
   AI_MAX_OUTPUT_TOKENS_RETRY
 } from '../config/index.mjs';
@@ -40,6 +44,7 @@ import { estimateModelCost, normalizeModelUsage, summarizeModelUsage } from '../
 import { createUntrustedFence, fenceImportedSources } from './untrusted.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { GENERATION_DEADLINE_REASON } from './generationJobs.mjs';
+import { readModelStream } from './modelStream.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -257,6 +262,7 @@ export function sanitizePayload(payload) {
 
   return {
     city,
+    mode: resolveGenerationMode(payload?.mode),
     profileId: normalizeProfileId(payload?.profileId),
     editToken: sanitizeEditToken(payload?.editToken),
     guide,
@@ -499,7 +505,7 @@ async function geocodeGeneratedRoutebook(routebook, signal, onProgress = () => {
  * Process log written by the server from what actually ran. Stages that did
  * not run are reported as 未执行, never as passed.
  */
-function buildServerProcessLog(routebook, stages, { geocodingConfigured }) {
+function buildServerProcessLog(routebook, stages, { geocodingConfigured, modeLabel = '', model = '' }) {
   const stops = routebook.stops ?? [];
   const evidence = routeEvidenceScore(stops).breakdown;
   const legs = routebook.routeLegs ?? [];
@@ -507,7 +513,13 @@ function buildServerProcessLog(routebook, stages, { geocodingConfigured }) {
   const at = new Date().toISOString();
   const duration = (name) => (stages[name]?.durationMs != null ? `${Math.round(stages[name].durationMs / 100) / 10}s` : '');
   return serverProcessLogs([
-    { stage: '模型生成', input: '你的攻略与约束', result: `返回 ${stops.length} 个站点 ${duration('model')}`.trim(), status: '完成', time: at },
+    {
+      stage: '模型生成',
+      input: modeLabel ? `你的攻略与约束（${modeLabel} · ${model}）` : '你的攻略与约束',
+      result: `返回 ${stops.length} 个站点 ${duration('model')}`.trim(),
+      status: '完成',
+      time: at
+    },
     {
       stage: '站点来源比对',
       input: '攻略原文、导入来源、已审核 POI',
@@ -580,9 +592,9 @@ function normalizeArray(items) {
 }
 
 /** Timeout for one model request: AI_CALL_TIMEOUT_MS, cut to what is left of the generation budget. */
-export function modelCallTimeoutMs(deadline = 0, now = Date.now()) {
-  if (!deadline) return AI_CALL_TIMEOUT_MS;
-  return Math.max(1, Math.min(AI_CALL_TIMEOUT_MS, deadline - now));
+export function modelCallTimeoutMs(deadline = 0, now = Date.now(), callTimeoutMs = AI_CALL_TIMEOUT_MS) {
+  if (!deadline) return callTimeoutMs;
+  return Math.max(1, Math.min(callTimeoutMs, deadline - now));
 }
 
 /** The generation job aborts its signal with this reason when the overall budget (AI_TIMEOUT_MS) runs out. */
@@ -611,11 +623,25 @@ function isStructuredOutputUnsupported(error) {
 /**
  * @param {any} payload
  * @param {any} runtime
- * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number, deadline?: number }} [options]
+ * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number, deadline?: number, callTimeoutMs?: number, stream?: boolean, idleTimeoutMs?: number, onActivity?: (info: { chars: number, first: boolean }) => void }} [options]
  */
-async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS, deadline = 0 } = {}) {
+async function callOpenAiApi(
+  payload,
+  runtime,
+  {
+    responseFormat = 'json_schema',
+    signal,
+    maxOutputTokens = AI_MAX_OUTPUT_TOKENS,
+    deadline = 0,
+    callTimeoutMs = AI_CALL_TIMEOUT_MS,
+    stream = false,
+    idleTimeoutMs = 0,
+    onActivity = () => {}
+  } = {}
+) {
   const { prompt: userMessage, fence } = buildUserPrompt(payload);
   const system = `${systemPrompt()}\n${fence.instruction}`;
+  /** @type {any} */
   const requestBody =
     runtime.wireApi === 'chat_completions'
       ? {
@@ -624,7 +650,8 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
             { role: 'system', content: system },
             { role: 'user', content: userMessage }
           ],
-          max_tokens: maxOutputTokens
+          max_tokens: maxOutputTokens,
+          ...(stream ? { stream: true, stream_options: { include_usage: true } } : {})
         }
       : {
           model: runtime.model,
@@ -633,7 +660,8 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
             { role: 'user', content: [{ type: 'input_text', text: userMessage }] }
           ],
           store: false,
-          max_output_tokens: maxOutputTokens
+          max_output_tokens: maxOutputTokens,
+          ...(stream ? { stream: true } : {})
         };
 
   if (responseFormat === 'json_schema') {
@@ -668,15 +696,32 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
   const endpoint = openAiEndpoint(runtime.baseUrl, runtime.wireApi);
   const controller = new AbortController();
   let timedOut = false;
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, modelCallTimeoutMs(deadline));
+  let idleTimedOut = false;
+  const timeoutId = setTimeout(
+    () => {
+      timedOut = true;
+      controller.abort();
+    },
+    modelCallTimeoutMs(deadline, Date.now(), callTimeoutMs)
+  );
+  // Streaming: no bytes for idleTimeoutMs (before the first token or between tokens) aborts the call,
+  // instead of waiting out the whole budget on a stuck upstream.
+  let idleId = null;
+  const armIdle = () => {
+    if (!stream || !idleTimeoutMs) return;
+    if (idleId) clearTimeout(idleId);
+    idleId = setTimeout(() => {
+      idleTimedOut = true;
+      controller.abort();
+    }, idleTimeoutMs);
+  };
+  armIdle();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener('abort', abortFromCaller, { once: true });
 
   let response;
   let text = '';
+  let streamed = null;
   // The timeout and the caller's abort cover the whole exchange, body included: relays
   // often send headers early and stream the body, so stopping at headers is not enough.
   try {
@@ -689,8 +734,22 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
       body: JSON.stringify(requestBody),
       signal: controller.signal
     });
-    text = await response.text();
+    armIdle();
+    if (stream && response.ok && /text\/event-stream/i.test(response.headers.get('content-type') ?? '') && response.body) {
+      streamed = await readModelStream(response.body, {
+        wireApi: runtime.wireApi,
+        onActivity: (info) => {
+          armIdle();
+          onActivity(info);
+        }
+      });
+    } else {
+      text = await response.text();
+    }
   } catch (error) {
+    if (idleTimedOut) {
+      throw createHttpError(`模型 ${Math.round(idleTimeoutMs / 1000)} 秒没有输出，已停止，请稍后重试`, 504, 'MODEL_STALLED');
+    }
     if (timedOut || isDeadlineAbort(signal)) throw modelTimeoutError();
     if (signal?.aborted) {
       throw createHttpError('已取消生成', 499, 'CLIENT_ABORTED');
@@ -699,14 +758,25 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
     throw createHttpError('模型服务暂时不可用', 502, 'MODEL_FETCH_FAILED');
   } finally {
     clearTimeout(timeoutId);
+    if (idleId) clearTimeout(idleId);
     signal?.removeEventListener('abort', abortFromCaller);
   }
 
   let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
+  if (streamed) {
+    data = streamed;
+    if (streamed.error) {
+      const error = createHttpError('模型服务调用失败', 502, 'MODEL_ERROR');
+      error.upstreamDetail = streamed.error?.message ?? 'stream error';
+      error.upstreamCode = streamed.error?.code;
+      throw error;
+    }
+  } else {
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { raw: text };
+    }
   }
 
   if (!response.ok) {
@@ -721,6 +791,10 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
 
   // A response that ran out of output budget still returns HTTP 200 with a
   // half-written JSON body, so it has to be caught here instead of at parse time.
+  // chat_completions reports truncation as finish_reason "length" on an otherwise normal 200.
+  if (data.choices?.[0]?.finish_reason === 'length') {
+    data = { ...data, status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } };
+  }
   if (data.status === 'incomplete') {
     const reason = data.incomplete_details?.reason ?? 'unknown';
     const error = createHttpError('AI 输出被截断，请重试', 502, reason === 'max_output_tokens' ? 'MODEL_OUTPUT_TRUNCATED' : 'MODEL_OUTPUT_INCOMPLETE');
@@ -934,10 +1008,12 @@ export function generationFailureReason(error) {
 /**
  * @param {any} payload
  * @param {AbortSignal} [signal]
- * @param {{ onStage?: GenerationStageListener, deadline?: number }} [options]
+ * @param {{ onStage?: GenerationStageListener, deadline?: number, mode?: string }} [options]
  */
-export async function generateRoutebook(payload, signal, { onStage = () => {}, deadline = 0 } = {}) {
-  const runtime = await loadCodexRuntime();
+export async function generateRoutebook(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE } = {}) {
+  const modeConfig = GENERATION_MODES[resolveGenerationMode(mode)];
+  const baseRuntime = await loadCodexRuntime();
+  const runtime = baseRuntime.ready && modeConfig.model ? { ...baseRuntime, model: modeConfig.model } : baseRuntime;
   if (!runtime.ready) {
     throw createHttpError(runtime.readyReason || 'yinyue provider 或 OPENAI_API_KEY 未配置', 503, 'MODEL_NOT_READY');
   }
@@ -981,14 +1057,30 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
     }
   };
   const modelCalls = [];
+  let lastReportedChars = 0;
   const trackedModelCall = async (options) => {
     const startedAt = Date.now();
     try {
-      const data = await callOpenAiApi(promptPayload, runtime, { deadline, ...options });
+      const data = await callOpenAiApi(promptPayload, runtime, {
+        deadline,
+        callTimeoutMs: Math.min(AI_CALL_TIMEOUT_MS, modeConfig.timeoutMs),
+        maxOutputTokens: modeConfig.maxOutputTokens,
+        stream: AI_STREAM,
+        idleTimeoutMs: modeConfig.idleTimeoutMs,
+        onActivity: ({ chars, first }) => {
+          if (first) onStage({ stage: 'model', state: 'started', detail: `${modeConfig.label} · 开始输出` });
+          else if (chars - lastReportedChars >= 400) {
+            lastReportedChars = chars;
+            onStage({ stage: 'model', state: 'started', detail: `${modeConfig.label} · 已写 ${chars} 字` });
+          }
+        },
+        ...options
+      });
       recordUsage(normalizeModelUsage(data, runtime.wireApi));
       modelCalls.push({
         format: options.responseFormat,
-        maxOutputTokens: options.maxOutputTokens ?? AI_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: options.maxOutputTokens ?? modeConfig.maxOutputTokens,
+        stream: AI_STREAM,
         durationMs: Date.now() - startedAt,
         ok: true
       });
@@ -997,7 +1089,8 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
       recordUsage(error.modelUsage ?? null);
       modelCalls.push({
         format: options.responseFormat,
-        maxOutputTokens: options.maxOutputTokens ?? AI_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: options.maxOutputTokens ?? modeConfig.maxOutputTokens,
+        stream: AI_STREAM,
         durationMs: Date.now() - startedAt,
         ok: false,
         code: error?.code
@@ -1022,7 +1115,7 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
   };
 
   try {
-    onStage({ stage: 'model', state: 'started', detail: runtime.model });
+    onStage({ stage: 'model', state: 'started', detail: `${modeConfig.label} · ${runtime.model}` });
     const routebook = await runStage('model', async () => {
       const firstStartedAt = Date.now();
       const raw = await callModel().catch((error) => {
@@ -1065,7 +1158,12 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
     });
     if ((routed.routeLegs ?? []).some((leg) => leg.status !== 'verified')) stages.routing.status = 'degraded';
     if ((routed.routeLegs ?? []).some((leg) => /timeout/i.test(String(leg.error?.code || '')))) stages.routing.timedOut = true;
-    return { ...routed, ...buildServerProcessLog(routed, stages, { geocodingConfigured: Boolean(AMAP_GEOCODE_KEY) }), observability: observability() };
+    return {
+      ...routed,
+      provider: { ...routed.provider, mode: modeConfig.key },
+      ...buildServerProcessLog(routed, stages, { geocodingConfigured: Boolean(AMAP_GEOCODE_KEY), modeLabel: modeConfig.label, model: runtime.model }),
+      observability: { ...observability(), mode: modeConfig.key, model: runtime.model }
+    };
   } catch (error) {
     error.observability = { ...observability(), failureStage: activeStage };
     throw error;

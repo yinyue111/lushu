@@ -1,7 +1,7 @@
 // One routebook generation: model call, geocoding, routing, persistence and the AI log row.
 // Shared by the synchronous POST /api/generate-routebook and async generation jobs.
 import { truncateString, hashText } from '../lib/util.mjs';
-import { AI_LOG_PATH } from '../config/index.mjs';
+import { AI_LOG_PATH, GENERATION_DEFAULT_MODE, GENERATION_MODES, resolveGenerationMode } from '../config/index.mjs';
 import { appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
 import { createRouteEditToken, normalizeProfileId, sanitizeEditToken } from '../auth/tokens.mjs';
 import { normalizeRoutebookForStorage } from '../routebooks/normalize.mjs';
@@ -35,7 +35,7 @@ export async function generateAndStoreRoutebook(payload, { signal, requestId, on
     onStage(event);
   };
   try {
-    const routebook = await generateRoutebook(payload, signal, { onStage: trackStage, deadline });
+    const routebook = await generateRoutebook(payload, signal, { onStage: trackStage, deadline, mode: payload.mode });
     observability = routebook.observability;
     const profileId = normalizeProfileId(payload.profileId);
     activeProgressStage = 'save';
@@ -63,6 +63,7 @@ export async function generateAndStoreRoutebook(payload, { signal, requestId, on
       requestId,
       ...(jobId ? { jobId } : {}),
       kind: 'generate-routebook',
+      mode: resolveGenerationMode(payload.mode),
       status: 'ok',
       city: payload.city,
       profileId,
@@ -92,6 +93,7 @@ export async function generateAndStoreRoutebook(payload, { signal, requestId, on
       requestId,
       ...(jobId ? { jobId } : {}),
       kind: 'generate-routebook',
+      mode: resolveGenerationMode(payload.mode),
       // Cancelled generations are logged for the record but do not count against quota.
       status: cancelled ? 'cancelled' : 'error',
       city: payload.city,
@@ -110,7 +112,8 @@ export async function generateAndStoreRoutebook(payload, { signal, requestId, on
   }
 }
 
-let estimateCache = { at: 0, value: null };
+/** @type {Map<string, { at: number, value: any }>} */
+const estimateCache = new Map();
 const ESTIMATE_CACHE_MS = 60 * 1000;
 
 /**
@@ -118,19 +121,25 @@ const ESTIMATE_CACHE_MS = 60 * 1000;
  * not a fixed guess. With fewer than 3 samples the client shows the typical range.
  * @param {any[]} [rows] newest-first AI log rows (test hook)
  */
-export async function recentGenerationEstimate(rows, nowMs = Date.now()) {
-  if (!rows && estimateCache.value && nowMs - estimateCache.at < ESTIMATE_CACHE_MS) return estimateCache.value;
+export async function recentGenerationEstimate(rows, nowMs = Date.now(), mode = GENERATION_DEFAULT_MODE) {
+  const modeKey = resolveGenerationMode(mode);
+  const cached = estimateCache.get(modeKey);
+  if (!rows && cached && nowMs - cached.at < ESTIMATE_CACHE_MS) return cached.value;
   const history = rows ?? (await readJsonLines(AI_LOG_PATH, 400).catch(() => []));
+  // Rows logged before modes existed were all made by the deep (grok) model.
   const durations = history
     .filter((row) => row?.kind === 'generate-routebook' && row?.status === 'ok' && row?.deduplicated !== true && Number(row?.durationMs) > 0)
+    .filter((row) => (row?.mode || 'deep') === modeKey)
     .slice(0, 30)
     .map((row) => Number(row.durationMs))
     .sort((left, right) => left - right);
+  const [low, high] = GENERATION_MODES[modeKey].typicalSeconds;
   const value = {
-    typicalRange: '2–3 分钟',
+    mode: modeKey,
+    typicalRange: high <= 90 ? `${low}–${high} 秒` : `${Math.max(1, Math.round(low / 60))}–${Math.round(high / 60)} 分钟`,
     sampleSize: durations.length,
     p50Ms: durations.length >= 3 ? durations[Math.floor((durations.length - 1) / 2)] : null
   };
-  if (!rows) estimateCache = { at: nowMs, value };
+  if (!rows) estimateCache.set(modeKey, { at: nowMs, value });
   return value;
 }

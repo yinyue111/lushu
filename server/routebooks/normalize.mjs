@@ -893,6 +893,7 @@ function normalizeStoredProvider(provider = {}, extra = {}) {
   const normalized = {
     name: truncateString(source.name, 40),
     model: truncateString(source.model, 80),
+    mode: source.mode === 'fast' || source.mode === 'deep' ? source.mode : '',
     baseUrl: truncateString(source.baseUrl, 180),
     generatedAt: truncateString(source.generatedAt, 60),
     editedAt: truncateString(source.editedAt, 60),

@@ -64,6 +64,41 @@ export const IMPORT_TIMEOUT_MS = envNumber('IMPORT_TIMEOUT_MS', 12000, { min: 10
 export const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 300000, { min: 1000 });
 // One model request may take at most this long (and never past the generation budget).
 export const AI_CALL_TIMEOUT_MS = envNumber('AI_CALL_TIMEOUT_MS', AI_TIMEOUT_MS, { min: 1000 });
+
+// Generation modes. 轻快 (fast): a quick model with a short budget; 细品 (deep): the slower reasoning model.
+// Empty AI_MODEL_DEEP keeps OPENAI_MODEL. Each mode has its own total budget, output cap and stream idle timeout.
+export const GENERATION_MODE_KEYS = /** @type {const} */ (['fast', 'deep']);
+const defaultModeEnv = String(process.env.GENERATION_DEFAULT_MODE ?? 'fast').trim();
+export const GENERATION_DEFAULT_MODE = defaultModeEnv === 'deep' ? 'deep' : 'fast';
+// Stream model output (SSE): detects a stuck upstream within AI_STREAM_IDLE_MS_* instead of after the whole budget.
+export const AI_STREAM =
+  String(process.env.AI_STREAM ?? 'true')
+    .trim()
+    .toLowerCase() !== 'false';
+export const GENERATION_MODES = {
+  fast: {
+    key: 'fast',
+    label: '轻快',
+    model: String(process.env.AI_MODEL_FAST ?? 'gemini-3.8-flash-medium').trim(),
+    timeoutMs: envNumber('AI_TIMEOUT_MS_FAST', Math.min(120000, AI_TIMEOUT_MS), { min: 1000 }),
+    maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_FAST', 12000, { min: 256 }),
+    idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_FAST', 30000, { min: 1000 }),
+    typicalSeconds: [20, 45]
+  },
+  deep: {
+    key: 'deep',
+    label: '细品',
+    model: String(process.env.AI_MODEL_DEEP ?? '').trim(),
+    timeoutMs: envNumber('AI_TIMEOUT_MS_DEEP', AI_TIMEOUT_MS, { min: 1000 }),
+    maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_DEEP', 12000, { min: 256 }),
+    idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_DEEP', 150000, { min: 1000 }),
+    typicalSeconds: [90, 180]
+  }
+};
+/** @param {unknown} value @returns {'fast' | 'deep'} */
+export function resolveGenerationMode(value) {
+  return value === 'fast' || value === 'deep' ? value : GENERATION_DEFAULT_MODE;
+}
 // The synchronous /api/generate-routebook request (legacy) must outlive the model call
 // plus geocoding/routing; node's requestTimeout would otherwise cut it first.
 export const REQUEST_TIMEOUT_MS = envNumber('REQUEST_TIMEOUT_MS', AI_TIMEOUT_MS + 90000, { min: 0 });

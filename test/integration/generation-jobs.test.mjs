@@ -99,7 +99,8 @@ test('a job returns at once and reports real stages until the saved routebook', 
   );
   assert.equal(data.job.stages[0].status, 'completed', 'parsing finished when the job was accepted');
   assert.ok(data.job.timeoutMs >= 4000);
-  assert.equal(data.job.estimate.typicalRange, '2–3 分钟');
+  assert.equal(data.job.mode, 'fast', 'the default mode is 轻快');
+  assert.equal(data.job.estimate.typicalRange, '20–45 秒');
   const { job, seen } = await waitUntil(data.job.jobId, (current) => current.status !== 'running');
   assert.equal(job.status, 'succeeded', JSON.stringify(job.error));
   assert.ok(

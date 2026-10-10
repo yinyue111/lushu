@@ -17,6 +17,15 @@ import { createHttpError } from '../lib/util.mjs';
 
 /** Abort reason code used when a job's overall time budget runs out (kept in sync with generate.mjs). */
 export const GENERATION_DEADLINE_REASON = 'GENERATION_DEADLINE';
+const FAST_FAILURES_WORTH_DEEP = new Set([
+  'MODEL_TIMEOUT',
+  'MODEL_STALLED',
+  'MODEL_BAD_OUTPUT',
+  'MODEL_OUTPUT_TRUNCATED',
+  'MODEL_OUTPUT_INCOMPLETE',
+  'MODEL_ERROR',
+  'MODEL_FETCH_FAILED'
+]);
 import { GENERATION_DEDUP_TTL_MS, GENERATION_JOB_RETENTION_MS, GENERATION_MAX_ACTIVE_JOBS } from '../config/index.mjs';
 
 export const GENERATION_STAGES = Object.freeze([
@@ -116,11 +125,12 @@ export function findDuplicateGenerationJob(dedupKey, nowMs = Date.now()) {
  *   profileId: string,
  *   estimate?: any,
  *   timeoutMs: number,
+ *   mode?: string,
  *   parseDetail?: string,
  *   run: (signal: AbortSignal, onStage: (event: any) => void, jobId: string, deadline: number) => Promise<any>
  * }} input
  */
-export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = null, timeoutMs, parseDetail = '', run }) {
+export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = null, timeoutMs, mode = 'deep', parseDetail = '', run }) {
   const nowMs = Date.now();
   const duplicate = findDuplicateGenerationJob(dedupKey, nowMs);
   if (duplicate) return { job: duplicate, deduplicated: true };
@@ -149,6 +159,7 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
     seq: 0,
     estimate,
     timeoutMs,
+    mode,
     result: null,
     error: null,
     controller,
@@ -205,7 +216,10 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
           message: String(error?.statusCode && error?.statusCode < 500 ? error.message : publicFailureMessage(error)).slice(0, 200),
           code: String(error?.code ?? 'MODEL_ERROR'),
           status: Number(error?.statusCode) || 502,
-          stage: job.stage
+          stage: job.stage,
+          // A fast (轻快) generation that failed on the model side can be retried in 细品 mode; the client
+          // offers it, nothing escalates on its own.
+          suggestDeep: mode === 'fast' && FAST_FAILURES_WORTH_DEEP.has(String(error?.code))
         };
         touch(job);
       }
@@ -271,6 +285,7 @@ export function generationJobSnapshot(job, nowMs = Date.now()) {
     elapsedMs: (job.finishedAt ?? nowMs) - job.createdAt,
     estimate: job.estimate,
     timeoutMs: job.timeoutMs,
+    mode: job.mode,
     ...(job.status === 'cancelled' ? { cancelledAt: new Date(job.cancelledAt).toISOString() } : {}),
     ...(job.error ? { error: job.error } : {}),
     ...(job.status === 'succeeded' ? { result: job.result } : {})
