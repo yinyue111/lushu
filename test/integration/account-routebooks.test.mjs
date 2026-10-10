@@ -31,7 +31,9 @@ test('routebooks generated while signed in are saved to the account and survive 
   });
   await new Promise((resolve) => provider.listen(0, '127.0.0.1', () => resolve(undefined)));
   const port = /** @type {import('node:net').AddressInfo} */ (provider.address()).port;
-  const server = await startServer({ env: authEnv('login', { OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`, GENERATION_JOB_POLL_WAIT_MS: '2000', GENERATION_DEDUP_TTL_MS: '600000' }) });
+  const server = await startServer({
+    env: authEnv('login', { OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`, GENERATION_JOB_POLL_WAIT_MS: '2000', GENERATION_DEDUP_TTL_MS: '600000' })
+  });
   t.after(async () => {
     await server.stop();
     provider.closeAllConnections();
@@ -128,4 +130,18 @@ test('routebooks generated while signed in are saved to the account and survive 
   const fresh = job2.result?.routebook ?? job2.result;
   assert.notEqual(fresh.publicId || fresh.id, id);
   assert.equal((await phone.request(`/api/routebooks/${fresh.publicId || fresh.id}`)).status, 200);
+});
+
+test('an empty routebook id is a 404, not a server error', async (t) => {
+  const { startServer } = await import('../helpers/server.mjs');
+  const server = await startServer();
+  t.after(server.stop);
+  for (const path of ['/api/routebooks//publish', '/api/routebooks//status']) {
+    const response = await fetch(`${server.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: server.baseUrl },
+      body: '{}'
+    });
+    assert.ok(response.status < 500, `${path} → ${response.status}`);
+  }
 });

@@ -38,6 +38,9 @@ export async function closeRuntimeStorage() {
 // Reentrant within a logical operation; separate requests still serialize. This
 // lets profile deletion and a nested trip/checkin write share the same guard.
 export async function withStorageEntityLock(namespace, entityId, operation) {
+  // Empty id (e.g. "/api/routebooks//publish"): nothing to lock; the operation answers 404 itself.
+  // PostgreSQL refuses empty lock keys, which used to surface as a 500.
+  if (!String(entityId ?? '')) return operation();
   const key = `${namespace}:${entityId}`;
   const held = heldLocks.getStore() ?? new Set();
   if (held.has(key)) return operation();
