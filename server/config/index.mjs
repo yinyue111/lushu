@@ -214,6 +214,8 @@ const mailTransportEnv = String(process.env.MAIL_TRANSPORT ?? '')
   .toLowerCase();
 export const MAIL_TRANSPORT = MAIL_TRANSPORTS.includes(mailTransportEnv) ? mailTransportEnv : IS_PRODUCTION ? 'disabled' : 'file';
 export const MAIL_TRANSPORT_INVALID = Boolean(mailTransportEnv) && !MAIL_TRANSPORTS.includes(mailTransportEnv);
+// Minimum gap between two codes to the same address.
+export const EMAIL_CODE_RESEND_SECONDS = envNumber('EMAIL_CODE_RESEND_SECONDS', 60, { min: 0 });
 export const MAIL_FROM = String(process.env.MAIL_FROM ?? '').trim() || (IS_PRODUCTION ? '' : '路书 <no-reply@localhost>');
 export const MAIL_API_KEY = String(process.env.MAIL_API_KEY ?? '').trim();
 export const MAIL_API_URL = String(process.env.MAIL_API_URL ?? 'https://api.resend.com/emails').trim();

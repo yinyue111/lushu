@@ -1,6 +1,6 @@
 // One-time 6-digit email codes: HMAC-stored, 15 min, single use, 5 tries per code, bound to purpose + address.
 import { createHmac, randomInt } from 'node:crypto';
-import { PROFILE_ID_SECRET } from '../config/index.mjs';
+import { EMAIL_CODE_RESEND_SECONDS, PROFILE_ID_SECRET } from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { cryptoRandomId, safeEqualHex } from '../auth/tokens.mjs';
 import { accountStore } from './store.mjs';
@@ -11,7 +11,7 @@ import { codeKey, lockedError, mailIpKey, mailtoKey, recordFailure, throttleStat
 
 export const EMAIL_CODE_TTL_MS = 15 * 60 * 1000;
 export const EMAIL_CODE_MAX_ATTEMPTS = 5;
-export const EMAIL_CODE_RESEND_MS = 60 * 1000;
+export const EMAIL_CODE_RESEND_MS = EMAIL_CODE_RESEND_SECONDS * 1000;
 export const EMAIL_PURPOSES = ['register', 'reset', 'change'];
 
 const hashCode = (purpose, emailHashValue, code) =>
