@@ -73,7 +73,7 @@ export function lockedError(lockedUntil, now = Date.now(), key = '') {
       ? `验证码发得太频繁了，${minutes} 分钟后再试`
       : key.startsWith('code:')
         ? `验证码错太多次了，${minutes} 分钟后再试`
-        : `试错次数太多，${minutes} 分钟后再试，或者用恢复码重设密码`;
+        : `试错次数太多，${minutes} 分钟后再试，或者点「忘了密码？」用邮箱或恢复码重设`;
   const error = createHttpError(message, 429, 'AUTH_LOCKED');
   /** @type {any} */ (error).retryAfterSeconds = minutes * 60;
   return error;

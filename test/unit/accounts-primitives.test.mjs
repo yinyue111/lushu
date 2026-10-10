@@ -61,5 +61,5 @@ test('lock messages fit the action: sign-up pauses do not suggest a password res
   const { lockedError } = await import('../../server/accounts/throttle.mjs');
   const now = Date.now();
   assert.match(lockedError(now + 30 * 60 * 1000, now, 'register:abc').message, /注册得太频繁了，30 分钟后再试/);
-  assert.match(lockedError(now + 15 * 60 * 1000, now, 'phone:abc').message, /15 分钟后再试，或者用恢复码重设密码/);
+  assert.match(lockedError(now + 15 * 60 * 1000, now, 'phone:abc').message, /15 分钟后再试，或者点「忘了密码？」用邮箱或恢复码重设/);
 });
