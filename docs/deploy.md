@@ -114,7 +114,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `AI_COST_CURRENCY` / `AI_INPUT_COST_PER_MILLION_TOKENS` / `AI_OUTPUT_COST_PER_MILLION_TOKENS` | 空 | 成本估算 |
 | `BACKUP_ENCRYPTION_KEY` | 空 | `npm run backup:data` 加密备份时需要 |
 
-### 账号（手机号 + 密码）
+### 账号（邮箱 / 手机号 + 密码）
 
 默认 `AUTH_MODE=access-code`，行为和现在完全一样，账号接口返回 404。切换步骤和回滚见 [`docs/login-rollout.md`](./login-rollout.md)。
 
@@ -124,6 +124,12 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `REGISTRATION_MODE` | `invite` | `open` / `invite`（注册要邀请码）/ `closed`（只能登录） |
 | `REGISTRATION_INVITE_CODE` | 同 `ROUTEBOOK_API_TOKEN` | 邀请码；不设时沿用现在的访问码，内测用户不用换 |
 | `AUTH_PHONE_HASH_SECRET` | 无 | **秘密**。手机号 HMAC 密钥，≥32 位随机串，`AUTH_MODE` 不是 `access-code` 时缺失会拒绝启动。**必须离线备份**：丢失或更换后，所有账号都按手机号找不到 |
+| `AUTH_EMAIL_HASH_SECRET` | 无 | **秘密**。邮箱 HMAC 密钥，≥32 位，必须离线备份；丢失后按邮箱找不到账号 |
+| `AUTH_EMAIL_ENC_KEY` | 无 | **秘密**。邮箱加密密钥（AES-256-GCM），≥32 位，必须离线备份；丢失后读不出邮箱、发不了信 |
+| `MAIL_TRANSPORT` | 生产 `disabled`，开发 `file` | `resend`：真实发信；`log`：只记「已发给 ab***@x.com」；`file`：写到 `/data/mail-outbox`（测试用，生产启动会警告）；`disabled`：不发 |
+| `MAIL_FROM` / `MAIL_API_KEY` / `MAIL_API_URL` | 空 / 空 / Resend | `resend` 时前两个必填，否则拒绝启动 |
+| `EMAIL_VERIFICATION_REQUIRED` | `true` | 注册必须填邮箱验证码。为 `true` 但发信没配（`disabled`/`log`）时生产拒绝启动；过渡期设 `false` |
+| `EMAIL_CODE_RESEND_SECONDS` | `60` | 同一邮箱两次验证码的最短间隔 |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_SESSION_MAX_DAYS` | `30` / `90` | 空闲过期天数 / 最长有效天数 |
 | `AUTH_POW_DIFFICULTY` | `16` | 注册、找回密码、可疑登录前的人机检查强度（浏览器里算 0.1–1 秒） |
 | `AUTH_SCRYPT_CONCURRENCY` | `2` | 同时计算的密码哈希数；每个约 32 MB，1.4 GB 机器保持 2 |
@@ -132,9 +138,10 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 说明：
 
 - 登录 Cookie 是 `__Host-lushu_sid`（HttpOnly、Secure、SameSite=Lax）。必须走 HTTPS（Caddy 已满足）；本机 `http://localhost` 开发也能用（浏览器把 localhost 当安全来源）。
-- 账号表在 PG 里：`auth_users`、`auth_sessions`、`auth_throttles`、`auth_profile_links`（迁移 0008，只新增表）。JSONL 后端写 `/data/accounts.jsonl`。备份 PG 时一起带上；`AUTH_PHONE_HASH_SECRET` 单独离线保存。
+- 账号表在 PG 里：`auth_users`、`auth_sessions`、`auth_throttles`、`auth_profile_links`（迁移 0008）、`auth_email_codes` 和 `auth_users` 上的邮箱列（迁移 0009，只新增）。JSONL 后端写 `/data/accounts.jsonl`。备份 PG 时一起带上；`AUTH_PHONE_HASH_SECRET`、`AUTH_EMAIL_HASH_SECRET`、`AUTH_EMAIL_ENC_KEY` 单独离线保存。
+- 邮箱只存 HMAC、AES-GCM 密文和打码地址；验证码只存 HMAC，15 分钟、一次性、每码最多试 5 次；每个邮箱每小时最多 5 封、每个网络地址每小时最多 20 封。
 - 手机号只存 HMAC 和打码号码；密码用 scrypt（版本化参数）；恢复码只存摘要；日志里没有手机号、密码和会话 ID。
-- 运营在后台「账号」页按手机号后 4 位搜索、停用/恢复、强制退出、补发一次性恢复码、单独设生成额度；每个操作都要写原因，记入 `ops-audits`。
+- 运营在后台「账号」页按完整邮箱、完整手机号或手机号后 4 位搜索，看到打码邮箱和是否已验证；停用/恢复、强制退出、补发一次性恢复码、单独设生成额度；每个操作都要写原因，记入 `ops-audits`。
 
 生产环境不要设置：`ALLOW_LOCAL_API_BYPASS`、`ALLOW_LOCAL_ADMIN_BYPASS`、`ALLOW_OSM_BASEMAP_IN_PRODUCTION`、`AI_RUNTIME_FROM_CODEX`。
 

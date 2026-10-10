@@ -19,3 +19,4 @@ data/.source-coordination/
 data/*.tmp
 data/*.bak
 backups/
+data/mail-outbox/

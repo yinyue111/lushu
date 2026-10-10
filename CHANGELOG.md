@@ -6,6 +6,9 @@
 
 ### 运维 / 存储
 
+- 账号加邮箱（迁移 `0009_account_email.sql`，schema v9，只新增列和 `auth_email_codes` 表，`phone_hash` 放开非空）：注册要邮箱和验证码，手机号改为选填；邮箱或手机号都能登录；忘了密码可用邮箱验证码重设，恢复码保留。新环境变量 `AUTH_EMAIL_HASH_SECRET`、`AUTH_EMAIL_ENC_KEY`、`MAIL_TRANSPORT`、`MAIL_FROM`、`MAIL_API_KEY`、`MAIL_API_URL`、`EMAIL_VERIFICATION_REQUIRED`、`EMAIL_CODE_RESEND_SECONDS`，见 `docs/deploy.md` 和 `docs/login-rollout.md`。
+- 新接口：`POST /api/auth/register/code`、`/api/auth/reset-password/code`、`/api/auth/email/code`、`/api/auth/email`；`/api/auth/login` 接受 `identifier`（邮箱或手机号）；`DELETE /api/routebooks/:id`（所有者从账号里删除路书，追加带 `deletedAt` 的版本）。登录用户按主档案列路书时，包含账号认领过的所有设备档案。
+
 - PostgreSQL schema 升级到 v6（迁移 `server/migrations/0006_event_row_entity_keys.sql`）：`event_rows` 新增 `entity_key` 列及索引，按实体取最新记录改为索引查询。加列迁移，旧行 `entity_key` 为 `NULL` 时仍能被正确读取；启动时分批回填，运行账号需要 `UPDATE (entity_key)` 权限（缺失时只告警）。
 - 权威 PG schema 是 `server/migrations/`；根目录 `migrations/` 只是关系型设计稿和其回归测试，不要应用到生产库。
 - 新增 `RATE_LIMIT_OPS_READ_MAX`（默认 120/窗口）：运营只读列表接口（审核队列、打卡、导入、审计）按客户端限流，在管理员鉴权之前计数。
