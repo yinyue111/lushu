@@ -202,6 +202,11 @@ function publicFailureMessage(error) {
   return /[\u4e00-\u9fa5]/.test(message) ? message : '生成失败，请稍后重试';
 }
 
+/** Stops reusing a finished job for its input (e.g. its routebook was deleted since). */
+export function forgetGenerationDedup(job) {
+  if (job && keyIndex.get(job.dedupKey) === job.id) keyIndex.delete(job.dedupKey);
+}
+
 export function getGenerationJob(id) {
   sweep(Date.now());
   return isValidGenerationJobId(id) ? (jobs.get(id) ?? null) : null;

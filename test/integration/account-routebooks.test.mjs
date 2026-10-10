@@ -117,4 +117,15 @@ test('routebooks generated while signed in are saved to the account and survive 
   assert.equal(tomb.tombstone, true);
   assert.equal(tomb.profileId, profileId);
   assert.equal(tomb.stops, undefined);
+
+  // Same input again right after deleting: a fresh routebook, not the deleted one from the dedup cache.
+  const again = await phone.post('/api/generation-jobs', { city: '杭州', guide: '西湖一日游：柳浪闻莺、南宋御街、北山街', profileId: 'anonymous' });
+  assert.equal(again.data.deduplicated, false, JSON.stringify(again.data));
+  let job2 = again.data.job;
+  for (let i = 0; i < 30 && job2.status !== 'succeeded' && job2.status !== 'failed'; i += 1) {
+    job2 = (await phone.request(`/api/generation-jobs/${job2.jobId}?after=${job2.seq}&profileId=${profileId}`)).data.job;
+  }
+  const fresh = job2.result?.routebook ?? job2.result;
+  assert.notEqual(fresh.publicId || fresh.id, id);
+  assert.equal((await phone.request(`/api/routebooks/${fresh.publicId || fresh.id}`)).status, 200);
 });

@@ -1,4 +1,5 @@
 // Generation, OCR and import API routes.
+import { deletedRoutebookIds } from '../routebooks/tombstones.mjs';
 import { clampNumber, createHttpError, safeDecodePathSegment, truncateString } from '../lib/util.mjs';
 import {
   AI_LOG_PATH,
@@ -36,6 +37,7 @@ import {
   generationJobSnapshot,
   getGenerationJob,
   startGenerationJob,
+  forgetGenerationDedup,
   waitForGenerationJob
 } from '../ai/generationJobs.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
@@ -89,7 +91,16 @@ export const aiRoutes = [
     const dedupKey = GENERATION_DEDUP_TTL_MS
       ? generationInputHash({ ...payload, profileId: profileId === 'anonymous' ? `anonymous:${clientKey}` : profileId })
       : '';
-    const duplicate = findDuplicateGenerationJob(dedupKey);
+    let duplicate = findDuplicateGenerationJob(dedupKey);
+    // Same input as a finished job whose routebook was deleted since: generate a fresh one instead of
+    // handing back the deleted (tombstoned) routebook.
+    if (duplicate?.status === 'succeeded') {
+      const resultId = duplicate.result?.publicId || duplicate.result?.id;
+      if (resultId && (await deletedRoutebookIds([resultId])).length) {
+        forgetGenerationDedup(duplicate);
+        duplicate = null;
+      }
+    }
     if (duplicate) return sendJson(res, 200, { ok: true, deduplicated: true, job: generationJobSnapshot(duplicate) });
     await enforceGenerationQuota(profileId, await quotaOptionsFor(req));
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
