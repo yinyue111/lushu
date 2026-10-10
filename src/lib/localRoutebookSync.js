@@ -30,11 +30,11 @@ export function isLocalOnlyRoutebook(book) {
 
 /**
  * @param {SyncDeps} deps
- * @returns {Promise<{ uploaded: string[], conflicts: string[], failed: string[], skipped?: string }>}
+ * @returns {Promise<{ uploaded: string[], conflicts: string[], failed: string[], deleted: string[], skipped?: string }>}
  */
 export async function uploadLocalOnlyRoutebooks({ profile, books, profileFields, save, fetchRemote, persist, preserveConflict }) {
-  /** @type {{ uploaded: string[], conflicts: string[], failed: string[], skipped?: string }} */
-  const result = { uploaded: [], conflicts: [], failed: [] };
+  /** @type {{ uploaded: string[], conflicts: string[], failed: string[], deleted: string[], skipped?: string }} */
+  const result = { uploaded: [], conflicts: [], failed: [], deleted: [] };
   if (!(profile?.profileAccessToken || profile?.accountUserId)) return { ...result, skipped: 'cloud-sync-disabled' };
   for (const book of books.filter(isLocalOnlyRoutebook)) {
     const id = String(book.publicId || book.id || '');
@@ -48,7 +48,10 @@ export async function uploadLocalOnlyRoutebooks({ profile, books, profileFields,
       result.uploaded.push(id);
     } catch (error) {
       const status = /** @type {any} */ (error)?.status;
-      if (status === 409) {
+      if (status === 410 || /** @type {any} */ (error)?.code === 'ROUTEBOOK_DELETED') {
+        // Deleted from the account: never re-upload, never keep a 冲突副本. The caller drops the local copy.
+        result.deleted.push(id);
+      } else if (status === 409) {
         // The same id already reached the cloud (another tab/device, or a lost response).
         const remote = await fetchRemote(id)
           .then((data) => data?.routebook ?? null)

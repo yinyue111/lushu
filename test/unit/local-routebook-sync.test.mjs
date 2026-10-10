@@ -97,3 +97,15 @@ test('network failures are retried later; foreign ids are blocked and copied', a
   assert.deepEqual(result.conflicts, ['foreign']);
   assert.equal(h.persisted.find((item) => item.id === 'foreign').cloudSyncBlocked, true);
 });
+
+test('a deleted routebook (410) is never re-uploaded and never kept as a conflict copy', async () => {
+  const deleted = Object.assign(new Error('gone'), { status: 410, code: 'ROUTEBOOK_DELETED' });
+  const h = harness(async () => {
+    throw deleted;
+  });
+  const result = await uploadLocalOnlyRoutebooks({ ...h.deps, books: [book('gone')] });
+  assert.deepEqual(result.deleted, ['gone']);
+  assert.deepEqual(result.conflicts, []);
+  assert.equal(h.conflicts.length, 0);
+  assert.equal(h.persisted.length, 0);
+});

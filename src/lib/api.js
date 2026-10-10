@@ -16,6 +16,10 @@ async function readApiResponse(response) {
     error.requestId = requestId;
     // Lets the account layer offer the login sheet wherever a gated action was refused.
     if (data.code === 'LOGIN_REQUIRED' && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('lushu:login-required'));
+    // A routebook deleted from the account (maybe on another device): let the app drop the local copy.
+    if (data.code === 'ROUTEBOOK_DELETED' && typeof window !== 'undefined' && data.details?.id) {
+      window.dispatchEvent(new CustomEvent('lushu:routebook-deleted', { detail: { id: String(data.details.id) } }));
+    }
     if (data.details && typeof data.details === 'object') error.details = data.details;
     if (Number.isInteger(Number(data.currentVersion)) && Number(data.currentVersion) >= 0) {
       error.currentVersion = Number(data.currentVersion);
@@ -159,6 +163,11 @@ export async function revokeFriendLink(publicId, payload = {}, signal) {
 
 export async function getRoutebooks(limit = 100, signal, cursor = '') {
   return getJson(`/routebooks?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal, adminHeaders());
+}
+
+/** Which of these routebook ids were deleted (so local copies can be dropped). */
+export async function checkDeletedRoutebooks(ids, signal) {
+  return postJson('/routebooks/deleted', { ids }, signal);
 }
 
 /** Deletes the cloud copy of the caller's own routebook (signed-in owner, profile token or edit token). */

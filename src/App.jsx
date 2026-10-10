@@ -10,7 +10,8 @@ import {
 import TopNav from './components/Layout/TopNav';
 import { AccountProvider } from './components/Account/AccountProvider';
 import HomePage from './components/HomePage';
-import { checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
+import { checkDeletedRoutebooks, checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
+import { ROUTEBOOK_DELETED_EVENT, dropDeletedLocalCopy, pruneDeletedLocalRoutebooks } from './lib/routebookTombstones';
 import { flushAllCheckinQueues } from './lib/checkinQueue';
 import { createRouteEditToken, getProfile, profileRoutebookFields } from './lib/profile';
 import { adoptServerProfile } from './lib/profileSync';
@@ -122,6 +123,20 @@ export default function App() {
 
   // Guest copies saved before cloud sync was enabled are uploaded once the profile has a
   // cloud token (and again whenever the network comes back); conflicts keep a 冲突副本.
+  // Deleted from the account somewhere: drop the local copy here too, and never re-upload it.
+  useEffect(() => {
+    const onDeleted = (/** @type {any} */ event) => {
+      const id = String(event?.detail?.id ?? '');
+      if (!id) return;
+      dropDeletedLocalCopy(id);
+      setSavedBooks(getStoredRoutebooks(getProfile().id));
+      setRoutebook((current) => (current && (current.publicId === id || current.id === id) ? null : current));
+      setStorageNotice('这份路书已经从账号里删除了（可能是在别的设备上删的），本机的副本也已移除。');
+    };
+    window.addEventListener(ROUTEBOOK_DELETED_EVENT, onDeleted);
+    return () => window.removeEventListener(ROUTEBOOK_DELETED_EVENT, onDeleted);
+  }, []);
+
   const localUploadRef = useRef(false);
   useEffect(() => {
     if (!profile.profileAccessToken && !profile.accountUserId) return undefined;
@@ -129,16 +144,26 @@ export default function App() {
       if (localUploadRef.current) return;
       localUploadRef.current = true;
       const activeProfile = getProfile();
-      uploadLocalOnlyRoutebooks({
-        profile: activeProfile,
-        books: getStoredRoutebooks(activeProfile.id),
-        profileFields: profileRoutebookFields,
-        save: (book) => saveRoutebookRemote(book),
-        fetchRemote: (id) => getRoutebookRemote(id),
-        persist: (book) => persistRoutebook(book, { claimOwnership: true }),
-        preserveConflict: (book, label) => preserveRoutebookConflictDraft(book, label)
-      })
+      pruneDeletedLocalRoutebooks(getStoredRoutebooks(activeProfile.id), (ids) => checkDeletedRoutebooks(ids))
+        .catch(() => [])
+        .then((removed) => {
+          if (removed.length) {
+            setSavedBooks(getStoredRoutebooks(activeProfile.id));
+            setStorageNotice(`有 ${removed.length} 份路书已经从账号里删除了，本机的副本也已移除。`);
+          }
+          return uploadLocalOnlyRoutebooks({
+            profile: activeProfile,
+            books: getStoredRoutebooks(activeProfile.id),
+            profileFields: profileRoutebookFields,
+            save: (book) => saveRoutebookRemote(book),
+            fetchRemote: (id) => getRoutebookRemote(id),
+            persist: (book) => persistRoutebook(book, { claimOwnership: true }),
+            preserveConflict: (book, label) => preserveRoutebookConflictDraft(book, label)
+          });
+        })
         .then((result) => {
+          for (const id of result.deleted ?? []) dropDeletedLocalCopy(id);
+          if (result.deleted?.length) setSavedBooks(getStoredRoutebooks(activeProfile.id));
           if (result.uploaded.length || result.conflicts.length) setSavedBooks(getStoredRoutebooks(activeProfile.id));
           if (result.conflicts.length) setStorageNotice(`有 ${result.conflicts.length} 份本机路书与云端版本冲突，已保留为“冲突副本”，可在“我的”中查看。`);
         })
@@ -148,8 +173,14 @@ export default function App() {
         });
     };
     upload();
+    // Coming back to the tab also re-checks: a routebook may have been deleted on another device meanwhile.
+    const onVisible = () => document.visibilityState === 'visible' && upload();
     window.addEventListener('online', upload);
-    return () => window.removeEventListener('online', upload);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('online', upload);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [profile.profileAccessToken, profile.accountUserId]);
 
   useEffect(() => {
