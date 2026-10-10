@@ -345,7 +345,10 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
       )}
       <ol ref={listRef} className="grid grid-cols-2 gap-2 rounded-card bg-canvas p-3" aria-label="恢复码">
         {codes.map((code) => (
-          <li key={code} className="rounded-tile bg-white px-2 py-2 text-center font-mono text-base font-semibold tracking-wider text-ink">
+          <li
+            key={code}
+            className="rounded-tile bg-white px-1.5 py-2 text-center font-mono text-sm font-semibold tracking-wide whitespace-nowrap text-ink sm:text-base sm:tracking-wider"
+          >
             {code}
           </li>
         ))}

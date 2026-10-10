@@ -138,6 +138,7 @@ export async function registerAccount(req, res, input = {}) {
     });
   });
   await startSession(req, res, user);
+  await accountStore().updateUser(user.id, { lastLoginAt: new Date().toISOString() });
   return { account: accountView(user), recoveryCodes: codes, usedDeviceProfile: Boolean(deviceFree) };
 }
 
