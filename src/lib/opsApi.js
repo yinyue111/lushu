@@ -32,3 +32,13 @@ export function getOpsModeration(status = 'open', signal) {
 export function saveOpsModerationDecision(entityType, entityId, payload, signal) {
   return postJson(`/ops/moderation/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, payload, signal, adminHeaders());
 }
+
+export function getOpsUsers(query = '', signal) {
+  const params = new URLSearchParams({ limit: '100' });
+  if (query) params.set('q', query);
+  return getJson(`/ops/users?${params.toString()}`, signal, adminHeaders());
+}
+
+export function saveOpsUserAction(userId, payload, signal) {
+  return postJson(`/ops/users/${encodeURIComponent(userId)}`, payload, signal, adminHeaders());
+}

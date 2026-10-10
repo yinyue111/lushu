@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Bot, ClipboardCheck, Footprints, GitMerge, History, LayoutDashboard, Link2, MapPinned, MousePointerClick, Settings, ShieldCheck } from 'lucide-react';
+import {
+  Bot,
+  ClipboardCheck,
+  Footprints,
+  GitMerge,
+  History,
+  LayoutDashboard,
+  Link2,
+  MapPinned,
+  MousePointerClick,
+  Settings,
+  ShieldCheck,
+  Users
+} from 'lucide-react';
 import CheckinAuditPanel from './CheckinAuditPanel';
 import ImportSourcesPanel from './ImportSourcesPanel';
 import LogsPage from './LogsPage';
@@ -11,6 +24,7 @@ import ModerationPanel from './ModerationPanel';
 import ProductBoardPanel from './ProductBoardPanel';
 import ReviewQueuePanel from './ReviewQueuePanel';
 import RoutebookVersionsPanel from './RoutebookVersionsPanel';
+import UsersPanel from './UsersPanel';
 
 const OPS_TABS = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
@@ -19,6 +33,7 @@ const OPS_TABS = [
   { id: 'checkins', label: '打卡审核', icon: Footprints },
   { id: 'reviews', label: '审核队列', icon: ClipboardCheck },
   { id: 'moderation', label: '内容审核', icon: ShieldCheck },
+  { id: 'users', label: '账号', icon: Users },
   { id: 'imports', label: '攻略来源', icon: Link2 },
   { id: 'products', label: '商品看板', icon: MousePointerClick },
   { id: 'versions', label: '路书版本', icon: History },
@@ -115,6 +130,7 @@ export default function OpsPage() {
         {activeTab === 'checkins' && <CheckinAuditPanel />}
         {activeTab === 'reviews' && <ReviewQueuePanel />}
         {activeTab === 'moderation' && <ModerationPanel />}
+        {activeTab === 'users' && <UsersPanel />}
         {activeTab === 'imports' && <ImportSourcesPanel />}
         {activeTab === 'products' && <ProductBoardPanel />}
         {activeTab === 'versions' && <RoutebookVersionsPanel />}
