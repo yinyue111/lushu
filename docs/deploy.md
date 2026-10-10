@@ -114,10 +114,32 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `AI_COST_CURRENCY` / `AI_INPUT_COST_PER_MILLION_TOKENS` / `AI_OUTPUT_COST_PER_MILLION_TOKENS` | 空 | 成本估算 |
 | `BACKUP_ENCRYPTION_KEY` | 空 | `npm run backup:data` 加密备份时需要 |
 
+### 账号（手机号 + 密码）
+
+默认 `AUTH_MODE=access-code`，行为和现在完全一样，账号接口返回 404。切换步骤和回滚见 [`docs/login-rollout.md`](./login-rollout.md)。
+
+| 变量 | 默认 | 作用 |
+| --- | --- | --- |
+| `AUTH_MODE` | `access-code` | `access-code`：只有访问码；`both`：登录或访问码都能生成（过渡期）；`login`：导入、生成、保存草稿、行程同步、打卡、收藏、纠错都要登录，访问码不再管用。回滚就是改回 `access-code` 并重启 |
+| `REGISTRATION_MODE` | `invite` | `open` / `invite`（注册要邀请码）/ `closed`（只能登录） |
+| `REGISTRATION_INVITE_CODE` | 同 `ROUTEBOOK_API_TOKEN` | 邀请码；不设时沿用现在的访问码，内测用户不用换 |
+| `AUTH_PHONE_HASH_SECRET` | 无 | **秘密**。手机号 HMAC 密钥，≥32 位随机串，`AUTH_MODE` 不是 `access-code` 时缺失会拒绝启动。**必须离线备份**：丢失或更换后，所有账号都按手机号找不到 |
+| `AUTH_SESSION_TTL_DAYS` / `AUTH_SESSION_MAX_DAYS` | `30` / `90` | 空闲过期天数 / 最长有效天数 |
+| `AUTH_POW_DIFFICULTY` | `16` | 注册、找回密码、可疑登录前的人机检查强度（浏览器里算 0.1–1 秒） |
+| `AUTH_SCRYPT_CONCURRENCY` | `2` | 同时计算的密码哈希数；每个约 32 MB，1.4 GB 机器保持 2 |
+| `AUTH_PASSWORD_PEPPER` | 空 | 可选的密码哈希附加密钥；设了就不能改 |
+
+说明：
+
+- 登录 Cookie 是 `__Host-lushu_sid`（HttpOnly、Secure、SameSite=Lax）。必须走 HTTPS（Caddy 已满足）；本机 `http://localhost` 开发也能用（浏览器把 localhost 当安全来源）。
+- 账号表在 PG 里：`auth_users`、`auth_sessions`、`auth_throttles`、`auth_profile_links`（迁移 0008，只新增表）。JSONL 后端写 `/data/accounts.jsonl`。备份 PG 时一起带上；`AUTH_PHONE_HASH_SECRET` 单独离线保存。
+- 手机号只存 HMAC 和打码号码；密码用 scrypt（版本化参数）；恢复码只存摘要；日志里没有手机号、密码和会话 ID。
+- 运营在后台「账号」页按手机号后 4 位搜索、停用/恢复、强制退出、补发一次性恢复码、单独设生成额度；每个操作都要写原因，记入 `ops-audits`。
+
 生产环境不要设置：`ALLOW_LOCAL_API_BYPASS`、`ALLOW_LOCAL_ADMIN_BYPASS`、`ALLOW_OSM_BASEMAP_IN_PRODUCTION`、`AI_RUNTIME_FROM_CODEX`。
 
 ## 已知限制
 
-- 每天 5 次的配额按 profile 计。没有 profile 的匿名请求只受访问码和按 IP 的 AI 限流约束。
+- 每天 5 次的配额按 profile 计；登录后按账号的主 profile 计，运营可以给单个账号改额度。没有 profile 的匿名请求只受访问码和按 IP 的 AI 限流约束。
 - 照片和 JSONL 日志存在 `appdata` 卷（`/data`）里，需要和 PG 一起备份。
 - 本仓库所在的开发机没有 Docker。2026-10-09 只做了两项验证：用同样步骤离线构建了运行时文件，并在全新 PG 库上完成迁移、回填、就绪标记和生产模式启动；另外解析了 compose 的 YAML。第一次真正 `docker compose build` 后，请先检查健康状态再切流量。
