@@ -64,9 +64,10 @@ export async function generateRoutebook(input, signal) {
   return postJson('/generate-routebook', generationRequestBody(input), signal, ownerHeaders(input?.profileId));
 }
 
-function generationRequestBody({ city, guide, constraints, importedSources, profileId, editToken, guideOrigins }) {
+function generationRequestBody({ city, guide, constraints, importedSources, profileId, editToken, guideOrigins, mode }) {
   return {
     city,
+    ...(mode ? { mode } : {}),
     guide,
     profileId,
     editToken,

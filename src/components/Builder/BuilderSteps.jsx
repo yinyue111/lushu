@@ -1,3 +1,4 @@
+import { GENERATION_MODES } from '../../lib/generationModes';
 import { AlertCircle, CalendarDays, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Train, X } from 'lucide-react';
 import { trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
@@ -383,7 +384,7 @@ function ToggleChips({ legend, icon: Icon, options, isActive, onToggle }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StepPrefs({ constraints, setConstraints, toggleTheme, options }) {
+export function StepPrefs({ constraints, setConstraints, toggleTheme, options, mode = 'fast', setMode = () => {} }) {
   const pick = (key) => ({ isActive: (v) => constraints[key] === v, onToggle: (v) => setConstraints((p) => ({ ...p, [key]: v })) });
   return (
     <section>
@@ -450,7 +451,46 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options })
           />
         </Field>
       </div>
+      <GenerationModePicker mode={mode} setMode={setMode} />
     </section>
+  );
+}
+
+export function GenerationModePicker({ mode, setMode }) {
+  return (
+    <fieldset className="mt-6">
+      <legend className="text-copy font-bold text-ink">生成方式</legend>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {GENERATION_MODES.map((item) => {
+          const active = mode === item.key;
+          return (
+            <label
+              key={item.key}
+              className={cn(
+                'flex cursor-pointer gap-3 rounded-card border p-3.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary',
+                active ? 'border-primary bg-primary-soft/60' : 'border-line bg-white hover:border-ink-2/40'
+              )}
+            >
+              <input
+                type="radio"
+                name="generation-mode"
+                value={item.key}
+                checked={active}
+                onChange={() => setMode(item.key)}
+                className="mt-1 size-4 accent-[var(--color-primary,#e8553d)]"
+              />
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-copy font-black text-ink">{item.label}</span>
+                  <span className="text-sm font-semibold text-ink-2">{item.time}</span>
+                </span>
+                <span className="mt-0.5 block text-sm text-ink-2">{item.hint}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 

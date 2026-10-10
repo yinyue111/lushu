@@ -18,6 +18,7 @@ import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
 import { GenerationProgress } from './GenerationProgress';
+import { readGenerationMode, rememberGenerationMode } from '../../lib/generationModes';
 import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
 import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
@@ -101,6 +102,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [generationJob, setGenerationJob] = useState(null);
   const [generationOutcome, setGenerationOutcome] = useState(null);
   const [generationFailure, setGenerationFailure] = useState(null);
+  const [generationMode, setGenerationModeState] = useState(() => readGenerationMode());
+  const setGenerationMode = (/** @type {string} */ next) => {
+    setGenerationModeState(next);
+    rememberGenerationMode(next);
+  };
   const [cancelState, setCancelState] = useState({ busy: false, error: '' });
   const activeJobRef = useRef(null);
   const [importState, setImportState] = useState({ loading: false, sources: initialDraft?.importedSources ?? [], error: '' });
@@ -269,7 +275,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     return task;
   }
 
-  async function handleGenerate() {
+  async function handleGenerate(modeOverride = '') {
+    const mode = modeOverride || generationMode;
     stopFollowingGeneration();
     const generationId = generationSequence.current;
     const ctrl = new AbortController();
@@ -307,6 +314,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       const data = await startGenerationJob(
         {
           city,
+          mode,
           guide: fullGuide,
           profileId: activeProfile.id,
           editToken: createRouteEditToken(),
@@ -416,7 +424,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function failGeneration(e) {
     setLoading(false);
     setGenerationOutcome('failed');
-    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '' });
+    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '', suggestDeep: e?.suggestDeep === true });
     if (isAccessCodeError(e)) openAccessCode();
     checkHealth()
       .then((health) => {
@@ -442,10 +450,13 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     }
   }
 
-  function retryGenerate() {
+  function retryGenerate(modeOverride = '') {
     if (loading) return;
-    if (!guardLogin('生成路书要用到 AI。登录后会接着生成。', () => handleGenerate())) return;
-    handleGenerate();
+    const mode = typeof modeOverride === 'string' ? modeOverride : '';
+    // Switching to 细品 after a failed 轻快 run is the user's choice; it is remembered for next time.
+    if (mode) setGenerationMode(mode);
+    if (!guardLogin('生成路书要用到 AI。登录后会接着生成。', () => handleGenerate(mode))) return;
+    handleGenerate(mode);
   }
 
   function stopFollowingGeneration() {
@@ -806,6 +817,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             setConstraints={setConstraints}
             toggleTheme={toggleTheme}
             options={{ durations, budgets, tempos, companions, transports, themes }}
+            mode={generationMode}
+            setMode={setGenerationMode}
           />
         )}
         {step === 3 && (
@@ -818,7 +831,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             cancelling={cancelState.busy}
             cancelError={cancelState.error}
             onCancel={handleCancelGeneration}
-            onRetry={retryGenerate}
+            onRetry={() => retryGenerate()}
+            onRetryDeep={() => retryGenerate('deep')}
+            mode={generationJob?.mode || generationMode}
             onBackToPrefs={() => setStep(2)}
           />
         )}

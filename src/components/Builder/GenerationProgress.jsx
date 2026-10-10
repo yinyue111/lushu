@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeft, Ban, Check, Clock, Loader2, Sparkles, X } from 
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { GENERATION_STAGE_LABELS, formatDuration, generationEtaText } from '../../lib/generationJob';
+import { generationModeLabel } from '../../lib/generationModes';
 
 const STAGE_ORDER = Object.keys(GENERATION_STAGE_LABELS);
 const STATUS_TEXT = { completed: '已完成', running: '进行中', pending: '等待中', failed: '失败', cancelled: '已取消' };
@@ -13,7 +14,21 @@ const STATUS_TEXT = { completed: '已完成', running: '进行中', pending: '�
  * the elapsed-time counter.
  * @param {Record<string, any>} props
  */
-export function GenerationProgress({ job, outcome, failure, city, duration, cancelling, cancelError, onCancel, onRetry, onBackToPrefs }) {
+export function GenerationProgress({
+  job,
+  outcome,
+  failure,
+  city,
+  duration,
+  mode = '',
+  cancelling,
+  cancelError,
+  onCancel,
+  onRetry,
+  onRetryDeep = () => {},
+  onBackToPrefs
+}) {
+  const modeLabel = generationModeLabel(mode);
   const running = outcome === 'running' || outcome === 'starting';
   const now = useTicker(running);
   const elapsedMs = job ? job.elapsedMs + (running ? Math.max(0, now - (job.receivedAt ?? now)) : 0) : 0;
@@ -82,6 +97,7 @@ export function GenerationProgress({ job, outcome, failure, city, duration, canc
         </h1>
         <p className="mt-1 text-sm text-muted">
           {city} · {duration}
+          {modeLabel ? ` · ${modeLabel}` : ''}
         </p>
       </div>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -163,7 +179,10 @@ export function GenerationProgress({ job, outcome, failure, city, duration, canc
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> {failure?.detail}
           </p>
           <p className="mt-1 text-xs text-ink-2">你的攻略、候选地点和偏好都已保留。</p>
-          <ResultActions onRetry={onRetry} onBackToPrefs={onBackToPrefs} />
+          {failure?.suggestDeep && mode === 'fast' && (
+            <p className="mt-2 text-sm text-ink">「轻快」这次没跑通。可以换「细品」再试：想得更细，大约要 2–3 分钟。</p>
+          )}
+          <ResultActions onRetry={onRetry} onBackToPrefs={onBackToPrefs} onRetryDeep={failure?.suggestDeep && mode === 'fast' ? onRetryDeep : null} />
         </div>
       )}
 
@@ -177,11 +196,16 @@ export function GenerationProgress({ job, outcome, failure, city, duration, canc
   );
 }
 
-function ResultActions({ onRetry, onBackToPrefs, retryLabel = '再试一次' }) {
+function ResultActions({ onRetry, onBackToPrefs, retryLabel = '再试一次', onRetryDeep = null }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      <Button variant="primary" size="sm" onClick={onRetry}>
-        <Sparkles /> {retryLabel}
+      {onRetryDeep && (
+        <Button variant="primary" size="sm" onClick={onRetryDeep}>
+          <Sparkles /> 换「细品」再试
+        </Button>
+      )}
+      <Button variant={onRetryDeep ? 'outline' : 'primary'} size="sm" onClick={onRetry}>
+        {!onRetryDeep && <Sparkles />} {onRetryDeep ? '用「轻快」再试' : retryLabel}
       </Button>
       <Button variant="outline" size="sm" onClick={onBackToPrefs}>
         <ArrowLeft /> 改改偏好

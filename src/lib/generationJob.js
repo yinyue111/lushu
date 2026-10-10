@@ -138,13 +138,14 @@ export function generationEtaText(job, elapsedMs) {
     p50 && estimate.sampleSize >= 3
       ? `通常需要 ${estimate.typicalRange || '2–3 分钟'}（最近 ${estimate.sampleSize} 次中位数 ${formatDuration(p50)}）`
       : `通常需要 ${estimate.typicalRange || '2–3 分钟'}`;
-  const reference = p50 || 150000;
+  const reference = p50 || (job?.mode === 'fast' ? 35000 : 150000);
   const left = reference - elapsedMs;
+  const timeoutText = Number(job?.timeoutMs) && Number(job.timeoutMs) < 120000 ? `${Math.round(Number(job.timeoutMs) / 1000)} 秒` : `${timeoutMinutes} 分钟`;
   let remaining;
   if (left > 90000) remaining = `预计还需约 ${Math.round(left / 60000)} 分钟`;
   else if (left > 20000) remaining = '预计还需 1 分钟左右';
   else if (left > 0) remaining = '快好了';
-  else remaining = `比平时慢一些，仍在等待；超过 ${timeoutMinutes} 分钟会自动停止，不会一直卡住`;
+  else remaining = `比平时慢一些，仍在等待；超过 ${timeoutText}会自动停止，不会一直卡住`;
   return { typical, remaining };
 }
 
@@ -152,6 +153,8 @@ export function generationEtaText(job, elapsedMs) {
 export function generationFailureCopy(error) {
   const code = String(error?.code ?? '');
   switch (code) {
+    case 'MODEL_STALLED':
+      return { title: '模型卡住了', detail: '模型很久没有输出，已自动停止。可以稍后再试。' };
     case 'MODEL_TIMEOUT':
       return { title: '模型这次太慢了', detail: '模型服务在等待上限内没有返回结果，已自动停止。可以稍后再试，或减少天数和必去地点后重试。' };
     case 'MODEL_BAD_OUTPUT':
