@@ -75,6 +75,8 @@ test('email accounts: verified sign-up, login by email or phone, reset by email,
   assert.equal(wrongCode.data.code, 'EMAIL_CODE_INVALID');
   const registered = await alice.post('/api/auth/register', await registerBody({ emailCode: code }));
   assert.equal(registered.status, 200, JSON.stringify(registered.data));
+  const exported = await alice.request('/api/auth/export');
+  assert.equal(exported.data.export.account.email, 'alice.trip@example.com', "the export carries the owner's own email");
   assert.equal(registered.data.account.emailMasked, 'al***@example.com');
   assert.equal(registered.data.account.emailVerified, true);
   assert.equal(registered.data.account.phoneMasked, '', 'phone is optional');

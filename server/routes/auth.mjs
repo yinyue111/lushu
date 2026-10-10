@@ -1,4 +1,5 @@
 // Account API: phone + password login. Disabled (404) while AUTH_MODE=access-code.
+import { decryptEmail } from '../accounts/email.mjs';
 import { route } from '../http/router.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -87,6 +88,14 @@ export const authRoutes = [
       );
     }
     const account = await currentAccount(req);
-    return sendJson(res, 200, { ok: true, export: { account, profiles } });
+    // The export is the owner's own copy: include the full email (decrypted). The phone number is only
+    // stored as a one-way hash, so it cannot be exported.
+    let email = '';
+    try {
+      email = user.emailEnc ? decryptEmail(user.emailEnc) : '';
+    } catch {
+      email = '';
+    }
+    return sendJson(res, 200, { ok: true, export: { account: { ...account, email }, profiles } });
   })
 ];
