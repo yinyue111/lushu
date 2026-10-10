@@ -95,6 +95,14 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `GENERATION_QUOTA_WINDOW_MS` | `86400000` | 配额滚动窗口（24 小时） |
 | `AI_TIMEOUT_MS` | `300000` | 一次生成的总时长上限（所有模型调用 + 定位 + 道路核验）；到点自动停止，报 MODEL_TIMEOUT。grok-4.7 单次调用实测 85–180 秒 |
 | `AI_CALL_TIMEOUT_MS` | 同 `AI_TIMEOUT_MS` | 单次模型调用上限，且不会超过剩余的总时长 |
+| `GENERATION_DEFAULT_MODE` | `fast` | 生成方式默认值：`fast`（轻快）或 `deep`（细品），用户可在「你想怎么玩？」里切换 |
+| `AI_MODEL_FAST` | `gemini-3.8-flash-medium` | 轻快用的模型（中继 t.aiwuq.cn 上的 id；不带后缀的 `gemini-3.8-flash` 在中继上暂无可用账号） |
+| `AI_MODEL_DEEP` | 空＝`OPENAI_MODEL` | 细品用的模型（grok-4.7） |
+| `AI_TIMEOUT_MS_FAST` / `_DEEP` | `min(120000, AI_TIMEOUT_MS)` / `AI_TIMEOUT_MS` | 每种方式一次生成的总时长上限 |
+| `AI_MAX_OUTPUT_TOKENS_FAST` / `_DEEP` | `12000` / `12000` | 每种方式的输出上限（推理模型的思考也算） |
+| `AI_STREAM` | `true` | 流式读取模型输出（SSE）；`false` 退回整包等待 |
+| `AI_STREAM_IDLE_MS_FAST` / `_DEEP` | `30000` / `150000` | 流式时多久没有任何输出就停止（MODEL_STALLED），不用干等到总时长 |
+| `GENERATION_QUOTA_DEEP_PER_PROFILE` | `0` | 细品在共享额度之内的额外上限（0＝不单独限制） |
 | `REQUEST_TIMEOUT_MS` | `AI_TIMEOUT_MS + 90000` | 同步生成接口的 HTTP 请求超时 |
 | `HEADERS_TIMEOUT_MS` / `SHUTDOWN_GRACE_MS` | `15000` / `10000` | 请求头超时；收到 SIGTERM 后的优雅退出等待时间 |
 | `GEOCODE_TIMEOUT_MS` / `ROUTING_TIMEOUT_MS` | `5000` / `8000` | 高德定位 / 路线校验超时 |
