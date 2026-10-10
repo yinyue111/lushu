@@ -177,6 +177,29 @@ export const PUBLIC_PUBLISHING_ENABLED =
   String(process.env.PUBLIC_PUBLISHING ?? 'enabled')
     .trim()
     .toLowerCase() !== 'disabled';
+// ---- Accounts (phone + password) -------------------------------------------------------------
+// AUTH_MODE: access-code (default, today's behaviour) | both (login or access code) | login (login only).
+// Rolling back is setting AUTH_MODE=access-code again; account tables stay and are simply unused.
+const AUTH_MODES = ['access-code', 'both', 'login'];
+export const AUTH_MODE = AUTH_MODES.includes(String(process.env.AUTH_MODE ?? '').trim()) ? String(process.env.AUTH_MODE).trim() : 'access-code';
+export const AUTH_ENABLED = AUTH_MODE !== 'access-code';
+const REGISTRATION_MODES = ['open', 'invite', 'closed'];
+export const REGISTRATION_MODE = REGISTRATION_MODES.includes(String(process.env.REGISTRATION_MODE ?? '').trim())
+  ? String(process.env.REGISTRATION_MODE).trim()
+  : 'invite';
+// The invite code falls back to the old access code so testers keep using what they already have.
+export const REGISTRATION_INVITE_CODE = String(process.env.REGISTRATION_INVITE_CODE || API_TOKEN || '').trim();
+// HMAC key for phone lookups. Losing it makes every account unfindable: back it up.
+export const AUTH_PHONE_HASH_SECRET = String(process.env.AUTH_PHONE_HASH_SECRET ?? '').trim() || (IS_PRODUCTION ? '' : `dev-only:${PROFILE_ID_SECRET}:phone`);
+export const AUTH_PASSWORD_PEPPER = String(process.env.AUTH_PASSWORD_PEPPER ?? '');
+export const AUTH_SESSION_TTL_DAYS = envNumber('AUTH_SESSION_TTL_DAYS', 30, { min: 1 });
+export const AUTH_SESSION_MAX_DAYS = envNumber('AUTH_SESSION_MAX_DAYS', 90, { min: 1 });
+// Secure __Host- cookie everywhere by default (browsers accept Secure cookies on http://localhost).
+// AUTH_COOKIE_SECURE=false is a dev-only escape hatch for other http hosts and is ignored in production.
+export const AUTH_COOKIE_SECURE = IS_PRODUCTION || process.env.AUTH_COOKIE_SECURE !== 'false';
+export const AUTH_POW_DIFFICULTY = envNumber('AUTH_POW_DIFFICULTY', 16, { min: 0 });
+export const AUTH_SCRYPT_CONCURRENCY = envNumber('AUTH_SCRYPT_CONCURRENCY', 2, { min: 1 });
+
 export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
 export const CURATED_ROUTE_VERSION = '2026-07-11T00:00:00.000Z';
 export const CURATED_ROUTE_IDS = new Set(curatedRoutes.map((route) => sanitizePublicId(route.id)).filter(Boolean));
