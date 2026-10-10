@@ -1,6 +1,7 @@
 // SMTP delivery via nodemailer (pinned). TLS certificates are verified by default; plain SMTP is only
 // meant for a relay on the same host. Credentials and addresses never reach the logs.
 import { readFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 
 /**
  * @typedef {{ host: string, port: number, secure: 'tls' | 'starttls' | 'none', user?: string, pass?: string,
@@ -19,7 +20,7 @@ export function smtpTransportOptions(cfg) {
     ...(cfg.user ? { auth: { user: cfg.user, pass: cfg.pass ?? '' } } : {}),
     tls: {
       rejectUnauthorized: cfg.tlsVerify !== false,
-      servername: cfg.host,
+      ...(isIP(cfg.host) ? {} : { servername: cfg.host }),
       minVersion: /** @type {'TLSv1.2'} */ ('TLSv1.2'),
       ...(cfg.caFile ? { ca: readFileSync(cfg.caFile, 'utf8') } : {})
     },
