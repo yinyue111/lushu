@@ -56,3 +56,10 @@ test('human check: signed, purpose-bound, single use', () => {
     (/** @type {any} */ e) => e.code === 'HUMAN_CHECK_REQUIRED'
   );
 });
+
+test('lock messages fit the action: sign-up pauses do not suggest a password reset', async () => {
+  const { lockedError } = await import('../../server/accounts/throttle.mjs');
+  const now = Date.now();
+  assert.match(lockedError(now + 30 * 60 * 1000, now, 'register:abc').message, /注册得太频繁了，30 分钟后再试/);
+  assert.match(lockedError(now + 15 * 60 * 1000, now, 'phone:abc').message, /15 分钟后再试，或者用恢复码重设密码/);
+});

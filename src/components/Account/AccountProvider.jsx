@@ -48,6 +48,10 @@ export function AccountProvider({ children, onProfileChanged }) {
         const { profile } = await attachAccountToDevice(me.account);
         profileChangedRef.current?.(profile);
       }
+      // Signed out elsewhere (logout everywhere, password reset, account disabled): this device becomes a guest again.
+      if (!me.account && (me.mode || authConfig.mode) !== 'access-code' && getProfile().accountUserId) {
+        profileChangedRef.current?.(detachAccountFromDevice());
+      }
     } catch {
       // Account status is best effort; the site keeps working for browsing.
     } finally {
@@ -68,6 +72,7 @@ export function AccountProvider({ children, onProfileChanged }) {
       if (accountRef.current) {
         // The session ended elsewhere (logout everywhere, password reset): treat this device as signed out.
         setAccount(null);
+        profileChangedRef.current?.(detachAccountFromDevice());
       }
       setSheet((current) => current ?? { view: 'login', reason: '这一步需要登录。登录后再点一次就行。' });
     };

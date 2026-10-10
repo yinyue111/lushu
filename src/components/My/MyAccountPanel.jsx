@@ -32,8 +32,9 @@ export function MyAccountPanel({
   const set = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value }));
   const setList = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value.split(/[、,\s]+/).filter(Boolean) }));
   return (
-    <form className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" onSubmit={onSave}>
-      <section className="rounded-panel border border-line bg-white p-5 shadow-card">
+    // Preferences are their own form so the account forms beside them are never nested inside it.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <form className="rounded-panel border border-line bg-white p-5 shadow-card" onSubmit={onSave}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold">旅行偏好</h2>
@@ -99,7 +100,7 @@ export function MyAccountPanel({
         <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-3">
           {profileMessage}
         </p>
-      </section>
+      </form>
 
       <div className="grid content-start gap-5">
         {accountsEnabled && <AccountSection />}
@@ -181,6 +182,6 @@ export function MyAccountPanel({
           </>
         )}
       </div>
-    </form>
+    </div>
   );
 }

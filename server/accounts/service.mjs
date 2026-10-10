@@ -65,7 +65,7 @@ function audit(event) {
 async function guardThrottles(req, keys) {
   for (const key of keys) {
     const state = await throttleState(key);
-    if (state.locked) throw lockedError(state.lockedUntil);
+    if (state.locked) throw lockedError(state.lockedUntil, Date.now(), key);
   }
 }
 

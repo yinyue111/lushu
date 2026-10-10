@@ -53,9 +53,10 @@ export async function clearThrottle(key) {
   await accountStore().deleteThrottle(key);
 }
 
-export function lockedError(lockedUntil, now = Date.now()) {
+export function lockedError(lockedUntil, now = Date.now(), key = '') {
   const minutes = Math.max(1, Math.ceil((lockedUntil - now) / MIN));
-  const error = createHttpError(`试错次数太多，${minutes} 分钟后再试，或者用恢复码重设密码`, 429, 'AUTH_LOCKED');
+  const message = key.startsWith('register:') ? `这台设备注册得太频繁了，${minutes} 分钟后再试` : `试错次数太多，${minutes} 分钟后再试，或者用恢复码重设密码`;
+  const error = createHttpError(message, 429, 'AUTH_LOCKED');
   /** @type {any} */ (error).retryAfterSeconds = minutes * 60;
   return error;
 }
