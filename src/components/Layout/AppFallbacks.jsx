@@ -69,12 +69,12 @@ export function RouteLoadFallback({ state, onBack, onRetry }) {
   }
   return (
     <CenteredMessage icon={MapPinOff} art title="这份路书打不开" text={state.error || '路书不存在或还没保存'}>
-      {onRetry && (
+      {onRetry && state.retryable !== false && (
         <Button variant="primary" onClick={onRetry}>
           <RotateCcw /> 重试
         </Button>
       )}
-      <Button variant="outline" onClick={onBack}>
+      <Button variant={state.retryable === false ? 'primary' : 'outline'} onClick={onBack}>
         返回首页
       </Button>
     </CenteredMessage>

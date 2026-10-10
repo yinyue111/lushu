@@ -90,7 +90,7 @@ export default function App() {
   const [sharePublicId, setSharePublicId] = useState(initial.publicId);
   const [modelHealth, setModelHealth] = useState(null);
   const [routebook, setRoutebook] = useState(null);
-  const [routeLoadState, setRouteLoadState] = useState({ loading: false, error: '' });
+  const [routeLoadState, setRouteLoadState] = useState(/** @type {{ loading: boolean, error: string, retryable?: boolean }} */ ({ loading: false, error: '' }));
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [profile, setProfile] = useState(() => getProfile());
   const [savedBooks, setSavedBooks] = useState(() => getStoredRoutebooks(profile.id));
@@ -310,7 +310,8 @@ export default function App() {
           return;
         }
         setRoutebook(null);
-        setRouteLoadState({ loading: false, error: routeLoadErrorMessage(error) });
+        // Retrying cannot bring back a deleted (410) or missing (404) routebook.
+        setRouteLoadState({ loading: false, error: routeLoadErrorMessage(error), retryable: ![404, 410].includes(Number(error?.status)) });
       });
     return () => ctrl.abort();
   }, [profile, replaceSavedBook, routeRetryNonce, sharePublicId, view]);
