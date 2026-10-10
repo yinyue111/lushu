@@ -6,7 +6,7 @@
 
 1. 生成并**离线备份** `AUTH_PHONE_HASH_SECRET`（≥32 位随机串，例如 `openssl rand -base64 48 | tr -d '/+=' | cut -c1-48`）。和 `PROFILE_ID_SECRET` 一样：上线后不能换；丢了所有账号都按手机号找不到。
 2. 同样生成并离线备份 `AUTH_EMAIL_HASH_SECRET` 和 `AUTH_EMAIL_ENC_KEY`（各一个独立随机串，命令同上）。上线后都不能换。
-3. 发信（需要产品负责人拍板服务商和发件域名）：开通服务商账号，给发件域名（如 `mail.<主域名>`）配 SPF、DKIM、DMARC，拿到 API key。没准备好也能先上线：`MAIL_TRANSPORT=disabled` + `EMAIL_VERIFICATION_REQUIRED=false`，注册时邮箱标「未验证」，之后用户在「我的 → 账号」补验证。
+3. 发信：优先用日本那台 AWS 机器上已有的邮件服务器（`MAIL_TRANSPORT=smtp`，见 2b），也可以用 Resend。不管哪种，都要给发件域名配 SPF、DKIM、DMARC；自己的服务器还要确认 AWS 已解除 25 端口出站限制、有反向解析（PTR），否则大概率进垃圾箱或被拒。没准备好也能先上线：`MAIL_TRANSPORT=disabled` + `EMAIL_VERIFICATION_REQUIRED=false`，注册时邮箱标「未验证」，之后用户在「我的 → 账号」补验证。
 4. 决定邀请码：不设 `REGISTRATION_INVITE_CODE` 时沿用现在的访问码 `ROUTEBOOK_API_TOKEN`。
 5. 备份：`pg_dump`（或 `npm run backup:data`）+ `appdata` 卷。
 
@@ -51,6 +51,28 @@ sed -i 's/^AUTH_MODE=.*/AUTH_MODE=both/' .env && docker compose -f docker-compos
 观察 3–7 天：注册数、`AUTH_LOCKED` 次数、登录失败率、内存（scrypt 并发 2，每个约 32 MB）。
 
 ## 2b. 打开邮件发信
+
+### 用自己的邮件服务器（SMTP）
+
+需要 SRE 提供：邮件服务器主机名、端口和加密方式（587 + STARTTLS 或 465 + TLS）、一个专用发信账号和密码、发件地址，以及证书是公共 CA 签的还是自签的（自签要给 CA 的 PEM）。
+
+```bash
+# .env
+MAIL_TRANSPORT=smtp
+MAIL_FROM=路书 <no-reply@mail.example.com>
+MAIL_SMTP_HOST=mail.example.com      # 证书上的名字；同机部署也别填 localhost（那是容器自己）
+MAIL_SMTP_SECURE=starttls            # 或 tls（465）
+MAIL_SMTP_PORT=587
+MAIL_SMTP_USER=lushu-noreply
+MAIL_SMTP_PASS=<专用账号密码>
+# MAIL_SMTP_CA_FILE=/run/secrets/mail-ca.pem   # 仅自签证书时，并在 compose 里挂载
+EMAIL_VERIFICATION_REQUIRED=true
+docker compose -f docker-compose.prod.yml up -d app
+```
+
+如果邮件服务器只监听宿主机本地端口，要么让它也监听 docker 网桥地址并在 compose 里加 `extra_hosts: ["host.docker.internal:host-gateway"]`，要么开放 587 给容器网段；不要为此关掉证书校验（生产会拒绝启动）。连不上时用户看到「邮件没发出去，稍后再试」，日志里是 `[mail] … failed via smtp: <错误类型>`，不含收件人原文和密码。
+
+### 用 Resend
 
 服务商准备好后：
 

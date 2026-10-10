@@ -126,8 +126,14 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `AUTH_PHONE_HASH_SECRET` | 无 | **秘密**。手机号 HMAC 密钥，≥32 位随机串，`AUTH_MODE` 不是 `access-code` 时缺失会拒绝启动。**必须离线备份**：丢失或更换后，所有账号都按手机号找不到 |
 | `AUTH_EMAIL_HASH_SECRET` | 无 | **秘密**。邮箱 HMAC 密钥，≥32 位，必须离线备份；丢失后按邮箱找不到账号 |
 | `AUTH_EMAIL_ENC_KEY` | 无 | **秘密**。邮箱加密密钥（AES-256-GCM），≥32 位，必须离线备份；丢失后读不出邮箱、发不了信 |
-| `MAIL_TRANSPORT` | 生产 `disabled`，开发 `file` | `resend`：真实发信；`log`：只记「已发给 ab***@x.com」；`file`：写到 `/data/mail-outbox`（测试用，生产启动会警告）；`disabled`：不发 |
-| `MAIL_FROM` / `MAIL_API_KEY` / `MAIL_API_URL` | 空 / 空 / Resend | `resend` 时前两个必填，否则拒绝启动 |
+| `MAIL_TRANSPORT` | 生产 `disabled`，开发 `file` | `smtp`：用自己的邮件服务器发；`resend`：用 Resend 发；`log`：只记「已发给 ab***@x.com」；`file`：写到 `/data/mail-outbox`（测试用，生产启动会警告）；`disabled`：不发 |
+| `MAIL_FROM` / `MAIL_API_KEY` / `MAIL_API_URL` | 空 / 空 / Resend | `resend` 时前两个必填，否则拒绝启动；`smtp` 时 `MAIL_FROM` 必填 |
+| `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | 空 / 按加密方式 587、465、25 | `smtp` 时主机必填。容器里的 `localhost` 是容器自己，同机邮件服务器请用域名或 `host.docker.internal` |
+| `MAIL_SMTP_SECURE` | `starttls` | `starttls`：必须升级加密，对方不支持就不发；`tls`：465 直接加密；`none`：不加密，只允许 `localhost`，否则拒绝启动 |
+| `MAIL_SMTP_USER` / `MAIL_SMTP_PASS` | 空 | **秘密**（密码）。不写进日志 |
+| `MAIL_SMTP_TLS_VERIFY` | `true` | 校验邮件服务器证书。生产设 `false` 拒绝启动 |
+| `MAIL_SMTP_CA_FILE` | 空 | 邮件服务器用自签或内部 CA 时，信任这个 PEM 文件；文件不存在拒绝启动 |
+| `MAIL_SMTP_TIMEOUT_MS` | `15000` | 连接、握手、等待应答的超时 |
 | `EMAIL_VERIFICATION_REQUIRED` | `true` | 注册必须填邮箱验证码。为 `true` 但发信没配（`disabled`/`log`）时生产拒绝启动；过渡期设 `false` |
 | `EMAIL_CODE_RESEND_SECONDS` | `60` | 同一邮箱两次验证码的最短间隔 |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_SESSION_MAX_DAYS` | `30` / `90` | 空闲过期天数 / 最长有效天数 |
