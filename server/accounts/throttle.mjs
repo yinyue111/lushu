@@ -12,7 +12,15 @@ export const POLICIES = {
   // 30 failures from one client in 10 min → 30 min lock, doubling, max 24 h.
   ip: { threshold: 30, windowMs: 10 * MIN, lockMs: 30 * MIN, maxLockMs: 24 * 60 * MIN },
   // 5 sign-ups from one client in an hour → 1 h pause.
-  register: { threshold: 5, windowMs: 60 * MIN, lockMs: 60 * MIN, maxLockMs: 24 * 60 * MIN }
+  register: { threshold: 5, windowMs: 60 * MIN, lockMs: 60 * MIN, maxLockMs: 24 * 60 * MIN },
+  // 5 wrong passwords for one email → same as phone.
+  email: { threshold: 5, windowMs: 15 * MIN, lockMs: 15 * MIN, maxLockMs: 24 * 60 * MIN },
+  // Mails to one address: 5 per hour, then a 1 h pause (counts every send).
+  mailto: { threshold: 5, windowMs: 60 * MIN, lockMs: 60 * MIN, maxLockMs: 24 * 60 * MIN },
+  // Mails requested from one client: 20 per hour, then a 1 h pause.
+  mailip: { threshold: 20, windowMs: 60 * MIN, lockMs: 60 * MIN, maxLockMs: 24 * 60 * MIN },
+  // Wrong email codes for one address: 10 in 15 min → 30 min lock.
+  code: { threshold: 10, windowMs: 15 * MIN, lockMs: 30 * MIN, maxLockMs: 24 * 60 * MIN }
 };
 // From this many recent failures on a client, login also needs the human check.
 export const IP_HUMAN_CHECK_AFTER = 5;
@@ -21,6 +29,10 @@ const keyHash = (value) => createHmac('sha256', `${PROFILE_ID_SECRET}:auth-throt
 export const phoneKey = (phoneHashValue) => `phone:${phoneHashValue.slice(0, 40)}`;
 export const ipKey = (req) => `ip:${keyHash(requestClientKey(req))}`;
 export const registerKey = (req) => `register:${keyHash(requestClientKey(req))}`;
+export const emailKey = (emailHashValue) => `email:${emailHashValue.slice(0, 40)}`;
+export const mailtoKey = (emailHashValue) => `mailto:${emailHashValue.slice(0, 40)}`;
+export const mailIpKey = (req) => `mailip:${keyHash(requestClientKey(req))}`;
+export const codeKey = (emailHashValue) => `code:${emailHashValue.slice(0, 40)}`;
 
 export async function throttleState(key, now = Date.now()) {
   const record = await accountStore().getThrottle(key);
@@ -55,7 +67,13 @@ export async function clearThrottle(key) {
 
 export function lockedError(lockedUntil, now = Date.now(), key = '') {
   const minutes = Math.max(1, Math.ceil((lockedUntil - now) / MIN));
-  const message = key.startsWith('register:') ? `这台设备注册得太频繁了，${minutes} 分钟后再试` : `试错次数太多，${minutes} 分钟后再试，或者用恢复码重设密码`;
+  const message = key.startsWith('register:')
+    ? `这台设备注册得太频繁了，${minutes} 分钟后再试`
+    : key.startsWith('mail')
+      ? `验证码发得太频繁了，${minutes} 分钟后再试`
+      : key.startsWith('code:')
+        ? `验证码错太多次了，${minutes} 分钟后再试`
+        : `试错次数太多，${minutes} 分钟后再试，或者用恢复码重设密码`;
   const error = createHttpError(message, 429, 'AUTH_LOCKED');
   /** @type {any} */ (error).retryAfterSeconds = minutes * 60;
   return error;

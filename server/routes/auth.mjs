@@ -2,13 +2,15 @@
 import { route } from '../http/router.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
-import { AUTH_ENABLED, AUTH_MODE, AUTH_POW_DIFFICULTY, REGISTRATION_MODE } from '../config/index.mjs';
+import { AUTH_ENABLED, AUTH_MODE, AUTH_POW_DIFFICULTY, EMAIL_VERIFICATION_REQUIRED, REGISTRATION_MODE } from '../config/index.mjs';
+import { mailDelivers } from '../mail/transport.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { issueChallenge } from '../accounts/pow.mjs';
 import {
   accountProfileIds,
   changePassword,
   claimDeviceData,
+  confirmChangeEmail,
   currentAccount,
   deleteAccount,
   loginAccount,
@@ -16,7 +18,10 @@ import {
   regenerateRecoveryCodes,
   registerAccount,
   requireAccount,
-  resetPasswordWithRecovery
+  resetPasswordWithRecovery,
+  sendChangeEmailCode,
+  sendRegisterCode,
+  sendResetCode
 } from '../accounts/service.mjs';
 import { buildProfileExport, deleteProfileData, requireProfileOwnerAccess, withProfileMutationLock } from '../auth/profile-lifecycle.mjs';
 
@@ -39,7 +44,9 @@ export const authRoutes = [
       ok: true,
       mode: AUTH_MODE,
       registration: AUTH_ENABLED ? REGISTRATION_MODE : 'closed',
-      humanCheckDifficulty: AUTH_POW_DIFFICULTY
+      humanCheckDifficulty: AUTH_POW_DIFFICULTY,
+      emailVerificationRequired: EMAIL_VERIFICATION_REQUIRED,
+      emailDelivery: mailDelivers()
     });
   }),
   route('GET', '/api/auth/me', async ({ req, res }) => {
@@ -50,10 +57,14 @@ export const authRoutes = [
     requireEnabled();
     enforceRateLimit(req);
     const purpose = String(url.searchParams.get('purpose') ?? '');
-    if (!['register', 'login', 'reset'].includes(purpose)) throw createHttpError('不支持的安全检查', 400, 'HUMAN_CHECK_PURPOSE_INVALID');
+    if (!['register', 'login', 'reset', 'mail'].includes(purpose)) throw createHttpError('不支持的安全检查', 400, 'HUMAN_CHECK_PURPOSE_INVALID');
     return sendJson(res, 200, { ok: true, ...issueChallenge(purpose) });
   }),
+  post('/api/auth/register/code', sendRegisterCode),
   post('/api/auth/register', registerAccount),
+  post('/api/auth/reset-password/code', sendResetCode),
+  post('/api/auth/email/code', sendChangeEmailCode),
+  post('/api/auth/email', confirmChangeEmail),
   post('/api/auth/login', loginAccount),
   post('/api/auth/reset-password', resetPasswordWithRecovery),
   post('/api/auth/password', changePassword),

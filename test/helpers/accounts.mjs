@@ -9,6 +9,11 @@ export const authEnv = (mode = 'login', extra = {}) => ({
   REGISTRATION_MODE: 'invite',
   REGISTRATION_INVITE_CODE: INVITE,
   AUTH_POW_DIFFICULTY: '4',
+  AUTH_EMAIL_HASH_SECRET: 'unit-test-email-hash-secret-0123456789abcdef',
+  AUTH_EMAIL_ENC_KEY: 'unit-test-email-enc-key-0123456789abcdef0123',
+  // The phone-era tests register without codes; email flows set this to true with a file outbox.
+  EMAIL_VERIFICATION_REQUIRED: 'false',
+  MAIL_TRANSPORT: 'file',
   ...extra
 });
 
@@ -43,11 +48,22 @@ export function createClient(baseUrl) {
     async register(phone, password, extra = {}) {
       return client.request('/api/auth/register', {
         method: 'POST',
-        body: { phone, password, inviteCode: INVITE, acceptPrivacy: true, humanCheck: await client.humanCheck('register'), ...extra }
+        body: {
+          phone,
+          email: `p${String(phone).replace(/\D/g, '').slice(-11)}@example.com`,
+          password,
+          inviteCode: INVITE,
+          acceptPrivacy: true,
+          humanCheck: await client.humanCheck('register'),
+          ...extra
+        }
       });
     },
     login(phone, password, extra = {}) {
       return client.request('/api/auth/login', { method: 'POST', body: { phone, password, ...extra } });
+    },
+    async post(path, body = {}) {
+      return client.request(path, { method: 'POST', body });
     }
   };
   return client;

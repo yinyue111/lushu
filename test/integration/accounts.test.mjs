@@ -70,7 +70,7 @@ test('login mode: register, sessions, enumeration-safe login, lockout, recovery,
   assert.equal((await alice.request('/api/health')).data.access, 'open');
 
   // Duplicate numbers are refused (same message whichever device asks).
-  assert.equal((await createClient(server.baseUrl).register('+86 138-1234-5678', `${PASSWORD}x`)).data.code, 'PHONE_TAKEN');
+  assert.equal((await createClient(server.baseUrl).register('+86 138-1234-5678', `${PASSWORD}x`, { email: 'other@example.com' })).data.code, 'PHONE_TAKEN');
 
   // Wrong password and unknown phone look identical.
   const wrong = await createClient(server.baseUrl).login(PHONE, 'not-the-password');
