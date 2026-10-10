@@ -1,5 +1,6 @@
 // Pure startup safety evaluation so the policy can be unit tested without
 // booting the HTTP server.
+import { existsSync } from 'node:fs';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost', '[::1]']);
 
@@ -56,7 +57,8 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   mailTransport?: string,
  *   mailTransportInvalid?: boolean,
  *   mailFrom?: string,
- *   mailApiKey?: string
+ *   mailApiKey?: string,
+ *   smtp?: { host: string, port: number, secure: string, user: string, tlsVerify: boolean, caFile: string }
  * }} input
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -141,9 +143,23 @@ export function evaluateStartupSafety(input) {
       if (!input.authEmailEncKey)
         errors.push('AUTH_MODE enables accounts but AUTH_EMAIL_ENC_KEY is missing (>=32 random bytes; losing it makes stored emails unreadable).');
       else if (input.isProduction && String(input.authEmailEncKey).length < 32) errors.push('AUTH_EMAIL_ENC_KEY must be at least 32 characters.');
-      if (input.mailTransportInvalid) errors.push('MAIL_TRANSPORT must be one of file, log, resend, disabled.');
+      if (input.mailTransportInvalid) errors.push('MAIL_TRANSPORT must be one of file, log, resend, smtp, disabled.');
+      if (input.mailTransport === 'smtp') {
+        const smtp = input.smtp ?? { host: '', port: 0, secure: 'invalid', user: '', tlsVerify: true, caFile: '' };
+        if (!smtp.host || !input.mailFrom) errors.push('MAIL_TRANSPORT=smtp needs MAIL_SMTP_HOST and MAIL_FROM.');
+        if (smtp.secure === 'invalid') errors.push('MAIL_SMTP_SECURE must be one of starttls, tls, none.');
+        const loopback = ['localhost', '127.0.0.1', '::1'].includes(smtp.host);
+        if (smtp.secure === 'none' && !loopback) {
+          errors.push('MAIL_SMTP_SECURE=none is only allowed for a relay on localhost; use starttls or tls for a remote mail server.');
+        }
+        if (!smtp.tlsVerify) {
+          if (input.isProduction) errors.push('MAIL_SMTP_TLS_VERIFY=false is not allowed in production; trust a private CA with MAIL_SMTP_CA_FILE instead.');
+          else warnings.push('MAIL_SMTP_TLS_VERIFY=false: the mail server certificate is not checked.');
+        }
+        if (smtp.caFile && !existsSync(smtp.caFile)) errors.push('MAIL_SMTP_CA_FILE does not exist.');
+      }
       if (input.mailTransport === 'resend' && (!input.mailApiKey || !input.mailFrom)) errors.push('MAIL_TRANSPORT=resend needs MAIL_API_KEY and MAIL_FROM.');
-      const delivers = input.mailTransport === 'resend' || input.mailTransport === 'file';
+      const delivers = ['resend', 'smtp', 'file'].includes(String(input.mailTransport));
       if (input.emailVerificationRequired && !delivers) {
         const message = `EMAIL_VERIFICATION_REQUIRED=true but MAIL_TRANSPORT=${input.mailTransport} does not deliver mail: nobody can register or reset a password by email.`;
         if (input.isProduction) errors.push(`${message} Configure a mail provider or set EMAIL_VERIFICATION_REQUIRED=false for now.`);

@@ -15,6 +15,12 @@ import {
   MAIL_TRANSPORT_INVALID,
   MAIL_FROM,
   MAIL_API_KEY,
+  MAIL_SMTP_CA_FILE,
+  MAIL_SMTP_HOST,
+  MAIL_SMTP_PORT,
+  MAIL_SMTP_SECURE,
+  MAIL_SMTP_TLS_VERIFY,
+  MAIL_SMTP_USER,
   REGISTRATION_MODE,
   HOST,
   IS_PRODUCTION,
@@ -58,7 +64,15 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     mailTransport: MAIL_TRANSPORT,
     mailTransportInvalid: MAIL_TRANSPORT_INVALID,
     mailFrom: MAIL_FROM,
-    mailApiKey: MAIL_API_KEY
+    mailApiKey: MAIL_API_KEY,
+    smtp: {
+      host: MAIL_SMTP_HOST,
+      port: MAIL_SMTP_PORT,
+      secure: MAIL_SMTP_SECURE,
+      user: MAIL_SMTP_USER,
+      tlsVerify: MAIL_SMTP_TLS_VERIFY,
+      caFile: MAIL_SMTP_CA_FILE
+    }
   });
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));

@@ -208,7 +208,7 @@ export const EMAIL_VERIFICATION_REQUIRED =
   String(process.env.EMAIL_VERIFICATION_REQUIRED ?? 'true')
     .trim()
     .toLowerCase() !== 'false';
-const MAIL_TRANSPORTS = ['file', 'log', 'resend', 'disabled'];
+const MAIL_TRANSPORTS = ['file', 'log', 'resend', 'smtp', 'disabled'];
 const mailTransportEnv = String(process.env.MAIL_TRANSPORT ?? '')
   .trim()
   .toLowerCase();
@@ -219,6 +219,24 @@ export const EMAIL_CODE_RESEND_SECONDS = envNumber('EMAIL_CODE_RESEND_SECONDS', 
 export const MAIL_FROM = String(process.env.MAIL_FROM ?? '').trim() || (IS_PRODUCTION ? '' : '路书 <no-reply@localhost>');
 export const MAIL_API_KEY = String(process.env.MAIL_API_KEY ?? '').trim();
 export const MAIL_API_URL = String(process.env.MAIL_API_URL ?? 'https://api.resend.com/emails').trim();
+// SMTP (e.g. the mail server on our own host). SECURE: tls (implicit TLS, 465) | starttls (587, TLS required) | none (plain, loopback only).
+const SMTP_SECURE_MODES = ['tls', 'starttls', 'none'];
+const smtpSecureEnv = String(process.env.MAIL_SMTP_SECURE ?? 'starttls')
+  .trim()
+  .toLowerCase();
+export const MAIL_SMTP_SECURE = SMTP_SECURE_MODES.includes(smtpSecureEnv) ? smtpSecureEnv : 'invalid';
+export const MAIL_SMTP_HOST = String(process.env.MAIL_SMTP_HOST ?? '').trim();
+export const MAIL_SMTP_PORT = envNumber('MAIL_SMTP_PORT', MAIL_SMTP_SECURE === 'tls' ? 465 : MAIL_SMTP_SECURE === 'none' ? 25 : 587, { min: 1 });
+export const MAIL_SMTP_USER = String(process.env.MAIL_SMTP_USER ?? '').trim();
+export const MAIL_SMTP_PASS = String(process.env.MAIL_SMTP_PASS ?? '');
+// Certificate verification is on unless explicitly turned off (never do that in production).
+export const MAIL_SMTP_TLS_VERIFY =
+  String(process.env.MAIL_SMTP_TLS_VERIFY ?? 'true')
+    .trim()
+    .toLowerCase() !== 'false';
+// Optional PEM bundle to trust (a private CA); public CAs are trusted by default.
+export const MAIL_SMTP_CA_FILE = String(process.env.MAIL_SMTP_CA_FILE ?? '').trim();
+export const MAIL_SMTP_TIMEOUT_MS = envNumber('MAIL_SMTP_TIMEOUT_MS', 15000, { min: 1000 });
 export const MAIL_OUTBOX_DIR = String(process.env.MAIL_OUTBOX_DIR ?? '').trim() || join(DATA_DIR, 'mail-outbox');
 
 export const ROUTEBOOK_STATUSES = new Set(['draft', 'pending_review', 'published', 'featured', 'archived']);
