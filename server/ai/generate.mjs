@@ -10,6 +10,7 @@ import {
   AMAP_GEOCODE_KEY,
   AI_MAX_OUTPUT_TOKENS,
   AI_TIMEOUT_MS,
+  AI_CALL_TIMEOUT_MS,
   OCR_MAX_OUTPUT_TOKENS,
   AI_MAX_OUTPUT_TOKENS_RETRY
 } from '../config/index.mjs';
@@ -38,6 +39,7 @@ import { attachServerRouteLegs } from '../routing/service.mjs';
 import { estimateModelCost, normalizeModelUsage, summarizeModelUsage } from '../analytics/aiObservability.mjs';
 import { createUntrustedFence, fenceImportedSources } from './untrusted.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
+import { GENERATION_DEADLINE_REASON } from './generationJobs.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -577,6 +579,30 @@ function normalizeArray(items) {
   return [...normalized, ...fallback].slice(0, Math.max(3, normalized.length));
 }
 
+/** Timeout for one model request: AI_CALL_TIMEOUT_MS, cut to what is left of the generation budget. */
+export function modelCallTimeoutMs(deadline = 0, now = Date.now()) {
+  if (!deadline) return AI_CALL_TIMEOUT_MS;
+  return Math.max(1, Math.min(AI_CALL_TIMEOUT_MS, deadline - now));
+}
+
+/** The generation job aborts its signal with this reason when the overall budget (AI_TIMEOUT_MS) runs out. */
+function isDeadlineAbort(signal) {
+  return Boolean(signal?.aborted && signal.reason?.code === GENERATION_DEADLINE_REASON);
+}
+function modelTimeoutError() {
+  return createHttpError(`模型服务响应超时（生成总时长上限 ${Math.round(AI_TIMEOUT_MS / 1000)} 秒），请稍后重试`, 504, 'MODEL_TIMEOUT');
+}
+
+// Relays that reject json_schema with a 400 are remembered, so later generations skip straight to the
+// format that worked instead of paying for the failed request every time.
+const structuredFormatByRuntime = new Map();
+function runtimeFormatKey(runtime) {
+  return `${runtime.baseUrl}|${runtime.wireApi}|${runtime.model}`;
+}
+export function resetStructuredFormatCache() {
+  structuredFormatByRuntime.clear();
+}
+
 function isStructuredOutputUnsupported(error) {
   const detail = `${error.upstreamCode ?? ''} ${error.upstreamDetail ?? ''}`;
   return error.statusCode === 400 && /json_schema|schema|structured|response_format|text\.format/i.test(detail);
@@ -585,9 +611,9 @@ function isStructuredOutputUnsupported(error) {
 /**
  * @param {any} payload
  * @param {any} runtime
- * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number }} [options]
+ * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number, deadline?: number }} [options]
  */
-async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS } = {}) {
+async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema', signal, maxOutputTokens = AI_MAX_OUTPUT_TOKENS, deadline = 0 } = {}) {
   const { prompt: userMessage, fence } = buildUserPrompt(payload);
   const system = `${systemPrompt()}\n${fence.instruction}`;
   const requestBody =
@@ -645,7 +671,7 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
   const timeoutId = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, AI_TIMEOUT_MS);
+  }, modelCallTimeoutMs(deadline));
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener('abort', abortFromCaller, { once: true });
 
@@ -665,9 +691,7 @@ async function callOpenAiApi(payload, runtime, { responseFormat = 'json_schema',
     });
     text = await response.text();
   } catch (error) {
-    if (timedOut) {
-      throw createHttpError('模型服务响应超时，请稍后重试', 504, 'MODEL_TIMEOUT');
-    }
+    if (timedOut || isDeadlineAbort(signal)) throw modelTimeoutError();
     if (signal?.aborted) {
       throw createHttpError('已取消生成', 499, 'CLIENT_ABORTED');
     }
@@ -809,7 +833,7 @@ export async function analyzeGuideImages(images, signal) {
   const timeoutId = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, AI_TIMEOUT_MS);
+  }, AI_CALL_TIMEOUT_MS);
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener('abort', abortFromCaller, { once: true });
   const requestModel = async (responseFormat) => {
@@ -874,6 +898,12 @@ export async function analyzeGuideImages(images, signal) {
 
 // Ops needs to tell a truncated output apart from a hallucinated one when reading
 // the AI log; the HTTP code alone collapses both into MODEL_ERROR.
+/** A truncation retry is only worth starting if it can finish: it needs ~1.5x the time the first call took. */
+export function retryFitsBudget({ deadline = 0, spentMs = 0, now = Date.now() }) {
+  if (!deadline) return true;
+  return deadline - now >= Math.min(AI_CALL_TIMEOUT_MS, spentMs * 1.5);
+}
+
 export function generationFailureReason(error) {
   switch (error?.code) {
     case 'MODEL_OUTPUT_TRUNCATED':
@@ -904,9 +934,9 @@ export function generationFailureReason(error) {
 /**
  * @param {any} payload
  * @param {AbortSignal} [signal]
- * @param {{ onStage?: GenerationStageListener }} [options]
+ * @param {{ onStage?: GenerationStageListener, deadline?: number }} [options]
  */
-export async function generateRoutebook(payload, signal, { onStage = () => {} } = {}) {
+export async function generateRoutebook(payload, signal, { onStage = () => {}, deadline = 0 } = {}) {
   const runtime = await loadCodexRuntime();
   if (!runtime.ready) {
     throw createHttpError(runtime.readyReason || 'yinyue provider 或 OPENAI_API_KEY 未配置', 503, 'MODEL_NOT_READY');
@@ -936,7 +966,7 @@ export async function generateRoutebook(payload, signal, { onStage = () => {} } 
   let activeStage = 'model';
   const observability = () => {
     const modelUsage = summarizeModelUsage(attempts);
-    return { modelUsage, costEstimate: estimateModelCost({ modelUsage, model: runtime.model }), stages };
+    return { modelUsage, costEstimate: estimateModelCost({ modelUsage, model: runtime.model }), stages, modelCalls };
   };
   const runStage = async (name, operation) => {
     activeStage = name;
@@ -950,42 +980,59 @@ export async function generateRoutebook(payload, signal, { onStage = () => {} } 
       throw error;
     }
   };
+  const modelCalls = [];
   const trackedModelCall = async (options) => {
+    const startedAt = Date.now();
     try {
-      const data = await callOpenAiApi(promptPayload, runtime, options);
+      const data = await callOpenAiApi(promptPayload, runtime, { deadline, ...options });
       recordUsage(normalizeModelUsage(data, runtime.wireApi));
+      modelCalls.push({
+        format: options.responseFormat,
+        maxOutputTokens: options.maxOutputTokens ?? AI_MAX_OUTPUT_TOKENS,
+        durationMs: Date.now() - startedAt,
+        ok: true
+      });
       return data;
     } catch (error) {
       recordUsage(error.modelUsage ?? null);
+      modelCalls.push({
+        format: options.responseFormat,
+        maxOutputTokens: options.maxOutputTokens ?? AI_MAX_OUTPUT_TOKENS,
+        durationMs: Date.now() - startedAt,
+        ok: false,
+        code: error?.code
+      });
       throw error;
     }
   };
-  const callModel = (options = {}) =>
-    trackedModelCall({
-      responseFormat: 'json_schema',
-      signal,
-      ...options
-    }).catch(async (error) => {
-      if (!isStructuredOutputUnsupported(error)) throw error;
-      return trackedModelCall({
-        responseFormat: 'json_object',
-        signal,
-        ...options
-      }).catch((fallbackError) => {
-        if (!isStructuredOutputUnsupported(fallbackError)) throw fallbackError;
-        return trackedModelCall({
-          responseFormat: 'none',
-          signal,
-          ...options
-        });
-      });
-    });
+  const formatKey = runtimeFormatKey(runtime);
+  const FORMATS = ['json_schema', 'json_object', 'none'];
+  const callModel = async (options = {}) => {
+    let index = Math.max(0, FORMATS.indexOf(structuredFormatByRuntime.get(formatKey) ?? 'json_schema'));
+    for (;;) {
+      try {
+        const data = await trackedModelCall({ responseFormat: FORMATS[index], signal, ...options });
+        if (index > 0) structuredFormatByRuntime.set(formatKey, FORMATS[index]);
+        return data;
+      } catch (error) {
+        if (!isStructuredOutputUnsupported(error) || index >= FORMATS.length - 1) throw error;
+        index += 1;
+      }
+    }
+  };
 
   try {
     onStage({ stage: 'model', state: 'started', detail: runtime.model });
     const routebook = await runStage('model', async () => {
+      const firstStartedAt = Date.now();
       const raw = await callModel().catch((error) => {
         if (!error?.truncatedByTokenLimit || error.attemptedMaxOutputTokens >= AI_MAX_OUTPUT_TOKENS_RETRY) throw error;
+        // A retry with a bigger output budget takes at least as long as the truncated call did. If the
+        // generation budget cannot fit that, fail now with a clear reason instead of a timeout later.
+        if (!retryFitsBudget({ deadline, spentMs: Date.now() - firstStartedAt })) {
+          error.upstreamDetail = `${error.upstreamDetail ?? ''} (retry skipped: not enough time left in AI_TIMEOUT_MS)`.trim();
+          throw error;
+        }
         return callModel({ maxOutputTokens: AI_MAX_OUTPUT_TOKENS_RETRY });
       });
       try {

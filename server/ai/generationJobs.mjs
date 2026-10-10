@@ -14,6 +14,9 @@
 // instance that owns the job (sticky routing) — the default deployment is one instance.
 import { randomBytes } from 'node:crypto';
 import { createHttpError } from '../lib/util.mjs';
+
+/** Abort reason code used when a job's overall time budget runs out (kept in sync with generate.mjs). */
+export const GENERATION_DEADLINE_REASON = 'GENERATION_DEADLINE';
 import { GENERATION_DEDUP_TTL_MS, GENERATION_JOB_RETENTION_MS, GENERATION_MAX_ACTIVE_JOBS } from '../config/index.mjs';
 
 export const GENERATION_STAGES = Object.freeze([
@@ -114,7 +117,7 @@ export function findDuplicateGenerationJob(dedupKey, nowMs = Date.now()) {
  *   estimate?: any,
  *   timeoutMs: number,
  *   parseDetail?: string,
- *   run: (signal: AbortSignal, onStage: (event: any) => void, jobId: string) => Promise<any>
+ *   run: (signal: AbortSignal, onStage: (event: any) => void, jobId: string, deadline: number) => Promise<any>
  * }} input
  */
 export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = null, timeoutMs, parseDetail = '', run }) {
@@ -156,8 +159,18 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
   // The request was already validated and fenced when the job was created.
   applyStageEvent(job, { stage: 'parse', state: 'started' });
   applyStageEvent(job, { stage: 'parse', state: 'completed', detail: parseDetail });
+  // timeoutMs is the budget for the whole generation, not per model call: when it runs out, everything
+  // still in flight (model call, geocoding, routing) is aborted and the job fails as MODEL_TIMEOUT.
+  const deadline = timeoutMs > 0 ? nowMs + timeoutMs : 0;
+  const deadlineTimer = deadline
+    ? setTimeout(() => {
+        if (job.status === 'running') controller.abort(Object.assign(new Error('generation deadline'), { code: GENERATION_DEADLINE_REASON }));
+      }, timeoutMs)
+    : null;
+  deadlineTimer?.unref?.();
   job.promise = Promise.resolve()
-    .then(() => run(controller.signal, (event) => applyStageEvent(job, event), id))
+    .then(() => run(controller.signal, (event) => applyStageEvent(job, event), id, deadline))
+    .finally(() => deadlineTimer && clearTimeout(deadlineTimer))
     .then(
       (result) => {
         if (job.status !== 'running') return;
@@ -185,6 +198,9 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
         job.expiresAt = job.finishedAt + GENERATION_JOB_RETENTION_MS;
         const stage = job.stages[job.stage];
         if (stage?.status === 'running') stage.status = 'failed';
+        if (controller.signal.reason?.code === GENERATION_DEADLINE_REASON && error?.code !== 'MODEL_TIMEOUT') {
+          error = createHttpError(`生成超过 ${Math.round(timeoutMs / 1000)} 秒还没完成，已自动停止，请稍后重试`, 504, 'MODEL_TIMEOUT');
+        }
         job.error = {
           message: String(error?.statusCode && error?.statusCode < 500 ? error.message : publicFailureMessage(error)).slice(0, 200),
           code: String(error?.code ?? 'MODEL_ERROR'),

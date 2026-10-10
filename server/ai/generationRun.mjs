@@ -21,9 +21,9 @@ export function guideLogMeta(payload) {
 
 /**
  * @param {any} payload sanitized payload (see sanitizePayload) with the acting profileId
- * @param {{ signal?: AbortSignal, requestId: string, onStage?: (event: { stage: string, state: string, detail?: string, progress?: { done: number, total: number } }) => void, jobId?: string }} options
+ * @param {{ signal?: AbortSignal, requestId: string, onStage?: (event: { stage: string, state: string, detail?: string, progress?: { done: number, total: number } }) => void, jobId?: string, deadline?: number }} options
  */
-export async function generateAndStoreRoutebook(payload, { signal, requestId, onStage = () => {}, jobId = '' }) {
+export async function generateAndStoreRoutebook(payload, { signal, requestId, onStage = () => {}, jobId = '', deadline = 0 }) {
   const startedAt = Date.now();
   const inputMeta = guideLogMeta(payload);
   let observability = null;
@@ -35,7 +35,7 @@ export async function generateAndStoreRoutebook(payload, { signal, requestId, on
     onStage(event);
   };
   try {
-    const routebook = await generateRoutebook(payload, signal, { onStage: trackStage });
+    const routebook = await generateRoutebook(payload, signal, { onStage: trackStage, deadline });
     observability = routebook.observability;
     const profileId = normalizeProfileId(payload.profileId);
     activeProgressStage = 'save';

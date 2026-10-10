@@ -60,7 +60,10 @@ export const MAX_OCR_REQUEST_BYTES = envNumber('MAX_OCR_REQUEST_BYTES', Math.cei
 export const IMPORT_TIMEOUT_MS = envNumber('IMPORT_TIMEOUT_MS', 12000, { min: 100 });
 // Real models (e.g. grok-4.7 via a relay) take 140-180 s for a 2-day routebook, so the
 // default leaves headroom; every other timeout on the generation path derives from it.
+// AI_TIMEOUT_MS is the budget for one whole generation (every model call + geocoding + routing).
 export const AI_TIMEOUT_MS = envNumber('AI_TIMEOUT_MS', 300000, { min: 1000 });
+// One model request may take at most this long (and never past the generation budget).
+export const AI_CALL_TIMEOUT_MS = envNumber('AI_CALL_TIMEOUT_MS', AI_TIMEOUT_MS, { min: 1000 });
 // The synchronous /api/generate-routebook request (legacy) must outlive the model call
 // plus geocoding/routing; node's requestTimeout would otherwise cut it first.
 export const REQUEST_TIMEOUT_MS = envNumber('REQUEST_TIMEOUT_MS', AI_TIMEOUT_MS + 90000, { min: 0 });

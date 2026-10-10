@@ -74,7 +74,7 @@ export const aiRoutes = [
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
       await enforceGenerationQuota(normalizeProfileId(payload.profileId), await quotaOptionsFor(req));
-      return generateAndStoreRoutebook(payload, { signal: bindRequestAbortSignal(req), requestId });
+      return generateAndStoreRoutebook(payload, { signal: bindRequestAbortSignal(req), requestId, deadline: Date.now() + AI_TIMEOUT_MS });
     });
     return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
   }),
@@ -113,7 +113,7 @@ export const aiRoutes = [
       parseDetail: [`${payload.guide.length} 字攻略`, payload.importedSources?.length ? `${payload.importedSources.length} 个导入来源` : '']
         .filter(Boolean)
         .join(' · '),
-      run: (signal, onStage, jobId) => generateAndStoreRoutebook(payload, { signal, requestId, onStage, jobId })
+      run: (signal, onStage, jobId, deadline) => generateAndStoreRoutebook(payload, { signal, requestId, onStage, jobId, deadline })
     });
     // The rejection is reported through the job; never let it surface as unhandled.
     job.promise?.catch(() => {});
