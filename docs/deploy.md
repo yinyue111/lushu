@@ -129,7 +129,8 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `MAIL_TRANSPORT` | 生产 `disabled`，开发 `file` | `smtp`：用自己的邮件服务器发；`resend`：用 Resend 发；`log`：只记「已发给 ab***@x.com」；`file`：写到 `/data/mail-outbox`（测试用，生产启动会警告）；`disabled`：不发 |
 | `MAIL_FROM` / `MAIL_API_KEY` / `MAIL_API_URL` | 空 / 空 / Resend | `resend` 时前两个必填，否则拒绝启动；`smtp` 时 `MAIL_FROM` 必填 |
 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` | 空 / 按加密方式 587、465、25 | `smtp` 时主机必填。容器里的 `localhost` 是容器自己，同机邮件服务器请用域名或 `host.docker.internal` |
-| `MAIL_SMTP_SECURE` | `starttls` | `starttls`：必须升级加密，对方不支持就不发；`tls`：465 直接加密；`none`：不加密，只允许 `localhost`，否则拒绝启动 |
+| `MAIL_SMTP_SECURE` | `starttls` | `starttls`：必须升级加密，对方不支持就不发；`tls`：465 直接加密；`none`：不加密，只允许 `localhost`；内网 IP（10/8、172.16/12、192.168/16、fc00::/7，如 Docker 网桥网关）还要设 `MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE=true`；公网地址和主机名拒绝启动 |
+| `MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE` | `false` | 允许 `none` 发到内网 IP。生产宿主机 Postfix 中继需要它 |
 | `MAIL_SMTP_USER` / `MAIL_SMTP_PASS` | 空 | **秘密**（密码）。不写进日志 |
 | `MAIL_SMTP_TLS_VERIFY` | `true` | 校验邮件服务器证书。生产设 `false` 拒绝启动 |
 | `MAIL_SMTP_CA_FILE` | 空 | 邮件服务器用自签或内部 CA 时，信任这个 PEM 文件；文件不存在拒绝启动 |

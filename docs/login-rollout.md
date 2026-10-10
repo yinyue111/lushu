@@ -52,6 +52,29 @@ sed -i 's/^AUTH_MODE=.*/AUTH_MODE=both/' .env && docker compose -f docker-compos
 
 ## 2b. 打开邮件发信
 
+### 生产现状：宿主机 Postfix 中继（推荐先用这个）
+
+宿主机上的 Postfix 只对 Docker 网桥开放 25 端口，不加密、不认证，再用 `drumyinyue@gmail.com` 经 `smtp.gmail.com:587` 发出去。
+
+```bash
+# .env
+MAIL_TRANSPORT=smtp
+MAIL_SMTP_HOST=172.31.80.1           # Docker 网桥网关，必须写 IP（主机名不放行）
+MAIL_SMTP_PORT=25
+MAIL_SMTP_SECURE=none
+MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE=true
+# 不填 MAIL_SMTP_USER / MAIL_SMTP_PASS
+MAIL_FROM=路书 <drumyinyue@gmail.com>
+EMAIL_VERIFICATION_REQUIRED=true
+docker compose -f docker-compose.prod.yml up -d app
+```
+
+注意：
+- Gmail 会把发件人改写成登录的账号 `drumyinyue@gmail.com`，所以 `MAIL_FROM` 就填它；填别的地址也会被改掉，还可能被判成伪造。
+- Gmail 有每日发信上限（普通账号约 500 封/天，Workspace 约 2000 封/天，超了要等 24 小时），超限后验证码发不出去，用户看到「邮件没发出去，稍后再试」。用户多了要换成自有域名 + 正规服务商（Resend 或自建带 DKIM 的服务器）。
+- 先确认 Postfix 只监听网桥地址、只允许 Docker 网段中继，不能成为开放中继。
+- 检查：`docker compose exec app node -e "require('net').connect(25,'172.31.80.1').on('connect',()=>{console.log('ok');process.exit()})"`，然后按下面清单收一封验证码；宿主机 `journalctl -u postfix` 能看到 `relay=smtp.gmail.com ... status=sent`。
+
 ### 用自己的邮件服务器（SMTP）
 
 需要 SRE 提供：邮件服务器主机名、端口和加密方式（587 + STARTTLS 或 465 + TLS）、一个专用发信账号和密码、发件地址，以及证书是公共 CA 签的还是自签的（自签要给 CA 的 PEM）。
