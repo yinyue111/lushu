@@ -163,7 +163,11 @@ test('L6: routebook edit-token checks still accept the right token and reject ot
     const wrong = await fetchJson(`${server.baseUrl}/api/routebooks`, {
       method: 'POST',
       headers: jsonHeaders(),
-      body: JSON.stringify({ ...created.data.routebook, editToken: `${editToken.slice(0, -1)}${editToken.endsWith('x') ? 'y' : 'x'}`, expectedVersion: version })
+      body: JSON.stringify({
+        ...created.data.routebook,
+        editToken: `${editToken.slice(0, -1)}${editToken.endsWith('x') ? 'y' : 'x'}`,
+        expectedVersion: version
+      })
     });
     assert.equal(wrong.status, 403);
     const right = await fetchJson(`${server.baseUrl}/api/routebooks`, {
