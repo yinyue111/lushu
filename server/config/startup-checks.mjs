@@ -2,6 +2,21 @@
 // booting the HTTP server.
 import { existsSync } from 'node:fs';
 
+/** RFC1918 IPv4 or IPv6 unique-local literal (hostnames never count: DNS could point anywhere). */
+export function isPrivateIpLiteral(host) {
+  const value = String(host ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(value);
+  if (v4) {
+    const [a, b, c, d] = v4.slice(1).map(Number);
+    if ([a, b, c, d].some((part) => part > 255)) return false;
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  return value.includes(':') && /^f[cd][0-9a-f]{0,2}:/.test(value);
+}
+
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost', '[::1]']);
 
 /** @param {string} host */
@@ -58,7 +73,7 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   mailTransportInvalid?: boolean,
  *   mailFrom?: string,
  *   mailApiKey?: string,
- *   smtp?: { host: string, port: number, secure: string, user: string, tlsVerify: boolean, caFile: string }
+ *   smtp?: { host: string, port: number, secure: string, user: string, tlsVerify: boolean, caFile: string, allowPlaintextPrivate?: boolean }
  * }} input
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -150,7 +165,15 @@ export function evaluateStartupSafety(input) {
         if (smtp.secure === 'invalid') errors.push('MAIL_SMTP_SECURE must be one of starttls, tls, none.');
         const loopback = ['localhost', '127.0.0.1', '::1'].includes(smtp.host);
         if (smtp.secure === 'none' && !loopback) {
-          errors.push('MAIL_SMTP_SECURE=none is only allowed for a relay on localhost; use starttls or tls for a remote mail server.');
+          if (!isPrivateIpLiteral(smtp.host)) {
+            errors.push(
+              'MAIL_SMTP_SECURE=none is only allowed for localhost or a private IP literal (10/8, 172.16/12, 192.168/16, fc00::/7, e.g. the Docker bridge gateway); use starttls or tls for any other mail server.'
+            );
+          } else if (!smtp.allowPlaintextPrivate) {
+            errors.push(`MAIL_SMTP_SECURE=none to ${smtp.host} needs MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE=true (plain SMTP on a private network).`);
+          } else {
+            warnings.push(`Mail goes to ${smtp.host} over plain SMTP (private network relay, MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE=true).`);
+          }
         }
         if (!smtp.tlsVerify) {
           if (input.isProduction) errors.push('MAIL_SMTP_TLS_VERIFY=false is not allowed in production; trust a private CA with MAIL_SMTP_CA_FILE instead.');

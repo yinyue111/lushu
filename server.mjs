@@ -20,6 +20,7 @@ import {
   MAIL_SMTP_PORT,
   MAIL_SMTP_SECURE,
   MAIL_SMTP_TLS_VERIFY,
+  MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE,
   MAIL_SMTP_USER,
   REGISTRATION_MODE,
   HOST,
@@ -71,6 +72,7 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
       secure: MAIL_SMTP_SECURE,
       user: MAIL_SMTP_USER,
       tlsVerify: MAIL_SMTP_TLS_VERIFY,
+      allowPlaintextPrivate: MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE,
       caFile: MAIL_SMTP_CA_FILE
     }
   });

@@ -135,8 +135,30 @@ test('startup checks for smtp', () => {
   assert.ok(prod({ secure: 'invalid' }).length);
   assert.ok(prod({ secure: 'none' }).some((line) => /localhost/.test(line)));
   assert.deepEqual(prod({ secure: 'none', host: '127.0.0.1' }), []);
+  // Host Postfix on the Docker bridge gateway: private IP literal + explicit opt-in, no auth needed.
+  assert.ok(prod({ secure: 'none', host: '172.31.80.1', user: '' }).some((line) => /ALLOW_PLAINTEXT_PRIVATE/.test(line)));
+  assert.deepEqual(prod({ secure: 'none', host: '172.31.80.1', port: 25, user: '', allowPlaintextPrivate: true }), []);
+  for (const host of ['10.0.0.5', '192.168.1.2', 'fd00::1']) assert.deepEqual(prod({ secure: 'none', host, allowPlaintextPrivate: true }), [], host);
+  for (const host of ['8.8.8.8', '172.32.0.1', '172.15.0.1', 'smtp.gmail.com', 'host.docker.internal', '10.0.0.256', '2001:db8::1']) {
+    assert.ok(
+      prod({ secure: 'none', host, allowPlaintextPrivate: true }).some((line) => /private IP literal/.test(line)),
+      host
+    );
+  }
   assert.ok(prod({ tlsVerify: false }).some((line) => /TLS_VERIFY/.test(line)));
   writeFileSync(join(dir, 'ca.pem'), 'x');
   assert.deepEqual(prod({ caFile: join(dir, 'ca.pem') }), []);
   assert.ok(prod({ caFile: join(dir, 'missing.pem') }).length);
+});
+
+test('plain relay without USER/PASS (host Postfix style) delivers without AUTH', async () => {
+  const server = await startFakeSmtp();
+  try {
+    await sendSmtpMail({ ...base, port: server.port, secure: 'none', from: '路书 <drumyinyue@gmail.com>' }, mail);
+    assert.equal(server.messages.length, 1);
+    assert.equal(server.messages[0].auth, null);
+    assert.equal(server.messages[0].from, 'drumyinyue@gmail.com');
+  } finally {
+    await server.close();
+  }
 });

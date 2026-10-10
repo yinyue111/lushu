@@ -236,6 +236,11 @@ export const MAIL_SMTP_TLS_VERIFY =
     .toLowerCase() !== 'false';
 // Optional PEM bundle to trust (a private CA); public CAs are trusted by default.
 export const MAIL_SMTP_CA_FILE = String(process.env.MAIL_SMTP_CA_FILE ?? '').trim();
+// Opt-in for SECURE=none to a private IP literal (e.g. host Postfix on the Docker bridge gateway). Public hosts are always refused.
+export const MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE =
+  String(process.env.MAIL_SMTP_ALLOW_PLAINTEXT_PRIVATE ?? '')
+    .trim()
+    .toLowerCase() === 'true';
 export const MAIL_SMTP_TIMEOUT_MS = envNumber('MAIL_SMTP_TIMEOUT_MS', 15000, { min: 1000 });
 export const MAIL_OUTBOX_DIR = String(process.env.MAIL_OUTBOX_DIR ?? '').trim() || join(DATA_DIR, 'mail-outbox');
 
