@@ -227,7 +227,7 @@ try {
     false,
     'tombstones never enter normal routebook lists'
   );
-  assert.equal((await request(`/routebooks/${ownedRouteId}`, { admin: true })).status, 404);
+  assert.equal((await request(`/routebooks/${ownedRouteId}`, { admin: true })).status, 410, 'deleted ids answer 410 ROUTEBOOK_DELETED');
   const tripRows = await readFile(join(directory, 'trip-sessions.jsonl'), 'utf8');
   assert.equal(tripRows.trim(), '', 'deletion physically removes trip history');
   const profileRows = await readFile(join(directory, 'profiles.jsonl'), 'utf8');
