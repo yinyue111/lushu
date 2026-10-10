@@ -167,9 +167,9 @@ export function TripReminderBanner({ reminder, onOpen, onDismiss }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StorageNoticeBanner({ text, onDismiss }) {
+export function StorageNoticeBanner({ text, title = '本地存储已满', onDismiss }) {
   return (
-    <Banner icon={HardDrive} role="alert" tone="border-lemon/50 bg-lemon-soft text-lemon-ink" title="本地存储已满" text={text}>
+    <Banner icon={HardDrive} role="alert" tone="border-lemon/50 bg-lemon-soft text-lemon-ink" title={title} text={text}>
       <Button size="sm" variant="ghost" onClick={onDismiss}>
         知道了
       </Button>

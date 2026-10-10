@@ -3,6 +3,8 @@
 import { deleteRoutebook, getStoredRoutebookById } from './storage.js';
 
 export const ROUTEBOOK_DELETED_EVENT = 'lushu:routebook-deleted';
+/** Fired after local copies were dropped, so lists that memoize local storage re-read it. */
+export const LOCAL_ROUTEBOOKS_CHANGED_EVENT = 'lushu:local-routebooks-changed';
 
 /** Removes every local copy stored under this id. @returns {boolean} whether anything was removed */
 export function dropDeletedLocalCopy(id) {
@@ -10,6 +12,9 @@ export function dropDeletedLocalCopy(id) {
   if (!key) return false;
   let removed = false;
   for (let i = 0; i < 5 && getStoredRoutebookById(key); i += 1) removed = deleteRoutebook(key) || removed;
+  if (removed && typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(LOCAL_ROUTEBOOKS_CHANGED_EVENT, { detail: { id: key } }));
+  }
   return removed;
 }
 

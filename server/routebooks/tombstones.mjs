@@ -7,7 +7,7 @@ import { getSavedRoutebook } from '../storage/records.mjs';
 export const isDeletedRoutebook = (row) => Boolean(row?.tombstone || row?.deletedAt);
 
 export function routebookDeletedError(id, row) {
-  const error = createHttpError('这份路书已经删除了，不能再保存。本机的副本会一起移除', 410, 'ROUTEBOOK_DELETED');
+  const error = createHttpError('这份路书已经删除了，打不开，也不能再保存', 410, 'ROUTEBOOK_DELETED');
   /** @type {any} */ (error).details = { id, deletedAt: row?.deletedAt ?? null };
   return error;
 }

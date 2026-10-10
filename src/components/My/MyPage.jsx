@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
+import { LOCAL_ROUTEBOOKS_CHANGED_EVENT } from '../../lib/routebookTombstones';
 import { deleteFavorite, deleteRoutebookRemote, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
 import { flushAllCheckinQueues, pauseCheckinQueue } from '../../lib/checkinQueue';
 import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
@@ -72,6 +73,17 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     });
     return () => ctrl.abort();
   }, [profile.id, profile.profileAccessToken, profile.accountUserId]);
+
+  // A routebook deleted on another device: App drops the local copy; re-read local storage and hide it here.
+  useEffect(() => {
+    const onChanged = (/** @type {any} */ event) => {
+      const id = String(event?.detail?.id ?? '');
+      setLocalDataVersion((value) => value + 1);
+      if (id) setServerData((data) => ({ ...data, routebooks: data.routebooks.filter((book) => (book.publicId || book.id) !== id) }));
+    };
+    window.addEventListener(LOCAL_ROUTEBOOKS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(LOCAL_ROUTEBOOKS_CHANGED_EVENT, onChanged);
+  }, []);
 
   useEffect(() => {
     if (activeTab !== 'checkins') return;

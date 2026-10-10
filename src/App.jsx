@@ -573,7 +573,13 @@ export default function App() {
           {activeGeneration && view !== VIEWS.builder && !PUBLIC_VIEWS.has(view) && view !== VIEWS.trip && (
             <GenerationRunningBanner job={activeGeneration} onOpen={() => navigate(VIEWS.builder)} />
           )}
-          {storageNotice && !PUBLIC_VIEWS.has(view) && <StorageNoticeBanner text={storageNotice} onDismiss={() => setStorageNotice('')} />}
+          {storageNotice && !PUBLIC_VIEWS.has(view) && (
+            <StorageNoticeBanner
+              text={storageNotice}
+              title={/已经从账号里删除了/.test(storageNotice) ? '路书已删除' : undefined}
+              onDismiss={() => setStorageNotice('')}
+            />
+          )}
           {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (
             <StorageNoticeBanner text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
           )}
@@ -848,6 +854,7 @@ function publicPathForView(view, options = {}) {
 function routeLoadErrorMessage(error) {
   const status = Number(error?.status) || 0;
   if (status === 404) return '路书不存在或已被删除，请确认链接是否正确。';
+  if (status === 410 || error?.code === 'ROUTEBOOK_DELETED') return '这份路书已经删除了，打不开，也不能再保存。';
   if (status === 403) return '没有权限查看这份路书，可能作者尚未公开。';
   if (status) return `路书加载失败（HTTP ${status}）：${error?.message || '云端暂时连不上'}`;
   return '网络连接失败，请检查网络后重试。';
