@@ -73,7 +73,7 @@ export const aiRoutes = [
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
-      await enforceGenerationQuota(normalizeProfileId(payload.profileId), await quotaOptionsFor(req));
+      await enforceGenerationQuota(normalizeProfileId(payload.profileId), { ...(await quotaOptionsFor(req)), mode: payload.mode });
       return generateAndStoreRoutebook(payload, {
         signal: bindRequestAbortSignal(req),
         requestId,
@@ -106,7 +106,7 @@ export const aiRoutes = [
       }
     }
     if (duplicate) return sendJson(res, 200, { ok: true, deduplicated: true, job: generationJobSnapshot(duplicate) });
-    await enforceGenerationQuota(profileId, await quotaOptionsFor(req));
+    await enforceGenerationQuota(profileId, { ...(await quotaOptionsFor(req)), mode: payload.mode });
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
     const { job, deduplicated } = startGenerationJob({
       dedupKey,

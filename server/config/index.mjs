@@ -69,6 +69,8 @@ export const AI_CALL_TIMEOUT_MS = envNumber('AI_CALL_TIMEOUT_MS', AI_TIMEOUT_MS,
 // Empty AI_MODEL_DEEP keeps OPENAI_MODEL. Each mode has its own total budget, output cap and stream idle timeout.
 export const GENERATION_MODE_KEYS = /** @type {const} */ (['fast', 'deep']);
 const defaultModeEnv = String(process.env.GENERATION_DEFAULT_MODE ?? 'fast').trim();
+// Optional extra cap on 细品 generations per profile inside GENERATION_QUOTA_WINDOW_MS (0 = only the shared quota).
+export const GENERATION_QUOTA_DEEP_PER_PROFILE = envNumber('GENERATION_QUOTA_DEEP_PER_PROFILE', 0, { min: 0 });
 export const GENERATION_DEFAULT_MODE = defaultModeEnv === 'deep' ? 'deep' : 'fast';
 // Stream model output (SSE): detects a stuck upstream within AI_STREAM_IDLE_MS_* instead of after the whole budget.
 export const AI_STREAM =
