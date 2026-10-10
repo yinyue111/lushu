@@ -161,6 +161,14 @@ export async function getRoutebooks(limit = 100, signal, cursor = '') {
   return getJson(`/routebooks?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal, adminHeaders());
 }
 
+/** Deletes the cloud copy of the caller's own routebook (signed-in owner, profile token or edit token). */
+export async function deleteRoutebookRemote(publicId, { profileId = '', editToken = '' } = {}, signal) {
+  return deleteJson(`/routebooks/${encodeURIComponent(publicId)}`, {}, signal, {
+    ...ownerHeaders(profileId),
+    ...(editToken ? { 'x-routebook-edit-token': editToken } : {})
+  });
+}
+
 export async function getMyRoutebooks(profileId, limit = 100, signal) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (profileId) params.set('profileId', profileId);

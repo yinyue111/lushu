@@ -77,9 +77,9 @@ export function GenerationProgress({ job, outcome, failure, city, duration, canc
             <Sparkles className="size-8" />
           )}
         </div>
-        <h2 id="generation-title" ref={headingRef} tabIndex={-1} className="mt-4 text-2xl font-black tracking-tight outline-none">
+        <h1 id="generation-title" ref={headingRef} tabIndex={-1} className="mt-4 text-2xl font-black tracking-tight outline-none">
           {title}
-        </h2>
+        </h1>
         <p className="mt-1 text-sm text-muted">
           {city} · {duration}
         </p>

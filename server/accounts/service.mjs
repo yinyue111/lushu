@@ -473,7 +473,8 @@ export async function deleteAccount(req, res, input = {}, { deleteProfile }) {
   for (const profileId of await accountProfileIds(user)) {
     removed.push(await deleteProfile(req, { confirmation: 'DELETE', profileId }));
   }
-  await accountStore().updateUser(user.id, { status: 'deleted' });
+  // The readable address goes at once; only the HMAC stays with the deleted row (like the phone).
+  await accountStore().updateUser(user.id, { status: 'deleted', emailEnc: null, emailMasked: '' });
   await accountStore().revokeUserSessions(user.id);
   await endSession(req, res);
   await audit({ entityId: user.id, action: 'self-delete', actor: 'user', reason: '用户注销账号' });

@@ -29,7 +29,7 @@ const FALLBACK = {
 
 /** @param {{ children: any, onProfileChanged?: (profile: any) => void }} props */
 export function AccountProvider({ children, onProfileChanged }) {
-  const [config, setConfig] = useState({ mode: 'access-code', registration: 'closed' });
+  const [config, setConfig] = useState({ mode: 'access-code', registration: 'closed', emailVerificationRequired: true });
   const [account, setAccount] = useState(null);
   const [ready, setReady] = useState(false);
   const [sheet, setSheet] = useState(/** @type {any} */ (null));
@@ -41,7 +41,11 @@ export function AccountProvider({ children, onProfileChanged }) {
   const refresh = useCallback(async () => {
     try {
       const [me, authConfig] = await Promise.all([getMe(), getAuthConfig()]);
-      setConfig({ mode: me.mode || authConfig.mode, registration: authConfig.registration });
+      setConfig({
+        mode: me.mode || authConfig.mode,
+        registration: authConfig.registration,
+        emailVerificationRequired: authConfig.emailVerificationRequired !== false
+      });
       setAccount(me.account ?? null);
       // Logged in by cookie but this device's profile is not the account's yet (e.g. storage cleared).
       if (me.account && getProfile().id !== me.account.profileId) {
@@ -108,7 +112,9 @@ export function AccountProvider({ children, onProfileChanged }) {
       const { profile, claim } = await attachAccountToDevice(nextAccount);
       setAccount(nextAccount);
       profileChangedRef.current?.(profile);
-      const summary = claimSummary(claim);
+      // Accounts without a verified email (signed up before email, or while verification was off) get a nudge, never a block.
+      const emailNudge = nextAccount?.emailVerified ? '' : '还没绑定邮箱：去「我的 → 账号」加一个，忘了密码能自己找回';
+      const summary = [claimSummary(claim), recoveryCodes?.length ? '' : emailNudge].filter(Boolean).join('；');
       if (summary) setToast(summary);
       if (recoveryCodes?.length) setSheet({ view: 'codes', codes: recoveryCodes, afterRegister: true });
       else finish();
@@ -145,6 +151,7 @@ export function AccountProvider({ children, onProfileChanged }) {
           codes={sheet.codes}
           afterRegister={sheet.afterRegister}
           registration={config.registration}
+          emailVerificationRequired={config.emailVerificationRequired}
           onAuthenticated={handleAuthenticated}
           onCodesConfirmed={finish}
           onClose={() => {

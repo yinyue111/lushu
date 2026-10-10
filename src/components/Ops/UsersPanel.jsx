@@ -12,7 +12,7 @@ const ACTIONS = {
   'set-quota': { label: '设生成额度', note: '每个统计窗口内可生成的次数；留空 = 用默认额度。' }
 };
 
-// 账号管理：只显示掩码手机号；所有操作都要写原因并记入运营审计。
+// 账号管理：只显示打码的邮箱和手机号；所有操作都要写原因并记入运营审计。
 export default function UsersPanel() {
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -26,7 +26,7 @@ export default function UsersPanel() {
         <div className="ops-panel-head">
           <div>
             <h2 id="ops-users-title">账号</h2>
-            <p className="text-caption">只显示掩码手机号。按手机号后 4 位或完整号码搜索；所有操作都要写原因，并记入审计。</p>
+            <p className="text-caption">只显示打码的邮箱和手机号。按完整邮箱、完整手机号或手机号后 4 位搜索；所有操作都要写原因，并记入审计。</p>
           </div>
           <span className="badge badge-orange">
             <Users size={12} /> {resource.data ? `${users.length} 个` : '—'}
@@ -44,12 +44,12 @@ export default function UsersPanel() {
               }}
             >
               <label htmlFor={searchId}>
-                <span>手机号</span>
+                <span>邮箱或手机号</span>
                 <input
                   id={searchId}
                   className="input-field"
-                  inputMode="numeric"
-                  placeholder="后 4 位或完整号码"
+                  inputMode="email"
+                  placeholder="完整邮箱 / 手机号后 4 位"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -67,7 +67,7 @@ export default function UsersPanel() {
                 <table className="ops-data-table">
                   <thead>
                     <tr>
-                      <th>手机号</th>
+                      <th>邮箱 / 手机号</th>
                       <th>状态</th>
                       <th>注册 / 最近登录</th>
                       <th>在线设备</th>
@@ -80,7 +80,17 @@ export default function UsersPanel() {
                     {users.map((user) => (
                       <tr key={user.id}>
                         <td>
-                          <strong className="num">{user.phoneMasked}</strong>
+                          {user.emailMasked ? (
+                            <strong className="break-all">
+                              {user.emailMasked}{' '}
+                              <span className={`badge ${user.emailVerified ? 'badge-green' : 'badge-orange'}`}>{user.emailVerified ? '已验证' : '未验证'}</span>
+                            </strong>
+                          ) : (
+                            <strong>
+                              <span className="badge badge-orange">没有邮箱</span>
+                            </strong>
+                          )}
+                          {user.phoneMasked && <small className="num">{user.phoneMasked}</small>}
                           <small>{user.id}</small>
                         </td>
                         <td>
@@ -142,7 +152,7 @@ function UserActionDialog({ user, action, onClose, onDone }) {
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent title={`${ACTIONS[action].label}：${user.phoneMasked}`} description={ACTIONS[action].note}>
+      <DialogContent title={`${ACTIONS[action].label}：${user.emailMasked || user.phoneMasked}`} description={ACTIONS[action].note}>
         {state.code ? (
           <div className="grid gap-3">
             <p className="text-sm">一次性恢复码（只显示这一次）：</p>

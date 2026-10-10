@@ -40,7 +40,8 @@ export async function attachAccountToDevice(account, signal) {
       id: account.profileId,
       previousLocalId: sameProfile ? '' : before.id,
       accountUserId: account.id,
-      accountPhoneMasked: account.phoneMasked,
+      accountPhoneMasked: account.phoneMasked || '',
+      accountEmailMasked: account.emailMasked || '',
       cloudRegistrationConsentAt: before.cloudRegistrationConsentAt || new Date().toISOString(),
       // The device token only belongs to the device profile; the account profile is reached by cookie.
       profileAccessToken: sameProfile ? before.profileAccessToken : ''

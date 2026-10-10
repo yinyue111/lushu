@@ -5,6 +5,7 @@ import { cn } from '../ui/cn';
 import { Button } from '../ui/button';
 import { modelStatusLabel } from '../../lib/modelStatus';
 import { useAccount } from '../Account/AccountProvider';
+import { accountLabel } from '../../lib/accountCopy';
 
 const navItems = [
   { id: 'home', label: '发现', icon: Compass },
@@ -75,13 +76,13 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
             type="button"
             onClick={() => onNavigate('my')}
             className={cn('flex items-center gap-2.5 text-copy font-semibold', accountsEnabled && !account && 'max-sm:hidden')}
-            aria-label={account ? `${name || `尾号 ${String(account.phoneMasked).slice(-4)}`}，我的账号` : '我的'}
+            aria-label={account ? `${name || accountLabel(account)}，我的账号` : '我的'}
           >
             <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-copy font-extrabold text-ink shadow-card">
               {name ? name.slice(0, 1) : <UserRound className="size-[18px]" />}
             </span>
             {account ? (
-              <span className="hidden lg:inline">{name || `尾号 ${String(account.phoneMasked).slice(-4)}`}</span>
+              <span className="hidden max-w-[12rem] truncate lg:inline">{name || accountLabel(account)}</span>
             ) : (
               name && <span className="hidden lg:inline">{name}</span>
             )}

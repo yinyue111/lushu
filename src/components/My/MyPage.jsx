@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
-import { deleteFavorite, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
+import { deleteFavorite, deleteRoutebookRemote, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
 import { flushAllCheckinQueues, pauseCheckinQueue } from '../../lib/checkinQueue';
 import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
 import { getProfile, hasProfileCloudRegistrationConsent, parseProfileSyncCode, resetProfile, updateProfile } from '../../lib/profile';
@@ -141,9 +141,26 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     return expandedSections.has(section) ? rows : rows.slice(0, collapsedCount);
   }
 
-  function handleDeleteBook(book) {
+  async function handleDeleteBook(book) {
     const label = book?.title || book?.city || '未命名路书';
-    if (!window.confirm(`确定删除路书「${label}」的本机存档吗？云端已保存的副本不受影响。`)) return;
+    const remoteId = book?.publicId || '';
+    // Signed in: the routebook lives in the account, so deleting removes it everywhere.
+    const inAccount = Boolean(
+      profile.accountUserId && remoteId && (book.profileId === profile.id || serverData.routebooks.some((item) => item.publicId === remoteId))
+    );
+    const question = inAccount
+      ? `确定删除路书「${label}」吗？会从你的账号里删掉，所有设备都看不到了，不能撤销。`
+      : `确定删除路书「${label}」的本机存档吗？云端已保存的副本不受影响。`;
+    if (!window.confirm(question)) return;
+    if (inAccount) {
+      try {
+        await deleteRoutebookRemote(remoteId, { profileId: profile.id, editToken: book.editToken || '' });
+      } catch (error) {
+        window.alert(`没能从账号里删除：${error?.message || '网络不太稳，稍后再试'}`);
+        return;
+      }
+      setServerData((current) => ({ ...current, routebooks: current.routebooks.filter((item) => item.publicId !== remoteId) }));
+    }
     deleteRoutebook(book);
     setLocalDataVersion((value) => value + 1);
     // 通知 App 就地更新 savedBooks，避免停留本页时 TripReminderBanner 仍持已删的书。
@@ -342,9 +359,14 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
         <Tabs.Content value="routebooks" className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section aria-labelledby="my-books">
-            <h2 id="my-books" className="mb-3 text-lg font-extrabold">
+            <h2 id="my-books" className="mb-1 text-lg font-extrabold">
               我的路书 <span className="num text-muted">{books.length}</span>
             </h2>
+            <p className="mb-3 text-sm text-muted">
+              {profile.accountUserId
+                ? '登录后生成和保存的路书都存在账号里，换手机、换电脑登录也能看到。'
+                : '现在存在这台设备上。登录后，路书会存进账号，换设备也能看到。'}
+            </p>
             {books.length ? (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -366,7 +388,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                               variant="ghost"
                               className="text-muted hover:text-danger"
                               aria-label={`删除路书 ${book.title || book.city || ''}`}
-                              title="删除本机存档"
+                              title={profile.accountUserId ? '从账号里删除' : '删除本机存档'}
                               onClick={() => handleDeleteBook(book)}
                             >
                               <Trash2 /> 删除
