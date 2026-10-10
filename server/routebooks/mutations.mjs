@@ -3,6 +3,7 @@ import { createHttpError, truncateString, sanitizePublicId, normalizeCityName, c
 import { ROUTEBOOK_STATUSES, PUBLIC_ROUTE_STATUSES, EXPOSURE_LOG_PATH, ROUTEBOOK_LOG_PATH } from '../config/index.mjs';
 import { sanitizeEditToken, createRouteEditToken, normalizeProfileId, safeTokenEqual, hashSecretToken } from '../auth/tokens.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
+import { isDeletedRoutebook, routebookDeletedError } from './tombstones.mjs';
 import {
   normalizeCreator,
   normalizeRoutebookForStorage,
@@ -68,6 +69,7 @@ export function requireImportPublicationAllowed(routebook, context, input = {}) 
 
 export async function updateRoutebookStatus(publicId, input) {
   const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   const publishStatus = truncateString(input?.publishStatus || input?.status, 40);
   if (publishStatus && !ROUTEBOOK_STATUSES.has(publishStatus)) {
@@ -126,6 +128,7 @@ export async function updateRoutebookStatus(publicId, input) {
  */
 export async function setRoutebookFriendLink(publicId, input = {}, context = {}) {
   const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   if (!canOverwriteRoutebook(routebook, input, context)) {
     throw createHttpError('只能为自己保存的路书生成朋友链接', 403, 'ROUTEBOOK_OWNER_REQUIRED');
@@ -327,6 +330,7 @@ export async function ensureDraftEditToken(routebook) {
   // 最新快照，只有确认仍缺 token 时才补发一次。
   return withStorageEntityLock('routebook', id, async () => {
     const latest = (await getSavedRoutebook(id)) ?? routebook;
+    if (isDeletedRoutebook(latest)) return latest;
     if (latest.editTokenHash || sanitizeEditToken(latest.editToken) || (latest.publishStatus || 'draft') !== 'draft') {
       return latest;
     }
@@ -357,6 +361,7 @@ export async function saveDraftRoutebook(input, context = {}) {
     throw createHttpError('精选路书 ID 为只读保留标识，请先复制为新的个人草稿', 403, 'CURATED_ROUTE_ID_RESERVED');
   }
   const existing = requestedId ? await getSavedRoutebook(requestedId) : null;
+  if (isDeletedRoutebook(existing)) throw routebookDeletedError(requestedId, existing);
   if (existing) {
     if ((existing.publishStatus || 'draft') !== 'draft') {
       throw createHttpError('公开、精选或归档路书不能通过普通保存接口覆盖', 403, 'ROUTEBOOK_PUBLISHED_OVERWRITE_FORBIDDEN');
@@ -383,6 +388,7 @@ export async function saveDraftRoutebook(input, context = {}) {
 
 export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
   const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   if ((routebook.publishStatus || 'draft') === 'archived') {
     throw createHttpError('归档路书不能直接发布，请在运营台恢复状态', 403, 'ROUTEBOOK_ARCHIVED');
@@ -433,6 +439,7 @@ export async function publishOwnRoutebook(publicId, input = {}, context = {}) {
 
 export async function saveRoutebookVariant(publicId, input, context = {}) {
   const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
   if ((routebook.publishStatus || 'draft') !== 'draft') {
     throw createHttpError('公开、精选或归档路书不能通过变体接口修改，请先定制为个人草稿', 403, 'ROUTEBOOK_VARIANT_FORBIDDEN');

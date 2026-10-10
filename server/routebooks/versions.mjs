@@ -4,6 +4,7 @@ import { ROUTEBOOK_LOG_PATH, ROUTEBOOK_STATUSES, ROUTEBOOK_AUDIT_LOG_PATH } from
 import { onJsonlAppend, readRecentJsonlRows, jsonlFileFingerprint, appendJsonLine, readJsonLines } from '../storage/jsonl.mjs';
 import { ROUTEBOOK_HISTORY_PROJECTION } from '../storage/projections.mjs';
 import { cryptoRandomId } from '../auth/tokens.mjs';
+import { assertRoutebookNotDeleted, isDeletedRoutebook } from './tombstones.mjs';
 
 // rank23③：路书 id -> 当前最大版本号 的惰性内存 Map。首次访问全量扫描一次，
 // 之后 appendJsonLine 落 routebooks.jsonl 时增量更新，替代每次保存的全窗口扫描。
@@ -144,6 +145,8 @@ function buildRoutebookAudit(routebook, event, details = {}) {
 }
 
 export async function appendVersionedRoutebook(routebook, event, details = {}) {
+  // Never resurrect a deleted routebook, whatever the write path.
+  if (!isDeletedRoutebook(routebook)) await assertRoutebookNotDeleted(routebook?.publicId || routebook?.id);
   const versionAudit = buildRoutebookAudit(routebook, event, details);
   await appendJsonLine(ROUTEBOOK_LOG_PATH, versionAudit ? { ...routebook, versionAudit } : routebook, { expectedVersion: routebook.parentVersion ?? 0 });
 }

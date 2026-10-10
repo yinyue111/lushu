@@ -23,6 +23,9 @@ import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { getCuratedRoutebook, getResolvableRoutebook, isCuratedRouteId } from '../routebooks/normalize.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
+import { deletedRoutebookIds, isDeletedRoutebook, routebookDeletedError } from '../routebooks/tombstones.mjs';
+import { appendJsonLine as appendRoutebookRow } from '../storage/jsonl.mjs';
+import { ROUTEBOOK_AUDIT_LOG_PATH, ROUTEBOOK_LOG_PATH } from '../config/index.mjs';
 import { buildRouteFeedbackContext, enrichRoutebook } from '../trust/feedback.mjs';
 import { appendVersionedRoutebook, listRoutebookAudits, listRoutebookVersionRows } from '../routebooks/versions.mjs';
 import { isPublicRoutebook, publicRoutebookView } from '../routebooks/views.mjs';
@@ -253,6 +256,14 @@ export const routebookRoutes = [
       audits
     });
   }),
+  // Clients send the ids of their local copies; deleted ones come back so the device drops them.
+  // Ids are random UUIDs; the answer only says "deleted", never who owned it or what it contained.
+  route('POST', '/api/routebooks/deleted', async ({ req, res }) => {
+    enforceRateLimit(req, 'public-read');
+    const body = await readJsonBody(req);
+    const ids = Array.isArray(body?.ids) ? body.ids.slice(0, 300) : [];
+    return sendJson(res, 200, { ok: true, deleted: await deletedRoutebookIds(ids) });
+  }),
   // Owner deletes a saved routebook (cloud copy). Append-only: a new version carrying deletedAt;
   // listings, reads and exports skip it. Public share links stop working.
   route('DELETE', '/api/routebooks/:id', async ({ req, res, params }) => {
@@ -269,10 +280,22 @@ export const routebookRoutes = [
       if (!ownerOk && !tokenOk) throw createHttpError('只能删除自己的路书', 403, 'ROUTEBOOK_DELETE_FORBIDDEN');
       const version = Math.max(1, Number(current.version) || 1);
       const now = new Date().toISOString();
-      await appendVersionedRoutebook(
-        { ...current, version: version + 1, parentVersion: version, updatedAt: now, deletedAt: now, changeReason: '用户删除' },
-        'deleted-by-owner'
-      );
+      // Content-free tombstone: owner profile + id. The routebook body is not kept in the new row.
+      const tombstone = {
+        id,
+        publicId: id,
+        tombstone: true,
+        deletedAt: now,
+        updatedAt: now,
+        profileId: owner,
+        deletedBy: 'owner',
+        version: version + 1,
+        parentVersion: version,
+        actorType: 'user',
+        changeReason: '用户删除'
+      };
+      await appendRoutebookRow(ROUTEBOOK_LOG_PATH, tombstone, { expectedVersion: version });
+      await appendRoutebookRow(ROUTEBOOK_AUDIT_LOG_PATH, { ...tombstone, routebookId: id, event: 'deleted-by-owner', createdAt: now });
       return { deleted: true };
     });
     return sendJson(res, 200, { ok: true, id, ...result });
@@ -282,7 +305,11 @@ export const routebookRoutes = [
     enforceRateLimit(req, 'public-read');
     const id = sanitizePublicId(safeDecodePathSegment(params.id));
     const savedRoutebook = await getResolvableRoutebook(id);
-    if (!savedRoutebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+    if (!savedRoutebook) {
+      const latest = isCuratedRouteId(id) ? null : await getSavedRoutebook(id);
+      if (isDeletedRoutebook(latest)) throw routebookDeletedError(id, latest);
+      throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+    }
     const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
     const ownerRead =
       !privilegedRead && normalizeProfileId(savedRoutebook.profileId) !== 'anonymous' ? await verifyProfileReadAccess(req, savedRoutebook.profileId) : false;

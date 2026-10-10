@@ -76,6 +76,45 @@ test('routebooks generated while signed in are saved to the account and survive 
   assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
   assert.equal(deleted.data.deleted, true);
   assert.ok(!(await phone.request(`/api/routebooks?profileId=${profileId}`)).data.routebooks.some((book) => (book.publicId || book.id) === id));
-  assert.equal((await phone.request(`/api/routebooks/${id}`)).status, 404);
+  const gone = await phone.request(`/api/routebooks/${id}`);
+  assert.equal(gone.status, 410);
+  assert.equal(gone.data.code, 'ROUTEBOOK_DELETED');
   assert.equal((await laptop.request(`/api/routebooks/${id}`, { method: 'DELETE' })).data.alreadyGone, true);
+
+  // The phone still has the old copy: every way of writing it back is refused, clearly.
+  const stale = full.data.routebook;
+  for (const body of [
+    { ...stale, expectedVersion: stale.version },
+    { ...stale, expectedVersion: 0, version: 0 },
+    { ...stale, expectedVersion: (stale.version || 1) + 1 },
+    { ...stale, profileId: 'anonymous' }
+  ]) {
+    const again = await phone.post('/api/routebooks', body);
+    assert.equal(again.status, 410, JSON.stringify(again.data));
+    assert.equal(again.data.code, 'ROUTEBOOK_DELETED');
+    assert.equal(again.data.details.id, id);
+  }
+  const variant = await phone.post(`/api/routebooks/${id}/variants`, { variant: { label: 'x', stops: stale.stops } });
+  assert.equal(variant.data.code, 'ROUTEBOOK_DELETED');
+  const publish = await phone.post(`/api/routebooks/${id}/publish`, {});
+  assert.equal(publish.data.code, 'ROUTEBOOK_DELETED');
+  // Even a different account (or a guest with the edit token) cannot re-create the id.
+  assert.equal((await other.post('/api/routebooks', { ...stale, expectedVersion: 0 })).data.code, 'ROUTEBOOK_DELETED');
+  // Claim on login skips it; the batch check reports it so devices drop local copies.
+  const claim = await phone.post('/api/auth/claim', { drafts: [{ id, editToken: stale.editToken || 'x'.repeat(32) }] });
+  assert.equal(claim.data.claimed, 0);
+  const check = await createClient(server.baseUrl).post('/api/routebooks/deleted', { ids: [id, 'not-a-real-id-123', ''] });
+  assert.deepEqual(check.data.deleted, [id]);
+  assert.ok(!(await phone.request(`/api/routebooks?profileId=${profileId}`)).data.routebooks.some((book) => (book.publicId || book.id) === id));
+  // The tombstone keeps owner + id only, not the routebook content.
+  const { readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const rows = (await readFile(join(server.dataDir, 'routebooks.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l));
+  const tomb = rows.filter((r) => (r.publicId || r.id) === id).at(-1);
+  assert.equal(tomb.tombstone, true);
+  assert.equal(tomb.profileId, profileId);
+  assert.equal(tomb.stops, undefined);
 });
