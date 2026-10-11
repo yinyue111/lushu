@@ -138,6 +138,22 @@ export async function getRoutebookRemote(publicId, signal, { editToken = '' } = 
   return getJson(`/routebooks/${encodeURIComponent(publicId)}`, signal, headers);
 }
 
+/** Background-checked 门票 / 开放时间 for a saved routebook (same read access as the routebook). */
+export async function getRoutebookEnrichment(publicId, signal, { editToken = '' } = {}) {
+  const profile = getProfile();
+  const token = String(editToken ?? '').trim();
+  const headers = { ...ownerHeaders(profile.id), ...(/^[\w-]{16,96}$/.test(token) ? { 'x-routebook-edit-token': token } : {}) };
+  return getJson(`/routebooks/${encodeURIComponent(publicId)}/enrichment`, signal, headers);
+}
+
+/** "This is wrong" for one enriched value. */
+export async function reportRoutebookEnrichment(publicId, { stopKey, field, note = '', editToken = '' }, signal) {
+  const profile = getProfile();
+  const token = String(editToken ?? '').trim();
+  const headers = { ...ownerHeaders(profile.id), ...(/^[\w-]{16,96}$/.test(token) ? { 'x-routebook-edit-token': token } : {}) };
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/enrichment/report`, { stopKey, field, note }, signal, headers);
+}
+
 /**
  * @param {string} publicId
  * @param {AbortSignal} [signal]

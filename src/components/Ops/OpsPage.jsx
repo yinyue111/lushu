@@ -11,7 +11,8 @@ import {
   MousePointerClick,
   Settings,
   ShieldCheck,
-  Users
+  Users,
+  SearchCheck
 } from 'lucide-react';
 import CheckinAuditPanel from './CheckinAuditPanel';
 import ImportSourcesPanel from './ImportSourcesPanel';
@@ -25,6 +26,7 @@ import ProductBoardPanel from './ProductBoardPanel';
 import ReviewQueuePanel from './ReviewQueuePanel';
 import RoutebookVersionsPanel from './RoutebookVersionsPanel';
 import UsersPanel from './UsersPanel';
+import EnrichmentPanel from './EnrichmentPanel';
 
 const OPS_TABS = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
@@ -38,6 +40,7 @@ const OPS_TABS = [
   { id: 'products', label: '商品看板', icon: MousePointerClick },
   { id: 'versions', label: '路书版本', icon: History },
   { id: 'logs', label: 'AI 日志', icon: Bot },
+  { id: 'enrichment', label: '联网补全', icon: SearchCheck },
   { id: 'config', label: '配置', icon: Settings }
 ];
 const TAB_IDS = new Set(OPS_TABS.map((tab) => tab.id));
@@ -131,6 +134,7 @@ export default function OpsPage() {
         {activeTab === 'reviews' && <ReviewQueuePanel />}
         {activeTab === 'moderation' && <ModerationPanel />}
         {activeTab === 'users' && <UsersPanel />}
+        {activeTab === 'enrichment' && <EnrichmentPanel />}
         {activeTab === 'imports' && <ImportSourcesPanel />}
         {activeTab === 'products' && <ProductBoardPanel />}
         {activeTab === 'versions' && <RoutebookVersionsPanel />}

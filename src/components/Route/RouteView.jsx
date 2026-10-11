@@ -23,6 +23,7 @@ import TrustExplanation from './TrustExplanation';
 import RecheckBar from './RecheckBar';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
+import { useRoutebookEnrichment } from '../../lib/useRoutebookEnrichment';
 
 // Overlays only load on demand so they stay off the route page's critical path.
 const SharePreview = lazy(() => import('./SharePreview'));
@@ -46,6 +47,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const productCards = useProductCards();
 
   const stops = useMemo(() => routebook.stops ?? [], [routebook.stops]);
+  const enrichment = useRoutebookEnrichment(routebook);
   const days = useMemo(() => (routebook.days?.length ? routebook.days : ['Day 1']), [routebook.days]);
   const routeProducts = useMemo(() => productsForRoutebook(productCards, routebook, 4), [routebook, productCards]);
   const trust = getRouteTrustPresentation(routebook);
@@ -222,8 +224,15 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             </h2>
             <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
           </div>
+          {enrichment.status === 'pending' && (
+            <p role="status" className="mb-3 flex items-center gap-2 rounded-card bg-sky-soft px-3 py-2 text-meta text-sky-ink sm:text-sm">
+              <span className="size-2 motion-safe:animate-pulse rounded-full bg-sky" aria-hidden="true" />
+              正在核对门票和开放时间…查到两个一致的来源才会显示。
+            </p>
+          )}
           {dayStops.length ? (
             <StopList
+              enrichment={enrichment}
               stops={dayStops}
               routeLegs={routebook.routeLegs}
               theme={activeEntry.theme}

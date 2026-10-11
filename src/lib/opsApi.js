@@ -42,3 +42,8 @@ export function getOpsUsers(query = '', signal) {
 export function saveOpsUserAction(userId, payload, signal) {
   return postJson(`/ops/users/${encodeURIComponent(userId)}`, payload, signal, adminHeaders());
 }
+
+/** Background 门票/开放时间 checking: queue, spend, cache, reports. */
+export function getOpsEnrichment(signal) {
+  return getJson('/ops/enrichment', signal, adminHeaders());
+}

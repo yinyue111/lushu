@@ -10,8 +10,9 @@ import { StopThumb } from '../visual/StopThumb';
 import { sourceEvidencePrediction, stopKey } from './routebookModel';
 import { StopTrustLine } from './StopProvenance';
 import { Notice } from '../ui/notice';
+import EnrichedFacts from './EnrichedFacts';
 
-export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [] }) {
+export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [], enrichment = null }) {
   return (
     <ol className="m-0 list-none p-0" aria-label={`${activeDay} 站点`}>
       {stops.map((stop, index) => (
@@ -29,6 +30,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
           canMoveDown={index < stops.length - 1}
           handlers={handlers}
           draggedStopId={draggedStopId}
+          enrichment={enrichment}
         />
       ))}
       {canEdit && draggedStopId && (
@@ -45,7 +47,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
 }
 
 /** @param {Record<string, any>} props */
-function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId }) {
+function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId, enrichment }) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
@@ -130,6 +132,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               </span>
             ))}
           </p>
+          {enrichment && <EnrichedFacts claims={enrichment.claimsFor(stop)} onReport={enrichment.report} />}
           <StopTrustLine stop={stop} trust={trustBadge} verifiedCount={verifiedCount} approximate={approximate} className="mt-1.5" />
           {stop.verify && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-2 sm:text-copy">{stop.verify}</p>}
           {stop.risk && (
