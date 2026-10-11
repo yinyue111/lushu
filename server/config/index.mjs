@@ -77,14 +77,23 @@ export const AI_STREAM =
   String(process.env.AI_STREAM ?? 'true')
     .trim()
     .toLowerCase() !== 'false';
+// Optional reasoning effort sent to the model (low | medium | high). Empty = not sent: the model/relay default applies.
+// For Gemini on the relay the thinking tier is chosen by the model id suffix (-low / -medium / -high) instead.
+function reasoningEffortEnv(name) {
+  const value = String(process.env[name] ?? '')
+    .trim()
+    .toLowerCase();
+  return ['low', 'medium', 'high'].includes(value) ? value : '';
+}
 export const GENERATION_MODES = {
   fast: {
     key: 'fast',
     label: '轻快',
-    model: String(process.env.AI_MODEL_FAST ?? 'gemini-3.8-flash-medium').trim(),
+    model: String(process.env.AI_MODEL_FAST ?? 'gemini-3.8-flash-high').trim(),
     timeoutMs: envNumber('AI_TIMEOUT_MS_FAST', Math.min(120000, AI_TIMEOUT_MS), { min: 1000 }),
     maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_FAST', 12000, { min: 256 }),
     idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_FAST', 30000, { min: 1000 }),
+    reasoningEffort: reasoningEffortEnv('AI_REASONING_EFFORT_FAST'),
     typicalSeconds: [20, 45]
   },
   deep: {
@@ -94,6 +103,7 @@ export const GENERATION_MODES = {
     timeoutMs: envNumber('AI_TIMEOUT_MS_DEEP', AI_TIMEOUT_MS, { min: 1000 }),
     maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_DEEP', 12000, { min: 256 }),
     idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_DEEP', 150000, { min: 1000 }),
+    reasoningEffort: reasoningEffortEnv('AI_REASONING_EFFORT_DEEP'),
     typicalSeconds: [90, 180]
   }
 };

@@ -623,7 +623,7 @@ function isStructuredOutputUnsupported(error) {
 /**
  * @param {any} payload
  * @param {any} runtime
- * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number, deadline?: number, callTimeoutMs?: number, stream?: boolean, idleTimeoutMs?: number, onActivity?: (info: { chars: number, first: boolean }) => void }} [options]
+ * @param {{ responseFormat?: string, signal?: AbortSignal, maxOutputTokens?: number, deadline?: number, callTimeoutMs?: number, stream?: boolean, idleTimeoutMs?: number, reasoningEffort?: string, onActivity?: (info: { chars: number, first: boolean }) => void }} [options]
  */
 async function callOpenAiApi(
   payload,
@@ -636,6 +636,7 @@ async function callOpenAiApi(
     callTimeoutMs = AI_CALL_TIMEOUT_MS,
     stream = false,
     idleTimeoutMs = 0,
+    reasoningEffort = '',
     onActivity = () => {}
   } = {}
 ) {
@@ -651,6 +652,7 @@ async function callOpenAiApi(
             { role: 'user', content: userMessage }
           ],
           max_tokens: maxOutputTokens,
+          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
           ...(stream ? { stream: true, stream_options: { include_usage: true } } : {})
         }
       : {
@@ -661,6 +663,7 @@ async function callOpenAiApi(
           ],
           store: false,
           max_output_tokens: maxOutputTokens,
+          ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
           ...(stream ? { stream: true } : {})
         };
 
@@ -1067,6 +1070,7 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
         maxOutputTokens: modeConfig.maxOutputTokens,
         stream: AI_STREAM,
         idleTimeoutMs: modeConfig.idleTimeoutMs,
+        reasoningEffort: modeConfig.reasoningEffort,
         onActivity: ({ chars, first }) => {
           if (first) onStage({ stage: 'model', state: 'started', detail: `${modeConfig.label} · 开始输出` });
           else if (chars - lastReportedChars >= 400) {

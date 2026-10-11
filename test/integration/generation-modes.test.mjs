@@ -31,7 +31,7 @@ before(async () => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw);
-    requests.push({ model: body.model, stream: body.stream === true });
+    requests.push({ model: body.model, stream: body.stream === true, ...(body.reasoning_effort ? { effort: body.reasoning_effort } : {}) });
     const prompt = JSON.stringify(body.messages);
     const text = JSON.stringify(generated);
     if (!body.stream) {
@@ -66,6 +66,7 @@ before(async () => {
       AI_STREAM: 'true',
       AI_STREAM_IDLE_MS_FAST: '1000',
       AI_STREAM_IDLE_MS_DEEP: '1000',
+      AI_REASONING_EFFORT_DEEP: 'high',
       AI_TIMEOUT_MS_FAST: '20000',
       AI_TIMEOUT_MS_DEEP: '20000',
       GENERATION_DEDUP_TTL_MS: '0',
@@ -113,7 +114,7 @@ test('细品 uses the deep model', async () => {
   const { job } = await runJob('柳浪闻莺和南宋御街，细品', 'deep');
   assert.equal(job.status, 'succeeded', JSON.stringify(job.error));
   assert.equal(job.mode, 'deep');
-  assert.deepEqual(requests, [{ model: 'deep-model-y', stream: true }]);
+  assert.deepEqual(requests, [{ model: 'deep-model-y', stream: true, effort: 'high' }], 'AI_REASONING_EFFORT_DEEP is sent; fast sends none');
   assert.equal(job.result.provider.mode, 'deep');
 });
 
