@@ -386,9 +386,9 @@ export const ENRICH_BASE_URL = String(process.env.ENRICH_BASE_URL ?? process.env
   .trim()
   .replace(/\/+$/, '');
 export const ENRICH_API_KEY = String(process.env.ENRICH_API_KEY ?? process.env.OPENAI_API_KEY ?? '').trim();
-export const ENRICH_DAILY_BUDGET_USD = envNumber('ENRICH_DAILY_BUDGET_USD', 5, { min: 0 });
-export const ENRICH_MAX_SEARCHES_PER_ROUTEBOOK = envNumber('ENRICH_MAX_SEARCHES_PER_ROUTEBOOK', 5, { min: 0, max: 50 });
-export const ENRICH_MAX_USD_PER_ROUTEBOOK = envNumber('ENRICH_MAX_USD_PER_ROUTEBOOK', 0.3, { min: 0 });
+export const ENRICH_DAILY_BUDGET_USD = envNumber('ENRICH_DAILY_BUDGET_USD', 30, { min: 0 });
+export const ENRICH_MAX_SEARCHES_PER_ROUTEBOOK = envNumber('ENRICH_MAX_SEARCHES_PER_ROUTEBOOK', 12, { min: 0, max: 50 });
+export const ENRICH_MAX_USD_PER_ROUTEBOOK = envNumber('ENRICH_MAX_USD_PER_ROUTEBOOK', 1.5, { min: 0 });
 // Used when the relay does not report a cost for a search call.
 export const ENRICH_ASSUMED_USD_PER_SEARCH = envNumber('ENRICH_ASSUMED_USD_PER_SEARCH', 0.1, { min: 0 });
 export const ENRICH_CONCURRENCY = envNumber('ENRICH_CONCURRENCY', 2, { min: 1, max: 10 });

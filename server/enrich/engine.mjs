@@ -21,8 +21,8 @@ export const ENRICH_FIELDS = /** @type {const} */ (['price', 'hours']);
 const FIELD_LABEL = { price: '门票', hours: '开放时间' };
 const ATTRACTION_NAME = /(寺|庙|道观|祠|宫|塔|阁|园|湖|山|峰|桥|堤|岛|街|巷|锦里|坊|古镇|景区|公园|博物馆|纪念馆|美术馆|广场|故居|遗址|陵|城墙|码头)$/;
 const RESTAURANT_NAME = /店$|饭|面|饺|馆$|餐|火锅|小吃|茶社|茶馆|咖啡|酒吧|甜品|烧烤|串串/;
-const MAX_PAGES_PER_FIELD = 4;
-const MAX_PAGES_PER_ROUTEBOOK = 30;
+const MAX_PAGES_PER_FIELD = 6;
+const MAX_PAGES_PER_ROUTEBOOK = 80;
 
 export const cacheKeyFor = (city, name, field) => `${String(city).trim()}|${String(name).trim()}|${field}`;
 export const stopKeyOf = (stop, index) => String(stop.id ?? stop.stopId ?? `#${index}`);
@@ -118,73 +118,86 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
 
     // Web search (one per stop, both fields), within the per-routebook and daily budgets.
-    let web = null;
-    const spend = await store.getSpend(now());
-    // Expected cost of the next search: the dearest search so far in this routebook, at least the assumed price.
-    const projected = Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.maxUsd);
-    if (budget.searches >= ENRICH_MAX_SEARCHES_PER_ROUTEBOOK) budget.stoppedBy = 'searches';
-    else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
-    else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
-    else {
-      web = await search({ name, city, fields: pending });
-      const usd = web.usd ?? ENRICH_ASSUMED_USD_PER_SEARCH;
-      budget.searches += 1;
-      budget.usd += usd;
-      budget.maxUsd = Math.max(budget.maxUsd, usd);
-      counts.searches += 1;
-      counts.usd += usd;
-      await store.addSpend({ usd, searches: 1 }, now());
-    }
-    if (!web) {
+    const trySearch = async (fields, variant) => {
+      const spend = await store.getSpend(now());
+      // Expected cost of the next search: the dearest search so far in this routebook, at least the assumed price.
+      const projected = Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.maxUsd);
+      if (budget.searches >= ENRICH_MAX_SEARCHES_PER_ROUTEBOOK) budget.stoppedBy = 'searches';
+      else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
+      else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
+      else {
+        const result = await search({ name, city, fields, variant });
+        const usd = result.usd ?? ENRICH_ASSUMED_USD_PER_SEARCH;
+        budget.searches += 1;
+        budget.usd += usd;
+        budget.maxUsd = Math.max(budget.maxUsd, usd);
+        counts.searches += 1;
+        counts.usd += usd;
+        await store.addSpend({ usd, searches: 1 }, now());
+        return result;
+      }
+      return null;
+    };
+    const first = await trySearch(pending, 0);
+    if (!first) {
       // Out of budget: keep 待确认 without caching, so a later routebook can try again.
       for (const field of pending) keep(field, 'budget', { reasonText: '本次核对额度已用完' });
       continue;
     }
-    if (web.answer?.ambiguous && place.status !== 'matched') {
+    if (first.answer?.ambiguous && place.status !== 'matched') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'ambiguous', reasonText: '同名地点不止一处' });
       continue;
     }
 
-    for (const field of pending) {
-      const webValueRaw = web.answer?.[field];
+    /** Decide one field from one or more searches. Same rules every time; nothing is remembered here. */
+    const decide = async (field, webs) => {
       const amapHours = field === 'hours' && place.status === 'matched' ? canonicalHours(place.poi.hours) : '';
-      const canonical = field === 'hours' ? canonicalHours(webValueRaw ?? '') : canonicalPrice(webValueRaw ?? '');
-      if (!canonical) {
-        await remember(field, {
+      const parse = (raw) => (field === 'hours' ? canonicalHours(raw ?? '') : canonicalPrice(raw ?? ''));
+      const key = (c) => (field === 'hours' ? c : priceKey(c));
+      const values = webs.map((w) => parse(w.answer?.[field])).filter(Boolean);
+      if (!values.length) {
+        return {
           status: 'kept',
           reason: amapHours ? 'single-source' : 'not-found',
           reasonText: amapHours ? `只有高德一个来源（${amapHours}）` : '没有找到可靠来源'
-        });
-        continue;
+        };
       }
+      if (new Set(values.map(key)).size > 1) {
+        return { status: 'kept', reason: 'conflict', reasonText: `搜索结果说法不一（${[...new Set(values.map(key))].join(' / ')}）` };
+      }
+      const canonical = values[0];
       const patterns = field === 'hours' ? hoursEvidence(/** @type {string} */ (canonical)) : priceEvidence(canonical);
-      // Only URLs the search really returned; the ones the model named for this field first.
-      const named = (web.answer?.[`${field}Sources`] ?? []).filter((u) => web.cited.has(u));
-      const urls = [...new Set([...named, ...web.cited.keys()])].filter((u) => {
-        try {
-          return !isBlockedDomain(new URL(u).hostname);
-        } catch {
-          return false;
-        }
-      });
       const verified = [];
-      for (const url of urls) {
-        if (verified.length >= 2 || counts.pages >= MAX_PAGES_PER_ROUTEBOOK) break;
-        if (urls.indexOf(url) >= MAX_PAGES_PER_FIELD + named.length) break;
-        const domain = siteOf(new URL(url).hostname);
-        if (verified.some((v) => v.domain === domain)) continue;
-        const page = await fetchPage(url);
-        if (page.ok && pageSupports(page.text, name, patterns)) verified.push({ kind: 'web', url, title: page.title || web.cited.get(url) || '', domain });
+      for (const w of webs) {
+        // Only URLs the search really returned; the ones the model named for this field first.
+        const named = (w.answer?.[`${field}Sources`] ?? []).filter((u) => w.cited.has(u));
+        const urls = [...new Set([...named, ...w.cited.keys()])].filter((u) => {
+          try {
+            return !isBlockedDomain(new URL(u).hostname);
+          } catch {
+            return false;
+          }
+        });
+        for (const [i, url] of urls.entries()) {
+          if (verified.length >= 2 || counts.pages >= MAX_PAGES_PER_ROUTEBOOK) break;
+          if (i >= MAX_PAGES_PER_FIELD + named.length) break;
+          const domain = siteOf(new URL(url).hostname);
+          if (verified.some((v) => v.domain === domain)) continue;
+          const page = await fetchPage(url);
+          if (page.ok && pageSupports(page.text, name, patterns)) verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
+        }
       }
       const value = field === 'hours' ? /** @type {string} */ (canonical) : priceDisplay(canonical);
       const at = retrievedAt();
       if (field === 'hours' && amapHours && amapHours !== canonical) {
-        await remember(field, { status: 'kept', reason: 'conflict', reasonText: `各来源说法不一（高德 ${amapHours}，网页 ${canonical}）` });
-      } else if (field === 'hours' && amapHours === canonical && verified.length >= 1) {
+        return { status: 'kept', reason: 'conflict', reasonText: `各来源说法不一（高德 ${amapHours}，网页 ${canonical}）` };
+      }
+      if (field === 'hours' && amapHours === canonical && verified.length >= 1) {
         const sources = [{ kind: 'amap', url: place.poi.url, title: `高德地图 · ${place.poi.name}`, domain: 'amap.com' }, ...verified.slice(0, 2)];
-        await remember(field, { status: 'filled', value, display: display(field, value, sources, at), sources, retrievedAt: at, method: 'amap+page' });
-      } else if (verified.length >= 2) {
-        await remember(field, {
+        return { status: 'filled', value, display: display(field, value, sources, at), sources, retrievedAt: at, method: 'amap+page' };
+      }
+      if (verified.length >= 2) {
+        return {
           status: 'filled',
           value,
           ...(field === 'price' ? { price: priceKey(canonical) } : {}),
@@ -192,11 +205,23 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           sources: verified,
           retrievedAt: at,
           method: 'pages'
-        });
-      } else {
-        await remember(field, { status: 'kept', reason: 'single-source', reasonText: `只核对到 ${verified.length + (amapHours ? 1 : 0)} 个来源` });
+        };
+      }
+      return { status: 'kept', reason: 'single-source', reasonText: `只核对到 ${verified.length + (amapHours ? 1 : 0)} 个来源` };
+    };
+
+    const decisions = new Map();
+    for (const field of pending) decisions.set(field, await decide(field, [first]));
+    // One more try, with a differently worded query, for fields that stopped at a single source.
+    const retry = pending.filter((field) => decisions.get(field).reason === 'single-source');
+    if (retry.length) {
+      const second = await trySearch(retry, 1);
+      if (second) {
+        counts.retried = (counts.retried ?? 0) + retry.length;
+        for (const field of retry) decisions.set(field, await decide(field, [first, second]));
       }
     }
+    for (const field of pending) await remember(field, decisions.get(field));
 
     async function remember(field, entry) {
       const key = cacheKeyFor(city, name, field);

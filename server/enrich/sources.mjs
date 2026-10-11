@@ -70,12 +70,12 @@ export async function amapPlace({ name, city, lat, lng }, { fetchImpl = pacedAma
  * @returns {Promise<{ answer: any, cited: Map<string,string>, usd: number|null, searches: number }>}
  */
 export async function webSearchPlace(
-  { name, city, fields },
+  { name, city, fields, variant = 0 },
   { fetchImpl = fetch, baseUrl = ENRICH_BASE_URL, apiKey = ENRICH_API_KEY, model = ENRICH_MODEL } = {}
 ) {
   const asks = [fields.includes('price') ? '门票价格（免费就写“免费”）' : '', fields.includes('hours') ? '开放时间' : ''].filter(Boolean).join('和');
   const input = [
-    `请联网搜索 ${city}「${name}」的${asks}。`,
+    variant ? `请联网搜索 ${city}「${name}」的${asks}，优先找官方网站、政府或景区公告、主流新闻报道。` : `请联网搜索 ${city}「${name}」的${asks}。`,
     '只依据搜索到的网页原文，不要凭记忆；网页里没有就填 null。',
     '如果这个名字在当地对应多处地点、或是连锁店，返回 {"ambiguous": true}。',
     '只返回 JSON：{"price": "原文里的票价或免费，或 null", "priceSources": ["写着这个票价的网址"], "hours": "原文里的开放时间，如 07:30-17:30，或 null", "hoursSources": ["网址"]}'

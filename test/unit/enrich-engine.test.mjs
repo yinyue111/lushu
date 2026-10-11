@@ -21,9 +21,10 @@ function fakes({ amap = {}, web = {}, pages = {} } = {}) {
         calls.amap += 1;
         return amap[name] ?? { status: 'no-match' };
       },
-      webSearchPlace: async ({ name }) => {
+      webSearchPlace: async ({ name, variant }) => {
         calls.search += 1;
-        const w = web[name] ?? { answer: {}, cited: [] };
+        calls.variants = [...(calls.variants ?? []), variant];
+        const w = (variant ? web[`${name}#2`] : null) ?? web[name] ?? { answer: {}, cited: [] };
         return { answer: w.answer, cited: new Map(w.cited.map((u) => [u, ''])), usd: w.usd ?? 0.05, searches: 2 };
       },
       fetchCitedPage: async (url) => {
@@ -44,6 +45,8 @@ test('normalizers: all-day hours, prices, sites, robots, blocklist', () => {
   assert.equal(canonicalHours('7:30—17:30（17:00停止入园）'), '07:30-17:30');
   assert.deepEqual(canonicalPrice('免费（需实名预约）'), { free: true });
   assert.deepEqual(canonicalPrice('门票45元/人'), { amount: 45 });
+  assert.deepEqual(canonicalPrice('40元'), { amount: 40 }, '40元 is not 0元');
+  assert.deepEqual(canonicalPrice('0元'), { free: true });
   assert.equal(siteOf('m.cd.bendibao.com'), 'bendibao.com');
   assert.equal(siteOf('www.hzzx.gov.cn'), 'hzzx.gov.cn');
   assert.ok(isBlockedDomain('m.dianping.com') && isBlockedDomain('i.meituan.com') && !isBlockedDomain('lingyinsi.org'));
@@ -126,7 +129,7 @@ test('conflicts, single sources, uncited URLs and chains keep 待确认', async 
   assert.equal(by('钟水饺', 'price').reason, 'chain');
   assert.equal(by('人民公园', 'price').status, 'kept', 'a URL the search never returned is ignored');
   assert.ok(!calls.pages.includes('https://invented.example/1'));
-  assert.equal(calls.search, 3, 'no web search for a chain');
+  assert.equal(calls.search, 5, 'no web search for a chain; 锦里 and 人民公园 (single source) are retried once');
 });
 
 test('restaurants are never enriched', async () => {
@@ -136,18 +139,47 @@ test('restaurants are never enriched', async () => {
   assert.equal(calls.search, 0);
 });
 
-test('budgets: at most 5 searches per routebook and the global daily budget; cache avoids repeat searches', async () => {
-  const names = ['一山', '二山', '三山', '四山', '五山', '六山', '七山'];
+test('a single-source field gets one more search with a different query', async () => {
+  const { deps, calls } = fakes({
+    web: {
+      雷峰塔: { answer: { price: '40元' }, cited: ['https://a.com/1'] },
+      '雷峰塔#2': { answer: { price: '门票40元' }, cited: ['https://b.com/2'] }
+    },
+    pages: { 'https://a.com/1': page('雷峰塔', '门票 40 元/人'), 'https://b.com/2': page('雷峰塔', '票价：¥40') }
+  });
+  const { claims, summary } = await enrichRoutebook({ routebook: { id: 'r8', city: '杭州', stops: [stop('雷峰塔')] }, store: freshStore(), deps });
+  assert.deepEqual(calls.variants, [0, 1]);
+  const price = claims.find((c) => c.field === 'price');
+  assert.equal(price.status, 'filled', JSON.stringify(price));
+  assert.equal(price.value, '40 元');
+  assert.deepEqual(
+    price.sources.map((x) => x.domain),
+    ['a.com', 'b.com']
+  );
+  assert.equal(summary.searches, 2);
+});
+
+test('a retry that finds a different value is a conflict', async () => {
+  const { deps } = fakes({
+    web: { 雷峰塔: { answer: { price: '40元' }, cited: ['https://a.com/1'] }, '雷峰塔#2': { answer: { price: '45元' }, cited: ['https://b.com/2'] } },
+    pages: { 'https://a.com/1': page('雷峰塔', '门票 40 元'), 'https://b.com/2': page('雷峰塔', '门票 45 元') }
+  });
+  const { claims } = await enrichRoutebook({ routebook: { id: 'r9', city: '杭州', stops: [stop('雷峰塔')] }, store: freshStore(), deps });
+  assert.equal(claims.find((c) => c.field === 'price').reason, 'conflict');
+});
+
+test('budgets: at most 12 searches per routebook and the global daily budget; cache avoids repeat searches', async () => {
+  const names = ['一山', '二山', '三山', '四山', '五山', '六山', '七山', '八山', '九山', '十山', '十一山', '十二山', '十三山', '十四山'];
   const web = Object.fromEntries(names.map((n) => [n, { answer: {}, cited: [], usd: 0.01 }]));
   const { deps, calls } = fakes({ web });
   const store = freshStore();
   const { claims, summary } = await enrichRoutebook({ routebook: { id: 'r4', city: '杭州', stops: names.map((n) => stop(n)) }, store, deps });
-  assert.equal(calls.search, 5);
+  assert.equal(calls.search, 12);
   assert.equal(summary.stoppedBy, 'searches');
   assert.equal(claims.filter((c) => c.reason === 'budget').length, 4, 'two stops x two fields');
-  // Same places again: the five searched ones come from cache; the two unsearched are tried now.
+  // Same places again: the twelve searched ones come from cache; the two unsearched are tried now.
   await enrichRoutebook({ routebook: { id: 'r5', city: '杭州', stops: names.map((n) => stop(n)) }, store, deps });
-  assert.equal(calls.search, 7);
+  assert.equal(calls.search, 14);
   // Daily budget exhausted: nothing is searched.
   const spent = freshStore();
   await spent.addSpend({ usd: 999 });
@@ -159,7 +191,7 @@ test('budgets: at most 5 searches per routebook and the global daily budget; cac
 
 test('per-routebook USD cap', async () => {
   const names = ['一山', '二山', '三山', '四山'];
-  const { deps, calls } = fakes({ web: Object.fromEntries(names.map((n) => [n, { answer: {}, cited: [], usd: 0.2 }])) });
+  const { deps, calls } = fakes({ web: Object.fromEntries(names.map((n) => [n, { answer: {}, cited: [], usd: 0.6 }])) });
   await enrichRoutebook({ routebook: { id: 'r7', city: '杭州', stops: names.map((n) => stop(n)) }, store: freshStore(), deps });
-  assert.equal(calls.search, 1, 'after $0.2 the next search is expected to cost $0.2 too, which would pass $0.3');
+  assert.equal(calls.search, 2, 'after $1.2 the next search is expected to cost $0.6 too, which would pass $1.5');
 });

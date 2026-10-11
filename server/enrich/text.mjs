@@ -47,7 +47,7 @@ export function hoursEvidence(canonical) {
 export function canonicalPrice(value) {
   const text = compact(value);
   if (!text) return null;
-  if (/免费|免票|无需门票|不收门票|0元/.test(text)) return { free: true };
+  if (/免费|免票|无需门票|不收门票|(?<![\d.])0元/.test(text)) return { free: true };
   const m = text.match(/(?:¥|门票|票价)?(\d+(?:\.\d+)?)元?/);
   return m ? { amount: Number(m[1]) } : null;
 }
