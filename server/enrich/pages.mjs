@@ -1,6 +1,7 @@
 // Fetching the pages a web search cited, to check the value literally appears there.
 // Reuses the importer's SSRF-safe fetcher (public IPs only, DNS pinning, redirects re-checked, size cap);
 // adds a domain blocklist (sites whose terms forbid automated access), robots.txt and a time limit.
+import { isIP } from 'node:net';
 import { fetchPublicPageResponse } from '../import/ssrf.mjs';
 import { htmlToText } from './text.mjs';
 import { ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS, ENRICH_BLOCKED_DOMAINS, ENRICH_PAGE_MAX_BYTES, ENRICH_PAGE_TIMEOUT_MS } from '../config/index.mjs';
@@ -16,6 +17,7 @@ export function isBlockedDomain(hostname, blocked = ENRICH_BLOCKED_DOMAINS) {
 
 /** Registrable domain, approximately (cd.bendibao.com and m.cd.bendibao.com are one source). */
 export function siteOf(hostname) {
+  if (isIP(String(hostname ?? '').replace(/^\[|\]$/g, ''))) return String(hostname);
   const parts = String(hostname ?? '')
     .toLowerCase()
     .replace(/^www\./, '')

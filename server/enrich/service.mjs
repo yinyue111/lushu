@@ -1,9 +1,11 @@
 // Background enrichment: queue, worker, read model and "this is wrong" reports.
 import {
+  ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS,
   ENRICH_API_KEY,
   ENRICH_BASE_URL,
   ENRICH_CONCURRENCY,
   ENRICH_ENABLED,
+  ENRICH_LEASE_MS,
   ENRICH_MAX_ATTEMPTS,
   ENRICH_POLL_MS,
   ENRICH_RETRY_BASE_MS
@@ -13,7 +15,6 @@ import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { enrichRoutebook, stopKeyOf } from './engine.mjs';
 import { enrichStore } from './store.mjs';
 
-const LEASE_MS = 10 * 60 * 1000;
 
 export function enrichmentReady() {
   if (!ENRICH_ENABLED) return { ready: false, reason: 'ENRICH_ENABLED=false' };
@@ -130,7 +131,7 @@ export async function tickEnrichment() {
   try {
     const free = ENRICH_CONCURRENCY - running;
     if (free <= 0) return 0;
-    const jobs = await enrichStore().claimDue({ now: Date.now(), leaseMs: LEASE_MS, limit: free });
+    const jobs = await enrichStore().claimDue({ now: Date.now(), leaseMs: ENRICH_LEASE_MS, limit: free });
     for (const job of jobs) {
       running += 1;
       runJob(job).finally(() => {
@@ -158,6 +159,8 @@ export function startEnrichmentWorker(deps = {}) {
     return false;
   }
   workerDeps = deps;
+  if (ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS)
+    console.warn('[enrich] ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS is on: cited pages are fetched without the public-address check. Test only.');
   if (timer) return true;
   timer = setInterval(() => void tickEnrichment(), ENRICH_POLL_MS);
   timer.unref?.();

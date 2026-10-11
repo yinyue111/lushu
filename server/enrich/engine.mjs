@@ -19,7 +19,7 @@ import { canonicalHours, canonicalPrice, compact, hoursEvidence, priceDisplay, p
 
 export const ENRICH_FIELDS = /** @type {const} */ (['price', 'hours']);
 const FIELD_LABEL = { price: '门票', hours: '开放时间' };
-const ATTRACTION_NAME = /寺|庙|观|祠|宫|塔|楼|阁|园|湖|山|峰|桥|堤|岛|街|巷|里|坊|古镇|景区|公园|博物馆|纪念馆|美术馆|广场|故居|遗址|陵|城墙|码头/;
+const ATTRACTION_NAME = /(寺|庙|道观|祠|宫|塔|阁|园|湖|山|峰|桥|堤|岛|街|巷|锦里|坊|古镇|景区|公园|博物馆|纪念馆|美术馆|广场|故居|遗址|陵|城墙|码头)$/;
 const RESTAURANT_NAME = /店$|饭|面|饺|馆$|餐|火锅|小吃|茶社|茶馆|咖啡|酒吧|甜品|烧烤|串串/;
 const MAX_PAGES_PER_FIELD = 4;
 
@@ -93,13 +93,13 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
 
     counts.amapCalls += 1;
     const place = await amap({ name, city, lat: Number(stop.lat), lng: Number(stop.lng) });
-    if (place.status === 'restaurant' || (place.status !== 'matched' && RESTAURANT_NAME.test(name) && !ATTRACTION_NAME.test(name))) {
-      counts.skippedStops += 1;
-      continue; // restaurants: address / phone / 人均 are out of scope
-    }
     if (place.status === 'chain') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'chain', reasonText: '连锁店，攻略没写哪一家' });
       continue;
+    }
+    if (place.status === 'restaurant' || (place.status !== 'matched' && RESTAURANT_NAME.test(name) && !ATTRACTION_NAME.test(name))) {
+      counts.skippedStops += 1;
+      continue; // restaurants: address / phone / 人均 are out of scope
     }
     const attraction = place.status === 'matched' ? place.poi.attraction || ATTRACTION_NAME.test(name) : ATTRACTION_NAME.test(name);
     if (!attraction) {
@@ -110,9 +110,11 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     // Web search (one per stop, both fields), within the per-routebook and daily budgets.
     let web = null;
     const spend = await store.getSpend(now());
+    // Expected cost of the next search: what searches cost so far in this routebook, or the assumed price.
+    const projected = budget.searches ? Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.usd / budget.searches) : ENRICH_ASSUMED_USD_PER_SEARCH;
     if (budget.searches >= ENRICH_MAX_SEARCHES_PER_ROUTEBOOK) budget.stoppedBy = 'searches';
-    else if (budget.usd + ENRICH_ASSUMED_USD_PER_SEARCH > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
-    else if (spend.usd + ENRICH_ASSUMED_USD_PER_SEARCH > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
+    else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
+    else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
     else {
       web = await search({ name, city, fields: pending });
       const usd = web.usd ?? ENRICH_ASSUMED_USD_PER_SEARCH;

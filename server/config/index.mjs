@@ -394,6 +394,8 @@ export const ENRICH_ASSUMED_USD_PER_SEARCH = envNumber('ENRICH_ASSUMED_USD_PER_S
 export const ENRICH_CONCURRENCY = envNumber('ENRICH_CONCURRENCY', 2, { min: 1, max: 10 });
 export const ENRICH_MAX_ATTEMPTS = envNumber('ENRICH_MAX_ATTEMPTS', 4, { min: 1, max: 20 });
 export const ENRICH_RETRY_BASE_MS = envNumber('ENRICH_RETRY_BASE_MS', 60000, { min: 100 });
+// A job whose worker died (restart, crash) is picked up again once its lease runs out.
+export const ENRICH_LEASE_MS = envNumber('ENRICH_LEASE_MS', 10 * 60 * 1000, { min: 500 });
 export const ENRICH_POLL_MS = envNumber('ENRICH_POLL_MS', 5000, { min: 50 });
 export const ENRICH_CACHE_DAYS = envNumber('ENRICH_CACHE_DAYS', 7, { min: 0 });
 export const ENRICH_SEARCH_TIMEOUT_MS = envNumber('ENRICH_SEARCH_TIMEOUT_MS', 120000, { min: 1000 });
@@ -407,5 +409,5 @@ export const ENRICH_BLOCKED_DOMAINS = String(
   .split(',')
   .map((d) => d.trim().toLowerCase())
   .filter(Boolean);
-// Test hook only: lets integration tests point the fetcher at a local mock page server.
-export const ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS = !IS_PRODUCTION && envFlag('ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS', false);
+// Test hook only (never set in production): lets integration tests point the page fetcher at a local mock server.
+export const ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS = envFlag('ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS', false);
