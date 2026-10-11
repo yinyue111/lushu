@@ -1,0 +1,165 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { enrichRoutebook, pageSupports, wantedFields } from '../../server/enrich/engine.mjs';
+import { createJsonlStore } from '../../server/enrich/store.mjs';
+import { isBlockedDomain, robotsAllows, siteOf } from '../../server/enrich/pages.mjs';
+import { canonicalHours, canonicalPrice } from '../../server/enrich/text.mjs';
+
+const freshStore = () => createJsonlStore(join(mkdtempSync(join(tmpdir(), 'enrich-')), 'enrichment.jsonl'));
+const stop = (name, extra = {}) => ({ id: name, name, lat: 30.24, lng: 120.1, cost: '门票待确认', costInfo: { known: false }, ...extra });
+const page = (name, body) => ({ ok: true, title: `${name} 官方`, text: `<p>${name}</p><p>${body}</p>` });
+
+function fakes({ amap = {}, web = {}, pages = {} } = {}) {
+  const calls = { amap: 0, search: 0, pages: [] };
+  return {
+    calls,
+    deps: {
+      amapPlace: async ({ name }) => {
+        calls.amap += 1;
+        return amap[name] ?? { status: 'no-match' };
+      },
+      webSearchPlace: async ({ name }) => {
+        calls.search += 1;
+        const w = web[name] ?? { answer: {}, cited: [] };
+        return { answer: w.answer, cited: new Map(w.cited.map((u) => [u, ''])), usd: w.usd ?? 0.05, searches: 2 };
+      },
+      fetchCitedPage: async (url) => {
+        calls.pages.push(url);
+        return pages[url] ?? { ok: false, reason: 'http-404' };
+      }
+    }
+  };
+}
+const scenic = (name, hours) => ({
+  status: 'matched',
+  poi: { id: 'B1', name, type: '风景名胜;风景名胜;国家级景点', attraction: true, hours, url: 'https://www.amap.com/place/B1' }
+});
+
+test('normalizers: all-day hours, prices, sites, robots, blocklist', () => {
+  assert.equal(canonicalHours('全天开放'), '00:00-24:00');
+  assert.equal(canonicalHours('周一至周日 00:00-24:00'), '00:00-24:00');
+  assert.equal(canonicalHours('7:30—17:30（17:00停止入园）'), '07:30-17:30');
+  assert.deepEqual(canonicalPrice('免费（需实名预约）'), { free: true });
+  assert.deepEqual(canonicalPrice('门票45元/人'), { amount: 45 });
+  assert.equal(siteOf('m.cd.bendibao.com'), 'bendibao.com');
+  assert.equal(siteOf('www.hzzx.gov.cn'), 'hzzx.gov.cn');
+  assert.ok(isBlockedDomain('m.dianping.com') && isBlockedDomain('i.meituan.com') && !isBlockedDomain('lingyinsi.org'));
+  const robots = 'User-agent: *\nDisallow: /private\n\nUser-agent: TrustedRoutebookBot\nDisallow: /no-bots\nAllow: /no-bots/ok';
+  assert.equal(robotsAllows(robots, '/private/x'), true, 'our own group replaces the * group');
+  assert.equal(robotsAllows(robots, '/no-bots/a'), false);
+  assert.equal(robotsAllows(robots, '/no-bots/ok/1'), true);
+  assert.equal(robotsAllows('User-agent: *\nDisallow: /', '/a'), false);
+});
+
+test('a value must appear near the place name on the page', () => {
+  assert.ok(pageSupports('…灵隐寺 开放时间 7:30-17:30…', '灵隐寺', [/(?<!\d)0?7:30(?!\d)/, /17:30/]));
+  assert.ok(!pageSupports(`灵隐寺${'。'.repeat(400)}免费WiFi`, '灵隐寺', [/免费/]), 'free WiFi far away does not count');
+  assert.ok(!pageSupports('门票免费', '灵隐寺', [/免费/]), 'the place must be on the page');
+  assert.deepEqual(wantedFields(stop('x', { cost: '免费', costInfo: { known: true, free: true } })), ['hours']);
+});
+
+test('AMap + one verified page fill hours; two verified sites fill 免费; provenance is recorded', async () => {
+  const { deps, calls } = fakes({
+    amap: { 灵隐寺: scenic('灵隐寺', '周一至周日 07:30-17:30 最晚进入17:00') },
+    web: {
+      灵隐寺: {
+        answer: { price: '免费', priceSources: ['https://a.gov.cn/1'], hours: '07:30-17:30', hoursSources: ['https://a.gov.cn/1'] },
+        cited: ['https://a.gov.cn/1', 'https://news.example.com/2', 'https://m.dianping.com/shop/1']
+      }
+    },
+    pages: {
+      'https://a.gov.cn/1': page('灵隐寺', '自12月1日起免费开放，开放时间7:30—17:30'),
+      'https://news.example.com/2': page('灵隐寺', '景区免票，需实名预约')
+    }
+  });
+  const store = freshStore();
+  const { claims, summary } = await enrichRoutebook({
+    routebook: { id: 'r1', city: '杭州', stops: [stop('灵隐寺')] },
+    store,
+    deps,
+    now: () => Date.parse('2026-10-11T03:00:00Z')
+  });
+  const price = claims.find((c) => c.field === 'price');
+  const hours = claims.find((c) => c.field === 'hours');
+  assert.equal(price.status, 'filled');
+  assert.equal(price.value, '免费');
+  assert.deepEqual(price.sources.map((s) => s.domain).sort(), ['a.gov.cn', 'example.com']);
+  assert.match(price.display, /^免费 · 来自灵隐寺 官方等2个来源 · 查询于2026-10-11$/);
+  assert.equal(hours.status, 'filled');
+  assert.equal(hours.method, 'amap+page');
+  assert.equal(hours.sources[0].kind, 'amap');
+  assert.ok(!calls.pages.some((u) => u.includes('dianping')), 'blocked domains are never fetched');
+  assert.equal(summary.searches, 1);
+  assert.equal((await store.getSpend(Date.parse('2026-10-11T03:00:00Z'))).searches, 1);
+});
+
+test('conflicts, single sources, uncited URLs and chains keep 待确认', async () => {
+  const { deps, calls } = fakes({
+    amap: {
+      锦里: scenic('锦里', '周一至周日 00:00-24:00'),
+      宽窄巷子: scenic('宽窄巷子', '周一至周日 00:00-24:00'),
+      钟水饺: { status: 'chain', candidates: ['钟水饺(玉林店)', '钟水饺实业街店'] },
+      人民公园: scenic('人民公园', '')
+    },
+    web: {
+      锦里: { answer: { hours: '8:00-22:30', price: '免费' }, cited: ['https://x.com/1', 'https://y.com/2'] },
+      宽窄巷子: { answer: { hours: '全天开放' }, cited: ['https://k.com/1'] },
+      人民公园: { answer: { price: '免费', priceSources: ['https://invented.example/1'] }, cited: ['https://p.com/1'] }
+    },
+    pages: {
+      'https://x.com/1': page('锦里', '营业时间 8:00-22:30，免费'),
+      'https://k.com/1': page('宽窄巷子', '全天开放'),
+      'https://p.com/1': page('人民公园', '公园免费'),
+      'https://invented.example/1': page('人民公园', '免费')
+    }
+  });
+  const routebook = { id: 'r2', city: '成都', stops: ['锦里', '宽窄巷子', '钟水饺', '人民公园'].map((n) => stop(n)) };
+  const { claims } = await enrichRoutebook({ routebook, store: freshStore(), deps });
+  const by = (name, field) => claims.find((c) => c.stopName === name && c.field === field);
+  assert.equal(by('锦里', 'hours').reason, 'conflict', '8:00-22:30 vs AMap 24h');
+  assert.equal(by('锦里', 'price').reason, 'single-source', 'only one verified site');
+  assert.equal(by('宽窄巷子', 'hours').status, 'filled', '全天开放 == 00:00-24:00, AMap + one page');
+  assert.equal(by('宽窄巷子', 'hours').value, '00:00-24:00');
+  assert.equal(by('钟水饺', 'price').reason, 'chain');
+  assert.equal(by('人民公园', 'price').status, 'kept', 'a URL the search never returned is ignored');
+  assert.ok(!calls.pages.includes('https://invented.example/1'));
+  assert.equal(calls.search, 3, 'no web search for a chain');
+});
+
+test('restaurants are never enriched', async () => {
+  const { deps, calls } = fakes({ amap: { 鹤鸣茶社: { status: 'restaurant' } } });
+  const { claims } = await enrichRoutebook({ routebook: { id: 'r3', city: '成都', stops: [stop('鹤鸣茶社'), stop('知味观')] }, store: freshStore(), deps });
+  assert.equal(claims.length, 0);
+  assert.equal(calls.search, 0);
+});
+
+test('budgets: at most 5 searches per routebook and the global daily budget; cache avoids repeat searches', async () => {
+  const names = ['一山', '二山', '三山', '四山', '五山', '六山', '七山'];
+  const web = Object.fromEntries(names.map((n) => [n, { answer: {}, cited: [], usd: 0.01 }]));
+  const { deps, calls } = fakes({ web });
+  const store = freshStore();
+  const { claims, summary } = await enrichRoutebook({ routebook: { id: 'r4', city: '杭州', stops: names.map((n) => stop(n)) }, store, deps });
+  assert.equal(calls.search, 5);
+  assert.equal(summary.stoppedBy, 'searches');
+  assert.equal(claims.filter((c) => c.reason === 'budget').length, 4, 'two stops x two fields');
+  // Same places again: the five searched ones come from cache; the two unsearched are tried now.
+  await enrichRoutebook({ routebook: { id: 'r5', city: '杭州', stops: names.map((n) => stop(n)) }, store, deps });
+  assert.equal(calls.search, 7);
+  // Daily budget exhausted: nothing is searched.
+  const spent = freshStore();
+  await spent.addSpend({ usd: 999 });
+  const before = calls.search;
+  const out = await enrichRoutebook({ routebook: { id: 'r6', city: '苏州', stops: [stop('虎丘山')] }, store: spent, deps });
+  assert.equal(calls.search, before);
+  assert.equal(out.summary.stoppedBy, 'daily-usd');
+});
+
+test('per-routebook USD cap', async () => {
+  const names = ['一山', '二山', '三山', '四山'];
+  const { deps, calls } = fakes({ web: Object.fromEntries(names.map((n) => [n, { answer: {}, cited: [], usd: 0.2 }])) });
+  await enrichRoutebook({ routebook: { id: 'r7', city: '杭州', stops: names.map((n) => stop(n)) }, store: freshStore(), deps });
+  assert.equal(calls.search, 1, 'after $0.2 the next search is expected to cost $0.2 too, which would pass $0.3');
+});
