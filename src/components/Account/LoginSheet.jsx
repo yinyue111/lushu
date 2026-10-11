@@ -9,7 +9,7 @@ import { login, register, resetPassword, resetPasswordWithEmail, sendRegisterCod
 import { deviceProfileProof } from '../../lib/account';
 import { authErrorCopy, isEmail, isMainlandMobile, PASSWORD_HINT } from '../../lib/accountCopy';
 
-const TITLES = { login: '登录', register: '注册账号', forgot: '重设密码', codes: '保存恢复码' };
+const TITLES = { login: '登录', register: '注册账号', forgot: '重设密码', codes: '存好你的恢复码' };
 
 /**
  * Phone + password sign-in sheet: bottom sheet on phones, dialog from md up.
@@ -27,13 +27,15 @@ export default function LoginSheet({
   onClose
 }) {
   const [view, setView] = useState(initialView);
+  const [codesUnlocked, setCodesUnlocked] = useState(!afterRegister);
   const description =
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'
       : reason ||
         (view === 'forgot' ? '用邮箱收验证码，或者用注册时拿到的恢复码，再设一个新密码。' : '浏览路线不用登录。导入攻略、生成路书要用到 AI，所以需要账号。');
+  const lockCodes = view === 'codes' && afterRegister && !codesUnlocked;
   return (
-    <Sheet title={TITLES[view]} description={description} onClose={onClose}>
+    <Sheet title={TITLES[view]} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>
       <div className="px-1 pb-2">
         {view !== 'codes' && view !== 'forgot' && (
           <div role="tablist" aria-label="登录或注册" className="mb-4 grid grid-cols-2 rounded-full bg-canvas p-1">
@@ -59,7 +61,14 @@ export default function LoginSheet({
           <RegisterForm registration={registration} emailVerificationRequired={emailVerificationRequired} onAuthenticated={onAuthenticated} />
         )}
         {view === 'forgot' && <ForgotForm onAuthenticated={onAuthenticated} onBack={() => setView('login')} />}
-        {view === 'codes' && <RecoveryCodes codes={codes} afterRegister={afterRegister} onConfirmed={onCodesConfirmed} />}
+        {view === 'codes' && (
+          <RecoveryCodes
+            codes={codes}
+            afterRegister={afterRegister}
+            onConfirmed={onCodesConfirmed}
+            onUnlock={() => setCodesUnlocked(true)}
+          />
+        )}
       </div>
     </Sheet>
   );
@@ -529,15 +538,19 @@ function ForgotByRecovery({ onAuthenticated }) {
   );
 }
 
-export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }) {
+export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed, onUnlock }) {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const listRef = useRef(null);
+  const markSaved = () => {
+    setSaved(true);
+    onUnlock?.();
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(codes.join('\n'));
       setCopied(true);
-      setSaved(true);
+      markSaved();
     } catch {
       // Clipboard can be blocked; the codes stay selectable on screen.
       const range = document.createRange();
@@ -552,7 +565,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
     <div className="flex flex-col gap-4">
       {afterRegister && (
         <Notice tone="info" icon={Check}>
-          注册成功。恢复码只显示一次，请先复制保存。
+          注册成功。恢复码只显示一次，请先复制保存后再继续（暂不能关闭）。
         </Notice>
       )}
       <ol ref={listRef} className="grid grid-cols-2 gap-2 rounded-card bg-canvas p-3" aria-label="恢复码">
@@ -574,7 +587,15 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
       <p className="text-sm text-muted">别发给别人。丢失密码时靠它重设。</p>
       {!copied && (
         <label className="flex items-start gap-2.5 text-sm font-semibold text-ink-2">
-          <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary-strong" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
+          <input
+            type="checkbox"
+            className="mt-0.5 size-5 shrink-0 accent-primary-strong"
+            checked={saved}
+            onChange={(event) => {
+              if (event.target.checked) markSaved();
+              else setSaved(false);
+            }}
+          />
           我已经存好了（截图或手抄也可以）
         </label>
       )}
