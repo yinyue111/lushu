@@ -126,25 +126,27 @@ export function formatDuration(ms) {
 }
 
 /**
- * Honest wait copy: the typical range, the recent median when the server has enough
- * samples, and what happens when this run is slower than usual.
+ * One ETA line per mode (轻快 ~20–45s / 细品 ~2–3 min). Avoids contradicting
+ * 「通常需要…」 with a separate 「预计还需 1 分钟」 on the same screen.
  * @returns {{ typical: string, remaining: string }}
  */
 export function generationEtaText(job, elapsedMs) {
   const estimate = job?.estimate ?? {};
+  const mode = job?.mode === 'fast' ? 'fast' : 'deep';
+  const fallbackRange = mode === 'fast' ? '20–45 秒' : '2–3 分钟';
+  const range = String(estimate.typicalRange || fallbackRange).trim() || fallbackRange;
   const p50 = Number(estimate.p50Ms) || 0;
-  const timeoutMinutes = Math.round((Number(job?.timeoutMs) || 300000) / 60000);
   const typical =
     p50 && estimate.sampleSize >= 3
-      ? `通常需要 ${estimate.typicalRange || '2–3 分钟'}（最近 ${estimate.sampleSize} 次中位数 ${formatDuration(p50)}）`
-      : `通常需要 ${estimate.typicalRange || '2–3 分钟'}`;
-  const reference = p50 || (job?.mode === 'fast' ? 35000 : 150000);
-  const left = reference - elapsedMs;
-  const timeoutText = Number(job?.timeoutMs) && Number(job.timeoutMs) < 120000 ? `${Math.round(Number(job.timeoutMs) / 1000)} 秒` : `${timeoutMinutes} 分钟`;
-  let remaining;
-  if (left > 90000) remaining = `预计还需约 ${Math.round(left / 60000)} 分钟`;
-  else if (left > 20000) remaining = '预计还需 1 分钟左右';
-  else if (left > 0) remaining = '快好了';
+      ? `大约 ${range}（最近 ${estimate.sampleSize} 次中位数 ${formatDuration(p50)}）`
+      : `大约 ${range}`;
+  // Mid of the typical band: used only to decide "still on track" vs "slower than usual".
+  const reference = p50 || (mode === 'fast' ? 32000 : 135000);
+  const timeoutMs = Number(job?.timeoutMs) || (mode === 'fast' ? 120000 : 480000);
+  const timeoutText = timeoutMs < 120000 ? `${Math.round(timeoutMs / 1000)} 秒` : `${Math.max(1, Math.round(timeoutMs / 60000))} 分钟`;
+  let remaining = '';
+  if (elapsedMs < reference * 0.85) remaining = '正在生成中';
+  else if (elapsedMs < reference * 1.25) remaining = '快好了';
   else remaining = `比平时慢一些，仍在等待；超过 ${timeoutText}会自动停止，不会一直卡住`;
   return { typical, remaining };
 }

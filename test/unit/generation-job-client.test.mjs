@@ -69,16 +69,21 @@ test('a job the server no longer knows surfaces as an error instead of polling f
   assert.match(generationFailureCopy(error).title, /任务已失效/);
 });
 
-test('wait copy is honest: typical range, recent median and slower-than-usual', () => {
+test('wait copy is honest: one ETA line per mode, no contradictory remaining', () => {
   assert.equal(formatDuration(12000), '12 秒');
   assert.equal(formatDuration(147000), '2 分 27 秒');
-  const noSamples = generationEtaText({ estimate: { typicalRange: '2–3 分钟', sampleSize: 1, p50Ms: null }, timeoutMs: 300000 }, 10000);
-  assert.equal(noSamples.typical, '通常需要 2–3 分钟');
-  assert.match(noSamples.remaining, /预计还需约 2 分钟/);
-  const withSamples = generationEtaText({ estimate: { typicalRange: '2–3 分钟', sampleSize: 4, p50Ms: 147000 }, timeoutMs: 300000 }, 100000);
+  const noSamples = generationEtaText({ mode: 'deep', estimate: { typicalRange: '2–3 分钟', sampleSize: 1, p50Ms: null }, timeoutMs: 300000 }, 10000);
+  assert.equal(noSamples.typical, '大约 2–3 分钟');
+  assert.equal(noSamples.remaining, '正在生成中');
+  const fast = generationEtaText({ mode: 'fast', estimate: { typicalRange: '20–45 秒', sampleSize: 1 }, timeoutMs: 120000 }, 5000);
+  assert.equal(fast.typical, '大约 20–45 秒');
+  assert.equal(fast.remaining, '正在生成中');
+  const withSamples = generationEtaText({ mode: 'deep', estimate: { typicalRange: '2–3 分钟', sampleSize: 4, p50Ms: 147000 }, timeoutMs: 300000 }, 100000);
   assert.match(withSamples.typical, /最近 4 次中位数 2 分 27 秒/);
-  assert.equal(withSamples.remaining, '预计还需 1 分钟左右');
-  const slow = generationEtaText({ estimate: { sampleSize: 4, p50Ms: 147000 }, timeoutMs: 300000 }, 200000);
+  assert.equal(withSamples.remaining, '正在生成中');
+  const almost = generationEtaText({ mode: 'deep', estimate: { typicalRange: '2–3 分钟', sampleSize: 4, p50Ms: 147000 }, timeoutMs: 300000 }, 140000);
+  assert.equal(almost.remaining, '快好了');
+  const slow = generationEtaText({ mode: 'deep', estimate: { sampleSize: 4, p50Ms: 147000 }, timeoutMs: 300000 }, 200000);
   assert.match(slow.remaining, /超过 5 分钟会自动停止/);
 });
 

@@ -186,7 +186,7 @@ export function GenerationRunningBanner({ job, onOpen }) {
       role="status"
       tone="border-primary/25 bg-primary-soft text-ink"
       title={`${job.city || ''}路书正在后台生成`}
-      text="通常需要 2–3 分钟，完成后在这里打开结果；也可以在进度页取消。"
+      text="大约半分钟到几分钟，完成后在这里打开结果；也可以在进度页取消。"
     >
       <Button size="sm" variant="primary" onClick={onOpen}>
         查看进度
