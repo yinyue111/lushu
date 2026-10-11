@@ -89,8 +89,11 @@ export function clearGenerationDedupCache() {
   resultCache.clear();
 }
 
-/** Throws 429 GENERATION_QUOTA_EXCEEDED when the profile used its window quota. */
-export async function enforceGenerationQuota(
+/**
+ * How many generations this profile has left in the rolling window (does not throw).
+ * Guests / anonymous are unlimited here (IP rate limit covers them).
+ */
+export async function peekGenerationQuota(
   profileId,
   {
     quota = GENERATION_QUOTA_PER_PROFILE,
@@ -100,8 +103,10 @@ export async function enforceGenerationQuota(
     deepQuota = GENERATION_QUOTA_DEEP_PER_PROFILE
   } = {}
 ) {
-  if (!profileId || profileId === 'anonymous') return { limited: false, used: 0, quota };
-  // 细品 runs the slow, expensive model: an optional extra cap inside the shared quota.
+  if (!profileId || profileId === 'anonymous') {
+    return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, retryAfterSeconds: 0 };
+  }
+  const windowHours = Math.round(windowMs / 3600000) || 1;
   if (mode === 'deep' && deepQuota > 0) {
     const since = nowMs - windowMs;
     const deepRows = await readMatchingJsonLines(
@@ -118,16 +123,18 @@ export async function enforceGenerationQuota(
     );
     if (deepRows.length >= deepQuota) {
       const oldest = Math.min(...deepRows.map((row) => Date.parse(row.createdAt)));
-      const error = createHttpError(
-        `「细品」次数已达上限（每 ${Math.round(windowMs / 3600000) || 1} 小时 ${deepQuota} 次），可以先用「轻快」`,
-        429,
-        'GENERATION_QUOTA_EXCEEDED'
-      );
-      /** @type {any} */ (error).retryAfterSeconds = Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000));
-      throw error;
+      return {
+        limited: true,
+        used: deepRows.length,
+        quota: deepQuota,
+        remaining: 0,
+        windowHours,
+        retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000)),
+        kind: 'deep'
+      };
     }
   }
-  if (!quota) return { limited: false, used: 0, quota };
+  if (!quota) return { limited: false, used: 0, quota: 0, remaining: null, windowHours, retryAfterSeconds: 0 };
   const since = nowMs - windowMs;
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
@@ -141,10 +148,29 @@ export async function enforceGenerationQuota(
     quota,
     50000
   );
-  if (rows.length < quota) return { limited: false, used: rows.length, quota };
+  if (rows.length < quota) {
+    return { limited: false, used: rows.length, quota, remaining: quota - rows.length, windowHours, retryAfterSeconds: 0 };
+  }
   const oldest = Math.min(...rows.map((row) => Date.parse(row.createdAt)));
-  const retryAfterSeconds = Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000));
-  const error = createHttpError(`生成次数已达上限（每 ${Math.round(windowMs / 3600000) || 1} 小时 ${quota} 次），请稍后再试`, 429, 'GENERATION_QUOTA_EXCEEDED');
-  /** @type {any} */ (error).retryAfterSeconds = retryAfterSeconds;
+  return {
+    limited: true,
+    used: rows.length,
+    quota,
+    remaining: 0,
+    windowHours,
+    retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000))
+  };
+}
+
+/** Throws 429 GENERATION_QUOTA_EXCEEDED when the profile used its window quota. */
+export async function enforceGenerationQuota(profileId, options = {}) {
+  const peek = await peekGenerationQuota(profileId, options);
+  if (!peek.limited) return peek;
+  const message =
+    peek.kind === 'deep'
+      ? `「细品」次数已达上限（每 ${peek.windowHours} 小时 ${peek.quota} 次），可以先用「轻快」`
+      : `生成次数已达上限（每 ${peek.windowHours} 小时 ${peek.quota} 次），请稍后再试`;
+  const error = createHttpError(message, 429, 'GENERATION_QUOTA_EXCEEDED');
+  /** @type {any} */ (error).retryAfterSeconds = peek.retryAfterSeconds;
   throw error;
 }

@@ -22,7 +22,8 @@ import {
   resetPasswordWithRecovery,
   sendChangeEmailCode,
   sendRegisterCode,
-  sendResetCode
+  sendResetCode,
+  quotaForUser
 } from '../accounts/service.mjs';
 import { buildProfileExport, deleteProfileData, requireProfileOwnerAccess, withProfileMutationLock } from '../auth/profile-lifecycle.mjs';
 
@@ -52,7 +53,12 @@ export const authRoutes = [
   }),
   route('GET', '/api/auth/me', async ({ req, res }) => {
     enforceRateLimit(req, 'public-read');
-    return sendJson(res, 200, { ok: true, mode: AUTH_MODE, account: AUTH_ENABLED ? await currentAccount(req) : null });
+    const account = AUTH_ENABLED ? await currentAccount(req) : null;
+    let generation = null;
+    if (account?.profileId) {
+      generation = await peekGenerationQuota(account.profileId, { quota: quotaForUser({ generationQuota: account.generationQuota }) });
+    }
+    return sendJson(res, 200, { ok: true, mode: AUTH_MODE, account, generation });
   }),
   route('GET', '/api/auth/challenge', async ({ req, res, url }) => {
     requireEnabled();

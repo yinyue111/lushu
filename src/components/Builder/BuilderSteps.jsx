@@ -384,7 +384,7 @@ function ToggleChips({ legend, icon: Icon, options, isActive, onToggle }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StepPrefs({ constraints, setConstraints, toggleTheme, options, mode = 'fast', setMode = () => {} }) {
+export function StepPrefs({ constraints, setConstraints, toggleTheme, options, mode = 'fast', setMode = () => {}, generation = null }) {
   const pick = (key) => ({ isActive: (v) => constraints[key] === v, onToggle: (v) => setConstraints((p) => ({ ...p, [key]: v })) });
   return (
     <section>
@@ -451,15 +451,24 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
           />
         </Field>
       </div>
-      <GenerationModePicker mode={mode} setMode={setMode} />
+      <GenerationModePicker mode={mode} setMode={setMode} generation={generation} />
     </section>
   );
 }
 
-export function GenerationModePicker({ mode, setMode }) {
+export function GenerationModePicker({ mode, setMode, generation = null }) {
+  const remaining = generation && typeof generation.remaining === 'number' ? generation.remaining : null;
+  const windowHours = generation?.windowHours || 24;
   return (
     <fieldset className="mt-6">
       <legend className="text-copy font-bold text-ink">生成方式</legend>
+      {generation && remaining != null && (
+        <p className={cn('mt-1.5 text-sm', generation.limited ? 'font-semibold text-danger' : 'text-muted')} role="status">
+          {generation.limited
+            ? `本周期生成次数已用完（每 ${windowHours} 小时 ${generation.quota} 次），请稍后再试`
+            : `本周期还可生成 ${remaining} 次（共 ${generation.quota} 次 / ${windowHours} 小时）`}
+        </p>
+      )}
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {GENERATION_MODES.map((item) => {
           const active = mode === item.key;
@@ -468,7 +477,8 @@ export function GenerationModePicker({ mode, setMode }) {
               key={item.key}
               className={cn(
                 'flex cursor-pointer gap-3 rounded-card border p-3.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary',
-                active ? 'border-primary bg-primary-soft/60' : 'border-line bg-white hover:border-ink-2/40'
+                active ? 'border-primary bg-primary-soft/60' : 'border-line bg-white hover:border-ink-2/40',
+                generation?.limited && 'opacity-60'
               )}
             >
               <input
@@ -476,6 +486,7 @@ export function GenerationModePicker({ mode, setMode }) {
                 name="generation-mode"
                 value={item.key}
                 checked={active}
+                disabled={Boolean(generation?.limited)}
                 onChange={() => setMode(item.key)}
                 className="mt-1 size-4 accent-[var(--color-primary,#e8553d)]"
               />

@@ -52,7 +52,7 @@ const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 /** @param {Record<string, any>} props */
 export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onModelHealth, onBack }) {
   const [profile, setProfile] = useState(() => getProfile());
-  const { required: loginRequired, account, requireLogin, openLogin } = useAccount();
+  const { required: loginRequired, account, generation, requireLogin, openLogin, refresh: refreshAccount } = useAccount();
   const needsLogin = loginRequired && !account;
   // Guests can look around and type; the steps that call AI ask for a login first, then carry on.
   const nextRef = useRef(/** @type {() => void} */ (() => {}));
@@ -103,6 +103,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [generationOutcome, setGenerationOutcome] = useState(null);
   const [generationFailure, setGenerationFailure] = useState(null);
   const [generationMode, setGenerationModeState] = useState(() => readGenerationMode());
+  useEffect(() => {
+    if (step === 2 && account) refreshAccount().catch(() => {});
+  }, [step, account?.profileId, refreshAccount]);
   const setGenerationMode = (/** @type {string} */ next) => {
     setGenerationModeState(next);
     rememberGenerationMode(next);
@@ -690,7 +693,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   useEffect(() => {
     if (needsAccessCode) setAdvancedOpen(true);
   }, [needsAccessCode]);
-  const nextDisabled = draftResolution === 'pending' || !canProceed || importState.loading || ocrState.loading || (!modelHealth?.ready && step === 2);
+  const quotaExhausted = Boolean(account && generation?.limited);
+  const nextDisabled =
+    draftResolution === 'pending' ||
+    !canProceed ||
+    importState.loading ||
+    ocrState.loading ||
+    (!modelHealth?.ready && step === 2) ||
+    (quotaExhausted && step === 2);
 
   return (
     <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-32 lg:pt-8">
@@ -738,7 +748,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
-          可以先填着。点「下一步」之前要先登录。{' '}
+          {step >= 1 ? '生成需要登录。可以先填攻略和偏好，点生成前会请你登录。' : '可以先填着。生成路书需要登录。'}{' '}
           <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             现在登录
           </button>
@@ -819,6 +829,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             options={{ durations, budgets, tempos, companions, transports, themes }}
             mode={generationMode}
             setMode={setGenerationMode}
+            generation={account ? generation : null}
           />
         )}
         {step === 3 && (
@@ -866,7 +877,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 </>
               ) : step === 2 ? (
                 <>
-                  <Sparkles /> 生成路书
+                  <Sparkles /> {quotaExhausted ? '次数已用完' : '生成路书'}
                 </>
               ) : (
                 <>

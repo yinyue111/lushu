@@ -7,7 +7,7 @@ import LoginSheet from './LoginSheet';
 
 const AccountContext = createContext(/** @type {any} */ (null));
 
-/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, account: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
+/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, account: any, generation: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
 export function useAccount() {
   return useContext(AccountContext) ?? FALLBACK;
 }
@@ -18,6 +18,7 @@ const FALLBACK = {
   enabled: false,
   required: false,
   account: null,
+  generation: null,
   ready: true,
   requireLogin: () => true,
   openLogin: () => {},
@@ -31,6 +32,7 @@ const FALLBACK = {
 export function AccountProvider({ children, onProfileChanged }) {
   const [config, setConfig] = useState({ mode: 'access-code', registration: 'closed', emailVerificationRequired: true });
   const [account, setAccount] = useState(null);
+  const [generation, setGeneration] = useState(null);
   const [ready, setReady] = useState(false);
   const [sheet, setSheet] = useState(/** @type {any} */ (null));
   const [toast, setToast] = useState('');
@@ -47,6 +49,7 @@ export function AccountProvider({ children, onProfileChanged }) {
         emailVerificationRequired: authConfig.emailVerificationRequired !== false
       });
       setAccount(me.account ?? null);
+      setGeneration(me.account ? (me.generation ?? null) : null);
       // Logged in by cookie but this device's profile is not the account's yet (e.g. storage cleared).
       if (me.account && getProfile().id !== me.account.profileId) {
         const { profile } = await attachAccountToDevice(me.account);
@@ -76,6 +79,7 @@ export function AccountProvider({ children, onProfileChanged }) {
       if (accountRef.current) {
         // The session ended elsewhere (logout everywhere, password reset): treat this device as signed out.
         setAccount(null);
+        setGeneration(null);
         profileChangedRef.current?.(detachAccountFromDevice());
       }
       setSheet((current) => current ?? { view: 'login', reason: '这一步需要登录。登录后再点一次就行。' });
@@ -111,6 +115,13 @@ export function AccountProvider({ children, onProfileChanged }) {
     async (nextAccount, /** @type {{ recoveryCodes?: string[] }} */ { recoveryCodes } = {}) => {
       const { profile, claim } = await attachAccountToDevice(nextAccount);
       setAccount(nextAccount);
+      // Refresh so generation quota lands with the new session.
+      try {
+        const me = await getMe();
+        setGeneration(me.account ? (me.generation ?? null) : null);
+      } catch {
+        setGeneration(null);
+      }
       profileChangedRef.current?.(profile);
       // Accounts without a verified email (signed up before email, or while verification was off) get a nudge, never a block.
       const emailNudge = nextAccount?.emailVerified ? '' : '还没绑定邮箱：去「我的 → 账号」加一个，忘了密码能自己找回';
@@ -127,6 +138,7 @@ export function AccountProvider({ children, onProfileChanged }) {
       await (everywhere ? logoutAllRemote() : logoutRemote());
     } finally {
       setAccount(null);
+      setGeneration(null);
       profileChangedRef.current?.(detachAccountFromDevice());
       setToast(everywhere ? '已在所有设备上退出登录' : '已退出登录');
     }
@@ -135,8 +147,8 @@ export function AccountProvider({ children, onProfileChanged }) {
   const showRecoveryCodes = useCallback((codes) => setSheet({ view: 'codes', codes, afterRegister: false }), []);
 
   const value = useMemo(
-    () => ({ ...config, enabled, required, account, ready, requireLogin, openLogin, showRecoveryCodes, logout, refresh, setAccount }),
-    [config, enabled, required, account, ready, requireLogin, openLogin, showRecoveryCodes, logout, refresh]
+    () => ({ ...config, enabled, required, account, generation, ready, requireLogin, openLogin, showRecoveryCodes, logout, refresh, setAccount }),
+    [config, enabled, required, account, generation, ready, requireLogin, openLogin, showRecoveryCodes, logout, refresh]
   );
 
   return (
