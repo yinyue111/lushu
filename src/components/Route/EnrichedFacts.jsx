@@ -21,14 +21,21 @@ function EnrichedFact({ claim, onReport }) {
   const [state, setState] = useState('idle');
   const label = claim.field === 'price' ? '门票' : '开放时间';
   return (
-    <li className="text-meta text-ink-2 sm:text-sm">
+    <li className={claim.field === 'price' ? 'text-sm font-bold text-ink sm:text-copy' : 'text-meta text-ink-2 sm:text-sm'}>
       <details className="group">
         <summary className="inline-flex cursor-pointer list-none items-start gap-1.5 [&::-webkit-details-marker]:hidden">
           <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-success-ink" aria-hidden="true" />
           <span>
-            {claim.field === 'price' && <span className="sr-only">{label}：</span>}
-            {claim.display}
-            <span className="ml-1 text-sky-ink underline underline-offset-2">来源</span>
+            {claim.field === 'price' ? (
+              <>
+                <span className="text-success-ink">已核对门票</span>
+                <span className="mx-1 text-muted">·</span>
+                <span>{claim.display.replace(/^门票[：:]?/, '')}</span>
+              </>
+            ) : (
+              claim.display
+            )}
+            <span className="ml-1 font-semibold text-sky-ink underline underline-offset-2">来源</span>
           </span>
         </summary>
         <div className="mt-1 ml-5 rounded-card bg-canvas p-2.5">

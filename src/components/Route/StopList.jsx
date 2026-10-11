@@ -56,6 +56,8 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
   const costText = checked.price ? '' : stop.cost;
   const verifyText = withoutCheckedPending(stop.verify, checked);
   const riskText = withoutCheckedPending(stop.risk, checked);
+  const pendingFold = Boolean(verifyText || riskText);
+  const isGuideSupplement = stop?.provenance?.origin === 'model';
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
   const evidence = Array.isArray(stop.sourceEvidence) ? stop.sourceEvidence.slice(0, 3) : [];
@@ -95,6 +97,11 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
                 </button>
               </h3>
               {stop.area && <span className="ml-2 inline-block text-meta text-muted sm:text-sm">{stop.area}</span>}
+              {isGuideSupplement && (
+                <Chip size="sm" tone="warn" className="ml-2 align-middle">
+                  路书补充
+                </Chip>
+              )}
             </div>
             <div className="-mt-0.5 flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
               <Button variant="ghost" size="icon-sm" onClick={() => handlers.detail(stop)} aria-label={`查看${stop.name}详情`}>
@@ -141,12 +148,34 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
           </p>
           {enrichment && <EnrichedFacts claims={enrichedClaims} onReport={enrichment.report} />}
           <StopTrustLine stop={stop} trust={trustBadge} verifiedCount={verifiedCount} approximate={approximate} className="mt-1.5" />
-          {verifyText && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-2 sm:text-copy">{verifyText}</p>}
-          {riskText && (
-            <Notice className="mt-2">
-              <span className="sr-only">出发前留意：</span>
-              {riskText}
-            </Notice>
+          {pendingFold && (
+            <details className="mt-2 rounded-card bg-canvas/80 px-2.5 py-1.5 text-sm text-ink-2 open:bg-canvas">
+              <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">
+                待确认 / 核对信息
+              </summary>
+              {verifyText && <p className="mt-1.5 leading-relaxed">{verifyText}</p>}
+              {riskText && (
+                <Notice className="mt-2">
+                  <span className="sr-only">出发前留意：</span>
+                  {riskText}
+                </Notice>
+              )}
+            </details>
+          )}
+          {isGuideSupplement && canEdit && (
+            <p className="mt-1.5 text-meta text-muted">
+              攻略里没有这一站，是路书补的。
+              <button
+                type="button"
+                className="ml-1 font-semibold text-danger underline underline-offset-2"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handlers.removeStop(stop.id);
+                }}
+              >
+                删除
+              </button>
+            </p>
           )}
           {selected && (trustBadge.verified || evidence.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
