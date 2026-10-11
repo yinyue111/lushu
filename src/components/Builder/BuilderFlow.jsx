@@ -703,7 +703,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     (quotaExhausted && step === 2);
 
   return (
-    <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-32 lg:pt-8">
+    <div className={cn("page-enter mx-auto max-w-[760px] px-4 pt-5 lg:pt-8", step === 2 ? "pb-44 sm:pb-40" : "pb-32")}>
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
@@ -748,9 +748,17 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
-          {step >= 1 ? '生成需要登录。可以先填攻略和偏好，点生成前会请你登录。' : '可以先填着。生成路书需要登录。'}{' '}
+          {step >= 1 ? '可以先填攻略和偏好；点生成时会请你登录，内容会保留。' : '可以先填着。生成时再登录也行。'}{' '}
           <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             现在登录
+          </button>
+        </Notice>
+      )}
+      {!needsLogin && !account && step >= 1 && step < 3 && (
+        <Notice className="mt-3" tone="sky">
+          登录后路书会同步到账号，换设备也能看。{' '}
+          <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+            登录 / 注册
           </button>
         </Notice>
       )}

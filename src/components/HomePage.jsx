@@ -163,9 +163,11 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 className={`${inputClass} mt-1.5 min-h-[76px] resize-none`}
               />
             </label>
-            {loginRequired && !account && guideSeed.trim() && (
+            {!account && guideSeed.trim() && (
               <p className="mt-2 text-sm font-semibold text-ink-2" role="status">
-                生成需要登录。下一步会请你登录，攻略内容会保留。
+                {loginRequired
+                  ? '下一步会请你登录，攻略内容会保留。'
+                  : '登录后路书会同步到账号，换设备也能看（可选）。'}
               </p>
             )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
