@@ -1,4 +1,5 @@
 // Account API: phone + password login. Disabled (404) while AUTH_MODE=access-code.
+import { peekGenerationQuota } from '../ai/generationGuard.mjs';
 import { decryptEmail } from '../accounts/email.mjs';
 import { route } from '../http/router.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
