@@ -56,7 +56,7 @@ before(async () => {
     const event = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
     const half = Math.floor(text.length / 2);
     event({ choices: [{ delta: { content: text.slice(0, half) } }] });
-    if (prompt.includes('STALL')) return; // never finishes: the idle timeout has to stop it
+    if (prompt.includes('STALL') && !(prompt.includes('ONLYFAST') && body.model !== 'fast-model-x')) return; // never finishes: the idle timeout has to stop it
     if (prompt.includes('CUTOFF')) {
       event({ choices: [{ delta: {}, finish_reason: 'length' }] });
       return res.end('data: [DONE]\n\n');
@@ -80,7 +80,7 @@ before(async () => {
       AI_STREAM_IDLE_MS_DEEP: '1000',
       AI_TIMEOUT_MS_FAST: '20000',
       AI_TIMEOUT_MS_DEEP: '20000',
-      GENERATION_DEDUP_TTL_MS: '0',
+      GENERATION_DEDUP_TTL_MS: '600000',
       GENERATION_QUOTA_PER_PROFILE: '50',
       GENERATION_JOB_POLL_WAIT_MS: '1000'
     }
@@ -101,7 +101,7 @@ async function runJob(guide, mode) {
     headers: headers(),
     body: JSON.stringify({ city: '杭州', guide, ...(mode ? { mode } : {}) })
   });
-  assert.equal(status, 202, JSON.stringify(data));
+  assert.ok([200, 202].includes(status), JSON.stringify(data));
   let seq = data.job.seq;
   for (let i = 0; i < 60; i += 1) {
     const polled = await fetchJson(`${server.baseUrl}/api/generation-jobs/${data.job.jobId}?after=${seq}`, { headers: headers() });
@@ -167,5 +167,40 @@ test('fabricated branches, addresses, prices, hours, phones and dates never reac
   assert.ok(
     job.result.aiNotes.some((note) => note.label === '具体信息待确认'),
     'the user is told what was hidden'
+  );
+});
+
+test('same input as 轻快 then 细品: two generations, each on its own model (dedup key includes the mode)', async () => {
+  const guide = '柳浪闻莺 北山街 先轻快后细品';
+  const fast = await runJob(guide, 'fast');
+  assert.equal(fast.job.status, 'succeeded');
+  assert.deepEqual(
+    requests.map((r) => r.model),
+    ['fast-model-x']
+  );
+  const deep = await runJob(guide, 'deep');
+  assert.equal(deep.job.status, 'succeeded');
+  assert.deepEqual(
+    requests.map((r) => r.model),
+    ['deep-model-y'],
+    '细品 called the deep model instead of reusing 轻快'
+  );
+  assert.notEqual(deep.job.jobId, fast.job.jobId);
+  assert.notEqual(deep.job.result?.publicId ?? deep.job.result?.id, fast.job.result?.publicId ?? fast.job.result?.id);
+  // The same mode again is still de-duplicated: no model call.
+  const again = await runJob(guide, 'deep');
+  assert.equal(requests.length, 0);
+  assert.equal(again.job.jobId, deep.job.jobId);
+});
+
+test('a stalled 轻快 run, then 换细品再试 with the same input, generates with the deep model', async () => {
+  const guide = 'STALL ONLYFAST 柳浪闻莺 南宋御街';
+  const fast = await runJob(guide, 'fast');
+  assert.equal(fast.job.error.code, 'MODEL_STALLED');
+  const deep = await runJob(guide, 'deep');
+  assert.equal(deep.job.status, 'succeeded');
+  assert.deepEqual(
+    requests.map((r) => r.model),
+    ['deep-model-y']
   );
 });

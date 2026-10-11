@@ -10,6 +10,8 @@
 //   left to the per-IP 'ai' rate limit, otherwise one user could lock out everyone.
 import { createHash } from 'node:crypto';
 import {
+  GENERATION_MODES,
+  resolveGenerationMode,
   AI_LOG_PATH,
   GENERATION_DEDUP_TTL_MS,
   GENERATION_QUOTA_PER_PROFILE,
@@ -36,7 +38,14 @@ function stable(value) {
 }
 
 export function generationInputHash(payload) {
+  // The mode and the model settings behind it are part of the key: 轻快 then 细品 on the same input must
+  // be two separate generations, and an env change (model / reasoning effort) must not reuse old output.
+  const mode = resolveGenerationMode(payload?.mode);
+  const settings = GENERATION_MODES[mode];
   const input = {
+    mode,
+    model: settings.model || String(process.env.OPENAI_MODEL ?? ''),
+    reasoningEffort: settings.reasoningEffort || '',
     profileId: payload?.profileId ?? '',
     city: payload?.city ?? '',
     guide: payload?.guide ?? '',
