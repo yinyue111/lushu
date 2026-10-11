@@ -13,6 +13,7 @@ import { listTripSessions } from '../../lib/tripSession';
 import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 import { RouteCard } from '../cards/RouteCard';
 import { routebookCardMeta } from '../../lib/routebookCardMeta';
 import { cn } from '../ui/cn';
@@ -33,6 +34,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');
   const [expandedSections, setExpandedSections] = useState(() => new Set());
+  const [deleteTarget, setDeleteTarget] = useState(null);
   /* eslint-disable react-hooks/exhaustive-deps -- localDataVersion is a cache-busting tick: bumping it re-reads localStorage. */
   const localBooks = useMemo(() => getStoredRoutebooks(profile.id), [profile.id, localDataVersion]);
   const localCheckins = useMemo(() => listStoredCheckins().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
@@ -154,29 +156,31 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     return expandedSections.has(section) ? rows : rows.slice(0, collapsedCount);
   }
 
-  async function handleDeleteBook(book) {
+  function handleDeleteBook(book) {
     const label = book?.title || book?.city || '未命名路书';
     const remoteId = book?.publicId || '';
-    // Signed in: the routebook lives in the account, so deleting removes it everywhere.
     const inAccount = Boolean(
       profile.accountUserId && remoteId && (book.profileId === profile.id || serverData.routebooks.some((item) => item.publicId === remoteId))
     );
-    const question = inAccount
-      ? `确定删除路书「${label}」吗？会从你的账号里删掉，所有设备都看不到了，不能撤销。`
-      : `确定删除路书「${label}」的本机存档吗？云端已保存的副本不受影响。`;
-    if (!window.confirm(question)) return;
+    setDeleteTarget({ book, label, remoteId, inAccount });
+  }
+
+  async function confirmDeleteBook() {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
+    const { book, remoteId, inAccount } = target;
     if (inAccount) {
       try {
         await deleteRoutebookRemote(remoteId, { profileId: profile.id, editToken: book.editToken || '' });
       } catch (error) {
-        window.alert(`没能从账号里删除：${error?.message || '网络不太稳，稍后再试'}`);
+        setDeleteTarget({ ...target, error: error?.message || '网络不太稳，稍后再试' });
         return;
       }
       setServerData((current) => ({ ...current, routebooks: current.routebooks.filter((item) => item.publicId !== remoteId) }));
     }
     deleteRoutebook(book);
     setLocalDataVersion((value) => value + 1);
-    // 通知 App 就地更新 savedBooks，避免停留本页时 TripReminderBanner 仍持已删的书。
     onLocalBooksChanged?.(book);
   }
 
@@ -618,6 +622,22 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           />
         </Tabs.Content>
       </Tabs.Root>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={deleteTarget?.error ? '删除失败' : deleteTarget?.inAccount ? '删除路书' : '删除本机存档'}
+        description={
+          deleteTarget?.error
+            ? `没能从账号里删除：${deleteTarget.error}`
+            : deleteTarget?.inAccount
+              ? `确定删除「${deleteTarget.label}」吗？会从你的账号里删掉，所有设备都看不到了，不能撤销。`
+              : `确定删除「${deleteTarget?.label || ''}」的本机存档吗？云端已保存的副本不受影响。`
+        }
+        confirmLabel={deleteTarget?.error ? '知道了' : '删除'}
+        cancelLabel={deleteTarget?.error ? '关闭' : '取消'}
+        danger={!deleteTarget?.error}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => (deleteTarget?.error ? setDeleteTarget(null) : confirmDeleteBook())}
+      />
     </div>
   );
 }
