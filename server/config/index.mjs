@@ -376,3 +376,36 @@ export const JEV_MODEL = String(process.env.JEV_MODEL ?? '').trim() || 'jev-late
 export const JEV_SHADOW_TIMEOUT_MS = envNumber('JEV_SHADOW_TIMEOUT_MS', 800, { min: 100, max: 10000 });
 export const JEV_SHADOW_SAMPLE_RATE = envNumber('JEV_SHADOW_SAMPLE_RATE', 1, { min: 0, max: 1, integer: false });
 export const JEV_SHADOW_MAX_IN_FLIGHT = envNumber('JEV_SHADOW_MAX_IN_FLIGHT', 8, { min: 1, max: 64 });
+
+// Background fact enrichment (logged-in users only): after a routebook is saved, ticket price / 免费 and
+// opening hours of scenic stops are looked up (AMap first, then web search through the relay's Responses
+// API) and kept only when two independent sources agree. See docs/deploy.md「联网补全」.
+export const ENRICH_ENABLED = envFlag('ENRICH_ENABLED', false);
+export const ENRICH_MODEL = String(process.env.ENRICH_MODEL ?? 'grok-4.7').trim();
+export const ENRICH_BASE_URL = String(process.env.ENRICH_BASE_URL ?? process.env.OPENAI_BASE_URL ?? '')
+  .trim()
+  .replace(/\/+$/, '');
+export const ENRICH_API_KEY = String(process.env.ENRICH_API_KEY ?? process.env.OPENAI_API_KEY ?? '').trim();
+export const ENRICH_DAILY_BUDGET_USD = envNumber('ENRICH_DAILY_BUDGET_USD', 5, { min: 0 });
+export const ENRICH_MAX_SEARCHES_PER_ROUTEBOOK = envNumber('ENRICH_MAX_SEARCHES_PER_ROUTEBOOK', 5, { min: 0, max: 50 });
+export const ENRICH_MAX_USD_PER_ROUTEBOOK = envNumber('ENRICH_MAX_USD_PER_ROUTEBOOK', 0.3, { min: 0 });
+// Used when the relay does not report a cost for a search call.
+export const ENRICH_ASSUMED_USD_PER_SEARCH = envNumber('ENRICH_ASSUMED_USD_PER_SEARCH', 0.1, { min: 0 });
+export const ENRICH_CONCURRENCY = envNumber('ENRICH_CONCURRENCY', 2, { min: 1, max: 10 });
+export const ENRICH_MAX_ATTEMPTS = envNumber('ENRICH_MAX_ATTEMPTS', 4, { min: 1, max: 20 });
+export const ENRICH_RETRY_BASE_MS = envNumber('ENRICH_RETRY_BASE_MS', 60000, { min: 100 });
+export const ENRICH_POLL_MS = envNumber('ENRICH_POLL_MS', 5000, { min: 50 });
+export const ENRICH_CACHE_DAYS = envNumber('ENRICH_CACHE_DAYS', 7, { min: 0 });
+export const ENRICH_SEARCH_TIMEOUT_MS = envNumber('ENRICH_SEARCH_TIMEOUT_MS', 120000, { min: 1000 });
+export const ENRICH_PAGE_TIMEOUT_MS = envNumber('ENRICH_PAGE_TIMEOUT_MS', 10000, { min: 500 });
+export const ENRICH_PAGE_MAX_BYTES = envNumber('ENRICH_PAGE_MAX_BYTES', 2 * 1024 * 1024, { min: 1024 });
+// Sites whose terms forbid automated access or that need a login. Never fetched, never cited.
+export const ENRICH_BLOCKED_DOMAINS = String(
+  process.env.ENRICH_BLOCKED_DOMAINS ??
+    'dianping.com,meituan.com,xiaohongshu.com,xhslink.com,douyin.com,weibo.com,weibo.cn,zhihu.com,ctrip.com,trip.com,qunar.com,ly.com,mafengwo.cn'
+)
+  .split(',')
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
+// Test hook only: lets integration tests point the fetcher at a local mock page server.
+export const ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS = !IS_PRODUCTION && envFlag('ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS', false);
