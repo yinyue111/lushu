@@ -70,7 +70,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     return pageCache.get(url);
   };
   const city = routebook.city ?? '';
-  const budget = { searches: 0, usd: 0, stoppedBy: '' };
+  const budget = { searches: 0, usd: 0, maxUsd: 0, stoppedBy: '' };
   const counts = { filled: 0, kept: 0, cached: 0, skippedStops: 0, searches: 0, pages: 0, amapCalls: 0, usd: 0 };
   /** @type {any[]} */
   const claims = [];
@@ -120,8 +120,8 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     // Web search (one per stop, both fields), within the per-routebook and daily budgets.
     let web = null;
     const spend = await store.getSpend(now());
-    // Expected cost of the next search: what searches cost so far in this routebook, or the assumed price.
-    const projected = budget.searches ? Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.usd / budget.searches) : ENRICH_ASSUMED_USD_PER_SEARCH;
+    // Expected cost of the next search: the dearest search so far in this routebook, at least the assumed price.
+    const projected = Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.maxUsd);
     if (budget.searches >= ENRICH_MAX_SEARCHES_PER_ROUTEBOOK) budget.stoppedBy = 'searches';
     else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
     else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
@@ -130,6 +130,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       const usd = web.usd ?? ENRICH_ASSUMED_USD_PER_SEARCH;
       budget.searches += 1;
       budget.usd += usd;
+      budget.maxUsd = Math.max(budget.maxUsd, usd);
       counts.searches += 1;
       counts.usd += usd;
       await store.addSpend({ usd, searches: 1 }, now());
