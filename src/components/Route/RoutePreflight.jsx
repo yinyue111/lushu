@@ -50,12 +50,24 @@ export function RoutePreflight({ routebook }) {
   const feedback = routebook.feedbackSummary;
   const aiNotes = Array.isArray(routebook.aiNotes) ? routebook.aiNotes.slice(0, 6) : [];
   if (!checks.length && !source && !feedback && !aiNotes.length) return null;
+  const warnCount = checks.filter((check) => stateTone(check.state) === 'warn').length;
+  const summaryBits = [
+    checks.length ? `${checks.length} 项检查` : '',
+    warnCount ? `${warnCount} 项待留意` : '',
+    aiNotes.length ? `${aiNotes.length} 条 AI 提示` : ''
+  ].filter(Boolean);
   return (
     <section aria-labelledby="preflight-title">
-      <h2 id="preflight-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:mb-3.5 lg:text-2xl">
-        出发前看一眼
-      </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <details className="group mt-7 lg:mt-8" open={warnCount === 0 && checks.length <= 2}>
+        <summary
+          id="preflight-title"
+          className="flex cursor-pointer list-none items-baseline justify-between gap-3 text-xl font-extrabold tracking-tight lg:text-2xl [&::-webkit-details-marker]:hidden"
+        >
+          <span>出发前看一眼</span>
+          <span className="text-sm font-semibold text-muted group-open:hidden">{summaryBits.join(' · ') || '展开详情'}</span>
+          <span className="hidden text-sm font-semibold text-muted group-open:inline">收起</span>
+        </summary>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {checks.map((check) => {
           const Icon = checkIcon(check.label);
           return (
@@ -95,6 +107,7 @@ export function RoutePreflight({ routebook }) {
           </ul>
         </div>
       )}
+      </details>
     </section>
   );
 }

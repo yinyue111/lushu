@@ -212,7 +212,7 @@ function LegRow({ from, to, roadLeg }) {
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算，道路未核验）` : '转场距离待确认：有站点位置还不精确'}
+      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算）` : '距离待确认'}
     </li>
   );
 }
