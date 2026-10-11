@@ -8,7 +8,7 @@ const PENDING = '待确认';
 const PENDING_LABEL = { address: '地址待确认', hours: '营业时间待确认', phone: '电话待确认', date: '日期待确认', price: '价格待确认' };
 
 /** "分店不明" / "门店待确认" talk about uncertainty; they are not branch claims. */
-const HEDGE_AROUND = /不明|未指定|未说明|待确认|需确认|请确认|多家|哪一家|哪家|核实|不确定/;
+const HEDGE_AROUND = /不明|未指定|未说明|未写明|未注明|未明确|不清楚|待确认|需确认|请确认|自行确认|多家|多分店|哪一家|哪家|核实|不确定/;
 
 /** @type {{ kind: string, re: RegExp }[]} Order matters: longer / more specific patterns first. */
 const CLAIM_PATTERNS = [
@@ -23,7 +23,7 @@ const CLAIM_PATTERNS = [
   { kind: 'price', re: /\d+(?:\.\d+)?(?:\s*[-–~至到]\s*\d+(?:\.\d+)?)?\s*(?:元|块钱|块)(?:\s*\/\s*(?:人|位|张|份))?/g },
   { kind: 'date', re: /(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*年\s*\d{1,2}\s*月/g },
   { kind: 'branch', re: /[（(][^（）()]{0,16}店[^（）()]{0,10}[）)]/g },
-  { kind: 'branch', re: /(?:(?![号路街巷])[\u4e00-\u9fa5]){0,6}?(?:总店|分店|旗舰店)/g }
+  { kind: 'branch', re: /(?:(?![号路街巷])[\u4e00-\u9fa5]){0,6}?(?:总店|(?<!部)分店|旗舰店)/g }
 ];
 
 const normalize = (value) =>
@@ -54,7 +54,7 @@ export function extractClaims(text) {
       const start = match.index ?? 0;
       const end = start + match[0].length;
       if (kind === 'branch' && !BRANCH_HINT.test(match[0])) continue;
-      if (kind === 'branch' && HEDGE_AROUND.test(source.slice(Math.max(0, start - 3), end + 8))) continue;
+      if (kind === 'branch' && HEDGE_AROUND.test(source.slice(Math.max(0, start - 3), end + 14))) continue;
       if (taken.some(([a, b]) => start < b && end > a)) continue;
       taken.push([start, end]);
       claims.push({ kind, text: match[0].trim(), index: start });
