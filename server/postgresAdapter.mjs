@@ -251,6 +251,12 @@ export class PostgresEventRowsAdapter {
     }
   }
 
+  /** True once parity has marked this database cut over (live traffic owns it). */
+  async isCutOver() {
+    const result = await this.pool.query(`select cutover_ready from ${POSTGRES_SCHEMA}.storage_state where singleton_id = 1`);
+    return result.rowCount === 1 && result.rows[0].cutover_ready === true;
+  }
+
   async assertReady({ refresh = false } = {}) {
     if (this.readyVerified && !refresh) return true;
     const readiness = await this.checkReadiness();

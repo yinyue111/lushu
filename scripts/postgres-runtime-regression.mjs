@@ -242,6 +242,36 @@ try {
     [profile.id]
   );
   assert.equal(survivingOwnedRows.rows[0].count, 0);
+  // Upgrade re-run of the one-shot migrate service on a cut-over database with live data: migrate applies
+  // nothing, backfill and parity --mark-ready skip cleanly (exit 0) instead of failing on
+  // POSTGRES_ONLINE_BACKFILL_FORBIDDEN.
+  for (const instance of children) {
+    instance.child.kill('SIGTERM');
+    if (instance.child.exitCode == null) await once(instance.child, 'exit');
+  }
+  const scriptEnv = { ...process.env, ...postgresClientEnv, PGDATABASE: database, POSTGRES_URL: '', DATABASE_URL: '', PROFILE_ID_SECRET: profileSecret };
+  const runScript = async (args) => {
+    const child = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'], env: scriptEnv });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (data) => (stdout += data));
+    child.stderr.on('data', (data) => (stderr += data));
+    const [code] = await once(child, 'exit');
+    return { code, stdout, stderr };
+  };
+  const migrated = await runScript(['scripts/postgres-migrate.mjs']);
+  assert.equal(migrated.code, 0, migrated.stderr);
+  assert.deepEqual(JSON.parse(migrated.stdout).applied, []);
+  for (const args of [
+    ['scripts/postgres-backfill.mjs', '--data-dir', dataDir, '--apply'],
+    ['scripts/postgres-parity.mjs', '--data-dir', dataDir, '--mark-ready']
+  ]) {
+    const result = await runScript(args);
+    assert.equal(result.code, 0, `${args[0]}: ${result.stderr}`);
+    assert.equal(JSON.parse(result.stdout).skipped, true);
+    assert.match(result.stderr, /already cut over; skipping/);
+  }
+  assert.equal((await adapter.checkReadiness()).ready, true);
   console.log('PostgreSQL runtime regression passed: two-instance registration/read, route/trip CAS, nonce replay, POI refresh and deletion barrier');
 } catch (error) {
   for (const instance of children) process.stderr.write(`[instance ${instance.label}] ${instance.logs.slice(-4000)}\n`);

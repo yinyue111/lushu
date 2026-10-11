@@ -34,8 +34,15 @@ try {
       max: 1,
       profileIdSecret
     });
-    const result = await adapter.replaceWithFilesystemSnapshot(snapshot, { force: options.force });
-    process.stdout.write(`${JSON.stringify({ ok: true, applied: true, ...summary, ...result }, null, 2)}\n`);
+    // Upgrades re-run the one-shot migrate service: a database already cut over must not be backfilled
+    // again (that would be destructive), so this step is a no-op instead of an error.
+    if (await adapter.isCutOver()) {
+      process.stderr.write('PostgreSQL is already cut over; skipping backfill (nothing to do).\n');
+      process.stdout.write(`${JSON.stringify({ ok: true, skipped: true, reason: 'already-cut-over' }, null, 2)}\n`);
+    } else {
+      const result = await adapter.replaceWithFilesystemSnapshot(snapshot, { force: options.force });
+      process.stdout.write(`${JSON.stringify({ ok: true, applied: true, ...summary, ...result }, null, 2)}\n`);
+    }
   }
 } catch (error) {
   process.stderr.write(`PostgreSQL backfill failed [${error?.code ?? 'BACKFILL_FAILED'}]: ${redactPostgresError(error.message)}\n`);

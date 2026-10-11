@@ -22,9 +22,15 @@ try {
     max: 1,
     profileIdSecret
   });
-  const comparison = await adapter.compareFilesystemSnapshot(snapshot, { markReady: options.markReady });
-  process.stdout.write(`${JSON.stringify({ ok: comparison.matches, ...comparison }, null, 2)}\n`);
-  if (!comparison.matches) process.exitCode = 1;
+  if (options.markReady && (await adapter.isCutOver())) {
+    // Already cut over (upgrade re-run): live data has moved on from the old files, nothing to mark.
+    process.stderr.write('PostgreSQL is already cut over; skipping parity --mark-ready (nothing to do).\n');
+    process.stdout.write(`${JSON.stringify({ ok: true, skipped: true, reason: 'already-cut-over' }, null, 2)}\n`);
+  } else {
+    const comparison = await adapter.compareFilesystemSnapshot(snapshot, { markReady: options.markReady });
+    process.stdout.write(`${JSON.stringify({ ok: comparison.matches, ...comparison }, null, 2)}\n`);
+    if (!comparison.matches) process.exitCode = 1;
+  }
 } catch (error) {
   const comparison = error.comparison;
   if (comparison) {
