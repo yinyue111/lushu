@@ -65,7 +65,7 @@ import {
   syncStatusLabel
 } from './tripModel';
 
-export default function TripView({ routebook, onBack, onReview }) {
+export default function TripView({ routebook, onBack, onAdoptTrip, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
   const [profile, setProfile] = useState(() => getProfile());
   const [initialSession] = useState(() => readTripSession(routebook, profile.id));
@@ -745,6 +745,19 @@ export default function TripView({ routebook, onBack, onReview }) {
               <Button size="sm" variant="ghost" className="mt-2 text-sky-ink" onClick={onReview}>
                 <BookOpen /> {isFinished ? '生成这趟旅程的回顾' : '看看目前的回顾'}
               </Button>
+              {isFinished && onAdoptTrip && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (window.confirm('把行中的顺序和替换写回主路书？可在路书页再撤销。')) {
+                      onAdoptTrip(stops);
+                    }
+                  }}
+                >
+                  把今日改动写回路书
+                </Button>
+              )}
             </div>
           )}
         </div>

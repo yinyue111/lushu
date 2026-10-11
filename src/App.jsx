@@ -449,7 +449,9 @@ export default function App() {
         theme: sourceBook?.assets?.map((asset) => asset.label).slice(0, 3) ?? [],
         guide: [sourceBook?.title, sourceBook?.summary, ...(sourceBook?.stops ?? []).map((stop) => `${stop.time} ${stop.name} ${stop.verify ?? ''}`)]
           .filter(Boolean)
-          .join('\n')
+          .join('\n'),
+        customizeFrom: sourceBook?.title || sourceBook?.city || '',
+        quotaWarning: '整本重生成会消耗一次完整生成次数。若只需改一天或换店，请返回路书用「调整」。'
       });
       navigate(VIEWS.builder);
     },

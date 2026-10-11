@@ -33,6 +33,16 @@ import {
   stopKey
 } from './routebookModel';
 import { preserveUnaffectedRouteLegs } from '../../lib/routeLegEdits';
+import {
+  deleteDayStops,
+  mergeDays,
+  stripModelSupplementStops,
+  replaceStopWithPoi,
+  setStopTransportMode,
+  snapshotStops,
+  LEG_TRANSPORT_OPTIONS
+} from '../../lib/routebookAdjust.js';
+import { searchPois, proposeRoutebookPatch, applyRoutebookPatch } from '../../lib/api';
 
 /**
  * All routebook mutations of the route page (edit, reorder, variants, save, copy,
@@ -58,17 +68,31 @@ export function useRoutebookActions({
   const routebookSyncSequenceRef = useRef(0);
   // 本地是否有尚未同步到服务端的编辑（删除/拖拽/替换等只写 localStorage 的操作）。
   const localEditsDirtyRef = useRef(hasUnsyncedLocalEdits(routebook));
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+  const [syncLabel, setSyncLabel] = useState(() =>
+    hasUnsyncedLocalEdits(routebook) ? '本机已改，未同步云端' : '已与本机一致'
+  );
+  const [undoEpoch, setUndoEpoch] = useState(0);
+  const [patchState, setPatchState] = useState({ busy: false, message: '', proposal: null });
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
   const stops = routebook.stops ?? [];
 
   // base 默认取渲染闭包里的 routebook；异步回调（如改名坐标重校验）应显式传
   // latestRoutebookRef.current，避免用过期闭包覆盖用户后续编辑。
-  function updateRoutebook(nextStops, extra = {}, base = routebook) {
+  function pushUndo(base = latestRoutebookRef.current) {
+    undoStackRef.current = [...undoStackRef.current.slice(-29), snapshotStops(base)];
+    redoStackRef.current = [];
+    setUndoEpoch((n) => n + 1);
+  }
+
+  function updateRoutebook(nextStops, extra = {}, base = routebook, { recordUndo = true } = {}) {
     if (!canEdit) {
       setShareState('公开路线为只读，请先生成定制版再编辑');
       return;
     }
+    if (recordUndo) pushUndo(latestRoutebookRef.current);
     const normalizedStops = nextStops.map((stop) => ({ ...stop, id: stableStopId(stop.id) }));
     const next = {
       ...base,
@@ -97,6 +121,7 @@ export function useRoutebookActions({
     routebookSyncSequenceRef.current += 1;
     latestRoutebookRef.current = next;
     localEditsDirtyRef.current = true;
+    setSyncLabel('本机已改，未同步云端');
     setRoutebook(next);
     const localSaved = saveRoutebook(next);
     if (!localSaved) setShareState('本地存储失败，请保持当前页面并尽快重试保存');
@@ -429,6 +454,7 @@ export function useRoutebookActions({
       }
       latestRoutebookRef.current = next;
       localEditsDirtyRef.current = false;
+      setSyncLabel(`已同步云端${currentRoutebookVersion(next) != null ? ` v${currentRoutebookVersion(next)}` : ''}`);
       setRoutebook(next);
       const localSaved = saveRoutebook(next);
       onSaved?.(next);
@@ -629,11 +655,181 @@ export function useRoutebookActions({
     }
   }
 
+
+  function undoEdit() {
+    const prev = undoStackRef.current.pop();
+    if (!prev) {
+      setShareState('没有可撤销的步骤');
+      return;
+    }
+    redoStackRef.current.push(snapshotStops(latestRoutebookRef.current));
+    setUndoEpoch((n) => n + 1);
+    updateRoutebook(prev.stops, { days: prev.days, routeLegs: prev.routeLegs, validations: prev.validations, activeVariantId: prev.activeVariantId, editReason: '撤销' }, latestRoutebookRef.current, { recordUndo: false });
+    setShareState('已撤销上一步');
+  }
+
+  function redoEdit() {
+    const next = redoStackRef.current.pop();
+    if (!next) {
+      setShareState('没有可重做的步骤');
+      return;
+    }
+    pushUndo(latestRoutebookRef.current);
+    setUndoEpoch((n) => n + 1);
+    updateRoutebook(next.stops, { days: next.days, routeLegs: next.routeLegs, validations: next.validations, activeVariantId: next.activeVariantId, editReason: '重做' }, latestRoutebookRef.current, { recordUndo: false });
+    setShareState('已重做');
+  }
+
+  function deleteDay(day) {
+    const result = deleteDayStops(stops, day);
+    if (!result.ok) {
+      setShareState(result.reason === 'min-stops' ? '路书至少保留 2 个站点，无法删除这一天' : '这一天没有站点可删');
+      return;
+    }
+    updateRoutebook(result.stops, { editReason: `删除${day}` });
+    setShareState(`已删除 ${day}（${result.removed} 站）`);
+    if (activeDay === day) setActiveDay(result.stops[0]?.day || 'Day 1');
+  }
+
+  function mergeDayInto(fromDay, toDay) {
+    const result = mergeDays(stops, fromDay, toDay);
+    if (!result.ok) {
+      setShareState('无法合并这两天');
+      return;
+    }
+    updateRoutebook(result.stops, { editReason: `合并${fromDay}到${toDay}` });
+    setShareState(`已把 ${fromDay} 的 ${result.moved} 站并进 ${toDay}`);
+    setActiveDay(toDay);
+  }
+
+  function stripModelStops() {
+    const result = stripModelSupplementStops(stops);
+    if (result.skipped) {
+      setShareState(result.reason === 'no-guide-anchor' ? '没有攻略锚点，不能一键去掉补充站' : '去掉后站数太少，先手动删');
+      return;
+    }
+    updateRoutebook(result.stops, { editReason: '去掉路书补充' });
+    setShareState(`已去掉 ${result.removed} 个路书补充站`);
+  }
+
+  async function replaceStopFromSearch(stopId, poi) {
+    const result = replaceStopWithPoi(stops, stopId, poi, { city: routebook.city });
+    if (!result.ok) {
+      setShareState('替换失败');
+      return;
+    }
+    updateRoutebook(result.stops, { editReason: `替换为${poi.name}` });
+    setSelectedId(result.stop.id);
+    setShareState(`已换成「${poi.name}」，正在核验道路…`);
+    await recheckRoute({ auto: true, stopIds: [result.stop.id] });
+  }
+
+  function setLegTransport(stopId, mode) {
+    const result = setStopTransportMode(stops, stopId, mode);
+    if (!result.ok) return;
+    updateRoutebook(result.stops, { editReason: '修改交通方式' });
+    setShareState(`已改交通为${LEG_TRANSPORT_OPTIONS.find((o) => o.value === mode)?.label || mode}，建议再核验道路`);
+    recheckRoute({ auto: true, stopIds: [stopId] });
+  }
+
+  function applyTransportPreference(mode) {
+    const next = stops.map((stop) => ({ ...stop, transportMode: mode }));
+    updateRoutebook(next, { editReason: '交通偏好', transportPreference: mode });
+    setShareState('已套用交通偏好到各站，正在重核道路…');
+    recheckRoute({ auto: true });
+  }
+
+  async function searchPlaceCandidates(query) {
+    try {
+      const data = await searchPois(routebook.city, query);
+      return data?.pois ?? [];
+    } catch (error) {
+      setShareState(`地点搜索失败：${error.message}`);
+      return [];
+    }
+  }
+
+  async function proposePatch({ day, instruction = '', stopIds } = {}) {
+    const routeId = routebook.publicId || routebook.id;
+    if (!routeId) {
+      setShareState('请先保存路书再做局部 AI 调整');
+      return null;
+    }
+    setPatchState({ busy: true, message: '正在局部重排…', proposal: null });
+    try {
+      if (localEditsDirtyRef.current) {
+        const saveResult = await saveCurrentRoutebook();
+        if (saveResult?.status !== 'saved') {
+          setPatchState({ busy: false, message: '请先同步云端再局部调整', proposal: null });
+          return null;
+        }
+      }
+      const data = await proposeRoutebookPatch(routeId, {
+        profileId: profile.id,
+        editToken: latestRoutebookRef.current.editToken,
+        scope: stopIds?.length ? { type: 'window', stopIds, day } : { type: 'day', day: day || activeDay },
+        instruction
+      });
+      setPatchState({ busy: false, message: data.proposal?.summary || '方案已就绪，请确认', proposal: data.proposal, peek: data.patchQuota });
+      setShareState(data.proposal?.summary || '局部方案已出，请确认后应用');
+      return data.proposal;
+    } catch (error) {
+      setPatchState({ busy: false, message: error.message || '局部调整失败', proposal: null });
+      setShareState(error.message || '局部调整失败');
+      return null;
+    }
+  }
+
+  async function applyPatchProposal(proposal) {
+    const routeId = routebook.publicId || routebook.id;
+    if (!proposal?.stops?.length || !routeId) return;
+    setPatchState((s) => ({ ...s, busy: true, message: '正在应用…' }));
+    pushUndo(latestRoutebookRef.current);
+    try {
+      const data = await applyRoutebookPatch(routeId, {
+        profileId: profile.id,
+        editToken: latestRoutebookRef.current.editToken,
+        proposal,
+        title: routebook.title,
+        summary: routebook.summary,
+        city: routebook.city,
+        provider: routebook.provider
+      });
+      const next = { ...data.routebook, ...profileRoutebookFields(profile), editToken: data.routebook.editToken || latestRoutebookRef.current.editToken };
+      latestRoutebookRef.current = next;
+      localEditsDirtyRef.current = false;
+      setSyncLabel(`已同步云端${currentRoutebookVersion(next) != null ? ` v${currentRoutebookVersion(next)}` : ''}`);
+      setRoutebook(next);
+      saveRoutebook(next);
+      onSaved?.(next);
+      setPatchState({ busy: false, message: '已应用局部调整', proposal: null });
+      setShareState('局部调整已写入路书');
+    } catch (error) {
+      // Offline fallback: apply locally
+      updateRoutebook(proposal.stops, { days: proposal.days, routeLegs: proposal.routeLegs, editReason: '局部调整(本机)' }, latestRoutebookRef.current, { recordUndo: false });
+      setPatchState({ busy: false, message: `云端应用失败，已写在本机：${error.message}`, proposal: null });
+    }
+  }
+
+  function adoptTripStops(tripStops) {
+    if (!Array.isArray(tripStops) || tripStops.length < 2) {
+      setShareState('行中路线站数不够，无法写回');
+      return;
+    }
+    updateRoutebook(tripStops, { editReason: '行中采纳' });
+    setShareState('已把行中顺序写回路书（本机）；需要的话再点保存同步云端');
+  }
+
   return {
     shareState,
     setShareState,
     saving,
     variantState,
+    syncLabel,
+    canUndo: undoStackRef.current.length > 0,
+    canRedo: redoStackRef.current.length > 0,
+    undoEpoch,
+    patchState,
     removeStop,
     moveStop,
     moveStopBefore,
@@ -648,6 +844,20 @@ export function useRoutebookActions({
     recordProductClick,
     favoriteRoute,
     saveTripReminder,
-    handleShared
+    handleShared,
+    undoEdit,
+    redoEdit,
+    deleteDay,
+    mergeDayInto,
+    stripModelStops,
+    replaceStopFromSearch,
+    setLegTransport,
+    applyTransportPreference,
+    searchPlaceCandidates,
+    proposePatch,
+    applyPatchProposal,
+    adoptTripStops,
+    clearPatchProposal: () => setPatchState({ busy: false, message: '', proposal: null }),
+    legTransportOptions: LEG_TRANSPORT_OPTIONS
   };
 }

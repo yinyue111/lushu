@@ -185,7 +185,7 @@ export function MoreMenu({ actions, onShare, onCustomize, canEdit, triggerClassN
           <>
             <MenuSeparator />
             <MenuItem onSelect={onCustomize}>
-              <Copy /> 另存一份定制版
+              <Copy /> 整本重生成（耗生成次数）
             </MenuItem>
           </>
         )}

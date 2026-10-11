@@ -14,7 +14,11 @@ import {
   Umbrella,
   Wallet,
   WalletCards,
-  Footprints
+  Footprints,
+  Undo2,
+  Redo2,
+  Trash2,
+  Bus
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
@@ -141,20 +145,71 @@ const MODES = [
   { mode: '亲子', icon: Baby }
 ];
 
-/** Owner-only editing strip: one-tap re-plan modes, variants and "add stop". */
-export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop, onApplyVariant }) {
+/** Owner-only editing strip: rule modes, day/AI tools, undo, variants. */
+export function EditToolbar({
+  routebook,
+  saving,
+  variantState,
+  syncLabel,
+  canUndo,
+  canRedo,
+  onMode,
+  onAddStop,
+  onApplyVariant,
+  onUndo,
+  onRedo,
+  onStripModel,
+  onOpenChat,
+  onPatchDay,
+  onTransportPref,
+  activeDay
+}) {
   const variants = (routebook.variants ?? []).slice(0, 4);
+  const hasModel = (routebook.stops ?? []).some((s) => s?.provenance?.origin === 'model');
   return (
     <section aria-label="调整路线" className="mt-6 rounded-card border border-dashed border-line-strong bg-white p-3.5 lg:mt-7">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold text-ink-2">调整路书</span>
+        {syncLabel && (
+          <span className="rounded-full bg-canvas px-2 py-0.5 text-meta text-muted" role="status">
+            {syncLabel}
+          </span>
+        )}
+        <div className="ml-auto flex gap-1">
+          <Button size="sm" variant="ghost" disabled={!canUndo || saving} onClick={onUndo} aria-label="撤销">
+            <Undo2 /> 撤销
+          </Button>
+          <Button size="sm" variant="ghost" disabled={!canRedo || saving} onClick={onRedo} aria-label="重做">
+            <Redo2 />
+          </Button>
+        </div>
+      </div>
+      <p className="mb-2 text-meta text-muted">一键调整按规则重排，不耗生成次数。AI 局部重排会耗局部次数；整本重生成请用「复制并定制」。</p>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-sm font-bold text-ink-2">一键调整</span>
+        <span className="mr-1 text-meta font-semibold text-ink-2">规则</span>
         {MODES.map(({ mode, icon: Icon }) => (
           <Button key={mode} size="sm" onClick={() => onMode(mode)} disabled={saving}>
             <Icon /> {mode}
           </Button>
         ))}
-        <Button size="sm" variant="dark" className="ml-auto" onClick={onAddStop}>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={onAddStop} disabled={saving}>
           <Plus /> 加一站
+        </Button>
+        {hasModel && (
+          <Button size="sm" variant="outline" onClick={onStripModel} disabled={saving}>
+            <Trash2 /> 去掉路书补充
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => onTransportPref?.('transit')} disabled={saving}>
+          <Bus /> 地铁优先
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onPatchDay?.(activeDay)} disabled={saving}>
+          <Sparkles /> AI 重排本日
+        </Button>
+        <Button size="sm" variant="dark" className="ml-auto" onClick={onOpenChat} disabled={saving}>
+          <MessageSquareText /> 跟我说
         </Button>
       </div>
       {(variants.length > 0 || variantState) && (
@@ -177,7 +232,7 @@ export function EditToolbar({ routebook, saving, variantState, onMode, onAddStop
               >
                 <b className="block text-copy">{variant.label}</b>
                 <span className="line-clamp-2 block text-meta text-muted">{variant.summary}</span>
-                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站 · 还没人走过</small>
+                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站 · 规则变体</small>
               </button>
             ))}
           </div>

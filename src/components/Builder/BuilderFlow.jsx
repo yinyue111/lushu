@@ -746,6 +746,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         )}
       </div>
 
+            {defaults?.quotaWarning && step < 3 && (
+        <Notice className="mt-3" tone="warn">
+          {defaults.quotaWarning}
+        </Notice>
+      )}
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
           {step >= 1 ? '可以先填攻略和偏好；点生成时再登录，内容会留着。' : '可以先填着，生成时再登录也行。'}{' '}

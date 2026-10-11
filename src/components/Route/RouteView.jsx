@@ -24,11 +24,16 @@ import RecheckBar from './RecheckBar';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
 import { useRoutebookEnrichment } from '../../lib/useRoutebookEnrichment';
+import ReplaceStopDialog from './ReplaceStopDialog';
+import AdjustChatSheet from './AdjustChatSheet';
+import PatchProposalDialog from './PatchProposalDialog';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 
 // Overlays only load on demand so they stay off the route page's critical path.
 const SharePreview = lazy(() => import('./SharePreview'));
 const PoiDetail = lazy(() => import('./PoiDetail'));
 const StopEditor = lazy(() => import('./StopEditor'));
+
 
 export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onStartTrip, onBack }) {
   const profile = useMemo(() => getProfile(), []);
@@ -38,6 +43,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const [showShare, setShowShare] = useState(false);
   const [poiDetailStop, setPoiDetailStop] = useState(null);
   const [editingStop, setEditingStop] = useState(null);
+  const [replacingStop, setReplacingStop] = useState(null);
+  const [showAdjustChat, setShowAdjustChat] = useState(false);
+  const [dayAction, setDayAction] = useState(null);
   const [draggedStopId, setDraggedStopId] = useState(null);
   const [tileWarning, setTileWarning] = useState('');
   const [mobileView, setMobileView] = useState('list');
@@ -170,11 +178,14 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     select: setSelectedId,
     detail: setPoiDetailStop,
     edit: (stop) => setEditingStop({ stop, isNew: false }),
+    replace: (stop) => setReplacingStop(stop),
     moveStop: actions.moveStop,
     removeStop: actions.removeStop,
     moveStopBefore: actions.moveStopBefore,
     moveStopToDayEnd: actions.moveStopToDayEnd,
-    setDraggedStopId
+    setDraggedStopId,
+    setLegTransport: actions.setLegTransport,
+    legTransportOptions: actions.legTransportOptions
   };
 
   const customize = () => onCustomize(routebook);
@@ -207,16 +218,37 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               routebook={routebook}
               saving={actions.saving}
               variantState={actions.variantState}
+              syncLabel={actions.syncLabel}
+              canUndo={actions.canUndo}
+              canRedo={actions.canRedo}
+              activeDay={activeDay}
               onMode={actions.applyModeReorder}
               onAddStop={() => setEditingStop({ stop: createDraftStop(routebook, activeDay), isNew: true })}
               onApplyVariant={actions.applyVariant}
+              onUndo={actions.undoEdit}
+              onRedo={actions.redoEdit}
+              onStripModel={actions.stripModelStops}
+              onOpenChat={() => setShowAdjustChat(true)}
+              onPatchDay={(day) => actions.proposePatch({ day: day || activeDay })}
+              onTransportPref={actions.applyTransportPreference}
             />
           )}
           {canEdit && (routebook.publishStatus || 'draft') === 'draft' && (
             <RecheckBar routebook={routebook} recheckState={actions.recheckState} onRecheck={() => actions.recheckRoute()} />
           )}
 
-          <DayStrip city={routebook.city} dayEntries={dayEntries} activeDay={activeEntry?.day} onSelectDay={selectDay} />
+          <DayStrip
+            city={routebook.city}
+            dayEntries={dayEntries}
+            activeDay={activeEntry?.day}
+            onSelectDay={selectDay}
+            canEdit={canEdit}
+            onDeleteDay={(day) => setDayAction({ type: 'delete', day })}
+            onMergeDay={(fromDay) => {
+              const target = days.find((d) => d !== fromDay) || days[0];
+              setDayAction({ type: 'merge', fromDay, toDay: target });
+            }}
+          />
 
           <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 lg:mt-7">
             <h2 className="text-xl font-extrabold tracking-tight lg:text-2xl">
@@ -423,6 +455,55 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         </>
       )}
 
+      {replacingStop && (
+        <ReplaceStopDialog
+          stop={replacingStop}
+          city={routebook.city}
+          onSearch={actions.searchPlaceCandidates}
+          onPick={async (poi) => {
+            const id = replacingStop.id;
+            setReplacingStop(null);
+            await actions.replaceStopFromSearch(id, poi);
+          }}
+          onClose={() => setReplacingStop(null)}
+        />
+      )}
+      {showAdjustChat && (
+        <AdjustChatSheet
+          routebook={routebook}
+          onClose={() => setShowAdjustChat(false)}
+          handlers={{
+            ...actions,
+            openReplaceByName: (name, query) => {
+              const stop = stops.find((s) => s.name === name);
+              if (stop) setReplacingStop({ ...stop, _query: query });
+            },
+            onCustomize: customize
+          }}
+        />
+      )}
+      <PatchProposalDialog
+        patchState={actions.patchState}
+        onApply={(proposal) => actions.applyPatchProposal(proposal)}
+        onDismiss={actions.clearPatchProposal}
+      />
+      <ConfirmDialog
+        open={Boolean(dayAction)}
+        title={dayAction?.type === 'merge' ? '合并行程日' : '删除这一天'}
+        description={
+          dayAction?.type === 'merge'
+            ? `把 ${dayAction.fromDay} 的站点并进 ${dayAction.toDay}，并重排时间。`
+            : `删除 ${dayAction?.day} 的全部站点。路书至少保留 2 站。`
+        }
+        confirmLabel={dayAction?.type === 'merge' ? '合并' : '删除'}
+        danger={dayAction?.type === 'delete'}
+        onCancel={() => setDayAction(null)}
+        onConfirm={() => {
+          if (dayAction?.type === 'delete') actions.deleteDay(dayAction.day);
+          if (dayAction?.type === 'merge') actions.mergeDayInto(dayAction.fromDay, dayAction.toDay);
+          setDayAction(null);
+        }}
+      />
       <Toast message={shareState} onDismiss={dismissToast} className="bottom-[calc(150px+env(safe-area-inset-bottom))] lg:bottom-8" />
 
       <Suspense fallback={null}>

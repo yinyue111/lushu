@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil,
+  Replace, Trash2, TriangleAlert } from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
 import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { formatVerifiedDate, getStopTrustBadge } from '../../lib/trust';
@@ -116,7 +117,10 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
                   </MenuTrigger>
                   <MenuContent>
                     <MenuItem onSelect={() => handlers.edit(stop)}>
-                      <Pencil /> 编辑 / 替换
+                      <Pencil /> 编辑信息
+                    </MenuItem>
+                    <MenuItem onSelect={() => handlers.replace?.(stop)}>
+                      <Replace /> 换一家店
                     </MenuItem>
                     <MenuItem disabled={!canMoveUp} onSelect={() => handlers.moveStop(stop.id, -1)}>
                       <ArrowUp /> 上移
