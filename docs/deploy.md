@@ -21,7 +21,7 @@ docker compose -f docker-compose.prod.yml up -d app
 curl -fsS http://127.0.0.1:3080/api/ready                     # storage.ready=true 才算好
 ```
 
-`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本时只需重新 `build` + `run --rm migrate`（迁移幂等）+ `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
+`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本时只需重新 `build` + `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）+ `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
 
 ## Caddy
 
