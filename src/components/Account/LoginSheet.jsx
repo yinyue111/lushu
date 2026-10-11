@@ -32,7 +32,7 @@ export default function LoginSheet({
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'
       : reason ||
-        (view === 'forgot' ? '用邮箱收验证码，或者用注册时拿到的恢复码，再设一个新密码。' : '浏览路线不用登录。导入攻略、生成路书要用到 AI，所以需要账号。');
+        (view === 'forgot' ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。' : '随便逛不用登录。导入攻略、生成路书时需要账号。');
   const lockCodes = view === 'codes' && afterRegister && !codesUnlocked;
   return (
     <Sheet title={TITLES[view]} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>
@@ -93,7 +93,7 @@ function PhoneField({ value, onChange, error, autoFocus = false, optional = fals
   const id = useId();
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink-2">
+      <label htmlFor={id} className="text-meta font-semibold text-ink-2">
         手机号{optional && <span className="ml-1 font-normal text-muted">（选填，也能用来登录）</span>}
       </label>
       <div
@@ -134,7 +134,7 @@ function PasswordField({ label = '密码', value, onChange, autoComplete, hint =
   const [shown, setShown] = useState(false);
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink-2">
+      <label htmlFor={id} className="text-meta font-semibold text-ink-2">
         {label}
       </label>
       <div className="relative">
@@ -159,7 +159,7 @@ function PasswordField({ label = '密码', value, onChange, autoComplete, hint =
         </button>
       </div>
       {hint && (
-        <span id={`${id}-hint`} className="text-xs text-muted">
+        <span id={`${id}-hint`} className="text-meta leading-snug text-muted">
           {hint}
         </span>
       )}
@@ -198,7 +198,7 @@ function TextField({ label, value, onChange, error = '', hint = '', autoFocus = 
   const describedBy = [error ? `${id}-error` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink-2">
+      <label htmlFor={id} className="text-meta font-semibold text-ink-2">
         {label}
       </label>
       <input
@@ -212,7 +212,7 @@ function TextField({ label, value, onChange, error = '', hint = '', autoFocus = 
         {...inputProps}
       />
       {hint && (
-        <span id={`${id}-hint`} className="text-xs text-muted">
+        <span id={`${id}-hint`} className="text-meta leading-snug text-muted">
           {hint}
         </span>
       )}
@@ -265,7 +265,7 @@ export function EmailCodeField({ value, onChange, onSend, canSend, sentTo, label
   };
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink-2">
+      <label htmlFor={id} className="text-meta font-semibold text-ink-2">
         {label}
       </label>
       <div className="flex gap-2">
@@ -389,13 +389,13 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
   };
   return (
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <EmailField value={email} onChange={setEmail} error={errors.email} autoFocus hint="用来登录、收验证码和找回密码" />
+      <EmailField value={email} onChange={setEmail} error={errors.email} autoFocus hint="用来登录、收验证码和找回账号" />
       <EmailCodeField value={emailCode} onChange={setEmailCode} onSend={sendCode} canSend={Boolean(email.trim())} sentTo={sentTo} />
       {errors.code && <span className="-mt-3 text-sm font-semibold text-danger">{errors.code}</span>}
       <PasswordField value={password} onChange={setPassword} autoComplete="new-password" hint={PASSWORD_HINT} />
       <PhoneField value={phone} onChange={setPhone} error={errors.phone} optional />
       {registration === 'invite' && (
-        <TextField label="邀请码" value={inviteCode} onChange={setInviteCode} autoComplete="off" hint="现在是内测，注册要填邀请码" />
+        <TextField label="邀请码" value={inviteCode} onChange={setInviteCode} autoComplete="off" hint="内测阶段，注册需要邀请码" />
       )}
       <label className="flex items-start gap-2.5 text-sm text-ink-2">
         <input
@@ -565,7 +565,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed, 
     <div className="flex flex-col gap-4">
       {afterRegister && (
         <Notice tone="info" icon={Check}>
-          注册成功。恢复码只显示一次，请先复制保存后再继续（暂不能关闭）。
+          注册成功。恢复码只显示这一次，请先复制保存再继续（现在还关不掉）。
         </Notice>
       )}
       <ol ref={listRef} className="grid grid-cols-2 gap-2 rounded-card bg-canvas p-3" aria-label="恢复码">
@@ -584,7 +584,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed, 
       <p className="sr-only" aria-live="polite">
         {copied ? '恢复码已复制到剪贴板，可以点继续' : ''}
       </p>
-      <p className="text-sm text-muted">别发给别人。丢失密码时靠它重设。</p>
+      <p className="text-sm text-muted">别发给别人。忘了密码时靠它重设。</p>
       {!copied && (
         <label className="flex items-start gap-2.5 text-sm font-semibold text-ink-2">
           <input
@@ -596,7 +596,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed, 
               else setSaved(false);
             }}
           />
-          我已经存好了（截图或手抄也可以）
+          我已经存好了（截图或手抄也行）
         </label>
       )}
       <Button variant="primary" size="lg" className="w-full" disabled={!saved} onClick={onConfirmed}>

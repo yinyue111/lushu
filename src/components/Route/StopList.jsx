@@ -164,7 +164,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
           )}
           {isGuideSupplement && canEdit && (
             <p className="mt-1.5 text-meta text-muted">
-              攻略里没有这一站，是路书补的。
+              攻略里没写这一站，是路书补上的。
               <button
                 type="button"
                 className="ml-1 font-semibold text-danger underline underline-offset-2"

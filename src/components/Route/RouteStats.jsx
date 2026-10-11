@@ -19,14 +19,14 @@ export default function RouteStats({ routebook, trust, trustState }) {
         tabIndex={0}
         role="status"
         aria-label="路线可信度"
-        className="rounded-card border border-lemon/40 bg-lemon-soft/70 px-3.5 py-3 text-sm text-lemon-ink sm:px-4"
+        className="rounded-card border border-lemon/40 bg-lemon-soft/70 px-3.5 py-3 text-meta leading-snug text-lemon-ink sm:px-4"
       >
-        <p className="font-extrabold text-ink">
-          {trial ? '待复核 · 试验生成' : '待验证 · 还少真人打卡'}
+        <p className="text-copy font-extrabold text-ink">
+          {trial ? '待复核 · 试验生成' : '待验证 · 还差真人打卡'}
         </p>
-        <p className="mt-0.5 text-meta text-ink-2 sm:text-sm">
+        <p className="mt-1 text-meta leading-relaxed text-ink-2">
           {trial
-            ? '试运行城市：地点、营业与道路信息出发前请再核对。有人走过并打卡后，这里会显示可信分。'
+            ? '试验生成：地点、营业和道路出发前请再核对。有人打卡后，这里会显示可信分。'
             : `${trust.sampleProgressText || '多几个人打卡后会显示可信分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
         </p>
       </div>

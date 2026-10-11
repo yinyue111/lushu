@@ -748,7 +748,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
-          {step >= 1 ? '可以先填攻略和偏好；点生成时会请你登录，内容会保留。' : '可以先填着。生成时再登录也行。'}{' '}
+          {step >= 1 ? '可以先填攻略和偏好；点生成时再登录，内容会留着。' : '可以先填着，生成时再登录也行。'}{' '}
           <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             现在登录
           </button>
@@ -756,7 +756,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       )}
       {!needsLogin && !account && step >= 1 && step < 3 && (
         <Notice className="mt-3" tone="sky">
-          登录后路书会同步到账号，换设备也能看。{' '}
+          登录后路书会存进账号，换设备也能看。{' '}
           <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             登录 / 注册
           </button>

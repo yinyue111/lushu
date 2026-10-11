@@ -337,9 +337,8 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           {displayName.slice(0, 1)}
         </span>
         <div className="min-w-0 flex-1">
-          <span className="text-xs font-extrabold tracking-[0.08em] text-primary-strong">我的</span>
-          <h1 className="text-xl font-black tracking-tight sm:text-2xl lg:text-3xl">{displayName} 的路书、打卡和分享</h1>
-          <p className="mt-0.5 text-sm text-muted max-sm:hidden">本机和服务器上的记录合在一起显示；用恢复码可以在另一台设备上接着用。</p>
+          <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">{displayName}的路书、打卡和分享</h1>
+          <p className="mt-1 max-w-[36em] text-meta leading-relaxed text-muted max-sm:hidden">本机和云端的记录合在一起显示。换设备时用恢复码接着用。</p>
         </div>
         <Button variant="primary" className="max-sm:w-full" onClick={() => onNewBook({})}>
           <Plus /> 新建路书
@@ -347,7 +346,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       </header>
       {error && (
         <p className="mt-4 rounded-tile bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink" role="status" aria-live="polite" aria-atomic="true">
-          服务器上的记录暂时读不到，先显示本机数据。（{error}）
+          云端记录暂时读不到，先显示本机数据。（{error}）
         </p>
       )}
 
@@ -376,7 +375,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
         <Tabs.Content value="routebooks" className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section aria-labelledby="my-books">
-            <h2 id="my-books" className="mb-1 text-lg font-extrabold">
+            <h2 id="my-books" className="mb-2 text-title-xs font-extrabold tracking-tight">
               我的路书 <span className="num text-muted">{books.length}</span>
             </h2>
             <p className="mb-3 text-sm text-muted">
@@ -650,8 +649,8 @@ function Stat({ icon: Icon, tone = 'bg-canvas text-ink-2', label, value, classNa
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <div>
-        <p className="text-xs font-semibold text-muted">{label}</p>
-        <p className="num text-2xl leading-tight font-black">{value}</p>
+        <p className="text-meta font-semibold text-muted">{label}</p>
+        <p className="num text-title-sm leading-tight font-extrabold">{value}</p>
       </div>
     </div>
   );

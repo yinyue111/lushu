@@ -61,11 +61,11 @@ export function RoutePreflight({ routebook }) {
       <details className="group mt-7 lg:mt-8" open={warnCount === 0 && checks.length <= 2}>
         <summary
           id="preflight-title"
-          className="flex cursor-pointer list-none items-baseline justify-between gap-3 text-xl font-extrabold tracking-tight lg:text-2xl [&::-webkit-details-marker]:hidden"
+          className="flex cursor-pointer list-none items-baseline justify-between gap-3 text-title-sm font-extrabold tracking-tight lg:text-title [&::-webkit-details-marker]:hidden"
         >
           <span>出发前看一眼</span>
-          <span className="text-sm font-semibold text-muted group-open:hidden">{summaryBits.join(' · ') || '展开详情'}</span>
-          <span className="hidden text-sm font-semibold text-muted group-open:inline">收起</span>
+          <span className="text-meta font-semibold text-muted group-open:hidden">{summaryBits.join(' · ') || '展开详情'}</span>
+          <span className="hidden text-meta font-semibold text-muted group-open:inline">收起</span>
         </summary>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {checks.map((check) => {
@@ -78,7 +78,7 @@ export function RoutePreflight({ routebook }) {
         })}
         {source && (
           <CheckTile icon={FileSearch} title="攻略来源" chip={`${source.sourceCount} 条`} tone="sky">
-            来源预测均分 {predictionAverage(source)}，只用来帮忙解析，不代表有人真的去过。
+            来源预测均分 {predictionAverage(source)}，只辅助解析，不代表有人真的去过。
             {Array.isArray(source.platforms) && source.platforms.filter(Boolean).length ? ` 来自：${source.platforms.filter(Boolean).join('、')}。` : ''}
           </CheckTile>
         )}
@@ -96,7 +96,7 @@ export function RoutePreflight({ routebook }) {
               未核验
             </Chip>
           </h3>
-          <p className="mt-0.5 text-meta text-muted">由 AI 生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
+          <p className="mt-0.5 text-meta text-muted">生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
           <ul className="mt-2 grid gap-1.5 text-sm text-ink-2">
             {aiNotes.map((note) => (
               <li key={`${note.label}-${note.detail}`}>

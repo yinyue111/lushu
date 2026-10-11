@@ -123,12 +123,12 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               <br />
               变成能照着走的路书
             </h1>
-            <p className="mt-4 max-w-[620px] text-base text-white/92 lg:text-lg">
-              {cmsConfig?.heroTitle || '粘贴小红书、抖音、X 链接或收藏地点，AI 帮你排好顺序；走过的人用 GPS 打卡帮你验证。'}
+            <p className="mt-4 max-w-[36em] text-lead leading-relaxed text-white/92 lg:text-lg">
+              {cmsConfig?.heroTitle || '粘贴小红书、抖音或收藏地点，AI 帮你排一版路线；有人用 GPS 打卡后，可信分才会亮起来。'}
             </p>
             <div className="mt-5 flex flex-wrap gap-2" aria-label={`${city} 路线数据`}>
               <Chip tone="glass" wrap>
-                <ShieldCheck /> 真实打卡才出可信分
+                <ShieldCheck /> 有真实打卡才出可信分
               </Chip>
               <Chip tone="glass" wrap>
                 <Clock3 /> {seasonNoteFor(story)}
@@ -147,7 +147,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
           <div className="rounded-panel bg-white p-4 text-ink shadow-pop sm:p-5" aria-label="导入并生成可信路书" role="group">
             <label className="block">
-              <span className="text-sm font-bold text-ink-2">攻略链接或正文</span>
+              <span className="text-meta font-semibold text-ink-2">攻略链接或正文</span>
               <textarea
                 value={guideSeed}
                 onChange={(event) => setGuideSeed(event.target.value)}
@@ -158,16 +158,16 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   }
                 }}
                 rows={2}
-                placeholder="粘贴小红书 / 抖音 / X 链接，或写下想去的地方"
+                placeholder="粘贴小红书 / 抖音链接，或写下想去的地方"
                 aria-label="粘贴攻略链接或正文"
                 className={`${inputClass} mt-1.5 min-h-[76px] resize-none`}
               />
             </label>
             {!account && guideSeed.trim() && (
-              <p className="mt-2 text-sm font-semibold text-ink-2" role="status">
+              <p className="mt-2 text-meta font-semibold leading-snug text-ink-2" role="status">
                 {loginRequired
-                  ? '下一步会请你登录，攻略内容会保留。'
-                  : '登录后路书会同步到账号，换设备也能看（可选）。'}
+                  ? '下一步会请你登录，攻略会留着。'
+                  : '登录后路书会同步到账号，换设备也能看。'}
               </p>
             )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
@@ -176,7 +176,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <label className="block min-w-0">
-                <span className="text-sm font-bold text-ink-2">目的地</span>
+                <span className="text-meta font-semibold text-ink-2">目的地</span>
                 <input
                   value={cityQuery}
                   onChange={(event) => {
@@ -193,7 +193,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-bold text-ink-2">天数</span>
+                <span className="text-meta font-semibold text-ink-2">天数</span>
                 <select value={duration} onChange={(event) => setDuration(event.target.value)} className={`${inputClass} mt-1.5 w-auto`}>
                   {durations.map((item) => (
                     <option key={item}>{item}</option>
@@ -221,7 +221,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               </p>
             )}
             <div className="mt-4">
-              <span className="text-sm font-bold text-ink-2">想怎么玩</span>
+              <span className="text-meta font-semibold text-ink-2">想怎么玩</span>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {visibleThemes.map((item) => (
                   <button
@@ -295,7 +295,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <MapPin className="size-7" />
               </span>
               <h3 className="text-lg font-extrabold">{city} 还没有精选路线</h3>
-              <p className="max-w-md text-sm text-muted">粘贴当地攻略、收藏的地点或想逛的商圈，AI 先帮你排一版；地点和营业信息出发前要自己再核对。</p>
+              <p className="max-w-md text-copy leading-relaxed text-muted">粘贴当地攻略、收藏地点或想逛的商圈，AI 先帮你排一版；地点和营业信息出发前请再核对。</p>
               <Button variant="primary" onClick={startFromHero}>
                 <Sparkles /> 生成{city}路书
               </Button>
@@ -312,14 +312,14 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           aria-labelledby="home-destination-title"
         >
           <div className="flex flex-col justify-center">
-            <span className="text-xs font-extrabold tracking-[0.08em] text-lemon">目的地专题</span>
+            <span className="text-meta font-semibold tracking-wide text-lemon">目的地专题</span>
             <h2 id="home-destination-title" className="mt-2 text-title leading-tight font-extrabold lg:text-display-md">
               {city}，这个季节怎么玩
             </h2>
             <p className="mt-3 text-copy text-white/85">{story.summary}</p>
             <ul className="mt-4 flex flex-col gap-2 text-sm text-white/90">
               <li className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-lemon" /> 有足够真实打卡后才显示可信分
+                <ShieldCheck className="size-4 text-lemon" /> 真人打卡够了才显示可信分
               </li>
               <li className="flex items-center gap-2">
                 <Compass className="size-4 text-lemon" /> 首批可信城市：上海 · 杭州 · 苏州
@@ -375,8 +375,8 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <Route className="size-6" />
               </span>
               <div className="flex-1">
-                <h3 className="text-base font-extrabold">还没有保存的路书</h3>
-                <p className="text-sm text-muted">复制一条精选路线，或者粘贴攻略生成你的第一份路书。</p>
+                <h3 className="text-copy font-extrabold">还没有保存的路书</h3>
+                <p className="mt-0.5 text-meta leading-snug text-muted">复制一条精选路线，或粘贴攻略生成第一份路书。</p>
               </div>
               <Button size="sm" variant="dark" onClick={startFromHero}>
                 开始生成
