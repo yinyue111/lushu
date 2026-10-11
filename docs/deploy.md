@@ -173,16 +173,16 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 - 来源：先查高德 POI（同名、3 公里内、唯一一家才算），再用 `ENRICH_MODEL`（默认 grok-4.7）通过中继 `/v1/responses` 的 web_search 联网搜索。搜索引用的页面由我们自己抓取核对，页面里离地点名不远处确实写着这个值才算。只抓公网地址（复用导入攻略的 SSRF 防护：DNS 固定、重定向复查、大小和时间上限），遵守 robots.txt，不抓 `ENRICH_BLOCKED_DOMAINS`（默认含大众点评、美团、小红书、携程、去哪儿等）。
 - 两个独立来源一致才显示：高德 + 1 个网页，或 2 个不同网站的网页。“全天开放”等同于 00:00-24:00。来源冲突或只有一个来源，就保留“待确认”。
 - 每条都记录值、来源（网址、标题、域名）、查询时间和核对方式；页面上显示为“免费 · 来自X等2个来源 · 查询于日期”，点开能看到链接，用户可以点“报告有误”。报错后这条立刻隐藏，共享缓存里的这一条也删掉，运营在「联网补全」页能看到。
-- 路书正文不改：防编造检查后的“待确认”原样保留，补全结果单独存放、显示在旁边。
+- 路书正文不改：防编造检查后的“待确认”原样保存，补全结果单独存放。页面上某项核对到后，就只显示核对结果、隐藏原来那句“门票待确认 / 开放时间待确认”；用户报错后恢复原文。
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `ENRICH_ENABLED` | `false` | 打开联网补全。生产要打开就设 `true`（另需中继密钥，见下） |
 | `ENRICH_MODEL` | `grok-4.7` | 联网搜索用的模型（需要中继 Responses 接口支持 web_search；gemini 的引用不是结构化字段，不用） |
 | `ENRICH_BASE_URL` / `ENRICH_API_KEY` | 同 `OPENAI_BASE_URL` / `OPENAI_API_KEY` | 一般不用单独配 |
-| `ENRICH_DAILY_BUDGET_USD` | `5` | 全站每天（UTC）联网搜索花费上限，超出后当天不再搜索，只保留待确认 |
-| `ENRICH_MAX_SEARCHES_PER_ROUTEBOOK` | `5` | 每份路书最多搜索次数（每个景点一次） |
-| `ENRICH_MAX_USD_PER_ROUTEBOOK` | `0.3` | 每份路书花费上限（按中继返回的实际花费，没有时按 `ENRICH_ASSUMED_USD_PER_SEARCH`=0.1 估） |
+| `ENRICH_DAILY_BUDGET_USD` | `30` | 全站每天（UTC）联网搜索花费上限，超出后当天不再搜索，只保留待确认 |
+| `ENRICH_MAX_SEARCHES_PER_ROUTEBOOK` | `12` | 每份路书最多搜索次数（每个景点一次；只有一个来源的项目再换个问法补搜一次） |
+| `ENRICH_MAX_USD_PER_ROUTEBOOK` | `1.5` | 每份路书花费上限（按本份里最贵的一次搜索预估下一次，可能略超；中继没报花费时按 `ENRICH_ASSUMED_USD_PER_SEARCH`=0.1 计） |
 | `ENRICH_CACHE_DAYS` | `7` | 同一城市 + 地点 + 字段的结果缓存天数（核对到的和确认核对不了的都缓存；因额度不够没查的不缓存） |
 | `ENRICH_CONCURRENCY` | `2` | 同时核对的路书数 |
 | `ENRICH_MAX_ATTEMPTS` / `ENRICH_RETRY_BASE_MS` | `4` / `60000` | 失败重试次数和退避（1、4、16 分钟…） |
@@ -192,7 +192,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `ENRICH_BLOCKED_DOMAINS` | 见上 | 逗号分隔，子域名一起屏蔽 |
 | `ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS` | 不设 | 只给自动化测试用；生产绝不要设置 |
 
-高德用已有的 `AMAP_GEOCODE_KEY`；没配高德时只靠网页，规则不变（必须两个不同网站）。任务队列存在 PostgreSQL（迁移 0010，新增 `enrich_*` 表）或 JSONL（`enrichment.jsonl`），重启不丢。实测成本约每份路书 $0.1–0.3、补全耗时约 1–3 分钟（不阻塞用户）。
+高德用已有的 `AMAP_GEOCODE_KEY`；没配高德时只靠网页，规则不变（必须两个不同网站）。任务队列存在 PostgreSQL（迁移 0010，新增 `enrich_*` 表）或 JSONL（`enrichment.jsonl`），重启不丢。实测（旧额度）每份路书约 $0.2–0.35、补全约 3–4 分钟；新额度下会多搜一些，预计每份 $0.3–1、5 分钟左右（不阻塞用户）。
 
 ## 已知限制
 

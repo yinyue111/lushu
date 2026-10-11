@@ -11,6 +11,7 @@ import { sourceEvidencePrediction, stopKey } from './routebookModel';
 import { StopTrustLine } from './StopProvenance';
 import { Notice } from '../ui/notice';
 import EnrichedFacts from './EnrichedFacts';
+import { withoutCheckedPending } from '../../lib/enrichmentText';
 
 export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [], enrichment = null }) {
   return (
@@ -49,6 +50,12 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
 /** @param {Record<string, any>} props */
 function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId, enrichment }) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
+  const enrichedClaims = enrichment ? enrichment.claimsFor(stop) : [];
+  const checked = { price: enrichedClaims.some((c) => c.field === 'price'), hours: enrichedClaims.some((c) => c.field === 'hours') };
+  // A checked price replaces the cost line; checked hours remove 「开放时间待确认」 from the notes.
+  const costText = checked.price ? '' : stop.cost;
+  const verifyText = withoutCheckedPending(stop.verify, checked);
+  const riskText = withoutCheckedPending(stop.risk, checked);
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
   const evidence = Array.isArray(stop.sourceEvidence) ? stop.sourceEvidence.slice(0, 3) : [];
@@ -120,7 +127,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
             </div>
           </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-ink-2 sm:text-sm">
-            {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`, stop.cost].filter(Boolean).map((part, i) => (
+            {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`, costText].filter(Boolean).map((part, i) => (
               <span key={part} className="inline-flex items-center gap-2">
                 {i > 0 && (
                   <span className="text-line-strong" aria-hidden="true">
@@ -132,13 +139,13 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               </span>
             ))}
           </p>
-          {enrichment && <EnrichedFacts claims={enrichment.claimsFor(stop)} onReport={enrichment.report} />}
+          {enrichment && <EnrichedFacts claims={enrichedClaims} onReport={enrichment.report} />}
           <StopTrustLine stop={stop} trust={trustBadge} verifiedCount={verifiedCount} approximate={approximate} className="mt-1.5" />
-          {stop.verify && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-2 sm:text-copy">{stop.verify}</p>}
-          {stop.risk && (
+          {verifyText && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-2 sm:text-copy">{verifyText}</p>}
+          {riskText && (
             <Notice className="mt-2">
               <span className="sr-only">出发前留意：</span>
-              {stop.risk}
+              {riskText}
             </Notice>
           )}
           {selected && (trustBadge.verified || evidence.length > 0) && (
