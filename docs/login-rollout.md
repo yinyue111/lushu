@@ -118,6 +118,17 @@ docker compose -f docker-compose.prod.yml up -d app
 
 回退：`EMAIL_VERIFICATION_REQUIRED=false`（注册不再要码），或 `MAIL_TRANSPORT=disabled`（同时必须把前者设 false，否则拒绝启动）。
 
+## 2c. 打开联网补全（门票 / 开放时间）
+
+前提：已经是 `AUTH_MODE=both` 或 `login`（只有登录用户的路书会核对），PostgreSQL 已经跑过迁移 0010（启动时自动执行，新增 `enrich_*` 表，只加不改）。
+
+1. `.env` 加 `ENRICH_ENABLED=true`、`ENRICH_DAILY_BUDGET_USD=5`（先小额度），重启。日志里不应出现 `[enrich] not started`。
+2. 用一个登录账号生成一份含景点的路书（如杭州：断桥、灵隐寺、河坊街）。站点下先出现“正在核对门票和开放时间…”，1–3 分钟后出现“免费 · 来自…等2个来源 · 查询于…”这类行，点开能看到链接。
+3. 运营后台「联网补全」页：完成数增加，今天花费、搜索次数有数；失败数应为 0（失败会自动重试 4 次）。
+4. 观察一两天：每天花费不超过预算；有用户报错时在同一页查看，必要时提高谨慎（例如把 `ENRICH_BLOCKED_DOMAINS` 加上出错的网站）。
+
+回滚：`ENRICH_ENABLED=false` 重启即可，路书正文不受影响（补全结果单独存放，关掉后只是不再显示）。表可以保留。
+
 ## 3. P1c：`AUTH_MODE=login`（只认登录）
 
 提前在站内告知内测用户：访问码改作注册邀请码。
