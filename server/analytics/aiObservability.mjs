@@ -29,9 +29,12 @@ export function normalizeModelUsage(dataOrUsage, wireApi = '') {
   const reportedTotalTokens = nonNegativeSafeIntegerOrNull(usage[keys.total]);
   if (inputTokens == null && outputTokens == null && reportedTotalTokens == null) return null;
 
+  const details = objectOrNull(usage.completion_tokens_details) ?? objectOrNull(usage.output_tokens_details);
+  const reasoningTokens = details ? nonNegativeSafeIntegerOrNull(details.reasoning_tokens) : null;
   return {
     inputTokens,
     outputTokens,
+    ...(reasoningTokens != null ? { reasoningTokens } : {}),
     totalTokens: reportedTotalTokens ?? (inputTokens != null && outputTokens != null ? safeIntegerSumOrNull(inputTokens, outputTokens) : null)
   };
 }

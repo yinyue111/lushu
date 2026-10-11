@@ -1080,8 +1080,11 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
         },
         ...options
       });
-      recordUsage(normalizeModelUsage(data, runtime.wireApi));
+      const usage = normalizeModelUsage(data, runtime.wireApi);
+      recordUsage(usage);
       modelCalls.push({
+        ...(usage?.reasoningTokens != null ? { reasoningTokens: usage.reasoningTokens } : {}),
+        ...(modeConfig.reasoningEffort ? { reasoningEffort: modeConfig.reasoningEffort } : {}),
         format: options.responseFormat,
         maxOutputTokens: options.maxOutputTokens ?? modeConfig.maxOutputTokens,
         stream: AI_STREAM,

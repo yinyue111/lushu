@@ -77,13 +77,13 @@ export const AI_STREAM =
   String(process.env.AI_STREAM ?? 'true')
     .trim()
     .toLowerCase() !== 'false';
-// Optional reasoning effort sent to the model (low | medium | high). Empty = not sent: the model/relay default applies.
+// Optional reasoning effort sent to the model (low | medium | high | xhigh; the relay silently ignores unknown values). Empty = not sent: the model/relay default applies.
 // For Gemini on the relay the thinking tier is chosen by the model id suffix (-low / -medium / -high) instead.
-function reasoningEffortEnv(name) {
-  const value = String(process.env[name] ?? '')
+function reasoningEffortEnv(name, fallback = '') {
+  const value = String(process.env[name] ?? fallback)
     .trim()
     .toLowerCase();
-  return ['low', 'medium', 'high'].includes(value) ? value : '';
+  return ['low', 'medium', 'high', 'xhigh'].includes(value) ? value : '';
 }
 export const GENERATION_MODES = {
   fast: {
@@ -103,7 +103,8 @@ export const GENERATION_MODES = {
     timeoutMs: envNumber('AI_TIMEOUT_MS_DEEP', AI_TIMEOUT_MS, { min: 1000 }),
     maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_DEEP', 12000, { min: 256 }),
     idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_DEEP', 150000, { min: 1000 }),
-    reasoningEffort: reasoningEffortEnv('AI_REASONING_EFFORT_DEEP'),
+    // grok-4.7 without the parameter was the slowest in tests (>200 s); xhigh measured about as fast as high.
+    reasoningEffort: reasoningEffortEnv('AI_REASONING_EFFORT_DEEP', 'xhigh'),
     typicalSeconds: [90, 180]
   }
 };

@@ -97,7 +97,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `AI_CALL_TIMEOUT_MS` | 同 `AI_TIMEOUT_MS` | 单次模型调用上限，且不会超过剩余的总时长 |
 | `GENERATION_DEFAULT_MODE` | `fast` | 生成方式默认值：`fast`（轻快）或 `deep`（细品），用户可在「你想怎么玩？」里切换 |
 | `AI_MODEL_FAST` | `gemini-3.8-flash-high` | 轻快用的模型（中继 t.aiwuq.cn 上的 id）。Gemini 的思考档位由后缀决定：`-low` / `-medium` / `-high`；不带后缀的 `gemini-3.8-flash` 在中继上暂无可用账号 |
-| `AI_REASONING_EFFORT_FAST` / `_DEEP` | 空 | 发给模型的 `reasoning_effort`（low / medium / high）；空＝不发，用模型和中继的默认值 |
+| `AI_REASONING_EFFORT_FAST` / `_DEEP` | 空 / `xhigh` | 发给模型的 `reasoning_effort`（low / medium / high / xhigh；中继不认识的值会被静默忽略）。细品默认 xhigh：实测和 high 一样快，比不发参数（超过 200 秒）快得多。写 `none` 表示不发 |
 | `AI_MODEL_DEEP` | 空＝`OPENAI_MODEL` | 细品用的模型（grok-4.7） |
 | `AI_TIMEOUT_MS_FAST` / `_DEEP` | `min(120000, AI_TIMEOUT_MS)` / `AI_TIMEOUT_MS` | 每种方式一次生成的总时长上限 |
 | `AI_MAX_OUTPUT_TOKENS_FAST` / `_DEEP` | `12000` / `12000` | 每种方式的输出上限（推理模型的思考也算） |
