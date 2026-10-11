@@ -565,8 +565,8 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
           </li>
         ))}
       </ol>
-      <Button variant={copied ? 'primary' : 'outline'} onClick={copy}>
-        {copied ? <Check /> : <Copy />} {copied ? '已复制，可以继续' : '复制全部'}
+      <Button variant="outline" onClick={copy}>
+        {copied ? <Check /> : <Copy />} {copied ? '已复制' : '复制全部'}
       </Button>
       <p className="text-sm text-muted">别发给别人。丢失密码时靠它重设。</p>
       {!copied && (
@@ -576,7 +576,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
         </label>
       )}
       <Button variant="primary" size="lg" className="w-full" disabled={!saved} onClick={onConfirmed}>
-        {copied ? '继续使用' : '继续'}
+        继续
       </Button>
     </div>
   );
