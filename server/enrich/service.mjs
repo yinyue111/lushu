@@ -15,7 +15,6 @@ import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { enrichRoutebook, stopKeyOf } from './engine.mjs';
 import { enrichStore } from './store.mjs';
 
-
 export function enrichmentReady() {
   if (!ENRICH_ENABLED) return { ready: false, reason: 'ENRICH_ENABLED=false' };
   if (!ENRICH_BASE_URL || !ENRICH_API_KEY) return { ready: false, reason: 'ENRICH_BASE_URL / ENRICH_API_KEY（或 OPENAI_*）未配置' };

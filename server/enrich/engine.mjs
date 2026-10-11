@@ -22,6 +22,7 @@ const FIELD_LABEL = { price: '门票', hours: '开放时间' };
 const ATTRACTION_NAME = /(寺|庙|道观|祠|宫|塔|阁|园|湖|山|峰|桥|堤|岛|街|巷|锦里|坊|古镇|景区|公园|博物馆|纪念馆|美术馆|广场|故居|遗址|陵|城墙|码头)$/;
 const RESTAURANT_NAME = /店$|饭|面|饺|馆$|餐|火锅|小吃|茶社|茶馆|咖啡|酒吧|甜品|烧烤|串串/;
 const MAX_PAGES_PER_FIELD = 4;
+const MAX_PAGES_PER_ROUTEBOOK = 30;
 
 export const cacheKeyFor = (city, name, field) => `${String(city).trim()}|${String(name).trim()}|${field}`;
 export const stopKeyOf = (stop, index) => String(stop.id ?? stop.stopId ?? `#${index}`);
@@ -58,7 +59,16 @@ function display(field, value, sources, retrievedAt) {
 export async function enrichRoutebook({ routebook, store, deps = {}, now = () => Date.now(), log = () => {} }) {
   const amap = deps.amapPlace ?? amapPlace;
   const search = deps.webSearchPlace ?? webSearchPlace;
-  const fetchPage = deps.fetchCitedPage ?? fetchCitedPage;
+  const fetchUncached = deps.fetchCitedPage ?? fetchCitedPage;
+  // One fetch per URL per routebook: the page that showed the price is reused for the hours.
+  const pageCache = new Map();
+  const fetchPage = (url) => {
+    if (!pageCache.has(url)) {
+      counts.pages += 1;
+      pageCache.set(url, fetchUncached(url));
+    }
+    return pageCache.get(url);
+  };
   const city = routebook.city ?? '';
   const budget = { searches: 0, usd: 0, stoppedBy: '' };
   const counts = { filled: 0, kept: 0, cached: 0, skippedStops: 0, searches: 0, pages: 0, amapCalls: 0, usd: 0 };
@@ -158,11 +168,10 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       });
       const verified = [];
       for (const url of urls) {
-        if (verified.length >= 2 || counts.pages >= 12) break;
+        if (verified.length >= 2 || counts.pages >= MAX_PAGES_PER_ROUTEBOOK) break;
         if (urls.indexOf(url) >= MAX_PAGES_PER_FIELD + named.length) break;
         const domain = siteOf(new URL(url).hostname);
         if (verified.some((v) => v.domain === domain)) continue;
-        counts.pages += 1;
         const page = await fetchPage(url);
         if (page.ok && pageSupports(page.text, name, patterns)) verified.push({ kind: 'web', url, title: page.title || web.cited.get(url) || '', domain });
       }

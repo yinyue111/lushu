@@ -94,13 +94,17 @@ export async function webSearchPlace(
   }
   const data = await res.json();
   const cited = new Map();
+  const add = (url, title) => {
+    const u = String(url ?? '').startsWith('//') ? `https:${url}` : String(url ?? '');
+    if (/^https?:\/\//.test(u)) cited.set(u, title || cited.get(u) || '');
+  };
   let text = '';
   for (const item of data.output ?? []) {
-    for (const source of item.action?.sources ?? []) if (source?.url) cited.set(source.url, source.title ?? '');
+    for (const source of item.action?.sources ?? []) add(source?.url, source?.title ?? '');
     if (item.type !== 'message') continue;
     for (const part of item.content ?? []) {
       text += part.text ?? '';
-      for (const a of part.annotations ?? []) if (a?.url) cited.set(a.url, a.title && a.title !== a.url ? a.title : (cited.get(a.url) ?? ''));
+      for (const a of part.annotations ?? []) add(a?.url, a?.title && a.title !== a.url ? a.title : '');
     }
   }
   let answer = {};
