@@ -112,6 +112,18 @@ async function runJob(job) {
       log: (event) => console.log(JSON.stringify(event))
     });
     await store.putResult(job.routebookId, claims);
+    // Some searches failed (timeout, relay error): keep what was verified and come back later for the rest;
+    // finished stops come from the cache, so a retry only searches the failed ones.
+    if (summary.searchErrors && job.attempts < ENRICH_MAX_ATTEMPTS) {
+      await store.updateJob(job.routebookId, {
+        status: 'queued',
+        leaseUntil: null,
+        lastError: `${summary.searchErrors} search(es) failed`,
+        summary,
+        nextAttemptAt: new Date(Date.now() + retryDelayMs(job.attempts)).toISOString()
+      });
+      return;
+    }
     await store.updateJob(job.routebookId, { status: 'done', leaseUntil: null, lastError: '', summary });
   } catch (error) {
     const giveUp = job.attempts >= ENRICH_MAX_ATTEMPTS || error?.retryable === false;

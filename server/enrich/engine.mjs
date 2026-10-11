@@ -244,13 +244,6 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
   }
   await store.addSpend({ pages: counts.pages, amapCalls: counts.amapCalls }, now());
-  // Every search failed (relay down): let the queue retry the whole routebook later.
-  if (counts.searchErrors && !counts.searches) {
-    const error = new Error(`all web searches failed: ${budget.lastError}`);
-    // @ts-ignore
-    error.retryable = true;
-    throw error;
-  }
   const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy };
   log({ event: 'enrich', routebookId: routebook.id, ...summary });
   return { claims, summary };
