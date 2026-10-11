@@ -45,6 +45,7 @@ import { createUntrustedFence, fenceImportedSources } from './untrusted.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { GENERATION_DEADLINE_REASON } from './generationJobs.mjs';
 import { readModelStream } from './modelStream.mjs';
+import { guardRoutebookFacts, summarizeGuardEvents } from './factGuard.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -214,6 +215,7 @@ function systemPrompt() {
     'stop.costInfo 用结构化字段表示费用：amount 为确定金额（元），有区间时填 min/max，per 表示按人/组/份计价，free 表示免费，reservationRequired 表示需预约；不知道时金额填 null，不要编造价格。stop.cost 是给用户看的简短文字。',
     'lat/lng 使用 WGS84，经纬度必须落在对应城市附近；无法精确定位时返回街区级近似坐标并降低 geoConfidence。',
     '每个 stop 的 coordinateSystem 固定返回 WGS84，geoConfidence 为 0-100。',
+    '不许编造具体信息：门店/分店名（如“总店”“XX店”）、街道门牌号、门票或票价、人均价格、营业或开放时间、电话、活动日期，只有在用户攻略、导入来源或 approvedPoiCandidates 里出现过才能写；没有就写“待确认”或不写。站点名用攻略里的叫法，不要自己加门店后缀。平台会自动检查，攻略里没有的具体信息会被改成“待确认”。',
     'riskNotes 只写需要用户出发前注意的提示（如可能需预约、可能拥挤），不写“通过”之类的结论。',
     '如果输入携带 approvedPoiCandidates（运营已审核 POI 候选），优先从候选中选点并直接使用候选给出的坐标与营业时间；不在候选中的自创点位必须显式降低 geoConfidence（<60）并在 stop.risk 标注需实地复核。'
   ].join('\n');
@@ -1045,7 +1047,13 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
   let activeStage = 'model';
   const observability = () => {
     const modelUsage = summarizeModelUsage(attempts);
-    return { modelUsage, costEstimate: estimateModelCost({ modelUsage, model: runtime.model }), stages, modelCalls };
+    return {
+      modelUsage,
+      costEstimate: estimateModelCost({ modelUsage, model: runtime.model }),
+      stages,
+      modelCalls,
+      factGuard: { ...summarizeGuardEvents(factGuardEvents), events: factGuardEvents.slice(0, 50) }
+    };
   };
   const runStage = async (name, operation) => {
     activeStage = name;
@@ -1061,6 +1069,8 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
   };
   const modelCalls = [];
   let lastReportedChars = 0;
+  /** @type {any[]} */
+  let factGuardEvents = [];
   const trackedModelCall = async (options) => {
     const startedAt = Date.now();
     try {
@@ -1136,7 +1146,17 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
         return callModel({ maxOutputTokens: AI_MAX_OUTPUT_TOKENS_RETRY });
       });
       try {
-        return normalizeRoutebook({ ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId }, payload, runtime);
+        const normalized = normalizeRoutebook({ ...parseJsonFromText(extractTextFromResponse(raw)), profileId: payload.profileId }, payload, runtime);
+        // Anti-fabrication: specific facts not found in the user's source or reviewed POI data become 「待确认」.
+        const guarded = guardRoutebookFacts(normalized, {
+          guide: payload.guide,
+          importedSources: payload.importedSources,
+          constraints: payload.constraints,
+          poiCandidates: promptPayload.poiCandidates ?? [],
+          city: payload.city
+        });
+        factGuardEvents = guarded.events;
+        return guarded.routebook;
       } catch (error) {
         if (error?.statusCode) throw error;
         const failure = createHttpError('AI 输出格式异常，请重新生成', 502, 'MODEL_BAD_OUTPUT');

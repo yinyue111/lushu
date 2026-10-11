@@ -33,7 +33,19 @@ before(async () => {
     const body = JSON.parse(raw);
     requests.push({ model: body.model, stream: body.stream === true, ...(body.reasoning_effort ? { effort: body.reasoning_effort } : {}) });
     const prompt = JSON.stringify(body.messages);
-    const text = JSON.stringify(generated);
+    const text = JSON.stringify(
+      prompt.includes('FABRICATE')
+        ? {
+            ...generated,
+            stops: generated.stops.map((stop, index) =>
+              index === 0
+                ? { ...stop, name: '柳浪闻莺（湖滨总店）', cost: '门票 45 元', verify: '南山路12号，营业时间 08:00-17:30', risk: '电话 0571-87065871' }
+                : stop
+            ),
+            riskNotes: ['10月1日起需预约，人均约 120 元']
+          }
+        : generated
+    );
     if (!body.stream) {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(
@@ -141,4 +153,19 @@ test('finish_reason=length on a stream is reported as truncated output', async (
 test('an unknown mode falls back to the default', async () => {
   const { job } = await runJob('柳浪闻莺和南宋御街，未知模式', 'turbo');
   assert.equal(job.mode, 'fast');
+});
+
+test('fabricated branches, addresses, prices, hours, phones and dates never reach the saved routebook', async () => {
+  const { job } = await runJob('FABRICATE 柳浪闻莺、南宋御街、北山街', 'fast');
+  assert.equal(job.status, 'succeeded', JSON.stringify(job.error));
+  const saved = JSON.stringify(job.result);
+  assert.doesNotMatch(saved, /湖滨总店|45 元|南山路12号|08:00-17:30|87065871|10月1日|120 元/);
+  const stop = job.result.stops[0];
+  assert.equal(stop.name, '柳浪闻莺');
+  assert.equal(stop.cost, '价格待确认');
+  assert.match(stop.verify, /地址待确认.*营业时间待确认/);
+  assert.ok(
+    job.result.aiNotes.some((note) => note.label === '具体信息待确认'),
+    'the user is told what was hidden'
+  );
 });
