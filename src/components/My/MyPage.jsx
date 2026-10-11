@@ -14,6 +14,7 @@ import { getRouteTrustBadgeState } from '../../lib/trust';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
 import { RouteCard } from '../cards/RouteCard';
+import { routebookCardMeta } from '../../lib/routebookCardMeta';
 import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { MyAccountPanel } from './MyAccountPanel';
@@ -388,7 +389,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       <RouteCard
                         key={bookKey}
                         routebook={book}
-                        meta={`${book.city || '城市待补充'} · ${book.stops?.length ?? 0} 站 · ${publishStatusLabel(book.publishStatus)}${book.routingWarning?.unverifiedLegs ? ` · ${book.routingWarning.unverifiedLegs} 段道路待复核` : ''}`}
+                        meta={routebookCardMeta(book, { extra: [book.city || '城市待补充', publishStatusLabel(book.publishStatus), book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段道路待复核` : ''].filter(Boolean).join(' · ') })}
                         onOpen={() => onOpenBook(book)}
                         actions={
                           <>

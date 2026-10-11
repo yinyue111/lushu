@@ -5,12 +5,14 @@ import { Chip } from './ui/chip';
 import { cn } from './ui/cn';
 import { inputClass } from './ui/field';
 import { RouteCard } from './cards/RouteCard';
+import { routebookCardMeta } from '../lib/routebookCardMeta';
 import { SectionHeading } from './ui/section-heading';
 import { CityBackdrop } from './visual/CityBackdrop';
 import { hasCityPhotos, smallImage } from './visual/theme';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, seasonNoteFor, trustedCities } from '../lib/content';
 import { getCmsConfig } from '../lib/api';
 import { getProfile } from '../lib/profile';
+import { useAccount } from './Account/AccountProvider';
 
 const themes = ['Citywalk', '美食拍照', '寺院茶山', '亲子慢游', '雨天备选'];
 const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
@@ -18,6 +20,7 @@ const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
 const HOME_CITY_STORAGE_KEY = 'trusted-routebook:home-city';
 
 export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestination, onRefresh }) {
+  const { required: loginRequired, account } = useAccount();
   const [profile] = useState(() => getProfile());
   const [storedCity] = useState(() => readStoredHomeCity());
   const [cmsConfig, setCmsConfig] = useState(null);
@@ -160,6 +163,11 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 className={`${inputClass} mt-1.5 min-h-[76px] resize-none`}
               />
             </label>
+            {loginRequired && !account && guideSeed.trim() && (
+              <p className="mt-2 text-sm font-semibold text-ink-2" role="status">
+                生成需要登录。下一步会请你登录，攻略内容会保留。
+              </p>
+            )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
               <Link2 /> 导入并分析
             </Button>
@@ -375,7 +383,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book, idx) => (
-                <RouteCard key={`${book.publicId || book.id || book.city}-${idx}`} routebook={book} layout="row" onOpen={() => onOpenBook(book)} />
+                <RouteCard key={`${book.publicId || book.id || book.city}-${idx}`} routebook={book} layout="row" meta={routebookCardMeta(book)} onOpen={() => onOpenBook(book)} />
               ))}
             </div>
           )}
