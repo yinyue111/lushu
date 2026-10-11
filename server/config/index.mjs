@@ -144,6 +144,8 @@ export const RATE_LIMIT_RECHECK_MAX = envNumber('RATE_LIMIT_RECHECK_MAX', 6, { m
 // Phase 2 generation guard: identical requests within the TTL reuse the result
 // (0 disables); registered profiles get N model generations per rolling window (0 disables).
 export const GENERATION_DEDUP_TTL_MS = envNumber('GENERATION_DEDUP_TTL_MS', 10 * 60 * 1000, { min: 0 });
+/** Local patch (L2) generations per profile; 0 means 2× GENERATION_QUOTA_PER_PROFILE. */
+export const GENERATION_QUOTA_PATCH_PER_PROFILE = envNumber('GENERATION_QUOTA_PATCH_PER_PROFILE', 0, { min: 0 });
 export const GENERATION_QUOTA_PER_PROFILE = envNumber('GENERATION_QUOTA_PER_PROFILE', 30, { min: 0 });
 export const GENERATION_QUOTA_WINDOW_MS = envNumber('GENERATION_QUOTA_WINDOW_MS', 24 * 60 * 60 * 1000, { min: 60 * 1000 });
 export const RATE_LIMIT_PUBLIC_CONFIG_MAX = envNumber('RATE_LIMIT_PUBLIC_CONFIG_MAX', 240, { min: 1 });

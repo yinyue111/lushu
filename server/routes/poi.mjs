@@ -18,6 +18,8 @@ import {
   validatePoiBatch
 } from '../poi/catalog.mjs';
 import { coordinateForName } from '../geo/normalize-coordinate.mjs';
+import { searchAmapPoiCandidates } from '../geo/amap.mjs';
+import { AMAP_GEOCODE_KEY } from '../config/index.mjs';
 
 async function updatePoiCorrectionRoute({ req, res, params }) {
   enforceRateLimit(req);
@@ -44,6 +46,42 @@ export const poiRoutes = [
   // 跨区契约：站点改名重校验的服务端解析端点。与 hardenDraftStops 同一
   // 合并目录（seed TRUSTED_POI_CATALOG + 运营 approved POI，normalizeCityName/
   // normalizePoiName 精确匹配）；public-read 限流、无需鉴权。
+
+  route('GET', '/api/pois/search', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'public-read');
+    const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
+    const q = truncateString(url.searchParams.get('q') || url.searchParams.get('name'), 80);
+    if (!city || !q) throw createHttpError('请提供城市和关键词', 400, 'POI_SEARCH_QUERY_REQUIRED');
+    if (!AMAP_GEOCODE_KEY) {
+      // Offline / mock: fall back to catalog + coordinateForName so E2E still works.
+      const catalog = await listMergedPois();
+      const hits = catalog
+        .filter((poi) => (!city || normalizeCityName(poi.city) === city) && String(poi.name || '').includes(q))
+        .slice(0, 8)
+        .map((poi, rank) => ({
+          id: poi.poiId || `cat-${rank}`,
+          name: poi.name,
+          address: poi.address || city,
+          lat: poi.lat,
+          lng: poi.lng,
+          rank,
+          source: 'catalog'
+        }));
+      const canonical = coordinateForName(q, city);
+      if (!hits.length && canonical) {
+        hits.push({ id: 'geo-1', name: q, address: city, lat: canonical.lat, lng: canonical.lng, rank: 0, source: 'geocode' });
+      }
+      return sendJson(res, 200, { ok: true, city, q, pois: hits, provider: 'catalog' });
+    }
+    const pois = await searchAmapPoiCandidates(city, q, {}).catch(() => []);
+    return sendJson(res, 200, {
+      ok: true,
+      city,
+      q,
+      pois: pois.map((poi) => ({ ...poi, source: 'amap' })),
+      provider: 'amap'
+    });
+  }),
   route('GET', '/api/pois/resolve', async ({ req, res, url }) => {
     enforceRateLimit(req, 'public-read');
     const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';

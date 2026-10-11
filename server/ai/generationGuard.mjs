@@ -16,6 +16,7 @@ import {
   GENERATION_DEDUP_TTL_MS,
   GENERATION_QUOTA_PER_PROFILE,
   GENERATION_QUOTA_DEEP_PER_PROFILE,
+  GENERATION_QUOTA_PATCH_PER_PROFILE,
   GENERATION_QUOTA_WINDOW_MS
 } from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
@@ -171,6 +172,58 @@ export async function enforceGenerationQuota(profileId, options = {}) {
       ? `「细品」次数已达上限（每 ${peek.windowHours} 小时 ${peek.quota} 次），可以先用「轻快」`
       : `生成次数已达上限（每 ${peek.windowHours} 小时 ${peek.quota} 次），请稍后再试`;
   const error = createHttpError(message, 429, 'GENERATION_QUOTA_EXCEEDED');
+  /** @type {any} */ (error).retryAfterSeconds = peek.retryAfterSeconds;
+  throw error;
+}
+
+
+/** Patch (L2) quota: defaults to 2× full generation quota when GENERATION_QUOTA_PATCH_PER_PROFILE is 0. */
+export async function peekPatchQuota(profileId, { quota, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}) {
+  const effective =
+    Number.isInteger(quota) && quota > 0
+      ? quota
+      : GENERATION_QUOTA_PATCH_PER_PROFILE > 0
+        ? GENERATION_QUOTA_PATCH_PER_PROFILE
+        : Math.max(1, (GENERATION_QUOTA_PER_PROFILE || 30) * 2);
+  if (!profileId || profileId === 'anonymous') {
+    return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, kind: 'patch' };
+  }
+  const windowHours = Math.round(windowMs / 3600000) || 1;
+  const since = nowMs - windowMs;
+  const rows = await readMatchingJsonLines(
+    AI_LOG_PATH,
+    (row) =>
+      row?.kind === 'patch-routebook' &&
+      row?.profileId === profileId &&
+      row?.deduplicated !== true &&
+      row?.status !== 'cancelled' &&
+      Date.parse(row?.createdAt ?? '') >= since,
+    effective,
+    50000
+  );
+  if (rows.length < effective) {
+    return { limited: false, used: rows.length, quota: effective, remaining: effective - rows.length, windowHours, kind: 'patch', retryAfterSeconds: 0 };
+  }
+  const oldest = Math.min(...rows.map((row) => Date.parse(row.createdAt)));
+  return {
+    limited: true,
+    used: rows.length,
+    quota: effective,
+    remaining: 0,
+    windowHours,
+    kind: 'patch',
+    retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - nowMs) / 1000))
+  };
+}
+
+export async function enforcePatchQuota(profileId, options = {}) {
+  const peek = await peekPatchQuota(profileId, options);
+  if (!peek.limited) return peek;
+  const error = createHttpError(
+    `局部调整次数已达上限（每 ${peek.windowHours} 小时 ${peek.quota} 次），可先用手动编辑或不耗次数的一键调整`,
+    429,
+    'PATCH_QUOTA_EXCEEDED'
+  );
   /** @type {any} */ (error).retryAfterSeconds = peek.retryAfterSeconds;
   throw error;
 }

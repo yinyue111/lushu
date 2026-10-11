@@ -326,7 +326,7 @@ export function buildUserPrompt(payload, fence = createUntrustedFence()) {
   return { prompt, injectionMarkersRemoved: guide.removed + sources.removed, fence };
 }
 
-function extractTextFromResponse(data) {
+export function extractTextFromResponse(data) {
   if (typeof data.output_text === 'string') return data.output_text;
   const chunks = [];
   for (const item of data.output ?? []) {
@@ -344,7 +344,7 @@ function extractTextFromResponse(data) {
   return chunks.join('\n');
 }
 
-function parseJsonFromText(text) {
+export function parseJsonFromText(text) {
   if (!text) throw new Error('模型没有返回文本');
   try {
     return JSON.parse(text);

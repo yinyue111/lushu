@@ -44,6 +44,8 @@ import {
   updateRoutebookStatus
 } from '../routebooks/mutations.mjs';
 import { buildCreatorProfile, buildPlatformDashboard } from '../analytics/dashboard.mjs';
+import { proposeDayPatch } from '../ai/patchRoutebook.mjs';
+import { enforcePatchQuota, peekPatchQuota } from '../ai/generationGuard.mjs';
 
 /**
  * Owner-only fields: what the import publishing policy allows for this routebook and
@@ -363,6 +365,89 @@ export const routebookRoutes = [
     });
     if (!result.ok) throw createHttpError('这条信息已经不在了', 404, 'ENRICHMENT_NOT_FOUND');
     return sendJson(res, 200, { ok: true });
+  }),
+
+  route('POST', '/api/routebooks/:id/patch/propose', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
+    enforceRateLimit(req, 'ai');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    await enforcePatchQuota(actor.profileId);
+    const current = await getResolvableRoutebook(id);
+    if (isCuratedRouteId(id)) throw createHttpError('精选路书请先复制定制再调整', 400, 'CURATED_READONLY');
+    if (!current) throw createHttpError('路书不存在', 404, 'ROUTEBOOK_NOT_FOUND');
+    const owned = current.profileId === actor.profileId || current.creator?.id === actor.profileId;
+    if (!owned && !actor.verified) throw createHttpError('只能调整自己的草稿路书', 403, 'FORBIDDEN');
+    if ((current.publishStatus || 'draft') !== 'draft') throw createHttpError('已发布路书请先另存草稿再局部调整', 400, 'NOT_DRAFT');
+    const scope = {
+      type: body?.scope?.type === 'window' ? 'window' : 'day',
+      day: truncateString(body?.scope?.day || body?.day, 24),
+      stopIds: Array.isArray(body?.scope?.stopIds) ? body.scope.stopIds.map(String).slice(0, 8) : undefined,
+      instruction: truncateString(body?.instruction, 400),
+      mode: body?.mode === 'deep' ? 'deep' : 'fast'
+    };
+    const { proposal, routebookPreview } = await proposeDayPatch(current, scope, {
+      profileId: actor.profileId,
+      signal: req.signal,
+      requestId: /** @type {any} */ (req).requestId
+    });
+    const peek = await peekPatchQuota(actor.profileId);
+    return sendJson(res, 200, {
+      ok: true,
+      proposal,
+      preview: { stops: routebookPreview.stops, days: routebookPreview.days, routeLegs: routebookPreview.routeLegs },
+      patchQuota: peek
+    });
+  }),
+  route('POST', '/api/routebooks/:id/patch/apply', async ({ req, res, params }) => {
+    await requireLoginForWrites(req);
+    enforceRateLimit(req, 'core-write');
+    const id = sanitizePublicId(safeDecodePathSegment(params.id));
+    const body = await readJsonBody(req);
+    const actor = await resolveWriteProfile(req, body?.profileId);
+    const proposal = body?.proposal;
+    if (!proposal?.stops?.length) throw createHttpError('缺少已确认的调整方案', 400, 'PATCH_REQUIRED');
+    const { routebook, enriched } = await withStorageEntityLock('routebook', id, async () => {
+      const saved = await saveDraftRoutebook(
+        {
+          ...proposal,
+          id,
+          publicId: id,
+          profileId: actor.profileId,
+          editToken: body?.editToken,
+          title: body?.title,
+          summary: body?.summary,
+          city: body?.city,
+          publishStatus: 'draft',
+          provider: { ...(body?.provider || {}), editedAt: new Date().toISOString(), patchId: proposal.id }
+        },
+        { verifiedProfileId: actor.verified ? actor.profileId : '' }
+      );
+      // Prefer client-merged fields from proposal
+      const merged = {
+        ...saved,
+        stops: proposal.stops,
+        days: proposal.days || saved.days,
+        routeLegs: proposal.routeLegs || saved.routeLegs,
+        validations: [
+          {
+            id: `patch-${proposal.id}`,
+            label: '局部调整',
+            state: '已应用',
+            detail: proposal.summary || '已应用 AI 局部重排，请出发前再核对。'
+          },
+          ...(saved.validations || []).slice(0, 5)
+        ]
+      };
+      const again = await saveDraftRoutebook(merged, { verifiedProfileId: actor.verified ? actor.profileId : '' });
+      await appendVersionedRoutebook(again, 'patch-applied', proposal.summary || '');
+      return { routebook: again, enriched: await enrichRoutebook(again) };
+    });
+    return sendJson(res, 200, {
+      ok: true,
+      routebook: { ...enriched, ...(await ownerPublicationFields(routebook)), ownerAccessVerified: actor.verified }
+    });
   }),
   route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
     await requireLoginForWrites(req);

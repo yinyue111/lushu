@@ -460,3 +460,19 @@ function publicHeaders() {
   const token = getApiToken();
   return token ? { 'x-routebook-token': token } : {};
 }
+
+export async function searchPois(city, q, signal) {
+  const params = new URLSearchParams({ city: String(city || ''), q: String(q || '') });
+  return getJson(`/pois/search?${params}`, signal);
+}
+
+export async function proposeRoutebookPatch(publicId, payload, signal) {
+  const body = { ...payload };
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/patch/propose`, body, signal, ownerHeaders(body.profileId));
+}
+
+export async function applyRoutebookPatch(publicId, payload, signal) {
+  const body = { ...payload };
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/patch/apply`, body, signal, ownerHeaders(body.profileId));
+}
+
