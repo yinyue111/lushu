@@ -26,7 +26,7 @@ function EnrichedFact({ claim, onReport }) {
         <summary className="inline-flex cursor-pointer list-none items-start gap-1.5 [&::-webkit-details-marker]:hidden">
           <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-success-ink" aria-hidden="true" />
           <span>
-            <span className="sr-only">{label}：</span>
+            {claim.field === 'price' && <span className="sr-only">{label}：</span>}
             {claim.display}
             <span className="ml-1 text-sky-ink underline underline-offset-2">来源</span>
           </span>
