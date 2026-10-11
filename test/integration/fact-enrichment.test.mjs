@@ -111,7 +111,11 @@ test('logged-in routebooks are enriched in the background with sourced 门票/�
   });
 
   const generate = async (client, profileId, headers = {}) => {
-    const started = await client.request('/api/generation-jobs', { method: 'POST', body: { city: '杭州', guide: '灵隐寺、知味观吃小笼、河坊街', profileId }, headers });
+    const started = await client.request('/api/generation-jobs', {
+      method: 'POST',
+      body: { city: '杭州', guide: '灵隐寺、知味观吃小笼、河坊街', profileId },
+      headers
+    });
     assert.ok([200, 202].includes(started.status), JSON.stringify(started.data));
     let job = started.data.job;
     for (let i = 0; i < 30 && !['succeeded', 'failed'].includes(job.status); i += 1) {
