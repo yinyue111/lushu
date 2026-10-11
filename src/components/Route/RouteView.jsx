@@ -225,9 +225,14 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
           </div>
           {enrichment.status === 'pending' && (
-            <p role="status" className="mb-3 flex items-center gap-2 rounded-card bg-sky-soft px-3 py-2 text-meta text-sky-ink sm:text-sm">
-              <span className="size-2 motion-safe:animate-pulse rounded-full bg-sky" aria-hidden="true" />
-              正在核对门票和开放时间…查到两个一致的来源才会显示。
+            <p role="status" className="mb-3 flex flex-col gap-0.5 rounded-card bg-sky-soft px-3 py-2 text-meta text-sky-ink sm:text-sm">
+              <span className="flex items-center gap-2">
+                <span className="size-2 motion-safe:animate-pulse rounded-full bg-sky" aria-hidden="true" />
+                {enrichment.progress?.stopsTotal
+                  ? `正在核对门票和开放时间（${enrichment.progress.stopsDone || 0}/${enrichment.progress.stopsTotal} 站）`
+                  : '正在核对门票和开放时间…'}
+              </span>
+              <span className="pl-4 text-sky-ink/80">大约几分钟；可以先离开，回来再看。</span>
             </p>
           )}
           {dayStops.length ? (

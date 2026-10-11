@@ -12,11 +12,11 @@ export function useRoutebookEnrichment(routebook) {
   const routeId = routebook?.publicId || routebook?.id || '';
   const editToken = routebook?.editToken || '';
   const saved = Boolean(routeId && (routebook?.version || routebook?.savedAt || routebook?.provider?.savedAt));
-  const [state, setState] = useState({ status: 'none', claims: [] });
+  const [state, setState] = useState({ status: 'none', claims: [], progress: null });
 
   useEffect(() => {
     if (!saved) {
-      setState({ status: 'none', claims: [] });
+      setState({ status: 'none', claims: [], progress: null });
       return undefined;
     }
     const controller = new AbortController();
@@ -25,7 +25,7 @@ export function useRoutebookEnrichment(routebook) {
     const load = async () => {
       try {
         const data = await getRoutebookEnrichment(routeId, controller.signal, { editToken });
-        const next = data?.enrichment ?? { status: 'none', claims: [] };
+        const next = data?.enrichment ?? { status: 'none', claims: [], progress: null };
         setState(next);
         polls += 1;
         if (next.status === 'pending' && polls < MAX_POLLS) timer = setTimeout(load, POLL_MS);
@@ -53,5 +53,5 @@ export function useRoutebookEnrichment(routebook) {
     [routeId, editToken]
   );
 
-  return { status: state.status, claims: state.claims, claimsFor, report };
+  return { status: state.status, claims: state.claims, progress: state.progress ?? null, claimsFor, report };
 }

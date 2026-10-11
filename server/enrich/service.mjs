@@ -58,7 +58,24 @@ export async function enrichmentView(routebook) {
       retrievedAt,
       method
     }));
-  return { status, claims, updatedAt: result?.updatedAt ?? job.updatedAt };
+  const summary = job.summary && typeof job.summary === 'object' ? job.summary : {};
+  const progress =
+    status === 'pending'
+      ? {
+          stopsDone: Number(summary.stopsDone) || 0,
+          stopsTotal: Number(summary.stopsTotal) || (routebook.stops ?? []).length,
+          filled: Number(summary.filled) || 0,
+          phase: summary.phase || 'checking'
+        }
+      : status === 'done'
+        ? {
+            stopsDone: Number(summary.stopsDone) || Number(summary.stopsTotal) || (routebook.stops ?? []).length,
+            stopsTotal: Number(summary.stopsTotal) || (routebook.stops ?? []).length,
+            filled: Number(summary.filled) || claims.length,
+            phase: 'done'
+          }
+        : null;
+  return { status, claims, progress, updatedAt: result?.updatedAt ?? job.updatedAt };
 }
 
 /** A user says an enriched value is wrong: hide it on this routebook and drop the shared cache entry. */
@@ -109,7 +126,8 @@ async function runJob(job) {
       routebook,
       store,
       deps: workerDeps,
-      log: (event) => console.log(JSON.stringify(event))
+      log: (event) => console.log(JSON.stringify(event)),
+      onProgress: (progress) => store.updateJob(job.routebookId, { summary: progress })
     });
     await store.putResult(job.routebookId, claims);
     // Some searches failed (timeout, relay error): keep what was verified and come back later for the rest;

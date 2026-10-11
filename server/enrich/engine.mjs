@@ -56,7 +56,7 @@ function display(field, value, sources, retrievedAt) {
 /**
  * @param {{ routebook: any, deps?: any, store: any, now?: () => number, log?: (event: any) => void }} input
  */
-export async function enrichRoutebook({ routebook, store, deps = {}, now = () => Date.now(), log = () => {} }) {
+export async function enrichRoutebook({ routebook, store, deps = {}, now = () => Date.now(), log = () => {}, onProgress = null }) {
   const amap = deps.amapPlace ?? amapPlace;
   const search = deps.webSearchPlace ?? webSearchPlace;
   const fetchUncached = deps.fetchCitedPage ?? fetchCitedPage;
@@ -75,11 +75,27 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
   /** @type {any[]} */
   const claims = [];
   const retrievedAt = () => new Date(now()).toISOString();
+  const stopsTotal = (routebook.stops ?? []).length;
+  const report = async (stopsDone) => {
+    if (!onProgress) return;
+    await onProgress({
+      filled: counts.filled,
+      kept: counts.kept,
+      cached: counts.cached,
+      searches: counts.searches,
+      stopsDone,
+      stopsTotal,
+      phase: 'checking'
+    });
+  };
 
   for (const [index, stop] of (routebook.stops ?? []).entries()) {
     const stopKey = stopKeyOf(stop, index);
     const name = String(stop.name ?? '').trim();
-    if (!name) continue;
+    if (!name) {
+      await report(index + 1);
+      continue;
+    }
     const base = { stopKey, stopName: name };
     const keep = (field, reason, extra = {}) => {
       counts.kept += 1;
@@ -99,21 +115,27 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
         claims.push({ ...base, field, ...hit, cacheKey: key, fromCache: true });
       } else pending.push(field);
     }
-    if (!pending.length) continue;
+    if (!pending.length) {
+      await report(index + 1);
+      continue;
+    }
 
     counts.amapCalls += 1;
     const place = await amap({ name, city, lat: Number(stop.lat), lng: Number(stop.lng) });
     if (place.status === 'chain') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'chain', reasonText: '连锁店，攻略没写哪一家' });
+      await report(index + 1);
       continue;
     }
     if (place.status === 'restaurant' || (place.status !== 'matched' && RESTAURANT_NAME.test(name) && !ATTRACTION_NAME.test(name))) {
       counts.skippedStops += 1;
+      await report(index + 1);
       continue; // restaurants: address / phone / 人均 are out of scope
     }
     const attraction = place.status === 'matched' ? place.poi.attraction || ATTRACTION_NAME.test(name) : ATTRACTION_NAME.test(name);
     if (!attraction) {
       counts.skippedStops += 1;
+      await report(index + 1);
       continue;
     }
 
@@ -149,15 +171,18 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     const first = await trySearch(pending, 0);
     if (first === 'error') {
       for (const field of pending) keep(field, 'search-failed', { reasonText: '联网搜索暂时失败，稍后会再试' });
+      await report(index + 1);
       continue;
     }
     if (!first) {
       // Out of budget: keep 待确认 without caching, so a later routebook can try again.
       for (const field of pending) keep(field, 'budget', { reasonText: '本次核对额度已用完' });
+      await report(index + 1);
       continue;
     }
     if (first.answer?.ambiguous && place.status !== 'matched') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'ambiguous', reasonText: '同名地点不止一处' });
+      await report(index + 1);
       continue;
     }
 
@@ -234,6 +259,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       }
     }
     for (const field of pending) await remember(field, decisions.get(field));
+    await report(index + 1);
 
     async function remember(field, entry) {
       const key = cacheKeyFor(city, name, field);
@@ -244,7 +270,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
   }
   await store.addSpend({ pages: counts.pages, amapCalls: counts.amapCalls }, now());
-  const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy };
+  const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy, stopsDone: stopsTotal, stopsTotal, phase: 'done' };
   log({ event: 'enrich', routebookId: routebook.id, ...summary });
   return { claims, summary };
 }
