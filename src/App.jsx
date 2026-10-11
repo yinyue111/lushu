@@ -10,7 +10,7 @@ import {
 import TopNav from './components/Layout/TopNav';
 import { AccountProvider } from './components/Account/AccountProvider';
 import HomePage from './components/HomePage';
-import { checkDeletedRoutebooks, checkHealth, copyRoutebookRemote, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
+import { checkDeletedRoutebooks, checkHealth, copyRoutebookRemote, getMyRoutebooks, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
 import { ROUTEBOOK_DELETED_EVENT, dropDeletedLocalCopy, pruneDeletedLocalRoutebooks } from './lib/routebookTombstones';
 import { flushAllCheckinQueues } from './lib/checkinQueue';
 import { createRouteEditToken, getProfile, profileRoutebookFields } from './lib/profile';
@@ -19,6 +19,7 @@ import { dismissTripReminder, dueTripReminders } from './lib/reminders';
 import { readActiveGenerationJob } from './lib/generationJob';
 import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRoutebook } from './lib/storage';
 import { preserveRoutebookConflictDraft } from './lib/routebookConflict';
+import { pullAccountRoutebooks } from './lib/accountRoutebookPull';
 import { uploadLocalOnlyRoutebooks } from './lib/localRoutebookSync';
 import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './components/Route/routebookModel';
 
@@ -148,7 +149,22 @@ export default function App() {
       if (localUploadRef.current) return;
       localUploadRef.current = true;
       const activeProfile = getProfile();
-      pruneDeletedLocalRoutebooks(getStoredRoutebooks(activeProfile.id), (ids) => checkDeletedRoutebooks(ids))
+      // Pull cloud drafts first so a fresh login (empty localStorage) still fills Home / 我的.
+      const pull = activeProfile.accountUserId
+        ? pullAccountRoutebooks({
+            profile: activeProfile,
+            list: getMyRoutebooks,
+            getLocal: getStoredRoutebooks,
+            persist: (book) => persistRoutebook(book, { claimOwnership: true }),
+            profileFields: profileRoutebookFields
+          }).then((result) => {
+            if (result.pulled.length) setSavedBooks(getStoredRoutebooks(activeProfile.id));
+            return result;
+          })
+        : Promise.resolve({ pulled: [] });
+      pull
+        .catch(() => ({ pulled: [] }))
+        .then(() => pruneDeletedLocalRoutebooks(getStoredRoutebooks(activeProfile.id), (ids) => checkDeletedRoutebooks(ids)))
         .catch(() => [])
         .then((removed) => {
           if (removed.length) {
