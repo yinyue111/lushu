@@ -1,8 +1,8 @@
 // Generation modes shown in the builder. The server decides the model and time budget per mode
 // (AI_MODEL_FAST / AI_MODEL_DEEP …); the client only names them and remembers the last choice.
 export const GENERATION_MODES = [
-  { key: 'fast', label: '轻快', time: '约半分钟', hint: '快速排出一版，适合先看看思路，之后再慢慢改。' },
-  { key: 'deep', label: '细品', time: '约 2–3 分钟', hint: '想得更细：顺路、时间和取舍都会多斟酌，要多等一会儿。' }
+  { key: 'fast', label: '轻快', time: '大约半分钟', hint: '先快速出一版，看看思路，之后再慢慢改。' },
+  { key: 'deep', label: '细品', time: '大约 2–3 分钟', hint: '排得更细：顺路、时间和取舍都会多想一想，要多等一会儿。' }
 ];
 export const DEFAULT_GENERATION_MODE = 'fast';
 const STORAGE_KEY = 'lushu:generation-mode';

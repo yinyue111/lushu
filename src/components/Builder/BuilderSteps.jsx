@@ -49,9 +49,9 @@ export function Notice({ tone = 'warn', role = 'status', children, className }) 
 /** @param {Record<string, any>} props */
 function StepTitle({ title, sub }) {
   return (
-    <div className="mb-5">
-      <h1 className="text-2xl font-black tracking-tight lg:text-display-sm">{title}</h1>
-      {sub && <p className="mt-1 text-sm text-muted">{sub}</p>}
+    <div className="mb-6">
+      <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">{title}</h1>
+      {sub && <p className="mt-1.5 max-w-[40rem] text-copy leading-relaxed text-muted">{sub}</p>}
     </div>
   );
 }
@@ -60,7 +60,7 @@ function StepTitle({ title, sub }) {
 export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity, city, isTrustedCity }) {
   return (
     <section>
-      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州已有真实打卡数据；其他城市也能生成，但需要出发前多核对。" />
+      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州已有真人打卡；其他城市也能生成，出发前请多核对地点和营业信息。" />
       <Field label="目的地城市">
         <input
           id="builder-city"
@@ -153,7 +153,7 @@ export function StepGuide(props) {
   const includedCount = candidatePlaces.filter((place) => place.included).length;
   return (
     <section>
-      <StepTitle title="把攻略和收藏丢进来" sub="粘贴公开链接、正文摘要、想去的地点，或上传截图。" />
+      <StepTitle title="把攻略和收藏丢进来" sub="粘贴公开链接、正文摘要、想去的地点，也可以上传截图。" />
       <label className="sr-only" htmlFor="builder-guide">
         攻略链接、正文摘要或收藏地点
       </label>
@@ -388,9 +388,9 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
   const pick = (key) => ({ isActive: (v) => constraints[key] === v, onToggle: (v) => setConstraints((p) => ({ ...p, [key]: v })) });
   return (
     <section>
-      <StepTitle title="你想怎么玩？" sub="选好这些，AI 按它排路线；之后都能改。" />
+      <StepTitle title="你想怎么玩？" sub="先勾偏好，AI 按你的选择排路线；生成后还能改。" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="出行日期" hint="可选。日期控件可能显示为英文格式。">
+        <Field label="出行日期" hint="可不填。日期可能显示成英文格式。">
           <span className="relative">
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
@@ -461,12 +461,12 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
   const windowHours = generation?.windowHours || 24;
   return (
     <fieldset className="mt-6">
-      <legend className="text-copy font-bold text-ink">生成方式</legend>
+      <legend className="text-copy font-extrabold text-ink">生成方式</legend>
       {generation && remaining != null && (
-        <p className={cn('mt-1.5 text-sm', generation.limited ? 'font-semibold text-danger' : 'text-muted')} role="status">
+        <p className={cn('mt-1.5 text-meta leading-snug', generation.limited ? 'font-semibold text-danger' : 'text-muted')} role="status">
           {generation.limited
-            ? `本周期生成次数已用完（每 ${windowHours} 小时 ${generation.quota} 次），请稍后再试`
-            : `本周期还可生成 ${remaining} 次（共 ${generation.quota} 次 / ${windowHours} 小时）`}
+            ? `这轮次数用完了（每 ${windowHours} 小时 ${generation.quota} 次），稍后再试`
+            : `这轮还能生成 ${remaining} 次（共 ${generation.quota} 次 / ${windowHours} 小时）`}
         </p>
       )}
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -492,10 +492,10 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
               />
               <span className="min-w-0">
                 <span className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-copy font-black text-ink">{item.label}</span>
-                  <span className="text-sm font-semibold text-ink-2">{item.time}</span>
+                  <span className="text-copy font-extrabold text-ink">{item.label}</span>
+                  <span className="text-meta font-semibold text-ink-2">{item.time}</span>
                 </span>
-                <span className="mt-0.5 block text-sm text-ink-2">{item.hint}</span>
+                <span className="mt-1 block text-meta leading-snug text-ink-2">{item.hint}</span>
               </span>
             </label>
           );
