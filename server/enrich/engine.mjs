@@ -71,7 +71,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
   };
   const city = routebook.city ?? '';
   const budget = { searches: 0, usd: 0, maxUsd: 0, stoppedBy: '', lastError: '' };
-  const counts = { filled: 0, kept: 0, cached: 0, skippedStops: 0, searches: 0, pages: 0, amapCalls: 0, usd: 0 };
+  const counts = { searchErrors: 0, filled: 0, kept: 0, cached: 0, skippedStops: 0, searches: 0, pages: 0, amapCalls: 0, usd: 0 };
   /** @type {any[]} */
   const claims = [];
   const retrievedAt = () => new Date(now()).toISOString();
@@ -131,7 +131,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           result = await search({ name, city, fields, variant });
         } catch (error) {
           // A slow or failing search only costs this stop (kept 待确认, not cached); the rest go on.
-          counts.searchErrors = (counts.searchErrors ?? 0) + 1;
+          counts.searchErrors += 1;
           budget.lastError = String(error?.name === 'TimeoutError' ? 'search timeout' : (error?.message ?? error));
           return 'error';
         }
