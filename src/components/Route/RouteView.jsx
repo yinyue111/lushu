@@ -229,7 +229,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               <span className="flex items-center gap-2">
                 <span className="size-2 motion-safe:animate-pulse rounded-full bg-sky" aria-hidden="true" />
                 {enrichment.progress?.stopsTotal
-                  ? `正在核对门票和开放时间（${enrichment.progress.stopsDone || 0}/${enrichment.progress.stopsTotal} 站）`
+                  ? enrichment.progress.stopsDone > 0
+                    ? `正在核对门票和开放时间（${enrichment.progress.stopsDone}/${enrichment.progress.stopsTotal} 站）`
+                    : `正在排队核对门票和开放时间（共 ${enrichment.progress.stopsTotal} 站）`
                   : '正在核对门票和开放时间…'}
               </span>
               <span className="pl-4 text-sky-ink/80">大约几分钟；可以先离开，回来再看。</span>

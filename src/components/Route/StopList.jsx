@@ -48,7 +48,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
 }
 
 /** @param {Record<string, any>} props */
-function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId, enrichment }) {
+function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId, enrichment, guideBacked = false }) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
   const enrichedClaims = enrichment ? enrichment.claimsFor(stop) : [];
   const checked = { price: enrichedClaims.some((c) => c.field === 'price'), hours: enrichedClaims.some((c) => c.field === 'hours') };
@@ -57,7 +57,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
   const verifyText = withoutCheckedPending(stop.verify, checked);
   const riskText = withoutCheckedPending(stop.risk, checked);
   const pendingFold = Boolean(verifyText || riskText);
-  const isGuideSupplement = stop?.provenance?.origin === 'model';
+  const isGuideSupplement = guideBacked && stop?.provenance?.origin === 'model';
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
   const evidence = Array.isArray(stop.sourceEvidence) ? stop.sourceEvidence.slice(0, 3) : [];

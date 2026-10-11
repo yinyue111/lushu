@@ -565,9 +565,12 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
           </li>
         ))}
       </ol>
-      <Button variant="outline" onClick={copy}>
+      <Button variant="outline" onClick={copy} aria-label={copied ? '已复制恢复码' : '复制全部恢复码'}>
         {copied ? <Check /> : <Copy />} {copied ? '已复制' : '复制全部'}
       </Button>
+      <p className="sr-only" aria-live="polite">
+        {copied ? '恢复码已复制到剪贴板，可以点继续' : ''}
+      </p>
       <p className="text-sm text-muted">别发给别人。丢失密码时靠它重设。</p>
       {!copied && (
         <label className="flex items-start gap-2.5 text-sm font-semibold text-ink-2">
