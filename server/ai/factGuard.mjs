@@ -8,7 +8,8 @@ const PENDING = '待确认';
 const PENDING_LABEL = { address: '地址待确认', hours: '营业时间待确认', phone: '电话待确认', date: '日期待确认', price: '价格待确认' };
 
 /** "分店不明" / "门店待确认" talk about uncertainty; they are not branch claims. */
-const HEDGE_AROUND = /不明|未指定|未说明|未写明|未注明|未明确|不清楚|待确认|需确认|请确认|自行确认|多家|多分店|哪一家|哪家|核实|不确定/;
+const HEDGE_AROUND =
+  /不明|未指定|未指明|未说明|未写|未注明|未明确|无具体|没有|没写|不清楚|就近|任一|待确认|需确认|请确认|自行确认|多家|多分店|哪一家|哪家|核实|不确定/;
 
 /** @type {{ kind: string, re: RegExp }[]} Order matters: longer / more specific patterns first. */
 const CLAIM_PATTERNS = [
@@ -39,6 +40,16 @@ const normalize = (value) =>
 /** Words that make a "XX店" parenthetical a branch claim rather than a harmless note. */
 const BRANCH_HINT = /店/;
 
+/** The clause (between Chinese/ASCII sentence or comma breaks) that contains [start, end). */
+function clauseAround(text, start, end) {
+  const breaks = /[，,。；;！!？?\n]/;
+  let a = start;
+  while (a > 0 && !breaks.test(text[a - 1])) a -= 1;
+  let b = end;
+  while (b < text.length && !breaks.test(text[b])) b += 1;
+  return text.slice(a, b);
+}
+
 /**
  * Specific claims in a text.
  * @param {string} text
@@ -54,7 +65,7 @@ export function extractClaims(text) {
       const start = match.index ?? 0;
       const end = start + match[0].length;
       if (kind === 'branch' && !BRANCH_HINT.test(match[0])) continue;
-      if (kind === 'branch' && HEDGE_AROUND.test(source.slice(Math.max(0, start - 3), end + 14))) continue;
+      if (kind === 'branch' && HEDGE_AROUND.test(clauseAround(source, start, end))) continue;
       if (taken.some(([a, b]) => start < b && end > a)) continue;
       taken.push([start, end]);
       claims.push({ kind, text: match[0].trim(), index: start });
@@ -116,12 +127,12 @@ export function guardText(text, evidence, { field, stopName = false, events }) {
   let out = '';
   let cursor = 0;
   for (const claim of claims) {
-    const start = text.indexOf(claim.text, cursor);
-    if (start < 0) continue;
+    const start = claim.index;
+    if (start < cursor) continue;
     out += text.slice(cursor, start);
     const isParen = /^[（(].*[）)]$/.test(claim.text);
     let replacement;
-    if (claim.kind === 'branch') replacement = stopName || isParen ? '' : '门店（待确认）';
+    if (claim.kind === 'branch') replacement = stopName || isParen ? '' : claim.text.replace(/(?:总店|分店|旗舰店)$/, '门店（待确认）');
     else replacement = isParen ? `（${PENDING_LABEL[claim.kind] ?? PENDING}）` : (PENDING_LABEL[claim.kind] ?? PENDING);
     out += replacement;
     cursor = start + claim.text.length;
@@ -155,6 +166,14 @@ export function guardRoutebookFacts(routebook, source) {
     const next = {
       ...stop,
       name,
+      ...(stop.provenance && typeof stop.provenance === 'object' && stop.provenance.name
+        ? {
+            provenance: {
+              ...stop.provenance,
+              name: guardText(stop.provenance.name, evidence, { field: `stops[${index}].provenance.name`, events: [], stopName: true }) || stop.provenance.name
+            }
+          }
+        : {}),
       verify: guard(stop.verify, `stops[${index}].verify`),
       risk: guard(stop.risk, `stops[${index}].risk`),
       cost: priceRemoved ? '价格待确认' : cost

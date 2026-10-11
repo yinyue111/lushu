@@ -124,6 +124,8 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `AI_COST_CURRENCY` / `AI_INPUT_COST_PER_MILLION_TOKENS` / `AI_OUTPUT_COST_PER_MILLION_TOKENS` | 空 | 成本估算 |
 | `BACKUP_ENCRYPTION_KEY` | 空 | `npm run backup:data` 加密备份时需要 |
 
+防编造（两种方式都生效，无需配置）：提示词要求门店/分店名、门牌号、票价、人均价格、营业时间、电话、活动日期只能来自用户攻略、导入来源或运营已审核的 POI；生成后服务端再按规则抽取这些具体信息逐条核对，找不到出处的改成“地址待确认 / 价格待确认 / 营业时间待确认”等（站点名里的“（XX总店）”直接去掉），并在路书里加一条“具体信息待确认”提示。改写条数记在 AI 日志的 `observability.factGuard`（total / byKind / events）。行程里的时间段（stop.time）不算具体信息，不会被改。
+
 ### 账号（邮箱 / 手机号 + 密码）
 
 默认 `AUTH_MODE=access-code`，行为和现在完全一样，账号接口返回 404。切换步骤和回滚见 [`docs/login-rollout.md`](./login-rollout.md)。

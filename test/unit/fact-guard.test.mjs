@@ -24,6 +24,11 @@ test('unsupported claims become 待确认; branch qualifiers are dropped from st
   assert.equal(run('知味观（湖滨总店）', { stopName: true }).text, '知味观');
   assert.equal(run('钟水饺（人民公园店/少城附近）', { stopName: true }).text, '钟水饺');
   assert.equal(run('建议 10月1日 前预约').events[0].kind, 'date');
+  // A hedge in one clause does not excuse a claim in the next one.
+  assert.equal(run('品牌有多家分店，本点按总店编排').text, '品牌有多家分店，本点按门店（待确认）编排');
+  // Guarding is idempotent.
+  const once = run('品牌有多家分店，本点按总店编排。总店靠近河坊街').text;
+  assert.equal(run(once).events.length, 0);
 });
 
 test('itinerary times, hedged wording and non-branch notes are left alone', () => {
