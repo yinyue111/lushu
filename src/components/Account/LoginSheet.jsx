@@ -9,7 +9,7 @@ import { login, register, resetPassword, resetPasswordWithEmail, sendRegisterCod
 import { deviceProfileProof } from '../../lib/account';
 import { authErrorCopy, isEmail, isMainlandMobile, PASSWORD_HINT } from '../../lib/accountCopy';
 
-const TITLES = { login: '登录', register: '注册账号', forgot: '重设密码', codes: '存好你的恢复码' };
+const TITLES = { login: '登录', register: '注册账号', forgot: '重设密码', codes: '保存恢复码' };
 
 /**
  * Phone + password sign-in sheet: bottom sheet on phones, dialog from md up.
@@ -537,6 +537,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
     try {
       await navigator.clipboard.writeText(codes.join('\n'));
       setCopied(true);
+      setSaved(true);
     } catch {
       // Clipboard can be blocked; the codes stay selectable on screen.
       const range = document.createRange();
@@ -551,7 +552,7 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
     <div className="flex flex-col gap-4">
       {afterRegister && (
         <Notice tone="info" icon={Check}>
-          注册好了。下面的恢复码只显示这一次，先存好再继续。
+          注册成功。恢复码只显示一次，请先复制保存。
         </Notice>
       )}
       <ol ref={listRef} className="grid grid-cols-2 gap-2 rounded-card bg-canvas p-3" aria-label="恢复码">
@@ -564,16 +565,18 @@ export function RecoveryCodes({ codes = [], afterRegister = false, onConfirmed }
           </li>
         ))}
       </ol>
-      <Button variant="outline" onClick={copy}>
-        {copied ? <Check /> : <Copy />} {copied ? '已复制' : '复制全部'}
+      <Button variant={copied ? 'primary' : 'outline'} onClick={copy}>
+        {copied ? <Check /> : <Copy />} {copied ? '已复制，可以继续' : '复制全部'}
       </Button>
-      <p className="text-sm text-muted">可以存进密码管理器、记事本或截图。别发给别人：拿到恢复码的人能重设你的密码。</p>
-      <label className="flex items-start gap-2.5 text-sm font-semibold text-ink-2">
-        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary-strong" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
-        我已经存好了
-      </label>
+      <p className="text-sm text-muted">别发给别人。丢失密码时靠它重设。</p>
+      {!copied && (
+        <label className="flex items-start gap-2.5 text-sm font-semibold text-ink-2">
+          <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary-strong" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
+          我已经存好了（截图或手抄也可以）
+        </label>
+      )}
       <Button variant="primary" size="lg" className="w-full" disabled={!saved} onClick={onConfirmed}>
-        继续
+        {copied ? '继续使用' : '继续'}
       </Button>
     </div>
   );
