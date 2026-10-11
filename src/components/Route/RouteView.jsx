@@ -254,7 +254,19 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <h2 className="text-xl font-extrabold tracking-tight lg:text-2xl">
               Day {activeEntry?.number} · {activeEntry?.label}
             </h2>
-            <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
+              {canEdit && days.length > 1 && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })}>
+                    合并到另一天
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-danger" onClick={() => setDayAction({ type: 'delete', day: activeDay })}>
+                    删除这一天
+                  </Button>
+                </>
+              )}
+            </span>
           </div>
           {enrichment.status === 'pending' && (
             <p role="status" className="mb-3 flex flex-col gap-0.5 rounded-card bg-sky-soft px-3 py-2 text-meta text-sky-ink sm:text-sm">
@@ -435,7 +447,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                 <Check />
               </Button>
             ) : (
-              <Button size="icon" className="size-[50px]" onClick={customize} aria-label="复制并定制">
+              <Button size="icon" className="size-[50px]" onClick={customize} aria-label="整本重生成">
                 <Copy />
               </Button>
             )}

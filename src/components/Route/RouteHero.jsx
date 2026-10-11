@@ -137,9 +137,19 @@ export default function RouteHero({
           </Button>
           <div className="flex gap-2.5">
             {canEdit ? (
-              <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving}>
-                <Check /> {saving ? '保存中…' : '保存路书'}
-              </Button>
+              <>
+                <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving}>
+                  <Check /> {saving ? '保存中…' : '保存到云端'}
+                </Button>
+                <Button
+                  variant="light"
+                  className="flex-1"
+                  onClick={onCustomize}
+                  title="会打开创建页并消耗一次完整生成次数；局部改动请用下方调整条"
+                >
+                  <Copy /> 整本重生成
+                </Button>
+              </>
             ) : (
               <Button variant="light" className="flex-1" onClick={onCustomize}>
                 <Copy /> 复制并定制

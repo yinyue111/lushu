@@ -3,11 +3,10 @@
  * Uses the same OpenAI-compatible endpoint as full generation but a narrow prompt.
  */
 import { createHttpError, truncateString } from '../lib/util.mjs';
-import { loadCodexRuntime } from './runtime.mjs';
-import { openAiEndpoint, extractTextFromResponse, parseJsonFromText } from './generate.mjs';
+import { loadCodexRuntime, openAiEndpoint, extractTextFromResponse, parseJsonFromText } from './generate.mjs';
 import { guardRoutebookFacts } from './factGuard.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
-import { AI_LOG_PATH, AI_MODEL_FAST, AI_TIMEOUT_MS_FAST } from '../config/index.mjs';
+import { AI_LOG_PATH, GENERATION_MODES } from '../config/index.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
 import { AMAP_GEOCODE_KEY } from '../config/index.mjs';
 import { isValidCoordinate, mapWithConcurrency } from '../lib/util.mjs';
@@ -50,10 +49,11 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
   ].join('\n');
 
   const startedAt = Date.now();
-  const model = AI_MODEL_FAST || runtime.model;
+  const modeCfg = GENERATION_MODES.fast;
+  const model = modeCfg.model || runtime.model;
   const endpoint = openAiEndpoint(runtime.baseUrl, runtime.wireApi);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.min(AI_TIMEOUT_MS_FAST || 120000, 120000));
+  const timeout = setTimeout(() => controller.abort(), Math.min(modeCfg.timeoutMs || 120000, 120000));
   opts.signal?.addEventListener('abort', () => controller.abort(), { once: true });
 
   let raw;

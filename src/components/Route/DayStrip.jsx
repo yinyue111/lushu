@@ -36,61 +36,54 @@ export default function DayStrip({ city, dayEntries, activeDay, onSelectDay, can
           const selected = entry.day === activeDay;
           const cover = dayCover(city, entry.index);
           return (
-            <div key={entry.day} className="relative shrink-0 snap-start">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => onSelectDay(entry.day)}
-                className={cn(
-                  'relative isolate flex h-32 w-[200px] flex-col justify-end overflow-hidden rounded-card px-3.5 py-3 text-left text-white transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-[3px] sm:h-[150px] sm:w-[calc((100%-28px)/3)] sm:min-w-[220px] sm:px-4 sm:py-3.5',
-                  selected && 'shadow-[0_0_0_3px_#fff,0_0_0_6px_var(--color-primary),var(--shadow-pop)]'
-                )}
-                style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${entry.theme.from}, ${entry.theme.to})` }}
-              >
-                {cover ? (
-                  <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />
-                ) : (
-                  <RouteIcon className="absolute -top-2 -right-3 -z-10 size-28 text-white/15" strokeWidth={1.5} aria-hidden="true" />
-                )}
-                <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0)_25%,rgba(0,0,0,.7))]" aria-hidden="true" />
-                <span className="num absolute top-3 left-3 inline-flex h-7 items-center rounded-full px-3 text-sm" style={{ background: entry.theme.ink }}>
-                  DAY {entry.number}
-                </span>
-                <b className="line-clamp-1 text-lead leading-tight font-extrabold sm:text-xl">{entry.label}</b>
-                <span className="text-meta text-white/92 sm:text-sm">{entry.summary}</span>
-              </button>
+            <button
+              key={entry.day}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => onSelectDay(entry.day)}
+              className={cn(
+                'relative isolate flex h-32 w-[200px] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-card px-3.5 py-3 text-left text-white transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-[3px] sm:h-[150px] sm:w-[calc((100%-28px)/3)] sm:min-w-[220px] sm:px-4 sm:py-3.5',
+                selected && 'shadow-[0_0_0_3px_#fff,0_0_0_6px_var(--color-primary),var(--shadow-pop)]'
+              )}
+              style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${entry.theme.from}, ${entry.theme.to})` }}
+            >
+              {cover ? (
+                <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />
+              ) : (
+                <RouteIcon className="absolute -top-2 -right-3 -z-10 size-28 text-white/15" strokeWidth={1.5} aria-hidden="true" />
+              )}
+              <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0)_25%,rgba(0,0,0,.7))]" aria-hidden="true" />
+              <span className="num absolute top-3 left-3 inline-flex h-7 items-center rounded-full px-3 text-sm" style={{ background: entry.theme.ink }}>
+                DAY {entry.number}
+              </span>
               {canEdit && dayEntries.length > 1 && selected && (
-                <div className="absolute top-2 right-2 z-10 flex gap-1">
-                  {dayEntries.length > 1 && (
-                    <Button
-                      size="icon-sm"
-                      variant="light"
-                      className="size-8 bg-white/90"
-                      aria-label={`合并 ${entry.day}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMergeDay?.(entry.day);
-                      }}
-                    >
-                      <GitMerge className="size-3.5" />
-                    </Button>
-                  )}
-                  <Button
-                    size="icon-sm"
-                    variant="light"
-                    className="size-8 bg-white/90 text-danger"
-                    aria-label={`删除 ${entry.day}`}
+                <span className="absolute top-2 right-2 z-10 flex gap-1" aria-hidden="true">
+                  <span
+                    className="grid size-8 place-items-center rounded-full bg-white/90 text-ink pointer-events-auto"
                     onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onMergeDay?.(entry.day);
+                    }}
+                  >
+                    <GitMerge className="size-3.5" />
+                  </span>
+                  <span
+                    className="grid size-8 place-items-center rounded-full bg-white/90 text-danger pointer-events-auto"
+                    onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       onDeleteDay?.(entry.day);
                     }}
                   >
                     <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
+                  </span>
+                </span>
               )}
-            </div>
+              <b className="line-clamp-1 text-lead leading-tight font-extrabold sm:text-xl">{entry.label}</b>
+              <span className="text-meta text-white/92 sm:text-sm">{entry.summary}</span>
+            </button>
           );
         })}
       </div>

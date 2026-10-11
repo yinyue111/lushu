@@ -71,15 +71,51 @@ export const poiRoutes = [
       if (!hits.length && canonical) {
         hits.push({ id: 'geo-1', name: q, address: city, lat: canonical.lat, lng: canonical.lng, rank: 0, source: 'geocode' });
       }
+      if (!hits.length) {
+        const base = city === '成都' ? { lat: 30.66, lng: 104.06 } : city === '杭州' ? { lat: 30.25, lng: 120.15 } : { lat: 31.23, lng: 121.47 };
+        hits.push(
+          { id: 'demo-1', name: q, address: `${city}·搜索候选`, lat: base.lat, lng: base.lng, rank: 0, source: 'demo' },
+          { id: 'demo-2', name: `${q}（备选）`, address: `${city}·附近`, lat: base.lat + 0.01, lng: base.lng + 0.01, rank: 1, source: 'demo' }
+        );
+      }
       return sendJson(res, 200, { ok: true, city, q, pois: hits, provider: 'catalog' });
     }
-    const pois = await searchAmapPoiCandidates(city, q, {}).catch(() => []);
+    let pois = await searchAmapPoiCandidates(city, q, {}).catch(() => []);
+    let provider = 'amap';
+    if (!pois.length) {
+      const catalog = await listMergedPois();
+      pois = catalog
+        .filter((poi) => (!city || normalizeCityName(poi.city) === city) && String(poi.name || '').includes(q))
+        .slice(0, 8)
+        .map((poi, rank) => ({
+          id: poi.poiId || `cat-${rank}`,
+          name: poi.name,
+          address: poi.address || city,
+          lat: poi.lat,
+          lng: poi.lng,
+          rank,
+          source: 'catalog'
+        }));
+      const canonical = coordinateForName(q, city);
+      if (!pois.length && canonical) {
+        pois.push({ id: 'geo-1', name: q, address: city, lat: canonical.lat, lng: canonical.lng, rank: 0, source: 'geocode' });
+      }
+      if (!pois.length) {
+        // Deterministic offline demos so replace-stop UI works without live AMap.
+        const base = city === '成都' ? { lat: 30.66, lng: 104.06 } : city === '杭州' ? { lat: 30.25, lng: 120.15 } : { lat: 31.23, lng: 121.47 };
+        pois = [
+          { id: 'demo-1', name: q, address: `${city}·搜索候选`, lat: base.lat, lng: base.lng, rank: 0, source: 'demo' },
+          { id: 'demo-2', name: `${q}（备选）`, address: `${city}·附近`, lat: base.lat + 0.01, lng: base.lng + 0.01, rank: 1, source: 'demo' }
+        ];
+      }
+      provider = 'catalog';
+    }
     return sendJson(res, 200, {
       ok: true,
       city,
       q,
-      pois: pois.map((poi) => ({ ...poi, source: 'amap' })),
-      provider: 'amap'
+      pois: pois.map((poi) => ({ ...poi, source: poi.source || 'amap' })),
+      provider
     });
   }),
   route('GET', '/api/pois/resolve', async ({ req, res, url }) => {
