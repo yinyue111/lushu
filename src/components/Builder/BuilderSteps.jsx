@@ -390,7 +390,7 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
     <section>
       <StepTitle title="你想怎么玩？" sub="选好这些，AI 按它排路线；之后都能改。" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="出行日期">
+        <Field label="出行日期" hint="可选。日期控件可能显示为英文格式。">
           <span className="relative">
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
