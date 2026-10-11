@@ -42,12 +42,20 @@ import {
 } from '../ai/generationJobs.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
 import { quotaForUser } from '../accounts/service.mjs';
+import { enqueueEnrichment } from '../enrich/service.mjs';
 import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { buildAiObservabilitySummary, normalizeAiGenerationStages, normalizeCostEstimate, normalizeStoredModelUsage } from '../analytics/aiObservability.mjs';
 
 const IMPORT_STATUS_TEXT = { fetched: '已读取公开内容', 'metadata-only': '只识别到链接', unavailable: '页面已删除或需登录', failed: '抓取失败' };
 
 // Signed-in accounts use their own quota (ops can override it per user); everyone else the default.
+/** Logged-in users only: queue background 门票/开放时间 checking once the routebook is saved. */
+function afterSaved(account, result) {
+  const routebookId = result?.publicId || result?.id;
+  if (account?.user?.id && routebookId) void enqueueEnrichment({ routebookId, userId: account.user.id });
+  return result;
+}
+
 async function quotaOptionsFor(req) {
   const account = await requestAccount(req);
   return account ? { quota: quotaForUser(account.user) } : {};
@@ -74,11 +82,14 @@ export const aiRoutes = [
     // Phase 2: identical requests reuse one result; registered profiles have a quota.
     const { result: responseBody, deduplicated } = await withGenerationDedup(payload, async () => {
       await enforceGenerationQuota(normalizeProfileId(payload.profileId), { ...(await quotaOptionsFor(req)), mode: payload.mode });
-      return generateAndStoreRoutebook(payload, {
-        signal: bindRequestAbortSignal(req),
-        requestId,
-        deadline: Date.now() + GENERATION_MODES[payload.mode].timeoutMs
-      });
+      return afterSaved(
+        await requestAccount(req),
+        await generateAndStoreRoutebook(payload, {
+          signal: bindRequestAbortSignal(req),
+          requestId,
+          deadline: Date.now() + GENERATION_MODES[payload.mode].timeoutMs
+        })
+      );
     });
     return sendJson(res, 200, deduplicated ? { ...responseBody, deduplicated: true } : responseBody);
   }),
@@ -108,6 +119,7 @@ export const aiRoutes = [
     if (duplicate) return sendJson(res, 200, { ok: true, deduplicated: true, job: generationJobSnapshot(duplicate) });
     await enforceGenerationQuota(profileId, { ...(await quotaOptionsFor(req)), mode: payload.mode });
     const requestId = /** @type {any} */ (req).requestId || cryptoRandomId();
+    const account = await requestAccount(req);
     const { job, deduplicated } = startGenerationJob({
       dedupKey,
       clientKey,
@@ -118,7 +130,8 @@ export const aiRoutes = [
       parseDetail: [`${payload.guide.length} 字攻略`, payload.importedSources?.length ? `${payload.importedSources.length} 个导入来源` : '']
         .filter(Boolean)
         .join(' · '),
-      run: (signal, onStage, jobId, deadline) => generateAndStoreRoutebook(payload, { signal, requestId, onStage, jobId, deadline })
+      run: async (signal, onStage, jobId, deadline) =>
+        afterSaved(account, await generateAndStoreRoutebook(payload, { signal, requestId, onStage, jobId, deadline }))
     });
     // The rejection is reported through the job; never let it surface as unhandled.
     job.promise?.catch(() => {});

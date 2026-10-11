@@ -17,6 +17,7 @@ import {
   requestAccount
 } from '../auth/request-access.mjs';
 import { accountProfileIds } from '../accounts/service.mjs';
+import { enrichmentView, reportEnrichment } from '../enrich/service.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -93,6 +94,36 @@ function friendLinkRoute(method) {
       friendShareUrl: hasFriendLinkAccess(routebook, routebook.friendLink?.key) ? owner.friendShareUrl : ''
     });
   });
+}
+
+async function readableRoutebook(req, rawId) {
+  const id = sanitizePublicId(safeDecodePathSegment(rawId));
+  const savedRoutebook = await getResolvableRoutebook(id);
+  if (!savedRoutebook) {
+    const latest = isCuratedRouteId(id) ? null : await getSavedRoutebook(id);
+    if (isDeletedRoutebook(latest)) throw routebookDeletedError(id, latest);
+    throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+  }
+  const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
+  const ownerRead =
+    !privilegedRead && normalizeProfileId(savedRoutebook.profileId) !== 'anonymous' ? await verifyProfileReadAccess(req, savedRoutebook.profileId) : false;
+  // 匿名持有编辑令牌的用户刷新页面后仍可恢复自己的草稿：
+  // x-routebook-edit-token 与存储 editToken 匹配时按 owner 读处理。
+  const requestedEditToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
+  const storedEditToken = sanitizeEditToken(savedRoutebook.editToken);
+  const editTokenRead = Boolean(
+    !privilegedRead &&
+    !ownerRead &&
+    requestedEditToken &&
+    (savedRoutebook.editTokenHash
+      ? safeTokenEqual(hashSecretToken(requestedEditToken), savedRoutebook.editTokenHash)
+      : storedEditToken && safeTokenEqual(requestedEditToken, storedEditToken))
+  );
+  if (!privilegedRead && !ownerRead && !editTokenRead && !isPublicRoutebook(savedRoutebook)) {
+    throw createHttpError('路书不存在或尚未公开发布', 404, 'ROUTEBOOK_NOT_FOUND');
+  }
+  const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
+  return { id, savedRoutebook, privateRead };
 }
 
 export const routebookRoutes = [
@@ -303,37 +334,35 @@ export const routebookRoutes = [
   route('GET', '/api/routebooks/:id', async ({ req, res, params }) => {
     // 单路书详情要做全文件反扫 + enrich，读放大明显，挂公共读桶防刷。
     enforceRateLimit(req, 'public-read');
-    const id = sanitizePublicId(safeDecodePathSegment(params.id));
-    const savedRoutebook = await getResolvableRoutebook(id);
-    if (!savedRoutebook) {
-      const latest = isCuratedRouteId(id) ? null : await getSavedRoutebook(id);
-      if (isDeletedRoutebook(latest)) throw routebookDeletedError(id, latest);
-      throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
-    }
-    const privilegedRead = (isLocalRequest(req) && ALLOW_LOCAL_ADMIN_BYPASS) || hasAdminAccess(req);
-    const ownerRead =
-      !privilegedRead && normalizeProfileId(savedRoutebook.profileId) !== 'anonymous' ? await verifyProfileReadAccess(req, savedRoutebook.profileId) : false;
-    // 匿名持有编辑令牌的用户刷新页面后仍可恢复自己的草稿：
-    // x-routebook-edit-token 与存储 editToken 匹配时按 owner 读处理。
-    const requestedEditToken = sanitizeEditToken(req.headers['x-routebook-edit-token']);
-    const storedEditToken = sanitizeEditToken(savedRoutebook.editToken);
-    const editTokenRead = Boolean(
-      !privilegedRead &&
-      !ownerRead &&
-      requestedEditToken &&
-      (savedRoutebook.editTokenHash
-        ? safeTokenEqual(hashSecretToken(requestedEditToken), savedRoutebook.editTokenHash)
-        : storedEditToken && safeTokenEqual(requestedEditToken, storedEditToken))
-    );
-    if (!privilegedRead && !ownerRead && !editTokenRead && !isPublicRoutebook(savedRoutebook)) {
-      throw createHttpError('路书不存在或尚未公开发布', 404, 'ROUTEBOOK_NOT_FOUND');
-    }
-    const privateRead = !isCuratedRouteId(id) && (privilegedRead || ownerRead || editTokenRead);
+    const { savedRoutebook, privateRead } = await readableRoutebook(req, params.id);
     const routebook = await enrichRoutebook(privateRead ? await ensureDraftEditToken(savedRoutebook) : savedRoutebook);
     return sendJson(res, 200, {
       ok: true,
       routebook: privateRead ? { ...routebook, ...(await ownerPublicationFields(routebook)), ownerAccessVerified: true } : publicRoutebookView(routebook)
     });
+  }),
+  route('GET', '/api/routebooks/:id/enrichment', async ({ req, res, params }) => {
+    // 联网补全（门票/开放时间）的结果：和路书详情同样的读权限。
+    enforceRateLimit(req, 'public-read');
+    const { savedRoutebook } = await readableRoutebook(req, params.id);
+    return sendJson(res, 200, { ok: true, enrichment: await enrichmentView(savedRoutebook) });
+  }),
+  route('POST', '/api/routebooks/:id/enrichment/report', async ({ req, res, params }) => {
+    enforceRateLimit(req, 'core-write');
+    const { id } = await readableRoutebook(req, params.id);
+    const body = await readJsonBody(req);
+    const field = String(body?.field ?? '');
+    if (!['price', 'hours'].includes(field)) throw createHttpError('反馈的内容不支持', 400, 'BAD_ENRICHMENT_FIELD');
+    const account = await requestAccount(req).catch(() => null);
+    const result = await reportEnrichment({
+      routebookId: id,
+      stopKey: truncateString(body?.stopKey, 80),
+      field,
+      note: truncateString(body?.note, 300),
+      userId: account?.user?.id ?? null
+    });
+    if (!result.ok) throw createHttpError('这条信息已经不在了', 404, 'ENRICHMENT_NOT_FOUND');
+    return sendJson(res, 200, { ok: true });
   }),
   route('POST', '/api/routebooks/:id/variants', async ({ req, res, params }) => {
     await requireLoginForWrites(req);

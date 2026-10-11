@@ -1,4 +1,5 @@
 import { NO_POI_CATALOG, route } from '../http/router.mjs';
+import { enrichmentStats } from '../enrich/service.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { verifyAdminAccess } from '../auth/request-access.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -83,6 +84,11 @@ export const opsRoutes = [
     },
     NO_POI_CATALOG
   ),
+  route('GET', '/api/ops/enrichment', async ({ req, res }) => {
+    enforceRateLimit(req, 'ops-read');
+    verifyAdminAccess(req);
+    return sendJson(res, 200, { ok: true, enrichment: await enrichmentStats() });
+  }),
   route('GET', '/api/ops/checkins', async ({ req, res, url }) => {
     // Ops listings scan whole streams; throttle before auth so token guessing is bounded too.
     enforceRateLimit(req, 'ops-read');
