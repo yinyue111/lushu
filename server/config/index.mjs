@@ -398,7 +398,7 @@ export const ENRICH_RETRY_BASE_MS = envNumber('ENRICH_RETRY_BASE_MS', 60000, { m
 export const ENRICH_LEASE_MS = envNumber('ENRICH_LEASE_MS', 10 * 60 * 1000, { min: 500 });
 export const ENRICH_POLL_MS = envNumber('ENRICH_POLL_MS', 5000, { min: 50 });
 export const ENRICH_CACHE_DAYS = envNumber('ENRICH_CACHE_DAYS', 7, { min: 0 });
-export const ENRICH_SEARCH_TIMEOUT_MS = envNumber('ENRICH_SEARCH_TIMEOUT_MS', 120000, { min: 1000 });
+export const ENRICH_SEARCH_TIMEOUT_MS = envNumber('ENRICH_SEARCH_TIMEOUT_MS', 180000, { min: 1000 });
 export const ENRICH_PAGE_TIMEOUT_MS = envNumber('ENRICH_PAGE_TIMEOUT_MS', 10000, { min: 500 });
 export const ENRICH_PAGE_MAX_BYTES = envNumber('ENRICH_PAGE_MAX_BYTES', 2 * 1024 * 1024, { min: 1024 });
 // Sites whose terms forbid automated access or that need a login. Never fetched, never cited.

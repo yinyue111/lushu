@@ -188,7 +188,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `ENRICH_MAX_ATTEMPTS` / `ENRICH_RETRY_BASE_MS` | `4` / `60000` | 失败重试次数和退避（1、4、16 分钟…） |
 | `ENRICH_LEASE_MS` | `600000` | 进程中途退出时，正在核对的任务过多久被重新捡起 |
 | `ENRICH_POLL_MS` | `5000` | 队列轮询间隔 |
-| `ENRICH_SEARCH_TIMEOUT_MS` / `ENRICH_PAGE_TIMEOUT_MS` / `ENRICH_PAGE_MAX_BYTES` | `120000` / `10000` / 2 MB | 单次搜索、单个页面的时间和大小上限 |
+| `ENRICH_SEARCH_TIMEOUT_MS` / `ENRICH_PAGE_TIMEOUT_MS` / `ENRICH_PAGE_MAX_BYTES` | `180000` / `10000` / 2 MB | 单次搜索、单个页面的时间和大小上限 |
 | `ENRICH_BLOCKED_DOMAINS` | 见上 | 逗号分隔，子域名一起屏蔽 |
 | `ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS` | 不设 | 只给自动化测试用；生产绝不要设置 |
 

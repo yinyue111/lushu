@@ -70,7 +70,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     return pageCache.get(url);
   };
   const city = routebook.city ?? '';
-  const budget = { searches: 0, usd: 0, maxUsd: 0, stoppedBy: '' };
+  const budget = { searches: 0, usd: 0, maxUsd: 0, stoppedBy: '', lastError: '' };
   const counts = { filled: 0, kept: 0, cached: 0, skippedStops: 0, searches: 0, pages: 0, amapCalls: 0, usd: 0 };
   /** @type {any[]} */
   const claims = [];
@@ -126,7 +126,15 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
       else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
       else {
-        const result = await search({ name, city, fields, variant });
+        let result;
+        try {
+          result = await search({ name, city, fields, variant });
+        } catch (error) {
+          // A slow or failing search only costs this stop (kept 待确认, not cached); the rest go on.
+          counts.searchErrors = (counts.searchErrors ?? 0) + 1;
+          budget.lastError = String(error?.name === 'TimeoutError' ? 'search timeout' : (error?.message ?? error));
+          return 'error';
+        }
         const usd = result.usd ?? ENRICH_ASSUMED_USD_PER_SEARCH;
         budget.searches += 1;
         budget.usd += usd;
@@ -139,6 +147,10 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       return null;
     };
     const first = await trySearch(pending, 0);
+    if (first === 'error') {
+      for (const field of pending) keep(field, 'search-failed', { reasonText: '联网搜索暂时失败，稍后会再试' });
+      continue;
+    }
     if (!first) {
       // Out of budget: keep 待确认 without caching, so a later routebook can try again.
       for (const field of pending) keep(field, 'budget', { reasonText: '本次核对额度已用完' });
@@ -216,7 +228,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     const retry = pending.filter((field) => decisions.get(field).reason === 'single-source');
     if (retry.length) {
       const second = await trySearch(retry, 1);
-      if (second) {
+      if (second && second !== 'error') {
         counts.retried = (counts.retried ?? 0) + retry.length;
         for (const field of retry) decisions.set(field, await decide(field, [first, second]));
       }
@@ -232,6 +244,13 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
   }
   await store.addSpend({ pages: counts.pages, amapCalls: counts.amapCalls }, now());
+  // Every search failed (relay down): let the queue retry the whole routebook later.
+  if (counts.searchErrors && !counts.searches) {
+    const error = new Error(`all web searches failed: ${budget.lastError}`);
+    // @ts-ignore
+    error.retryable = true;
+    throw error;
+  }
   const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy };
   log({ event: 'enrich', routebookId: routebook.id, ...summary });
   return { claims, summary };

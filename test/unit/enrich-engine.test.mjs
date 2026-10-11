@@ -195,3 +195,28 @@ test('per-routebook USD cap', async () => {
   await enrichRoutebook({ routebook: { id: 'r7', city: '杭州', stops: names.map((n) => stop(n)) }, store: freshStore(), deps });
   assert.equal(calls.search, 2, 'after $1.2 the next search is expected to cost $0.6 too, which would pass $1.5');
 });
+
+test('a failed search only keeps that stop; all searches failing retries the job', async () => {
+  const { deps } = fakes({
+    amap: { 灵隐寺: scenic('灵隐寺', '07:30-17:30') },
+    web: { 灵隐寺: { answer: { hours: '07:30-17:30' }, cited: ['https://a.gov.cn/1'] } },
+    pages: { 'https://a.gov.cn/1': page('灵隐寺', '开放时间 7:30-17:30') }
+  });
+  const slow = {
+    ...deps,
+    webSearchPlace: async (args) =>
+      args.name === '雷峰塔' ? Promise.reject(Object.assign(new Error('t'), { name: 'TimeoutError' })) : deps.webSearchPlace(args)
+  };
+  const { claims } = await enrichRoutebook({
+    routebook: { id: 'r10', city: '杭州', stops: [stop('雷峰塔'), stop('灵隐寺')] },
+    store: freshStore(),
+    deps: slow
+  });
+  assert.ok(claims.filter((c) => c.stopName === '雷峰塔').every((c) => c.reason === 'search-failed'));
+  assert.equal(claims.find((c) => c.stopName === '灵隐寺' && c.field === 'hours').status, 'filled');
+  const down = { ...deps, webSearchPlace: async () => Promise.reject(new Error('relay down')) };
+  await assert.rejects(
+    enrichRoutebook({ routebook: { id: 'r11', city: '杭州', stops: [stop('雷峰塔')] }, store: freshStore(), deps: down }),
+    /all web searches failed/
+  );
+});
