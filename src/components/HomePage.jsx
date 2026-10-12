@@ -124,11 +124,11 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               变成能照着走的路书
             </h1>
             <p className="mt-4 max-w-[36em] text-lead leading-relaxed text-white/92 lg:text-lg">
-              {cmsConfig?.heroTitle || '粘贴小红书、抖音或收藏地点，AI 帮你排一版路线；有人用 GPS 打卡后，可信分才会亮起来。'}
+              {cmsConfig?.heroSubtitle || '粘贴小红书、抖音攻略或想去的地方，AI 按天排好路线和时间，并标出出发前要确认的营业时间和预约。'}
             </p>
             <div className="mt-5 flex flex-wrap gap-2" aria-label={`${city} 路线数据`}>
               <Chip tone="glass" wrap>
-                <ShieldCheck /> 有真实打卡才出可信分
+                <ShieldCheck /> 去过的人打卡后才给评分
               </Chip>
               <Chip tone="glass" wrap>
                 <Clock3 /> {seasonNoteFor(story)}
@@ -171,7 +171,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               </p>
             )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
-              <Link2 /> 导入并分析
+              <Link2 /> 用这篇攻略排路线
             </Button>
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
@@ -365,7 +365,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             title="接着改，或者直接出发"
             action={
               <Button size="sm" variant="primary" onClick={() => onNewBook({ city, duration, theme: [theme] })}>
-                <Plus /> 新建
+                <Plus /> 新建路书
               </Button>
             }
           />
@@ -379,7 +379,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <p className="mt-0.5 text-meta leading-snug text-muted">复制一条精选路线，或粘贴攻略生成第一份路书。</p>
               </div>
               <Button size="sm" variant="dark" onClick={startFromHero}>
-                开始生成
+                粘贴攻略开始
               </Button>
             </div>
           ) : (

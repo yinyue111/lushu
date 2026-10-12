@@ -63,10 +63,10 @@ export function MyAccountPanel({
           <Field label="节奏">
             <input className={inputClass} value={profile.tempo ?? ''} onChange={set('tempo')} />
           </Field>
-          <Field label="达人名称" hint="公开路线的作者名">
-            <input className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="用于公开路线作者展示" />
+          <Field label="作者名" hint="发布路线时显示的名字">
+            <input className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="比如：周末去哪儿小王" />
           </Field>
-          <Field label="达人简介" className="sm:col-span-2">
+          <Field label="作者简介（选填）" className="sm:col-span-2">
             <textarea
               className={cn(inputClass, 'min-h-20')}
               value={profile.creatorBio ?? ''}
@@ -80,7 +80,7 @@ export function MyAccountPanel({
             <Save /> 保存偏好
           </Button>
           <Button type="button" variant="outline" onClick={() => onOpenCreator?.(profile.id)}>
-            <UserRound /> 我的达人主页
+            <UserRound /> 看我的作者主页
           </Button>
         </div>
         {legacyDeviceAccount && (
@@ -124,9 +124,9 @@ export function MyAccountPanel({
         {legacyDeviceAccount && (
           <>
             <section className="rounded-panel border border-line bg-white p-5">
-              <h2 className="text-lg font-extrabold">资料与隐私</h2>
+              <h2 className="text-lg font-extrabold">这台设备上的资料</h2>
               <p className="mt-1 text-sm text-muted">
-                导出不含访问凭据。注销会删除当前服务中的资料、照片和本机副本；已被他人下载及运营备份中的副本不在即时删除范围。{' '}
+                你还没登录，路书只存在这台设备上。导出不含访问凭据。注销会删除当前服务中的资料、照片和本机副本；已被他人下载及运营备份中的副本不在即时删除范围。{' '}
                 <a className="underline" href="/privacy">
                   查看隐私说明（草案）与定位授权
                 </a>
@@ -142,10 +142,10 @@ export function MyAccountPanel({
                   disabled={syncBusy || (Boolean(profile.profileAccessToken) && !profile.identityBound)}
                   onClick={onLogout}
                 >
-                  <LogOut /> 退出账号
+                  <LogOut /> 退出本机身份
                 </Button>
                 <Button type="button" size="sm" variant="outline" disabled={syncBusy} onClick={onDelete}>
-                  <Trash2 /> 注销并删除
+                  <Trash2 /> 删除本机资料
                 </Button>
               </div>
               {profile.profileAccessToken && !profile.identityBound && (

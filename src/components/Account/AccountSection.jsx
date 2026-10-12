@@ -114,14 +114,16 @@ function SignedIn({ account }) {
         <Button size="sm" variant="outline" onClick={download}>
           <Download /> 导出资料
         </Button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
         <Button size="sm" variant="outline" onClick={() => logout()}>
           <LogOut /> 退出登录
         </Button>
-        <Button size="sm" variant="outline" onClick={() => logout({ everywhere: true })}>
-          <MonitorSmartphone /> 所有设备退出
+        <Button size="sm" variant="ghost" onClick={() => logout({ everywhere: true })}>
+          <MonitorSmartphone /> 退出所有设备
         </Button>
-        <Button size="sm" variant="danger" aria-expanded={panel === 'delete'} onClick={() => toggle('delete')}>
-          <Trash2 /> 注销账号
+        <Button size="sm" variant="ghost" className="ml-auto text-danger" aria-expanded={panel === 'delete'} onClick={() => toggle('delete')}>
+          <Trash2 /> 注销账号…
         </Button>
       </div>
       {panel === 'email' && (
