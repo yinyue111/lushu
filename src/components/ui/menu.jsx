@@ -1,7 +1,10 @@
 import { DropdownMenu } from 'radix-ui';
 import { cn } from './cn';
 
-export const Menu = DropdownMenu.Root;
+/** Non-modal so the rest of the page is not aria-hidden while a small menu is open. */
+export function Menu(props) {
+  return <DropdownMenu.Root modal={false} {...props} />;
+}
 export const MenuTrigger = DropdownMenu.Trigger;
 
 /** @param {{ className?: string, children?: any, align?: 'start' | 'center' | 'end', [key: string]: any }} props */

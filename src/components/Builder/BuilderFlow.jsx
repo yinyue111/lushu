@@ -754,7 +754,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {needsLogin && step < 3 && (
         <Notice className="mt-3" tone="sky">
           {step >= 1 ? '可以先填攻略和偏好；点生成时再登录，内容会留着。' : '可以先填着，生成时再登录也行。'}{' '}
-          <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             现在登录
           </button>
         </Notice>
@@ -762,7 +762,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {!needsLogin && !account && step >= 1 && step < 3 && (
         <Notice className="mt-3" tone="sky">
           登录后路书会存进账号，换设备也能看。{' '}
-          <button type="button" className="font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
             登录 / 注册
           </button>
         </Notice>
@@ -771,7 +771,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       {needsAccessCode && step < 3 && (
         <Notice className="mt-3">
           这个站点生成路书需要访问码。先在右上角「高级设置」里填好，再导入攻略、挑地点。{' '}
-          <button type="button" className="font-bold underline underline-offset-2" onClick={openAccessCode}>
+          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={openAccessCode}>
             填写访问码
           </button>
         </Notice>

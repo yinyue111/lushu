@@ -209,7 +209,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => commitCity(item)}
                   aria-pressed={item === city}
-                  className={cn('h-8 rounded-full px-3.5 text-sm font-bold', item === city ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line')}
+                  className={cn('h-10 rounded-full px-4 text-sm font-bold sm:h-9', item === city ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line')}
                 >
                   {item}
                 </button>
@@ -229,7 +229,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                     key={item}
                     aria-pressed={theme === item}
                     onClick={() => setTheme(item)}
-                    className={cn('h-8 rounded-full px-3.5 text-sm font-semibold', theme === item ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line')}
+                    className={cn('h-10 rounded-full px-4 text-sm font-semibold sm:h-9', theme === item ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line')}
                   >
                     {item}
                   </button>

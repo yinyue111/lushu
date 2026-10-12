@@ -246,7 +246,7 @@ export function StepGuide(props) {
 
       <div className="mt-6 rounded-panel border border-line bg-white p-4 shadow-card lg:p-5">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-lg font-extrabold">确认要去的地点</h3>
+          <h2 className="text-lg font-extrabold">确认要去的地点</h2>
           <span className="rounded-full bg-sky-soft px-2.5 py-0.5 text-xs font-bold text-sky-ink" role="status" aria-live="polite">
             {includedCount} 个会排进路线
           </span>
@@ -304,7 +304,7 @@ export function StepGuide(props) {
                   aria-pressed={Boolean(place.mustGo)}
                   onClick={() => updateCandidate(index, { mustGo: !place.mustGo, included: true })}
                   className={cn(
-                    'inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-bold transition-colors',
+                    'relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-bold transition-colors after:absolute after:-inset-1.5 after:content-[\'\']',
                     place.mustGo ? 'bg-primary-strong text-white' : 'border border-line-strong bg-white text-ink-2 hover:border-ink/40'
                   )}
                 >
