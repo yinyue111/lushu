@@ -71,7 +71,7 @@ export function useRoutebookActions({
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
   const [syncLabel, setSyncLabel] = useState(() =>
-    hasUnsyncedLocalEdits(routebook) ? '本机已改，未同步云端' : '已与本机一致'
+    hasUnsyncedLocalEdits(routebook) ? '有改动未保存到云端' : '已保存'
   );
   const [undoEpoch, setUndoEpoch] = useState(0);
   const [patchState, setPatchState] = useState({ busy: false, message: '', proposal: null });
@@ -121,7 +121,7 @@ export function useRoutebookActions({
     routebookSyncSequenceRef.current += 1;
     latestRoutebookRef.current = next;
     localEditsDirtyRef.current = true;
-    setSyncLabel('本机已改，未同步云端');
+    setSyncLabel('有改动未保存到云端');
     setRoutebook(next);
     const localSaved = saveRoutebook(next);
     if (!localSaved) setShareState('本地存储失败，请保持当前页面并尽快重试保存');
@@ -454,7 +454,7 @@ export function useRoutebookActions({
       }
       latestRoutebookRef.current = next;
       localEditsDirtyRef.current = false;
-      setSyncLabel(`已同步云端${currentRoutebookVersion(next) != null ? ` v${currentRoutebookVersion(next)}` : ''}`);
+      setSyncLabel('已保存到云端');
       setRoutebook(next);
       const localSaved = saveRoutebook(next);
       onSaved?.(next);
@@ -705,11 +705,11 @@ export function useRoutebookActions({
   function stripModelStops() {
     const result = stripModelSupplementStops(stops);
     if (result.skipped) {
-      setShareState(result.reason === 'no-guide-anchor' ? '没有攻略锚点，不能一键去掉补充站' : '去掉后站数太少，先手动删');
+      setShareState(result.reason === 'no-guide-anchor' ? '整条路线都是 AI 排的，没有可保留的攻略站' : '去掉后少于 2 站，请手动删');
       return;
     }
-    updateRoutebook(result.stops, { editReason: '去掉路书补充' });
-    setShareState(`已去掉 ${result.removed} 个路书补充站`);
+    updateRoutebook(result.stops, { editReason: '去掉 AI 加的站' });
+    setShareState(`已去掉 ${result.removed} 个 AI 加的站，可撤销`);
   }
 
   async function replaceStopFromSearch(stopId, poi) {
@@ -798,7 +798,7 @@ export function useRoutebookActions({
       const next = { ...data.routebook, ...profileRoutebookFields(profile), editToken: data.routebook.editToken || latestRoutebookRef.current.editToken };
       latestRoutebookRef.current = next;
       localEditsDirtyRef.current = false;
-      setSyncLabel(`已同步云端${currentRoutebookVersion(next) != null ? ` v${currentRoutebookVersion(next)}` : ''}`);
+      setSyncLabel('已保存到云端');
       setRoutebook(next);
       saveRoutebook(next);
       onSaved?.(next);

@@ -15,7 +15,7 @@ export function parseAdjustIntent(text, ctx = {}) {
 
   const strip = /去掉|删除|不要|砍掉/.test(raw) && /补充|路书补|AI.?加|模型/.test(raw);
   if (strip) {
-    return { kind: 'strip_model', confidence: 0.9, label: '去掉路书补充站', params: {}, level: 'L1' };
+    return { kind: 'strip_model', confidence: 0.9, label: '去掉 AI 加的站', params: {}, level: 'L1' };
   }
 
   const dayMatch = raw.match(/(?:第\s*([一二三四五六七八九十\d]+)\s*天|Day\s*(\d+))/i);
@@ -77,14 +77,14 @@ export function parseAdjustIntent(text, ctx = {}) {
     return {
       kind: 'patch_day',
       confidence: 0.78,
-      label: day ? `用 AI 重排 ${day}（耗局部次数）` : '用 AI 重排某一天（耗局部次数）',
+      label: day ? `让 AI 重排 ${day}` : '让 AI 重排某一天',
       params: { day, mode: /细品|deep/.test(raw) ? 'deep' : 'fast' },
       level: 'L2'
     };
   }
 
   if (/整本|全部重|从头|重新生成路书|复制并定制/.test(raw)) {
-    return { kind: 'full_regen', confidence: 0.85, label: '整本重新生成（耗一次完整生成次数）', params: {}, level: 'L4' };
+    return { kind: 'full_regen', confidence: 0.85, label: '重新生成整条路书', params: {}, level: 'L4' };
   }
 
   if (/撤销|悔棋|上一步/.test(raw)) {
@@ -94,7 +94,7 @@ export function parseAdjustIntent(text, ctx = {}) {
   return {
     kind: 'unknown',
     confidence: 0.2,
-    label: '没听懂。可以说：去掉补充站、少走路、删第二天、换掉某某、重排 Day 1',
+    label: '没太听懂。可以试试：少走路、删掉第二天、换掉某个地方、去掉 AI 加的站',
     params: {},
     level: 'L1'
   };

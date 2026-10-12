@@ -22,12 +22,12 @@ export default function RouteStats({ routebook, trust, trustState }) {
         className="rounded-card border border-lemon/40 bg-lemon-soft/70 px-3.5 py-3 text-meta leading-snug text-lemon-ink sm:px-4"
       >
         <p className="text-copy font-extrabold text-ink">
-          {trial ? '待复核 · 试验生成' : '待验证 · 还差真人打卡'}
+          {trial ? 'AI 草稿 · 出发前请确认' : '还没人走过 · 暂无评分'}
         </p>
         <p className="mt-1 text-meta leading-relaxed text-ink-2">
           {trial
-            ? '试验生成：地点、营业和道路出发前请再核对。有人打卡后，这里会显示可信分。'
-            : `${trust.sampleProgressText || '多几个人打卡后会显示可信分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
+            ? '地点、营业时间和路线都还没人实地确认。出发前看一眼标黄的地方；去过的人打卡后，这里会显示评分。'
+            : `${trust.sampleProgressText || '多几个人打卡后会显示评分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
         </p>
       </div>
     );

@@ -29,7 +29,7 @@ export default function AdjustChatSheet({ routebook, onClose, handlers }) {
     }
     setPending({
       intent,
-      confirmLabel: intent.level === 'L4' ? '去整本重生成' : intent.level === 'L2' ? '生成方案（耗局部次数）' : '应用',
+      confirmLabel: intent.level === 'L4' ? '去重新生成' : intent.level === 'L2' ? '让 AI 重排（耗 1 次）' : '就这么改',
       run: intent
     });
   }
@@ -53,40 +53,41 @@ export default function AdjustChatSheet({ routebook, onClose, handlers }) {
 
   return (
     <>
-      <Sheet title="跟我说怎么改" description="先确认再改。一键规则不耗次数；AI 局部重排耗局部次数；整本重生成耗完整次数。" onClose={onClose}>
+      <Sheet title="用一句话改路线" description="说你想怎么改，我先给你看结果，你点确认才会改。" onClose={onClose}>
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <label className="text-meta font-semibold text-ink-2">你想怎么改这条路书？</label>
+          <label htmlFor="adjust-chat-input" className="text-meta font-semibold text-ink-2">想怎么改？</label>
           <textarea
+            id="adjust-chat-input"
             className={`${inputClass} min-h-24`}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="例如：去掉路书补充站 / 少走路 / 删第二天 / 换掉宽窄巷子 / 用 AI 重排 Day 1"
+            placeholder="比如：少走路 / 删掉第二天 / 换掉宽窄巷子 / 去掉 AI 加的站"
           />
           <div className="flex flex-wrap gap-2 text-meta text-muted">
             <span className="inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-1">
-              <MessageSquareText className="size-3.5" /> 手动与规则 · 不耗次数
+              <MessageSquareText className="size-3.5" /> 重排、删站：不耗次数
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-1">
-              <Sparkles className="size-3.5" /> AI 局部 · 耗局部次数
+              <Sparkles className="size-3.5" /> 让 AI 重排一天：耗 1 次
             </span>
           </div>
           <Button type="submit" variant="primary" disabled={!text.trim()}>
-            理解并预览
+            看看会怎么改
           </Button>
         </form>
       </Sheet>
       <ConfirmDialog
         open={Boolean(pending)}
-        title={pending?.intent?.level === 'L4' ? '整本重生成' : pending?.intent?.level === 'L2' ? '局部 AI 调整' : '确认调整'}
+        title={pending?.intent?.level === 'L4' ? '重新生成整条路书？' : pending?.intent?.level === 'L2' ? '让 AI 重排这一天？' : '这样改可以吗？'}
         description={
           pending?.intent?.kind === 'unknown'
             ? pending.intent.label
             : `${pending?.intent?.label || ''}。${
                 pending?.intent?.level === 'L4'
-                  ? '会打开创建页并消耗一次完整生成次数。'
+                  ? '会回到创建页从头生成，消耗 1 次生成次数。'
                   : pending?.intent?.level === 'L2'
-                    ? '只重排所选范围，其余天保留；需再确认方案。'
-                    : '立即应用到本机路书，可撤销。'
+                    ? '只改这一天，其他天不动。出结果后你再决定要不要用。'
+                    : '马上生效，不满意可以点「撤销」。'
               }`
         }
         confirmLabel={pending?.confirmLabel || '确定'}

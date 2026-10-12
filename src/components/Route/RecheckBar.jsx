@@ -23,7 +23,7 @@ export default function RecheckBar({ routebook, recheckState, onRecheck }) {
       </span>
       <Button size="sm" variant="outline" onClick={onRecheck} disabled={recheckState.busy} aria-describedby="recheck-status">
         {recheckState.busy ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-        {recheckState.busy ? '核验中…' : '重新核验道路'}
+        {recheckState.busy ? '正在查路线…' : '重新查路线'}
       </Button>
       <p id="recheck-status" role="status" aria-live="polite" className="w-full text-xs font-semibold text-ink-2 empty:hidden">
         {recheckState.message}

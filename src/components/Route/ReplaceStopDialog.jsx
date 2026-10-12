@@ -28,9 +28,9 @@ export default function ReplaceStopDialog({ stop, city, onSearch, onPick, onClos
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent title={`换掉「${stop?.name || '站点'}」`} description={`在${city}搜索地点，选中后会更新坐标并重核邻接道路。`}>
-        <Field label="搜索地点">
-          <input className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="店名或景点" autoFocus />
+      <DialogContent title={`换掉「${stop?.name || '这一站'}」`} description={`在${city}搜一个地方，选中就替换，前后路线会自动重新查。`}>
+        <Field label="搜地点或店名">
+          <input className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="比如：锦里、某某茶馆" autoFocus />
         </Field>
         <div className="mt-3 max-h-72 space-y-2 overflow-auto">
           {busy && (
@@ -38,7 +38,7 @@ export default function ReplaceStopDialog({ stop, city, onSearch, onPick, onClos
               <LoaderCircle className="size-4 animate-spin" /> 搜索中…
             </p>
           )}
-          {!busy && !pois.length && <p className="text-meta text-muted">没有候选。换个关键词试试，或关掉后手动编辑。</p>}
+          {!busy && !pois.length && <p className="text-meta text-muted">没搜到。换个词试试，或者关掉后用「编辑信息」手动填。</p>}
           {pois.map((poi) => (
             <button
               key={poi.id || poi.name}

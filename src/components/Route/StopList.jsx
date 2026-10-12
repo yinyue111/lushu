@@ -100,7 +100,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               {stop.area && <span className="ml-2 inline-block text-meta text-muted sm:text-sm">{stop.area}</span>}
               {isGuideSupplement && (
                 <Chip size="sm" tone="warn" className="ml-2 align-middle">
-                  路书补充
+                  AI 加的
                 </Chip>
               )}
             </div>
@@ -155,7 +155,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
           {pendingFold && (
             <details className="mt-2 rounded-card bg-canvas/80 px-2.5 py-1.5 text-sm text-ink-2 open:bg-canvas">
               <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">
-                待确认 / 核对信息
+                出发前要确认的事
               </summary>
               {verifyText && <p className="mt-1.5 leading-relaxed">{verifyText}</p>}
               {riskText && (
@@ -168,7 +168,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
           )}
           {isGuideSupplement && canEdit && (
             <p className="mt-1.5 text-meta text-muted">
-              攻略里没写这一站，是路书补上的。
+              你的攻略里没有这一站，是 AI 加的。
               <button
                 type="button"
                 className="ml-1 font-semibold text-danger underline underline-offset-2"
@@ -216,7 +216,7 @@ function LegRow({ from, to, roadLeg }) {
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算）` : '距离待确认'}
+      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算）` : '路程还没查'}
     </li>
   );
 }

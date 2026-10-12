@@ -85,7 +85,7 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
     trust.tone === 'verified'
       ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达验证` : trust.label }
       : trust.tone === 'trial'
-        ? { tone: 'warn', text: '待人工复核' }
+        ? { tone: 'warn', text: '未实地确认' }
         : { tone: 'info', text: '还没人打卡' },
     approximate && { tone: 'warn', text: '位置待确认' },
     {

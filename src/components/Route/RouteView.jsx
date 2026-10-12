@@ -77,7 +77,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           stops: dayStops,
           label: dayLabel(dayStops, routebook.city, index),
           distanceKm: km,
-          summary: `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 道路待核验 ${road.verifiedLegs}/${road.expectedLegs}` : ''}`
+          summary: `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
         };
       }),
     [days, stops, routebook.city, routebook.routeLegs]

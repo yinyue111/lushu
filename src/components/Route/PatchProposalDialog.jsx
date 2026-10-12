@@ -8,8 +8,8 @@ export default function PatchProposalDialog({ patchState, onApply, onDismiss }) 
   return (
     <Dialog open onOpenChange={(open) => !open && onDismiss?.()}>
       <DialogContent
-        title={patchState.busy ? '正在局部重排' : '确认局部调整'}
-        description={patchState.busy ? '模型只改选定范围，其余天不动。' : proposal?.summary || '请核对方案后再写入路书。'}
+        title={patchState.busy ? 'AI 正在重排这一天' : '用这个新安排吗？'}
+        description={patchState.busy ? '大约十几秒，其他天不会变。' : proposal?.summary || '看一下新顺序，再决定用不用。'}
         hideClose={patchState.busy}
       >
         {patchState.busy ? (
@@ -30,14 +30,14 @@ export default function PatchProposalDialog({ patchState, onApply, onDismiss }) 
             </ol>
             <p className="mt-2 text-meta text-muted">
               <Sparkles className="mr-1 inline size-3.5" />
-              写入后可撤销；云端会记一次局部调整配额。
+              用了之后也能撤销。已消耗 1 次 AI 重排次数。
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={onDismiss}>
-                不用了
+                不用，保持原样
               </Button>
               <Button variant="primary" onClick={() => onApply(proposal)}>
-                应用这个方案
+                用这个安排
               </Button>
             </div>
           </>
