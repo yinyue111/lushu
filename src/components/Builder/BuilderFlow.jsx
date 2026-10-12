@@ -802,7 +802,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         </Notice>
       )}
 
-      {!isTrustedCity && step > 0 && <Notice className="mt-5">{city} 是试验生成：地点、营业信息和导航都需要出发前人工核对。</Notice>}
+      {!isTrustedCity && step > 0 && <Notice className="mt-5">{city} 暂时只能生成 AI 草稿：地点、营业时间和导航，出发前要自己确认一下。</Notice>}
 
       <div className="mt-8">
         {step === 0 && (

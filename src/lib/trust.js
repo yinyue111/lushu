@@ -44,8 +44,8 @@ export function getRouteTrustBadgeState(routebook) {
       badgeClass: 'badge-orange',
       verified: false,
       value: '待复核',
-      text: '试验生成 · 待人工复核',
-      compactText: '试验生成 · 待人工复核',
+      text: 'AI 草稿 · 未实地确认',
+      compactText: 'AI 草稿 · 未实地确认',
       sampleProgressText: '',
       score: null
     };
@@ -97,7 +97,7 @@ export function getStopTrustState(stop, routeTone) {
 // 站点列表、分享预览等页面统一从这里取，禁止在组件内重新拼徽章判断。
 export function getStopTrustBadge(stop, routeTone) {
   if (routeTone === 'trial') {
-    return { tone: 'trial', badgeClass: 'badge-orange', verified: false, value: '待复核', label: '试验生成 · 待复核' };
+    return { tone: 'trial', badgeClass: 'badge-orange', verified: false, value: '待复核', label: 'AI 草稿 · 未实地确认' };
   }
   const { score, verified } = evaluatePoiTrustSample(stop?.poiTrust);
   return verified

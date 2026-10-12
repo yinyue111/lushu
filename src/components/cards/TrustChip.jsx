@@ -9,7 +9,7 @@ export function TrustChip({ routebook, size = 'sm', className = '', curated = fa
   if (state.tone === 'trial') {
     return (
       <Chip tone="warn" size={size} className={className}>
-        <TriangleAlert /> 试运行 · 待人工复核
+        <TriangleAlert /> AI 草稿 · 未实地确认
       </Chip>
     );
   }
@@ -22,7 +22,7 @@ export function TrustChip({ routebook, size = 'sm', className = '', curated = fa
   }
   return (
     <Chip tone="sky" size={size} className={className}>
-      <ShieldQuestion /> {curated ? '编辑推荐 · 待真实验证' : '待真实验证'}
+      <ShieldQuestion /> {curated ? '编辑推荐 · 还没人走过' : '还没人走过'}
     </Chip>
   );
 }

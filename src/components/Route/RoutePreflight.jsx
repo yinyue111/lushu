@@ -145,7 +145,7 @@ const MODES = [
   { mode: '亲子', icon: Baby }
 ];
 
-/** Owner-only editing strip: rule modes, day/AI tools, undo, variants. */
+/** Owner-only editing strip: two primary actions, everything else folded into 更多改法. */
 export function EditToolbar({
   routebook,
   saving,
@@ -166,17 +166,20 @@ export function EditToolbar({
 }) {
   const variants = (routebook.variants ?? []).slice(0, 4);
   const hasModel = (routebook.stops ?? []).some((s) => s?.provenance?.origin === 'model');
+  const dirty = /未保存/.test(syncLabel || '');
   return (
-    <section aria-label="调整路线" className="mt-6 rounded-card border border-dashed border-line-strong bg-white p-3.5 lg:mt-7">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-ink-2">调整路书</span>
+    <section aria-labelledby="edit-toolbar-title" className="mt-6 rounded-card border border-line bg-white p-3.5 shadow-card lg:mt-7">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 id="edit-toolbar-title" className="text-copy font-extrabold text-ink">
+          改路线
+        </h2>
         {syncLabel && (
-          <span className="rounded-full bg-canvas px-2 py-0.5 text-meta text-muted" role="status">
+          <span role="status" className={cn('rounded-full px-2 py-0.5 text-meta', dirty ? 'bg-lemon-soft text-lemon-ink' : 'bg-canvas text-muted')}>
             {syncLabel}
           </span>
         )}
         <div className="ml-auto flex gap-1">
-          <Button size="sm" variant="ghost" disabled={!canUndo || saving} onClick={onUndo} aria-label="撤销">
+          <Button size="sm" variant="ghost" disabled={!canUndo || saving} onClick={onUndo}>
             <Undo2 /> 撤销
           </Button>
           <Button size="sm" variant="ghost" disabled={!canRedo || saving} onClick={onRedo} aria-label="重做">
@@ -184,36 +187,46 @@ export function EditToolbar({
           </Button>
         </div>
       </div>
-      <p className="mb-2 text-meta text-muted">一键调整按规则重排，不耗生成次数。AI 局部重排会耗局部次数；整本重生成请用「复制并定制」。</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-meta font-semibold text-ink-2">规则</span>
-        {MODES.map(({ mode, icon: Icon }) => (
-          <Button key={mode} size="sm" onClick={() => onMode(mode)} disabled={saving}>
-            <Icon /> {mode}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={onAddStop} disabled={saving}>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="dark" onClick={onOpenChat} disabled={saving}>
+          <MessageSquareText /> 用一句话改
+        </Button>
+        <Button variant="outline" onClick={onAddStop} disabled={saving}>
           <Plus /> 加一站
         </Button>
-        {hasModel && (
-          <Button size="sm" variant="outline" onClick={onStripModel} disabled={saving}>
-            <Trash2 /> 去掉路书补充
-          </Button>
-        )}
-        <Button size="sm" variant="outline" onClick={() => onTransportPref?.('transit')} disabled={saving}>
-          <Bus /> 地铁优先
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => onPatchDay?.(activeDay)} disabled={saving}>
-          <Sparkles /> AI 重排本日
-        </Button>
-        <Button size="sm" variant="dark" className="ml-auto" onClick={onOpenChat} disabled={saving}>
-          <MessageSquareText /> 跟我说
-        </Button>
       </div>
+      <p className="mt-2 text-meta text-muted">换店、删站：点每一站右边的「⋮」。</p>
+      <details className="group mt-2 rounded-tile bg-canvas px-3 py-2">
+        <summary className="cursor-pointer list-none text-meta font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+          更多改法 <span className="font-normal text-muted">· 一键重排、地铁优先、AI 重排</span>
+        </summary>
+        <p className="mt-2 text-meta font-semibold text-ink-2">一键重排（按规则，不耗次数）</p>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {MODES.map(({ mode, icon: Icon }) => (
+            <Button key={mode} size="sm" onClick={() => onMode(mode)} disabled={saving}>
+              <Icon /> {mode}
+            </Button>
+          ))}
+          <Button size="sm" onClick={() => onTransportPref?.('transit')} disabled={saving}>
+            <Bus /> 地铁优先
+          </Button>
+        </div>
+        <p className="mt-3 text-meta font-semibold text-ink-2">让 AI 改（耗 1 次 AI 重排次数）</p>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => onPatchDay?.(activeDay)} disabled={saving}>
+            <Sparkles /> AI 重排这一天
+          </Button>
+          {hasModel && (
+            <Button size="sm" variant="outline" onClick={onStripModel} disabled={saving}>
+              <Trash2 /> 去掉 AI 加的站
+            </Button>
+          )}
+        </div>
+        <p className="mt-3 text-meta text-muted">想从头来过？右上「⋯」里的「整本重生成」会耗 1 次生成次数。</p>
+      </details>
       {(variants.length > 0 || variantState) && (
         <div className="mt-3">
+          <p className="mb-1.5 text-meta font-semibold text-ink-2">之前的重排版本 · 点一下换回去</p>
           {variantState && (
             <p className="mb-2 text-meta text-muted" role="status">
               {variantState}
@@ -232,7 +245,7 @@ export function EditToolbar({
               >
                 <b className="block text-copy">{variant.label}</b>
                 <span className="line-clamp-2 block text-meta text-muted">{variant.summary}</span>
-                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站 · 规则变体</small>
+                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站</small>
               </button>
             ))}
           </div>

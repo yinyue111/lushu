@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Copy, Check, Heart, List, Map as MapIcon, Navigation } from 'lucide-react';
+import { ArrowLeft, Copy, Check, CloudUpload, Heart, List, Map as MapIcon, Navigation } from 'lucide-react';
 import { recordProductExposure } from '../../lib/productTelemetry';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import { getProfile } from '../../lib/profile';
@@ -77,7 +77,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           stops: dayStops,
           label: dayLabel(dayStops, routebook.city, index),
           distanceKm: km,
-          summary: `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
+          summary: dayStops.length === 0 ? '还没安排站点' : `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
         };
       }),
     [days, stops, routebook.city, routebook.routeLegs]
@@ -406,7 +406,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             </b>
             <span className="text-meta text-muted">{activeEntry.summary}</span>
           </div>
-          <p className="px-4 pb-2 text-xs text-muted">实线为已核验道路；虚线仅直线示意，不代表道路距离和耗时。</p>
+          <p className="px-4 pb-2 text-xs text-muted">实线是查过的真实路线；虚线只是直线示意，不代表实际距离和时间。</p>
           <div ref={carouselRef} className="no-scrollbar flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pt-0.5 pb-1.5">
             {dayStops.map((stop, index) => (
               <MiniStopCard
@@ -443,11 +443,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               <Heart className={cn(liked && 'animate-pop fill-current text-primary-strong')} />
             </Button>
             {canEdit ? (
-              <Button size="icon" className="size-[50px]" onClick={actions.saveCurrentRoutebook} disabled={actions.saving} aria-label="保存路书">
-                <Check />
+              <Button size="icon" className="size-[50px]" onClick={actions.saveCurrentRoutebook} disabled={actions.saving} aria-label="保存到云端">
+                <CloudUpload />
               </Button>
             ) : (
-              <Button size="icon" className="size-[50px]" onClick={customize} aria-label="整本重生成">
+              <Button size="icon" className="size-[50px]" onClick={customize} aria-label="复制一份改成我的">
                 <Copy />
               </Button>
             )}

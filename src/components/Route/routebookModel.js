@@ -223,8 +223,8 @@ export function buildRouteTrustState(trust, isTrustedCity) {
     return {
       tone: 'trial',
       badgeClass: 'badge-orange',
-      label: '试验生成 · POI、营业信息和导航需人工复核',
-      shortLabel: '试验生成',
+      label: 'AI 草稿 · 地点、营业时间和导航都未实地确认',
+      shortLabel: 'AI 草稿',
       value: '待人工复核',
       note: '这座城市还没开放可信评分，先不打分。'
     };
