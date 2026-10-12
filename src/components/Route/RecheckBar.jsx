@@ -18,7 +18,7 @@ export default function RecheckBar({ routebook, recheckState, onRecheck }) {
       data-testid="recheck-bar"
     >
       <span className="min-w-0 flex-1 font-semibold text-ink-2">
-        {road.expectedLegs ? `道路 ${road.verifiedLegs}/${road.expectedLegs} 段已核验` : '暂无需要核验的道路'}
+        {road.expectedLegs ? `路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : '没有需要查的路线'}
         {pending > 0 && ` · ${pending} 个站点位置待确认`}
       </span>
       <Button size="sm" variant="outline" onClick={onRecheck} disabled={recheckState.busy} aria-describedby="recheck-status">

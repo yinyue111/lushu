@@ -20,7 +20,7 @@ export default function TrustExplanation({ routebook }) {
   ].filter(([, count]) => Number(count) > 0);
   return (
     <details className="mt-8 rounded-tile bg-canvas p-4 text-meta leading-relaxed text-muted">
-      <summary className="cursor-pointer font-bold text-ink-2">可信分怎么算{score != null ? `（这条路线资料核验分 ${score}）` : ''}</summary>
+      <summary className="cursor-pointer font-bold text-ink-2">可信分怎么算{score != null ? `（这条路线目前 ${score} 分）` : ''}</summary>
       <p className="mt-2">{routebook?.trustMeta?.explanation || TRUST_SCORE_EXPLANATION}</p>
       {breakdown?.stopCount > 0 && (
         <ul className="mt-2 grid gap-1 pl-4">
@@ -31,7 +31,7 @@ export default function TrustExplanation({ routebook }) {
           <li>有证据且在有效期内的已审核事实：{breakdown.verifiedFactStopCount} 站</li>
         </ul>
       )}
-      <p className="mt-2">模型对自己的打分不计入；AI 写的提示单独标为“AI 提示（未核验）”。</p>
+      <p className="mt-2">模型对自己的打分不计入；AI 写的提示单独标为“AI 提示（未确认）”。</p>
     </details>
   );
 }

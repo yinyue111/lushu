@@ -10,7 +10,7 @@ export const MenuTrigger = DropdownMenu.Trigger;
 /** @param {{ className?: string, children?: any, align?: 'start' | 'center' | 'end', [key: string]: any }} props */
 export function MenuContent({ className, children, align = 'end', ...props }) {
   return (
-    <DropdownMenu.Portal>
+    <>
       <DropdownMenu.Content
         align={align}
         sideOffset={8}
@@ -19,7 +19,7 @@ export function MenuContent({ className, children, align = 'end', ...props }) {
       >
         {children}
       </DropdownMenu.Content>
-    </DropdownMenu.Portal>
+    </>
   );
 }
 

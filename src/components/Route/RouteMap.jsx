@@ -91,7 +91,7 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
           lineCap: 'round',
           lineJoin: 'round'
         })
-          .bindTooltip(escapeHtml(road ? `${roadLegLabel(road)} · ${road.provider} · ${road.queriedAt}` : '直线示意：道路距离和耗时未核验'))
+          .bindTooltip(escapeHtml(road ? `${roadLegLabel(road)} · ${road.provider} · ${road.queriedAt}` : '直线示意：实际距离和时间还没查'))
           .addTo(group);
       }
       if (!isActive) {
