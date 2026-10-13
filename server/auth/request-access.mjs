@@ -120,7 +120,7 @@ function ipv4MatchesCidr(address, cidr) {
   return (addressNumber & mask) === (rangeNumber & mask);
 }
 
-function isTrustedProxyAddress(address) {
+export function isTrustedProxyAddress(address) {
   const normalized = normalizeRemoteAddress(address);
   if (!normalized) return false;
   return TRUSTED_PROXY_CIDRS.some((entry) => {

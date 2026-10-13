@@ -46,6 +46,7 @@ import { raiseAlert } from './server/ops/alerts.mjs';
 import { startEnrichmentWorker, stopEnrichmentWorker } from './server/enrich/service.mjs';
 import { installProfileWriteGuard } from './server/auth/profile-lifecycle.mjs';
 import { refreshPoiCatalog } from './server/poi/catalog.mjs';
+import { proxyMisconfigMonitor } from './server/ops/proxyMisconfig.mjs';
 
 {
   const { errors, warnings } = evaluateStartupSafety({
@@ -170,8 +171,11 @@ function probeAvailablePort(port, host = '127.0.0.1') {
 const DEV_PORT_FALLBACK_ATTEMPTS = IS_PRODUCTION ? 0 : 10;
 const SHUTDOWN_GRACE_MS = envNumber('SHUTDOWN_GRACE_MS', 10000, { min: 0, max: 120000 });
 
+const proxyMonitor = proxyMisconfigMonitor();
+
 function listen(port, attemptsLeft = DEV_PORT_FALLBACK_ATTEMPTS) {
   const server = createServer(async (req, res) => {
+    proxyMonitor.observe(req);
     if (req.url?.startsWith('/api/')) {
       assignRequestId(req, res);
       const handled = await handleApi(req, res);
