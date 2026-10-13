@@ -146,13 +146,13 @@ JSONL 部署：后台数据在 `data/admin.jsonl`，无需迁移。
 ### 7.0 上线路径（建议，按这个顺序）
 
 1. **CI 构建镜像**：CI 跑 `npm ci && npm run verify`，再跑 `npm run test:e2e:admin`（Playwright + axe）。**Playwright 用例和 axe 必须全部通过（axe 违规 0）才能出镜像**；不通过不发布。
-2. **按 digest 部署**：CI 推镜像后记下 `sha256:` digest，`docker-compose.prod.yml` 里用 `image: …@sha256:…` 引用，不用会被覆盖的 tag；同时把 `APP_COMMIT`、`APP_BUILD_TIME`、`APP_IMAGE_DIGEST` 注入，系统信息页才不会显示「未注入」。
-3. **数据库**：备份 → `npm run postgres:migrate` → 换镜像（见第 6 节）。
+2. **按 digest 部署**：CI 推镜像后记下 `sha256:` digest，写进服务器 `.env` 的 `APP_IMAGE=ghcr.io/<owner>/lushu-app@sha256:…`。`docker-compose.prod.yml` 的 app 和 migrate 都用 `${APP_IMAGE}`（没设会直接报错），服务器上不再 `build`、不用 `latest`；`APP_IMAGE_DIGEST` 由 compose 从 `APP_IMAGE` 传入，`APP_COMMIT` / `APP_BUILD_TIME` 在镜像里。部署记录保存上一版 digest。
+3. **数据库（顺序和第 6 节一致）**：备份 → **先换新镜像**（库还是 11，后台 503、用户端正常）→ 观察 → `docker compose -f docker-compose.prod.yml run --rm migrate` 迁到 12。**不要先迁移再换镜像**：迁到 12 后旧容器一重启就会因 `POSTGRES_SCHEMA_VERSION_MISMATCH` 退出。
 4. **/admin 放在 Caddy basic auth 后面**（加 IP 白名单，见 7.2），应用里 `ADMIN_ENABLED=true`；应用自己的账号 + 动态码是第三层。
 5. **冒烟**：`node scripts/smoke-prod.mjs …`（第 8 节），白名单机器上加 `--admin-reachable`。
-6. 回滚：把 digest 换回上一版（只换镜像；本次的例外见第 6 节）。
+6. 回滚：`.env` 里 `APP_IMAGE` 换回上一版 digest → `docker compose -f docker-compose.prod.yml up -d app`（只换镜像；本次的例外见第 6 节）。
 
-CI：`.github/workflows/image.yml` 先跑 verify + E2E/axe，通过后构建镜像，tag 为 commit 短 sha 和完整 sha（不用 `latest`），检查镜像里有 `dist-admin`、没有 `.map`，并把 digest 写进运行摘要。本地没有 docker，镜像构建没有实际跑过。compose 和 Caddy 仍需运维改并确认上线日期。
+CI：`.github/workflows/image.yml` 先跑 verify + E2E/axe，通过后构建镜像，tag 为 commit 短 sha 和完整 sha（不用 `latest`），检查镜像里有 `dist-admin`、没有 `.map`，并把 digest 写进运行摘要。compose 已改为按 `APP_IMAGE` 部署；Caddy 仍需运维改并确认上线日期。
 
 ### 7.1 镜像
 

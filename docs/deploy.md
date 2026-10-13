@@ -14,14 +14,17 @@
 
 ```bash
 cp docs/deploy.env.example .env && chmod 600 .env   # 填好密钥（见下方变量表）
-docker compose -f docker-compose.prod.yml build
+# APP_IMAGE = CI 构建的镜像（.github/workflows/image.yml），按 digest 固定，写进 .env：
+#   APP_IMAGE=ghcr.io/<owner>/lushu-app@sha256:<digest>
+# 服务器上不构建镜像，也不用 latest。
+docker compose -f docker-compose.prod.yml pull app
 docker compose -f docker-compose.prod.yml up -d db
 docker compose -f docker-compose.prod.yml run --rm migrate   # 建表 → 空数据回填 → 标记就绪
 docker compose -f docker-compose.prod.yml up -d app
 curl -fsS http://127.0.0.1:3080/api/ready                     # storage.ready=true 才算好
 ```
 
-`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本时只需重新 `build` + `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）+ `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
+`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本：把 `.env` 里的 `APP_IMAGE` 换成新 digest（旧 digest 记进部署记录，用于回滚）→ `pull app` → `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）+ `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
 
 ## Caddy
 
@@ -65,6 +68,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 | 变量 | 本次取值 | 作用 |
 | --- | --- | --- |
+| `APP_IMAGE` | `ghcr.io/<owner>/lushu-app@sha256:…` | 必填。CI 镜像按 digest 固定；compose 不再 `build`，也不用 `latest`。同时作为 `APP_IMAGE_DIGEST` 传给应用 |
 | `POSTGRES_PASSWORD` | 随机（仅字母数字） | db 初始化密码；compose 用它拼 `DATABASE_URL` |
 | `PROFILE_ID_SECRET` | 随机 ≥32 位 | 用户身份与路书编辑凭证的 HMAC 密钥；生产缺失会拒绝启动；上线后不可更换 |
 | `ROUTEBOOK_ADMIN_TOKEN` | 随机 | 运营后台令牌（请求头 `x-routebook-admin-token`） |

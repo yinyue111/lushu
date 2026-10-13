@@ -1,5 +1,7 @@
 # Production stack: app (127.0.0.1:3080, behind host Caddy) + PostgreSQL 16.
 # Usage and the env list: docs/deploy.md. Secrets live in .env (never committed).
+# The app image is never built on the server: APP_IMAGE is the CI-built image pinned by digest,
+# e.g. APP_IMAGE=ghcr.io/<owner>/lushu-app@sha256:<digest>. Rollback = set the previous digest + up -d app.
 name: lushu
 
 services:
@@ -22,12 +24,12 @@ services:
     networks: [backend]
 
   app:
-    build: .
-    image: lushu-app:latest
+    image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
+      APP_IMAGE_DIGEST: ${APP_IMAGE}
       HOST: 0.0.0.0
       PORT: '3080'
       ROUTEBOOK_DATA_DIR: /data
@@ -50,7 +52,7 @@ services:
 
   # One-shot schema migration / first-time readiness: `docker compose -f docker-compose.prod.yml run --rm migrate`
   migrate:
-    image: lushu-app:latest
+    image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
     profiles: ['tools']
     env_file: .env
     environment:
