@@ -274,7 +274,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
   }
   await store.addSpend({ pages: counts.pages, amapCalls: counts.amapCalls }, now());
-  const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy, stopsDone: stopsTotal, stopsTotal, phase: 'done' };
+  const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy, ...(budget.lastError ? { lastError: budget.lastError.slice(0, 200) } : {}), stopsDone: stopsTotal, stopsTotal, phase: 'done' };
   log({ event: 'enrich', routebookId: routebook.id, ...summary });
   return { claims, summary };
 }
