@@ -130,6 +130,8 @@ Caddy 容器只有在**流量经 iptables DNAT 直接进容器**时才看到真�
 - [ ] **生成任务只在内存里**（`server/ai/generationJobs.mjs` 的 `jobs` / `keyIndex` 两个 `Map`，约 45–47 行）：任务在哪个实例创建，长轮询就必须打到同一个实例，否则查不到任务（404）、去重也失效。扩容前要么在 Caddy 上做会话粘滞（按 profile / cookie 固定实例），要么把任务状态挪到共享存储（PG）。
 - [ ] **告警去重只按进程**（`server/ops/alerts.mjs` 第 3 行 `lastSent` 是进程内 `Map`）：N 个实例同时满足条件会各发一次，即每小时最多 N 条同类 webhook。
 - [ ] **身份断言防重放（nonce）跨实例是成立的，前提是 `STORAGE_BACKEND=postgres`**（读代码的结论，没做多实例实测）：`server/auth/profiles.mjs` 的 `consumeIdentityAssertion` 先拿 PG advisory lock（`withStorageEntityLock` → `pg_advisory_lock`，跨进程），在锁里用 `findLatestByEntityKey` 查 PG 里是否已记录这个 nonce，没有才记录。`server/auth/nonce-store.mjs` 自己的内存 `Map` 只在启动时加载一次、之后不再刷新，**单靠它不跨实例**；起作用的是锁里的 PG 查询。JSONL 后端下锁和索引都是进程内的，多实例不安全（JSONL 本来也只支持单实例）。
+  - 锁键：`pg_advisory_lock(<固定命名空间>, hashtext('identity-nonce:<nonceKey>'))`，第二个参数是 32 位 `hashtext`，**不同 nonce 可能撞到同一个锁**。撞了的唯一后果是两件无关的操作排队（一个等另一个释放锁），不会产生错误结果：锁里的判断仍然按完整的 nonceKey 查 PG。
+  - 边界情况：内存里先记下 nonce、再写 PG（`nonce-store.mjs` 的 `consume`）。如果写 PG 失败，这次请求报错失败；本实例的内存里已经有这个 nonce，会拒绝重试，但 PG 里没有记录，**另一个实例仍可能接受同一个断言一次**。任何情况下都不会有两次成功：成功必须以 PG 写入成功为前提，而下一次检查是在同一把锁里查 PG。
 - [ ] 重新确认 Caddy 的上游和信任列表（多个 app 地址，`TRUSTED_PROXY_CIDRS` 不变，仍然只信 Caddy 那一跳）。
 
 ## 反代与 TRUST_PROXY
