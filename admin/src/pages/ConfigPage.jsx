@@ -6,7 +6,10 @@ import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inp
 const GROUPS = { model: '模型', registration: '注册', cities: '开放区域与首页城市', quota: '额度与花费', enrich: '联网补全', admin: '后台安全' };
 const SOURCE = { db: '后台设置', env: '环境变量' };
 const SECRET_STATE = { db: '已设置（后台）', env: '已设置（环境变量）', unset: '未设置' };
-const show = (value) => (value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value));
+const show = (value, max = 0) => {
+  const text = value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return max && text.length > max ? `${text.slice(0, max)}…` : text;
+};
 
 export default function ConfigPage({ admin }) {
   const config = useLoad(() => adminGet('/config'));
@@ -155,7 +158,7 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
               <div key={s.key} className="space-y-1">
                 <Field
                   label={`${s.label}（${s.key}）`}
-                  hint={`来源：${SOURCE[s.source]} · 环境变量值：${show(s.envValue)}${s.items ? ` · 可选：${s.items.join('、')}` : ''}`}
+                  hint={`来源：${SOURCE[s.source]} · 环境变量值：${show(s.envValue, 80)}${s.items ? ` · 可选：${s.items.length > 12 ? `${s.items.slice(0, 12).join('、')} 等 ${s.items.length} 项` : s.items.join('、')}` : ''}`}
                 >
                   {SettingInput({ setting: s, value: valueOf(s), disabled: !canWrite, onChange: (v) => setDraft((d) => ({ ...d, [s.key]: v })) })}
                 </Field>
@@ -256,7 +259,9 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
                   setTestRuns({});
                   setForce(false);
                   onSaved();
-                  return `已保存为 v${result.version}，几秒内各进程生效`;
+                  const text = `已保存为 v${result.version}，几秒内各进程生效`;
+                  setMessage({ tone: 'ok', text });
+                  return text;
                 }}
               />
               {failedTiers.length > 0 && !force && <p className="text-sm text-muted">改了模型或模型密钥，需要先试跑通过才能保存。</p>}

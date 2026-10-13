@@ -9,6 +9,7 @@ import { sendMail } from '../mail/transport.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
 import { isPublicRoutebook } from '../routebooks/views.mjs';
+import { currentRoutebookVersion } from '../routebooks/versions.mjs';
 import { updateRoutebookStatus, adminRevokeFriendLink } from '../routebooks/mutations.mjs';
 import { enrichStore } from '../enrich/store.mjs';
 import { enqueueEnrichment } from '../enrich/service.mjs';
@@ -206,7 +207,8 @@ export async function roadbookAction({ admin, req, publicId, action, reason }) {
   }
   if (action === 'take-down') {
     // Public → archived (share page returns not found); friend link → revoked. The routebook itself stays.
-    if (isPublicRoutebook(routebook)) await updateRoutebookStatus(id, { publishStatus: 'archived', opsNote: `管理后台下架：${why}` });
+    if (isPublicRoutebook(routebook))
+      await updateRoutebookStatus(id, { publishStatus: 'archived', opsNote: `管理后台下架：${why}`, expectedVersion: await currentRoutebookVersion(id) });
     if (routebook.friendLink) await adminRevokeFriendLink(id, why);
     const after = { status: statusOf(await getSavedRoutebook(id)) };
     await adminAudit(req, { admin, action: 'roadbook.take-down', target: `routebook:${id}`, before, after, reason: why });
