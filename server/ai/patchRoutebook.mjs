@@ -3,6 +3,7 @@
  * Uses the same OpenAI-compatible endpoint as full generation but a narrow prompt.
  */
 import { createHttpError, truncateString } from '../lib/util.mjs';
+import { compactDays } from '../../src/lib/dayRepair.js';
 import { loadCodexRuntime, openAiEndpoint, extractTextFromResponse, parseJsonFromText } from './generate.mjs';
 import { guardRoutebookFacts } from './factGuard.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
@@ -138,7 +139,10 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
   }
   const orderedDays = (routebook.days?.length ? routebook.days : [...byDay.keys()]).filter((d) => byDay.has(d));
   for (const d of byDay.keys()) if (!orderedDays.includes(d)) orderedDays.push(d);
-  const finalStops = orderedDays.flatMap((d) => byDay.get(d) || []);
+  // 与前端同一规则：去掉空的天并顺延编号，不补站。
+  const compacted = compactDays(orderedDays.flatMap((d) => byDay.get(d) || []), orderedDays);
+  const finalStops = compacted.stops;
+  orderedDays.splice(0, orderedDays.length, ...compacted.days);
 
   let routed = { ...routebook, stops: finalStops, days: orderedDays };
   try {
