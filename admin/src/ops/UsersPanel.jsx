@@ -8,7 +8,7 @@ const ACTIONS = {
   disable: { label: '停用', note: '停用后立刻退出所有设备，不能登录。' },
   enable: { label: '恢复', note: '恢复后可以重新登录。' },
   'revoke-sessions': { label: '强制退出', note: '所有设备退出登录，账号仍可用。' },
-  // 补发恢复码 moved to the admin console 「用户 → 发恢复码」 (mailed to the verified email only).
+  // 补发恢复码: only via the admin console 「用户 → 发恢复码」 (mailed to the verified email; nobody sees the code).
   'set-quota': { label: '设生成额度', note: '每个统计窗口内可生成的次数；留空 = 用默认额度。' }
 };
 
@@ -135,70 +135,53 @@ export default function UsersPanel() {
 function UserActionDialog({ user, action, onClose, onDone }) {
   const [reason, setReason] = useState('');
   const [quota, setQuota] = useState(user.generationQuota ?? '');
-  const [state, setState] = useState({ busy: false, error: '', code: '' });
+  const [state, setState] = useState({ busy: false, error: '' });
   const reasonId = useId();
   const quotaId = useId();
   const submit = async (event) => {
     event.preventDefault();
-    setState({ busy: true, error: '', code: '' });
+    setState({ busy: true, error: '' });
     try {
-      const data = await saveOpsUserAction(user.id, { action, reason, ...(action === 'set-quota' ? { quota: quota === '' ? null : Number(quota) } : {}) });
-      setState({ busy: false, error: '', code: data.recoveryCode || '' });
+      await saveOpsUserAction(user.id, { action, reason, ...(action === 'set-quota' ? { quota: quota === '' ? null : Number(quota) } : {}) });
+      setState({ busy: false, error: '' });
       onDone();
-      if (!data.recoveryCode) onClose();
+      onClose();
     } catch (error) {
-      setState({ busy: false, error: formatApiError(error), code: '' });
+      setState({ busy: false, error: formatApiError(error) });
     }
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent title={`${ACTIONS[action].label}：${user.emailMasked || user.phoneMasked}`} description={ACTIONS[action].note}>
-        {state.code ? (
-          <div className="grid gap-3">
-            <p className="text-sm">一次性恢复码（只显示这一次）：</p>
-            <p className="rounded-tile bg-canvas p-3 text-center font-mono text-lg font-bold tracking-wider">{state.code}</p>
-            <button type="button" className="btn btn-primary" onClick={onClose}>
-              已交给本人，关闭
-            </button>
-          </div>
-        ) : (
-          <form className="grid gap-3" onSubmit={submit}>
-            {action === 'set-quota' && (
-              <>
-                <label htmlFor={quotaId} className="text-sm font-bold">
-                  生成额度
-                </label>
-                <input
-                  id={quotaId}
-                  className="input-field"
-                  inputMode="numeric"
-                  value={quota}
-                  onChange={(event) => setQuota(event.target.value.replace(/\D/g, ''))}
-                  placeholder="留空 = 默认"
-                />
-              </>
-            )}
-            <label htmlFor={reasonId} className="text-sm font-bold">
-              原因（记入审计）
-            </label>
-            <textarea
-              id={reasonId}
-              className="input-field min-h-20"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              required
-              minLength={4}
-            />
-            {state.error && (
-              <p role="alert" className="text-sm font-semibold text-danger">
-                {state.error}
-              </p>
-            )}
-            <button type="submit" className="btn btn-primary" disabled={state.busy || reason.trim().length < 4}>
-              确认{ACTIONS[action].label}
-            </button>
-          </form>
-        )}
+        <form className="grid gap-3" onSubmit={submit}>
+          {action === 'set-quota' && (
+            <>
+              <label htmlFor={quotaId} className="text-sm font-bold">
+                生成额度
+              </label>
+              <input
+                id={quotaId}
+                className="input-field"
+                inputMode="numeric"
+                value={quota}
+                onChange={(event) => setQuota(event.target.value.replace(/\D/g, ''))}
+                placeholder="留空 = 默认"
+              />
+            </>
+          )}
+          <label htmlFor={reasonId} className="text-sm font-bold">
+            原因（记入审计）
+          </label>
+          <textarea id={reasonId} className="input-field min-h-20" value={reason} onChange={(event) => setReason(event.target.value)} required minLength={4} />
+          {state.error && (
+            <p role="alert" className="text-sm font-semibold text-danger">
+              {state.error}
+            </p>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={state.busy || reason.trim().length < 4}>
+            确认{ACTIONS[action].label}
+          </button>
+        </form>
       </DialogContent>
     </Dialog>
   );

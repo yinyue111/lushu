@@ -242,15 +242,15 @@ test('ops: masked search, disable/enable, one-time recovery with audit, quota; a
   assert.equal((await createClient(server.baseUrl).login('13612345678', PASSWORD)).data.code, 'ACCOUNT_DISABLED');
   await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'enable', reason: '核实后恢复' } });
 
-  // The legacy plain-text recovery path is off by default (OPS_RECOVERY_CODE_PLAINTEXT unset).
+  // The legacy plain-text recovery action is gone: no ops path ever returns a recovery code.
   const issued = await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'issue-recovery', reason: '电话核实本人后补发' } });
-  assert.equal(issued.status, 403);
-  assert.equal(issued.data.code, 'OPS_RECOVERY_PLAINTEXT_DISABLED');
+  assert.equal(issued.status, 400);
+  assert.equal(issued.data.code, 'OPS_ACCOUNT_ACTION_INVALID');
   assert.equal(issued.data.recoveryCode, undefined);
   const quota = await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'set-quota', quota: 2, reason: '内测加额度' } });
   assert.equal(quota.data.user.generationQuota, 2);
   const audits = await readFile(join(server.dataDir, 'ops-audits.jsonl'), 'utf8');
-  assert.doesNotMatch(audits, /"action":"issue-recovery"/, 'a refused issue is not recorded as issued');
+  assert.doesNotMatch(audits, /"action":"issue-recovery"/, 'nothing recorded as issued');
 
   // Delete account: password required; the number can register again afterwards.
   const recover = createClient(server.baseUrl);
