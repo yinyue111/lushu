@@ -144,6 +144,18 @@ function createJsonlStore(path = join(DATA_DIR, 'enrichment.jsonl')) {
       await load();
       return write('report', report);
     },
+    async listReports({ limit = 500 } = {}) {
+      await load();
+      return reports.slice(-limit).reverse();
+    },
+    async routebooksWithCacheKey(cacheKey) {
+      await load();
+      return [...results.values()].filter((r) => (r.claims ?? []).some((c) => c.cacheKey === cacheKey)).map((r) => r.routebookId);
+    },
+    async listJobs({ since = 0 } = {}) {
+      await load();
+      return [...jobs.values()].filter((j) => Date.parse(j.createdAt) >= since);
+    },
     async stats({ days = 7, now = Date.now() } = {}) {
       await load();
       const byStatus = {};
@@ -281,6 +293,29 @@ function createPostgresStore(poolProvider) {
         report.createdAt
       ]);
       return report;
+    },
+    async listReports({ limit = 500 } = {}) {
+      const { rows } = await q(`select * from ${S}.enrich_reports order by created_at desc limit $1`, [limit]);
+      return rows.map((r) => ({
+        id: r.id,
+        routebookId: r.routebook_id,
+        stopKey: r.stop_key,
+        field: r.field,
+        cacheKey: r.cache_key,
+        note: r.note,
+        userId: r.user_id,
+        source: r.source ?? 'user',
+        status: r.status ?? 'open',
+        createdAt: iso(r.created_at)
+      }));
+    },
+    async routebooksWithCacheKey(cacheKey) {
+      const { rows } = await q(`select routebook_id from ${S}.enrich_results where claims @> $1::jsonb limit 500`, [JSON.stringify([{ cacheKey }])]);
+      return rows.map((r) => r.routebook_id);
+    },
+    async listJobs({ since = 0 } = {}) {
+      const { rows } = await q(`select * from ${S}.enrich_jobs where created_at >= $1`, [new Date(since).toISOString()]);
+      return rows.map(jobFromRow);
     },
     async stats({ days = 7, now = Date.now() } = {}) {
       const status = await q(

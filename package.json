@@ -44,7 +44,8 @@
     "poi:dedup-report": "node scripts/poi-dedup-report.mjs",
     "eval:generation": "node scripts/eval/run-generation-eval.mjs",
     "jev:labeling-kit": "node scripts/jev/build-labeling-kit.mjs",
-    "jev:eval": "node scripts/jev/eval-labels.mjs"
+    "jev:eval": "node scripts/jev/eval-labels.mjs",
+    "admin:create": "node --env-file-if-exists=.env scripts/admin-create.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

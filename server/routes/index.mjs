@@ -10,6 +10,7 @@ import { routingRoutes } from './routing.mjs';
 import { tripRoutes } from './trips.mjs';
 import { authRoutes } from './auth.mjs';
 import { telemetryRoutes } from './telemetry.mjs';
+import { adminRoutes } from './admin.mjs';
 import { refreshPoiCatalog } from '../poi/catalog.mjs';
 import { refreshModerationState } from '../moderation/index.mjs';
 import { createRouter } from '../http/router.mjs';
@@ -28,7 +29,8 @@ const apiRoutes = [
   ...routingRoutes,
   ...tripRoutes,
   ...authRoutes,
-  ...telemetryRoutes
+  ...telemetryRoutes,
+  ...adminRoutes
 ];
 
 const apiRouter = createRouter(apiRoutes);

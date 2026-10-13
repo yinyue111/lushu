@@ -50,6 +50,20 @@ export function wantedFields(stop) {
 }
 
 /** Value appears on the page within a window around the place name. */
+/** Short quote from the page around the first evidence match near the place name (for the correction queue). */
+export function evidenceQuote(pageText, placeName, patterns) {
+  const text = compact(pageText);
+  const name = compact(placeName);
+  for (let i = text.indexOf(name); name && i >= 0; i = text.indexOf(name, i + name.length)) {
+    const window = text.slice(Math.max(0, i - 300), i + name.length + 300);
+    if (!patterns.every((re) => re.test(window))) continue;
+    const m = patterns[0].exec(window);
+    if (!m) continue;
+    return window.slice(Math.max(0, m.index - 50), m.index + m[0].length + 50).slice(0, 120);
+  }
+  return '';
+}
+
 export function pageSupports(pageText, placeName, patterns) {
   const text = compact(pageText);
   const name = compact(placeName);
@@ -369,7 +383,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           const page = await fetchPage(url);
           if (page.ok && pageSupports(page.text, name, patterns)) {
             if (field === 'price' && pageHasSeasonalPrice(page.text, name)) seasonal = true;
-            verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
+            verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain, quote: evidenceQuote(page.text, name, patterns) });
             const conditions = extractConditions(page.text, name, { pageTitle: page.title || w.cited.get(url) || '' }).filter((c) =>
               field === 'price' ? c.kind !== 'seasonal-hours' : ['reservation', 'seasonal-hours'].includes(c.kind)
             );

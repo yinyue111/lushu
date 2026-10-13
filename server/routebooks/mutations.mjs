@@ -120,6 +120,25 @@ export async function updateRoutebookStatus(publicId, input) {
 }
 
 /**
+ * Admin console: make the friend link stop working (the routebook itself stays). Audited by the caller;
+ * the version history records actorType 'admin' and the note.
+ * @param {string} publicId
+ * @param {string} note
+ */
+export async function adminRevokeFriendLink(publicId, note) {
+  const routebook = await getSavedRoutebook(publicId);
+  if (!routebook || isDeletedRoutebook(routebook)) throw createHttpError('路书不存在', 404, 'ROUTEBOOK_NOT_FOUND');
+  if (!routebook.friendLink) return { routebook, changed: false };
+  const versionMetadata = await routebookMutationMetadata(routebook, {}, { changeReason: `运营停用朋友链接：${truncateString(note, 200)}`, actorType: 'admin' });
+  const updated = normalizeRoutebookForStorage(
+    { ...routebook, ...versionMetadata, editToken: sanitizeEditToken(routebook.editToken), friendLink: null },
+    routebook.publicId || routebook.id
+  );
+  await appendVersionedRoutebook(updated, 'friend-link-revoked', { previousStatus: routebook.publishStatus || 'draft', opsNote: truncateString(note, 400) });
+  return { routebook: updated, changed: true };
+}
+
+/**
  * Create (or keep) / revoke the owner's unlisted friend link. The key is generated
  * here and never accepted from a client.
  * @param {string} publicId

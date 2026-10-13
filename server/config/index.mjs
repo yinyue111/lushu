@@ -424,3 +424,7 @@ export const GENERATION_REGION = String(process.env.GENERATION_REGION ?? '').tri
 // 全站每日生成上限（整本生成 + AI 局部调整，滚动 24 小时，所有用户合计）。0 = 不限。
 // 开放注册后的成本兜底；超出时返回 429，并在服务端日志告警。
 export const GENERATION_DAILY_LIMIT = envNumber('GENERATION_DAILY_LIMIT', 300, { min: 0 });
+
+// Admin console (docs/admin.md). /admin and /api/admin/* exist only when enabled; on by default in
+// development, off in production unless ADMIN_ENABLED=true (the gateway adds IP allowlist / basic auth on top).
+export const ADMIN_ENABLED = envFlag('ADMIN_ENABLED', !IS_PRODUCTION);
