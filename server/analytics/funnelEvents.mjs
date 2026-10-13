@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto';
 import { CLIENT_ERROR_LOG_PATH, FUNNEL_LOG_PATH, PROFILE_ID_SECRET } from '../config/index.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
 import { truncateString } from '../lib/util.mjs';
+import { raiseAlert } from '../ops/alerts.mjs';
 
 export const CLIENT_FUNNEL_EVENTS = new Set(['home_view', 'create_start', 'share_copy']);
 // 信任行为：点开「待确认」、点开来源、报错、隔天再打开同一份路书。只记次数和人，不记内容。
@@ -145,8 +146,14 @@ export function normalizeClientError(input = {}) {
   };
 }
 
+const recentClientErrors = [];
+const CLIENT_ERROR_SURGE = Number(process.env.ALERT_CLIENT_ERRORS_PER_HOUR) || 30;
 export async function recordClientError(input) {
   const row = normalizeClientError(input);
+  const now = Date.now();
+  recentClientErrors.push(now);
+  while (recentClientErrors.length && now - recentClientErrors[0] > 3_600_000) recentClientErrors.shift();
+  if (recentClientErrors.length >= CLIENT_ERROR_SURGE) void raiseAlert('client-error-surge', `近 1 小时前端错误 ${recentClientErrors.length} 条`);
   await appendJsonLine(CLIENT_ERROR_LOG_PATH, row);
   console.warn('[client-error]', row.kind, row.path, row.message);
   return row;

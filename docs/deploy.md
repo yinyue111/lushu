@@ -179,7 +179,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `ENRICH_ENABLED` | `false` | 打开联网补全。生产要打开就设 `true`（另需中继密钥，见下） |
+| `ENRICH_ENABLED` | `false` | 打开联网补全。**内测配置必须设 `true`**（另需中继密钥，见下）；生产没开时启动日志会警告，运营台「联网补全」页显示没在运行的原因 |
 | `ENRICH_MODEL` | `grok-4.7` | 联网搜索用的模型（需要中继 Responses 接口支持 web_search；gemini 的引用不是结构化字段，不用） |
 | `ENRICH_BASE_URL` / `ENRICH_API_KEY` | 同 `OPENAI_BASE_URL` / `OPENAI_API_KEY` | 一般不用单独配 |
 | `ENRICH_DAILY_BUDGET_USD` | `30` | 全站每天（UTC）联网搜索花费上限，超出后当天不再搜索，只保留待确认 |
@@ -201,3 +201,10 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 - 每天 5 次的配额按 profile 计；登录后按账号的主 profile 计，运营可以给单个账号改额度。没有 profile 的匿名请求只受访问码和按 IP 的 AI 限流约束。
 - 照片和 JSONL 日志存在 `appdata` 卷（`/data`）里，需要和 PG 一起备份。
 - 本仓库所在的开发机没有 Docker。2026-10-09 只做了两项验证：用同样步骤离线构建了运行时文件，并在全新 PG 库上完成迁移、回填、就绪标记和生产模式启动；另外解析了 compose 的 YAML。第一次真正 `docker compose build` 后，请先检查健康状态再切流量。
+
+## 告警（可选）
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
+| `ALERT_CLIENT_ERRORS_PER_HOUR` | `30` | 前端错误激增的阈值（每进程近 1 小时条数） |

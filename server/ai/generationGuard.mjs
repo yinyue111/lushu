@@ -9,6 +9,7 @@
 //   restarts and is shared across instances). The shared 'anonymous' identity is
 //   left to the per-IP 'ai' rate limit, otherwise one user could lock out everyone.
 import { createHash } from 'node:crypto';
+import { raiseAlert } from '../ops/alerts.mjs';
 import {
   GENERATION_MODES,
   resolveGenerationMode,
@@ -184,7 +185,7 @@ export async function peekDailyGenerationLimit({ limit = GENERATION_DAILY_LIMIT,
 export async function enforceDailyGenerationLimit(options = {}) {
   const peek = await peekDailyGenerationLimit(options);
   if (!peek.limited) return peek;
-  console.warn(`[generation] daily limit reached: ${peek.used}/${peek.limit} in 24h`);
+  void raiseAlert('generation-daily-limit', `全站 24 小时生成数到上限：${peek.used}/${peek.limit}`);
   const error = createHttpError('今天的 AI 生成名额用完了，明天再来试试。已经生成的路书不受影响。', 429, 'GENERATION_DAILY_LIMIT');
   /** @type {any} */ (error).retryAfterSeconds = 3600;
   throw error;

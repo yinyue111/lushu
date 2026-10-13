@@ -25,6 +25,7 @@ import {
   REGISTRATION_MODE,
   HOST,
   IS_PRODUCTION,
+  ENRICH_ENABLED,
   MAP_TILE_UPSTREAMS,
   MODERATION_PROVIDER,
   PORT,
@@ -77,6 +78,7 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
       caFile: MAIL_SMTP_CA_FILE
     }
   });
+  if (IS_PRODUCTION && !ENRICH_ENABLED) warnings.push('ENRICH_ENABLED=false：联网补全没开，所有门票和开放时间都会一直是「待确认」。内测配置应设为 true');
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));
 }

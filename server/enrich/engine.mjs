@@ -6,6 +6,7 @@
 //    literally appears near the place name. 全天开放 == 00:00-24:00;
 //  - conflicts, a single source, or nothing found → the stop keeps 待确认 (recorded with the reason);
 //  - per-routebook budget (searches, USD) and a global daily USD budget; results cached per city+place+field.
+import { raiseAlert } from '../ops/alerts.mjs';
 import {
   ENRICH_ASSUMED_USD_PER_SEARCH,
   ENRICH_CACHE_DAYS,
@@ -146,7 +147,10 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       const projected = Math.max(ENRICH_ASSUMED_USD_PER_SEARCH, budget.maxUsd);
       if (budget.searches >= ENRICH_MAX_SEARCHES_PER_ROUTEBOOK) budget.stoppedBy = 'searches';
       else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
-      else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) budget.stoppedBy = 'daily-usd';
+      else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) {
+        budget.stoppedBy = 'daily-usd';
+        void raiseAlert('enrich-daily-budget', `联网补全今日预算用完：$${spend.usd.toFixed(2)} / $${ENRICH_DAILY_BUDGET_USD}`);
+      }
       else {
         let result;
         try {
