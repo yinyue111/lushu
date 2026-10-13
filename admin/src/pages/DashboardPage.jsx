@@ -19,6 +19,7 @@ export default function DashboardPage() {
         <Notice key={w.key} tone={w.tone}>
           <strong>注意：</strong>
           {w.text}
+          {w.detail && <span className="mt-1 block text-xs opacity-80">{w.detail}</span>}
         </Notice>
       ))}
       {d?.successRate && (

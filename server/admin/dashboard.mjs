@@ -7,6 +7,7 @@ import { getSavedRoutebook } from '../storage/records.mjs';
 import { stopKeyOf } from '../enrich/engine.mjs';
 import { costCapState } from './costCap.mjs';
 import { registrationState } from '../ops/systemInfo.mjs';
+import { proxyMisconfigMonitor } from '../ops/proxyMisconfig.mjs';
 
 const DAY = 86400000;
 const TZ_OFFSET_MS = 8 * 3600000; // "today" = Asia/Shanghai calendar day (UTC+8), same as the team's day
@@ -105,6 +106,7 @@ export async function dashboard(now = Date.now()) {
   return {
     generatedAt: new Date(now).toISOString(),
     warnings: dashboardWarnings(),
+    proxyMisconfig: proxyMisconfigMonitor().state(),
     successRate: successRate(rows, now),
     pendingRatio: await pendingRatio(now),
     cost: {
@@ -123,8 +125,16 @@ export async function dashboard(now = Date.now()) {
 }
 
 /** Things an operator should see first on the overview. */
-export function dashboardWarnings(snapshot = currentSnapshot(), env = process.env) {
+export function dashboardWarnings(snapshot = currentSnapshot(), env = process.env, proxy = proxyMisconfigMonitor().state()) {
   const warnings = [];
+  if (proxy?.tripped) {
+    warnings.push({
+      key: 'proxy-misconfig',
+      tone: 'error',
+      text: '代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE。',
+      detail: `近 ${Math.round(proxy.windowMs / 60000)} 分钟有 ${proxy.count} 个请求带 X-Forwarded-For/Proto，但来自不在 TRUSTED_PROXY_CIDRS 里的地址 ${proxy.lastPeer || 'unknown'}（阈值 ${proxy.threshold}，仅本进程计数）。见 docs/deploy.md「Caddy 两种部署方式」。`
+    });
+  }
   const { mode, explicitlySet } = registrationState(snapshot, env);
   if (mode === 'open') {
     warnings.push({
