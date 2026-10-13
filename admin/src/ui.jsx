@@ -17,9 +17,9 @@ export function Page({ title, description = '', actions = null, children }) {
   );
 }
 
-export function Card({ title = '', children, className = '' }) {
+export function Card({ title = '', children, className = '', id = undefined }) {
   return (
-    <section className={`rounded-lg border border-line bg-paper p-4 ${className}`} aria-label={typeof title === 'string' ? title : undefined}>
+    <section id={id} className={`rounded-lg border border-line bg-paper p-4 ${className}`} aria-label={typeof title === 'string' ? title : undefined}>
       {title && <h2 className="mb-3 text-base font-semibold text-ink">{title}</h2>}
       {children}
     </section>

@@ -39,3 +39,11 @@ test('overview warns when registration is open by default (unset)', () => {
   assert.match(dashboardWarnings(snap('open'), { REGISTRATION_MODE: 'open' })[0].text, /对所有人开放/);
   assert.deepEqual(dashboardWarnings(snap('invite', { 'registration.mode': 'invite' }), {}), []);
 });
+
+test('pricing: a blank price is rejected (never stored as 0); source and date are kept', async () => {
+  const { parseSetting } = await import('../../server/config/runtimeSchema.mjs');
+  assert.throws(() => parseSetting('model.pricing', { 'grok-x': { input: '', output: 2 } }), /都要填/);
+  assert.deepEqual(parseSetting('model.pricing', { 'grok-x': { input: 1, output: 2, source: '中继账单 2026-10', asOf: '2026-10-01' } }), {
+    'grok-x': { input: 1, output: 2, source: '中继账单 2026-10', asOf: '2026-10-01' }
+  });
+});

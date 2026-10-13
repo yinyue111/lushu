@@ -294,11 +294,18 @@ export function parseSetting(key, value) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ConfigValueError(key, '需要 { 模型名: { input, output } }');
       const out = {};
       for (const [model, price] of Object.entries(value)) {
+        // An empty field is "no price", never 0.
+        const blank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
+        if (blank(price?.input) || blank(price?.output)) throw new ConfigValueError(key, `${model || '（未填模型名）'} 的输入、输出单价都要填`);
         const input = Number(price?.input);
         const output = Number(price?.output);
         if (!model.trim() || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0)
           throw new ConfigValueError(key, `${model} 单价无效`);
-        out[model.trim()] = { input, output };
+        // Where the price came from (e.g. 中继账单 2026-10) and as-of date; optional, shown in the console.
+        const source = String(price?.source ?? '').trim().slice(0, 120);
+        const asOf = String(price?.asOf ?? '').trim();
+        if (asOf && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new ConfigValueError(key, `${model} 单价日期格式 YYYY-MM-DD`);
+        out[model.trim()] = { input, output, ...(source ? { source } : {}), ...(asOf ? { asOf } : {}) };
       }
       return out;
     }

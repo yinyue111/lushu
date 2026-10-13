@@ -1085,6 +1085,11 @@ function nextFallbackMode(requested, error, { signal, deadline }) {
   return fallbackModeFor(requested);
 }
 
+/**
+ * @param {any} payload
+ * @param {AbortSignal|undefined} signal
+ * @param {{ onStage?: GenerationStageListener, deadline?: number, mode?: string, forceMode?: boolean }} [options]
+ */
 async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE, forceMode = false } = {}) {
   // Runtime config (admin console): per-mode model / base URL / key / timeouts, and the fallback order
   // when the requested mode is not configured. Read per call, so a saved change applies to the next generation.

@@ -5,6 +5,20 @@ import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inp
 
 const GROUPS = { model: '模型', registration: '注册', cities: '开放区域与首页城市', quota: '额度与花费', enrich: '联网核对', admin: '后台安全' };
 const SOURCE = { db: '后台设置', env: '环境变量' };
+// Chinese labels for enum / option values (the stored value stays the same).
+const VALUE_LABEL = {
+  open: '开放注册',
+  invite: '邀请制',
+  closed: '关闭注册',
+  auto: '自动（单价齐全才拦截）',
+  on: '开启（按已知金额拦截）',
+  off: '关闭（只显示，不拦截）',
+  fast: '轻快',
+  deep: '细品'
+};
+const EFFORT_LABEL = { '': '默认（不传）', low: '低', medium: '中', high: '高', xhigh: '最高' };
+const PROVIDER_LABEL = { 'openai-compatible': 'OpenAI 兼容接口' };
+const valueLabel = (v) => VALUE_LABEL[v] ?? v;
 const SECRET_STATE = { db: '已设置（后台）', env: '已设置（环境变量）', unset: '未设置' };
 const show = (value, max = 0) => {
   const text = value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
@@ -51,7 +65,7 @@ function SettingInput({ setting, value, onChange, disabled }) {
       <select id={id} className={inputClass} disabled={disabled} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         {setting.values.map((v) => (
           <option key={v} value={v}>
-            {v}
+            {valueLabel(v)}
           </option>
         ))}
       </select>
@@ -80,8 +94,123 @@ function SettingInput({ setting, value, onChange, disabled }) {
         onChange={(e) => onChange(e.target.value.split(/[、,，\s]+/).filter(Boolean))}
       />
     );
-  if (t === 'modelTier' || t === 'pricing') return (id) => <JsonInput id={id} disabled={disabled} value={value} onChange={onChange} />;
+  if (t === 'modelTier') return (id) => <ModelTierForm id={id} disabled={disabled} value={value} onChange={onChange} />;
+  if (t === 'pricing') return (id) => <PricingForm id={id} disabled={disabled} value={value} onChange={onChange} />;
   return (id) => <input id={id} className={inputClass} disabled={disabled} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />;
+}
+
+/** 模型档位表单：服务商、接口地址、模型名、思考强度、超时；原始 JSON 收在「高级」里。 */
+function ModelTierForm({ id, value, onChange, disabled }) {
+  const v = value ?? {};
+  const set = (patch) => onChange({ ...v, ...patch });
+  const sec = (ms) => (ms == null || ms === '' ? '' : Math.round(Number(ms) / 1000));
+  return (
+    <div className="space-y-2 rounded-md border border-line p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-xs text-muted">
+          服务商
+          <select id={id} className={inputClass} disabled={disabled} value={v.provider ?? 'openai-compatible'} onChange={(e) => set({ provider: e.target.value })}>
+            {Object.entries(PROVIDER_LABEL).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          模型名
+          <input className={inputClass} disabled={disabled} value={v.model ?? ''} onChange={(e) => set({ model: e.target.value.trim() })} />
+        </label>
+        <label className="text-xs text-muted sm:col-span-2">
+          接口地址（留空 = 用环境变量里的）
+          <input className={inputClass} disabled={disabled} value={v.baseUrl ?? ''} placeholder="https://…/v1" onChange={(e) => set({ baseUrl: e.target.value.trim() })} />
+        </label>
+        <label className="text-xs text-muted">
+          思考强度
+          <select className={inputClass} disabled={disabled} value={v.reasoningEffort ?? ''} onChange={(e) => set({ reasoningEffort: e.target.value })}>
+            {Object.entries(EFFORT_LABEL).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          总超时（秒）
+          <input
+            type="number"
+            min={1}
+            max={600}
+            className={inputClass}
+            disabled={disabled}
+            value={sec(v.timeoutMs)}
+            onChange={(e) => set({ timeoutMs: e.target.value === '' ? null : Number(e.target.value) * 1000 })}
+          />
+        </label>
+        <label className="text-xs text-muted">
+          多久没输出就停（秒）
+          <input
+            type="number"
+            min={1}
+            max={600}
+            className={inputClass}
+            disabled={disabled}
+            value={sec(v.idleTimeoutMs)}
+            onChange={(e) => set({ idleTimeoutMs: e.target.value === '' ? null : Number(e.target.value) * 1000 })}
+          />
+        </label>
+      </div>
+      <details>
+        <summary className="cursor-pointer text-xs text-sky-ink">高级：直接编辑 JSON</summary>
+        <JsonInput key={JSON.stringify(v)} id={`${id}-json`} disabled={disabled} value={v} onChange={onChange} />
+      </details>
+    </div>
+  );
+}
+
+/** 单价表：每个模型一行（每百万 token 的美元价），带来源和日期。不预填任何价格。 */
+function PricingForm({ id, value, onChange, disabled }) {
+  const rows = Object.entries(value ?? {});
+  const write = (next) => onChange(Object.fromEntries(next));
+  const update = (index, patch) => write(rows.map(([model, price], i) => (i === index ? [patch.model ?? model, { ...price, ...patch.price }] : [model, price])));
+  return (
+    <div id={id} className="space-y-2 rounded-md border border-line p-3">
+      {rows.length === 0 && <p className="text-xs text-warn-ink">还没有填任何单价：花费只能显示已知部分，日上限的「自动」模式不会拦截。</p>}
+      {rows.map(([model, price], index) => (
+        <fieldset key={index} className="grid gap-2 border-b border-line pb-2 sm:grid-cols-5">
+          <legend className="sr-only">单价 {index + 1}</legend>
+          <label className="text-xs text-muted sm:col-span-2">
+            模型名
+            <input className={inputClass} disabled={disabled} value={model} onChange={(e) => update(index, { model: e.target.value.trim() })} />
+          </label>
+          <label className="text-xs text-muted">
+            输入 $/百万
+            <input type="number" min={0} step="any" className={inputClass} disabled={disabled} value={price.input ?? ''} onChange={(e) => update(index, { price: { input: e.target.value === '' ? '' : Number(e.target.value) } })} />
+          </label>
+          <label className="text-xs text-muted">
+            输出 $/百万
+            <input type="number" min={0} step="any" className={inputClass} disabled={disabled} value={price.output ?? ''} onChange={(e) => update(index, { price: { output: e.target.value === '' ? '' : Number(e.target.value) } })} />
+          </label>
+          <label className="text-xs text-muted">
+            日期
+            <input type="date" className={inputClass} disabled={disabled} value={price.asOf ?? ''} onChange={(e) => update(index, { price: { asOf: e.target.value } })} />
+          </label>
+          <label className="text-xs text-muted sm:col-span-4">
+            来源（如：中继账单 2026-10）
+            <input className={inputClass} disabled={disabled} value={price.source ?? ''} onChange={(e) => update(index, { price: { source: e.target.value } })} />
+          </label>
+          <div className="flex items-end">
+            <button type="button" className="text-xs text-danger underline" disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}>
+              删除这行
+            </button>
+          </div>
+        </fieldset>
+      ))}
+      <button type="button" className="text-xs text-sky-ink underline" disabled={disabled} onClick={() => write([...rows, ['', { input: '', output: '' }]])}>
+        + 添加一个模型的单价
+      </button>
+    </div>
+  );
 }
 
 function JsonInput({ id, value, onChange, disabled }) {
@@ -151,14 +280,24 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
 
   return (
     <>
+      <nav aria-label="配置分组" className="flex flex-wrap gap-2 text-sm">
+        {Object.keys(groups).map((group) => (
+          <a key={group} href={`#cfg-${group}`} className="rounded-md border border-line px-2 py-1 text-sky-ink">
+            {GROUPS[group] ?? group}
+          </a>
+        ))}
+        <a href="#cfg-secrets" className="rounded-md border border-line px-2 py-1 text-sky-ink">
+          密钥
+        </a>
+      </nav>
       {Object.entries(groups).map(([group, settings]) => (
-        <Card key={group} title={GROUPS[group] ?? group}>
+        <Card key={group} id={`cfg-${group}`} title={GROUPS[group] ?? group}>
           <div className="grid gap-4 md:grid-cols-2">
             {settings.map((s) => (
-              <div key={s.key} className="space-y-1">
+              <div key={s.key} className={`space-y-1 ${s.type === 'modelTier' || s.type === 'pricing' ? 'md:col-span-2' : ''}`} title={`设置项：${s.key}`}>
                 <Field
-                  label={`${s.label}（${s.key}）`}
-                  hint={`来源：${SOURCE[s.source]} · 环境变量值：${show(s.envValue, 80)}${s.items ? ` · 可选：${s.items.length > 12 ? `${s.items.slice(0, 12).join('、')} 等 ${s.items.length} 项` : s.items.join('、')}` : ''}`}
+                  label={s.label}
+                  hint={`来源：${SOURCE[s.source]} · 环境变量值：${show(s.type === 'enum' ? valueLabel(s.envValue) : s.envValue, 80)}${s.items ? ` · 可选：${s.items.length > 12 ? `${s.items.slice(0, 12).join('、')} 等 ${s.items.length} 项` : s.items.join('、')}` : ''}`}
                 >
                   {SettingInput({ setting: s, value: valueOf(s), disabled: !canWrite, onChange: (v) => setDraft((d) => ({ ...d, [s.key]: v })) })}
                 </Field>
@@ -172,7 +311,7 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
           </div>
         </Card>
       ))}
-      <Card title="密钥（只写）">
+      <Card id="cfg-secrets" title="密钥（只写）">
         <p className="mb-3 text-sm text-muted">密钥只能替换，不能查看。保存后只显示状态。</p>
         <div className="grid gap-4 md:grid-cols-3">
           {data.secrets.map((s) => (
@@ -198,8 +337,11 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
         </div>
       </Card>
       {canWrite && (
-        <Card title="保存改动">
+        <Card title="保存改动" className="sticky bottom-0 z-10 max-h-[70vh] overflow-auto shadow-lg">
           {!dirty && <p className="text-sm text-muted">还没有改动。</p>}
+          {failedTiers.length > 0 && (
+            <Notice tone="warn">改了{failedTiers.map((t) => (t === 'fast' ? '「轻快」' : '「细品」')).join('、')}的模型设置：保存前先点下面的「试跑」，通过后才能保存。</Notice>
+          )}
           {dirty && (
             <div className="space-y-3">
               <Button onClick={preview}>预览改动（改前 → 改后）</Button>
@@ -217,7 +359,7 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
               )}
               {changedTiers.map((tier) => (
                 <div key={tier} className="flex flex-wrap items-center gap-2 text-sm">
-                  <Button onClick={() => testRun(tier)}>试跑{tier === 'fast' ? '轻快' : '细品'}档</Button>
+                  <Button onClick={() => testRun(tier)}>试跑「{tier === 'fast' ? '轻快' : '细品'}」</Button>
                   {testRuns[tier] && (
                     <span role="status" className={testRuns[tier].ok ? 'text-success-ink' : 'text-danger'}>
                       {testRuns[tier].ok
