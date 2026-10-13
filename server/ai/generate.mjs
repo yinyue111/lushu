@@ -318,6 +318,7 @@ export function buildUserPrompt(payload, fence = createUntrustedFence()) {
         '如果链接只能拿到元数据，必须在 stop.verify 或 riskNotes 里提示“需用户补充原文/出发前复核”。',
         '个人攻略必须服从用户 constraints，而不是照搬任一平台作者路线。'
       ],
+      dayPlan: dayPlanInstruction(constraints.duration),
       requiredOutputShape: RESPONSE_SCHEMA
     },
     null,
@@ -360,8 +361,8 @@ function normalizeRoutebook(routebook, payload, runtime) {
   const rawDays = Array.isArray(routebook.days) && routebook.days.length ? routebook.days : [];
   const inferredDayCount = inferDayCount(routebook, payload, rawDays);
   const requestedDayCount = inferDayCount(routebook, payload, rawDays, Number.POSITIVE_INFINITY);
-  const days = Array.from({ length: inferredDayCount }, (_, index) => `Day ${index + 1}`);
-  const stops = (Array.isArray(routebook.stops) ? routebook.stops : []).map((stop, index) => {
+  let days = Array.from({ length: inferredDayCount }, (_, index) => `Day ${index + 1}`);
+  let stops = (Array.isArray(routebook.stops) ? routebook.stops : []).map((stop, index) => {
     const name = String(stop.name ?? `站点 ${index + 1}`).slice(0, 32);
     const coordinate = normalizeCoordinate({ ...stop, name, coordinateSource: stop.coordinateSource || 'model' }, payload.city, index);
     const costText = String(stop.cost ?? '').slice(0, 20);
@@ -401,6 +402,9 @@ function normalizeRoutebook(routebook, payload, runtime) {
   if (stops.length < 3) {
     throw new Error('模型返回的站点数量不足');
   }
+  const dayRepair = repairEmptyDays(stops, days);
+  stops = dayRepair.stops;
+  days = dayRepair.days;
 
   const id = cryptoRandomId();
   const sourceSummary = buildSourceSummary(payload.importedSources);
@@ -421,6 +425,10 @@ function normalizeRoutebook(routebook, payload, runtime) {
           ...baseValidations
         ].slice(0, 8)
       : baseValidations;
+  if (dayRepair.validation) {
+    routebookValidations.unshift(dayRepair.validation);
+    routebookValidations.splice(8);
+  }
   const routebookMetrics = buildRoutebookMetrics(stops);
   return {
     id,
@@ -569,6 +577,51 @@ function extractDayNumber(value) {
   const match = text.match(/Day\s*(\d+)|第\s*(\d+)\s*天|D\s*(\d+)/i);
   const number = Number(match?.[1] ?? match?.[2] ?? match?.[3]);
   return Number.isFinite(number) ? number : null;
+}
+
+export function dayPlanInstruction(duration) {
+  const match = String(duration ?? '').match(/(\d+)\s*天|(\d+)\s*日/);
+  const count = Math.min(MAX_GENERATED_ROUTE_DAYS, Math.max(1, Number(match?.[1] ?? match?.[2]) || 2));
+  const labels = Array.from({ length: count }, (_, index) => `Day ${index + 1}`).join('、');
+  return `用户选了 ${count} 天：days 必须恰好是 [${labels}]，每个 stop.day 必须是其中之一，并把站点按顺路分到每一天，每天至少 1 站。攻略点位不够分满 ${count} 天时，不要编造新站，在 riskNotes 写明“攻略里的地点只够排 X 天”。`;
+}
+
+/**
+ * 修复「选了 N 天、某天 0 站」：模型常把全部站点标成 Day 1。
+ * 只重新分配已有站点（保持模型给的顺序），绝不补站；站点太少时收缩天数并说明。
+ * @returns {{ stops: any[], days: string[], validation: null | { id: string, label: string, state: string, detail: string } }}
+ */
+export function repairEmptyDays(stops, days) {
+  const used = new Set(stops.map((stop) => stop.day));
+  if (days.every((day) => used.has(day))) return { stops, days, validation: null };
+  const ordered = stops
+    .map((stop, order) => ({ stop, order, dayIndex: Math.max(0, days.indexOf(stop.day)) }))
+    .sort((a, b) => a.dayIndex - b.dayIndex || a.order - b.order)
+    .map((entry) => entry.stop);
+  const dayCount = Math.min(days.length, ordered.length);
+  const nextDays = days.slice(0, dayCount);
+  const base = Math.floor(ordered.length / dayCount);
+  const extra = ordered.length % dayCount;
+  let cursor = 0;
+  const nextStops = [];
+  nextDays.forEach((day, index) => {
+    const size = base + (index < extra ? 1 : 0);
+    for (const stop of ordered.slice(cursor, cursor + size)) nextStops.push({ ...stop, day });
+    cursor += size;
+  });
+  const shrunk = dayCount < days.length;
+  return {
+    stops: nextStops.map((stop, index) => ({ ...stop, id: index + 1 })),
+    days: nextDays,
+    validation: {
+      id: 'day-count-repaired',
+      label: '行程天数',
+      state: shrunk ? '已缩短' : '已重新分配',
+      detail: shrunk
+        ? `攻略里的地点只够排 ${dayCount} 天（共 ${ordered.length} 站），没有为凑满 ${days.length} 天编造新站。`
+        : `AI 把站点挤在了少数几天，已按原顺序把 ${ordered.length} 个站点分到 ${days.length} 天，各站时间请再看一眼。`
+    }
+  };
 }
 
 function normalizeDayLabel(value, index, days) {
