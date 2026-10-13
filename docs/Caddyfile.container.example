@@ -1,0 +1,10 @@
+# Caddyfile for docker-compose.caddy.yml (Caddy container on lushu_backend). Copy to ./Caddyfile.
+lushu.aiwuq.cn {
+	encode zstd gzip
+	reverse_proxy app:3080 {
+		transport http {
+			read_timeout 400s
+			write_timeout 400s
+		}
+	}
+}
