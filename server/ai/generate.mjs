@@ -256,8 +256,12 @@ export function buildApprovedPoiPromptCandidates(city, pois = refreshMergedPoiCa
 
 export function sanitizePayload(payload) {
   const constraints = payload?.constraints ?? {};
-  const city = normalizeCityName(payload?.city);
-  if (city && !isCityOpenForGeneration(city, GENERATION_REGION)) {
+  const rawCity = String(payload?.city ?? '').trim();
+  const city = rawCity ? normalizeCityName(rawCity) : '';
+  if (!city) {
+    throw createHttpError('请先选目的地城市', 400, 'CITY_REQUIRED');
+  }
+  if (!isCityOpenForGeneration(city, GENERATION_REGION)) {
     throw createHttpError(`内测期间先开放江浙沪的城市，${city}暂时还不能生成。`, 400, 'CITY_NOT_OPEN');
   }
   const guide = truncateString(payload?.guide, MAX_GUIDE_CHARS);
