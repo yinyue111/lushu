@@ -115,10 +115,19 @@ Caddy 容器只有在**流量经 iptables DNAT 直接进容器**时才看到真�
 - 正确配置下这个数恒为 0：Caddy 的地址是受信任的，客户端也碰不到应用端口。
 - 第一次出现时打一条日志 `[proxy] WARNING: request with forwarded headers from untrusted peer <对端地址> …`（只有对端地址，不记客户端 IP 和其他信息），之后每 10 分钟最多一条。
 - 滚动 10 分钟内达到 `PROXY_MISCONFIG_THRESHOLD`（默认 `20`）：后台「概览」顶部出现红框「代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE」（小字写对端地址和次数），`/api/admin/dashboard` 的 `proxyMisconfig.tripped=true`；配置了 `ALERT_WEBHOOK_URL` 时发告警 `proxy-misconfig`，情况持续时**每小时最多一次**。
-- **第二个信号：大家被识别成同一个地址。** 来自受信任代理、带 `X-Forwarded-For` 的请求里，解析出的客户端地址如果 **≥90% 都是 `APP_NETWORK_GATEWAY`**，且窗口内样本 **≥`PROXY_SHARED_MIN_SAMPLE`（默认 20）**，概览显示「疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE」，并发告警 `proxy-shared-address`（和第一个信号的 `proxy-misconfig` 分开去重，各自每小时最多一次，互不压制）。只有客户端地址等于网关才算，所以流量小或真实用户多时不会误报；不带 XFF 的请求（如在宿主机上直接 curl）不计入样本。典型原因见「container 模式的前提」。
+- **第二个信号：大家被识别成同一个地址。** 来自受信任代理、带 `X-Forwarded-For` 的请求里，解析出的客户端地址如果 **≥90% 都是 `APP_NETWORK_GATEWAY`**，且窗口内样本 **≥`PROXY_SHARED_MIN_SAMPLE`（默认 20）**，概览显示「疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE」，并发告警 `proxy-shared-address`（和第一个信号的 `proxy-misconfig` 分开去重，各自每小时最多一次，互不压制）。只有客户端地址等于网关才算，所以流量小或真实用户多时不会误报；不带 XFF 的请求（如在宿主机上直接 curl）不计入样本；转发链里全是受信任地址的请求（如宿主机 Caddy 对本机回环请求带的 `X-Forwarded-For: 127.0.0.1`，解析会回退到对端也就是网关）也不计入，避免 host 模式误报。
+- **信号 2 的盲区**：阈值是 90%，只能发现「几乎所有人」共用一个地址。**部分共用**发现不了，例如有 AAAA 记录、只有 30% 用户走 IPv6（经 docker-proxy 变成网关）：这 30% 共用一个桶，ratio 只有 0.3，不会告警。所以 container 模式上线前，SRE 必须在预发环境确认 AAAA 记录的处理（开 Docker IPv6 + ip6tables，或去掉 AAAA），并用一个 IPv6 客户端实测 Caddy 日志里的 `remote_ip`，不能指望这个检测兜底。典型原因见「container 模式的前提」。
 - 窗口长度 `PROXY_MISCONFIG_WINDOW_MS`（默认 `600000`，最小 1 分钟）。
 - **只按进程计数，不跨进程汇总**：生产每个部署只跑一个 app 容器（一个 Node 进程），所以等于全站数。重启后清零；如果以后跑多个实例，每个实例各自判断（任何一个超阈值就会告警），概览只显示处理这次请求的那个实例的数字。
 - 看到这个提示：按上面「第一次切换前 SRE 必须确认」第 3 步查对端地址，把 Caddy 的真实地址配进去（容器 Caddy 用 `docker-compose.caddy.yml` + `PROXY_MODE=container`）。注意能直连应用端口、自己带 `X-Forwarded-For` 的进程也会触发它；正常部署里应用端口只对 Caddy 开放，所以这本身也说明端口暴露有问题。
+
+### 扩容到多个 app 实例之前（检查清单）
+
+现在生产只跑一个 app 容器。改成多个实例（`--scale app=N`、多台机器）**之前**必须先处理：
+
+- [ ] **运行时代理检测的计数只按进程**：每个实例各自计数，概览只显示接到这次请求的那个实例的数，流量被分摊后可能谁都到不了阈值（复测 `--scale app=2` 实测 15 + 15，两边都没到 20）。扩容前要先做跨进程汇总：计划用新迁移 `0013`（PG 里按分钟桶存计数，各实例累加、概览读汇总），**这个迁移还没写**。
+- [ ] 按 IP 的限流桶同样是进程内的（`server/http/rate-limit.mjs`），多实例时每个实例各算一份，实际额度会变成 N 倍。
+- [ ] 重新确认 Caddy 的上游和信任列表（多个 app 地址，`TRUSTED_PROXY_CIDRS` 不变，仍然只信 Caddy 那一跳）。
 
 ## 反代与 TRUST_PROXY
 
