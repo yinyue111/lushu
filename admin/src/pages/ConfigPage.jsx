@@ -109,7 +109,13 @@ function ModelTierForm({ id, value, onChange, disabled }) {
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs text-muted">
           服务商
-          <select id={id} className={inputClass} disabled={disabled} value={v.provider ?? 'openai-compatible'} onChange={(e) => set({ provider: e.target.value })}>
+          <select
+            id={id}
+            className={inputClass}
+            disabled={disabled}
+            value={v.provider ?? 'openai-compatible'}
+            onChange={(e) => set({ provider: e.target.value })}
+          >
             {Object.entries(PROVIDER_LABEL).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -123,7 +129,13 @@ function ModelTierForm({ id, value, onChange, disabled }) {
         </label>
         <label className="text-xs text-muted sm:col-span-2">
           接口地址（留空 = 用环境变量里的）
-          <input className={inputClass} disabled={disabled} value={v.baseUrl ?? ''} placeholder="https://…/v1" onChange={(e) => set({ baseUrl: e.target.value.trim() })} />
+          <input
+            className={inputClass}
+            disabled={disabled}
+            value={v.baseUrl ?? ''}
+            placeholder="https://…/v1"
+            onChange={(e) => set({ baseUrl: e.target.value.trim() })}
+          />
         </label>
         <label className="text-xs text-muted">
           思考强度
@@ -172,7 +184,8 @@ function ModelTierForm({ id, value, onChange, disabled }) {
 function PricingForm({ id, value, onChange, disabled }) {
   const rows = Object.entries(value ?? {});
   const write = (next) => onChange(Object.fromEntries(next));
-  const update = (index, patch) => write(rows.map(([model, price], i) => (i === index ? [patch.model ?? model, { ...price, ...patch.price }] : [model, price])));
+  const update = (index, patch) =>
+    write(rows.map(([model, price], i) => (i === index ? [patch.model ?? model, { ...price, ...patch.price }] : [model, price])));
   return (
     <div id={id} className="space-y-2 rounded-md border border-line p-3">
       {rows.length === 0 && <p className="text-xs text-warn-ink">还没有填任何单价：花费只能显示已知部分，日上限的「自动」模式不会拦截。</p>}
@@ -185,19 +198,46 @@ function PricingForm({ id, value, onChange, disabled }) {
           </label>
           <label className="text-xs text-muted">
             输入 $/百万
-            <input type="number" min={0} step="any" className={inputClass} disabled={disabled} value={price.input ?? ''} onChange={(e) => update(index, { price: { input: e.target.value === '' ? '' : Number(e.target.value) } })} />
+            <input
+              type="number"
+              min={0}
+              step="any"
+              className={inputClass}
+              disabled={disabled}
+              value={price.input ?? ''}
+              onChange={(e) => update(index, { price: { input: e.target.value === '' ? '' : Number(e.target.value) } })}
+            />
           </label>
           <label className="text-xs text-muted">
             输出 $/百万
-            <input type="number" min={0} step="any" className={inputClass} disabled={disabled} value={price.output ?? ''} onChange={(e) => update(index, { price: { output: e.target.value === '' ? '' : Number(e.target.value) } })} />
+            <input
+              type="number"
+              min={0}
+              step="any"
+              className={inputClass}
+              disabled={disabled}
+              value={price.output ?? ''}
+              onChange={(e) => update(index, { price: { output: e.target.value === '' ? '' : Number(e.target.value) } })}
+            />
           </label>
           <label className="text-xs text-muted">
             日期
-            <input type="date" className={inputClass} disabled={disabled} value={price.asOf ?? ''} onChange={(e) => update(index, { price: { asOf: e.target.value } })} />
+            <input
+              type="date"
+              className={inputClass}
+              disabled={disabled}
+              value={price.asOf ?? ''}
+              onChange={(e) => update(index, { price: { asOf: e.target.value } })}
+            />
           </label>
           <label className="text-xs text-muted sm:col-span-4">
             来源（如：中继账单 2026-10）
-            <input className={inputClass} disabled={disabled} value={price.source ?? ''} onChange={(e) => update(index, { price: { source: e.target.value } })} />
+            <input
+              className={inputClass}
+              disabled={disabled}
+              value={price.source ?? ''}
+              onChange={(e) => update(index, { price: { source: e.target.value } })}
+            />
           </label>
           <div className="flex items-end">
             <button type="button" className="text-xs text-danger underline" disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}>
@@ -340,7 +380,9 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
         <Card title="保存改动" className="sticky bottom-0 z-10 max-h-[70vh] overflow-auto shadow-lg">
           {!dirty && <p className="text-sm text-muted">还没有改动。</p>}
           {failedTiers.length > 0 && (
-            <Notice tone="warn">改了{failedTiers.map((t) => (t === 'fast' ? '「轻快」' : '「细品」')).join('、')}的模型设置：保存前先点下面的「试跑」，通过后才能保存。</Notice>
+            <Notice tone="warn">
+              改了{failedTiers.map((t) => (t === 'fast' ? '「轻快」' : '「细品」')).join('、')}的模型设置：保存前先点下面的「试跑」，通过后才能保存。
+            </Notice>
           )}
           {dirty && (
             <div className="space-y-3">

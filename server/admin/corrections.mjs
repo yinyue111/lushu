@@ -230,7 +230,18 @@ export async function applyCorrection(input) {
           if (c.cacheKey !== after.cacheKey || c.field !== field) return c;
           touched = true;
           const { reportId: _drop, ...rest } = c;
-          return { ...rest, status: 'filled', value, display: after.display, sources: after.sources, retrievedAt: now, method: 'ops-verified', verifiedBy: admin.username, verifiedAt: now, conditions: [] };
+          return {
+            ...rest,
+            status: 'filled',
+            value,
+            display: after.display,
+            sources: after.sources,
+            retrievedAt: now,
+            method: 'ops-verified',
+            verifiedBy: admin.username,
+            verifiedAt: now,
+            conditions: []
+          };
         });
         if (touched) {
           await store.putResult(id, next);
@@ -242,7 +253,8 @@ export async function applyCorrection(input) {
       for (const other of await store.listReports({ limit: 1000 })) {
         if (other.id !== report?.id && other.cacheKey === after.cacheKey && other.field === field) {
           const state = states.get(other.id);
-          if (!state || state.status === 'open') await adminStore().setReportState(other.id, { status: 'resolved', resolvedBy: admin.username, resolvedAt: now });
+          if (!state || state.status === 'open')
+            await adminStore().setReportState(other.id, { status: 'resolved', resolvedBy: admin.username, resolvedAt: now });
         }
       }
     }

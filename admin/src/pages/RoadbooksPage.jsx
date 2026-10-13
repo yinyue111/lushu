@@ -84,17 +84,15 @@ function RoadbookCard({ rb, onDone }) {
         </div>
         <div>
           <dt className="inline text-muted">生成：</dt>
-          <dd className="inline">{rb.generation
+          <dd className="inline">
+            {rb.generation
               ? `${term(MODE, rb.generation.mode)} · ${rb.generation.model || '—'} · ${term(GENERATION, rb.generation.status)}${rb.generation.fellBackFrom ? `（${term(MODE, rb.generation.fellBackFrom)}失败，由备用模型生成）` : ''}`
-              : '无记录'}</dd>
+              : '无记录'}
+          </dd>
         </div>
         <div>
           <dt className="inline text-muted">联网核对：</dt>
-          <dd className="inline">
-            {rb.enrichment
-              ? enrichmentText(rb.enrichment)
-              : '未运行'}
-          </dd>
+          <dd className="inline">{rb.enrichment ? enrichmentText(rb.enrichment) : '未运行'}</dd>
         </div>
         <div>
           <dt className="inline text-muted">更新：</dt>

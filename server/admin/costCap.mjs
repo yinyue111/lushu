@@ -27,7 +27,8 @@ export function costCapState(spend, { mode = getConfig('cost.capMode'), limitUsd
   const base = { mode, limitUsd: limitUsd || null, unpricedModels: missing };
   if (!limitUsd) return { ...base, enforcing: false, reason: '未设日上限' };
   if (mode === 'off') return { ...base, enforcing: false, reason: '已关闭：只在看板显示，不拦截生成' };
-  if (mode === 'on') return { ...base, enforcing: true, reason: spend.unknownCostCount > 0 || missing.length ? '已开启：按已知金额（下限）拦截，没有单价的调用不计' : '已开启' };
+  if (mode === 'on')
+    return { ...base, enforcing: true, reason: spend.unknownCostCount > 0 || missing.length ? '已开启：按已知金额（下限）拦截，没有单价的调用不计' : '已开启' };
   if (missing.length) return { ...base, enforcing: false, reason: `未生效：${missing.join('、')} 没有单价` };
   if (spend.unknownCostCount > 0) return { ...base, enforcing: false, reason: `未生效：今天有 ${spend.unknownCostCount} 次调用没有单价` };
   return { ...base, enforcing: true, reason: '已生效：单价齐全' };

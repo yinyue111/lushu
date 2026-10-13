@@ -1093,7 +1093,9 @@ function nextFallbackMode(requested, error, { signal, deadline }) {
 async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE, forceMode = false } = {}) {
   // Runtime config (admin console): per-mode model / base URL / key / timeouts, and the fallback order
   // when the requested mode is not configured. Read per call, so a saved change applies to the next generation.
-  const picked = forceMode ? { mode, runtime: runtimeForMode(await loadCodexRuntime(), mode), fellBackFrom: '' } : pickRuntime(await loadCodexRuntime(), resolveGenerationMode(mode));
+  const picked = forceMode
+    ? { mode, runtime: runtimeForMode(await loadCodexRuntime(), mode), fellBackFrom: '' }
+    : pickRuntime(await loadCodexRuntime(), resolveGenerationMode(mode));
   const modeConfig = generationModeConfig(picked.mode);
   const runtime = picked.runtime;
   if (!runtime.ready) {

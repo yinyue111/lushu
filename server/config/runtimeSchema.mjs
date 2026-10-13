@@ -302,7 +302,9 @@ export function parseSetting(key, value) {
         if (!model.trim() || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0)
           throw new ConfigValueError(key, `${model} 单价无效`);
         // Where the price came from (e.g. 中继账单 2026-10) and as-of date; optional, shown in the console.
-        const source = String(price?.source ?? '').trim().slice(0, 120);
+        const source = String(price?.source ?? '')
+          .trim()
+          .slice(0, 120);
         const asOf = String(price?.asOf ?? '').trim();
         if (asOf && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new ConfigValueError(key, `${model} 单价日期格式 YYYY-MM-DD`);
         out[model.trim()] = { input, output, ...(source ? { source } : {}), ...(asOf ? { asOf } : {}) };

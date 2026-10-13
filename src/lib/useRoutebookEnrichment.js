@@ -80,7 +80,10 @@ export function useRoutebookEnrichment(routebook) {
     async (claim, note = '') => {
       const response = await reportRoutebookEnrichment(routeId, { stopKey: claim.stopKey, field: claim.field, note, editToken });
       // The value stays visible, marked 「已反馈待复核」, until an operator reviews it.
-      setState((prev) => ({ ...prev, claims: prev.claims.map((c) => (c.stopKey === claim.stopKey && c.field === claim.field ? { ...c, reported: true } : c)) }));
+      setState((prev) => ({
+        ...prev,
+        claims: prev.claims.map((c) => (c.stopKey === claim.stopKey && c.field === claim.field ? { ...c, reported: true } : c))
+      }));
       return response;
     },
     [routeId, editToken]

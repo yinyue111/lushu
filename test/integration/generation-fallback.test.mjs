@@ -17,7 +17,15 @@ const generated = {
   title: '杭州兜底测试',
   city: '杭州',
   days: ['第1天'],
-  stops: ['柳浪闻莺', '南宋御街', '北山街'].map((name, index) => ({ name, day: '第1天', time: `${10 + index}:00`, stay: '30分钟', cost: '免费', area: '杭州', geoConfidence: 90 }))
+  stops: ['柳浪闻莺', '南宋御街', '北山街'].map((name, index) => ({
+    name,
+    day: '第1天',
+    time: `${10 + index}:00`,
+    stay: '30分钟',
+    cost: '免费',
+    area: '杭州',
+    geoConfidence: 90
+  }))
 };
 
 before(async () => {
@@ -38,7 +46,12 @@ before(async () => {
     }
     if (failing && prompt.includes('UPHANG')) return; // never answers: the 细品 call timeout has to stop it
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(generated) }, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }));
+    res.end(
+      JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(generated) }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      })
+    );
   });
   await new Promise((resolve) => provider.listen(0, '127.0.0.1', () => resolve(undefined)));
   const address = /** @type {import('node:net').AddressInfo} */ (provider.address());
@@ -93,7 +106,9 @@ for (const [label, keyword] of [
     assert.deepEqual(calls, ['deep-model-y', 'fast-model-x'], 'one 细品 attempt, then the fallback');
     assert.equal(job.result.provider.mode, 'fast');
     assert.equal(job.result.provider.fellBackFrom, 'deep', 'persisted marker → 「本次由备用模型生成」');
-    const stored = await fetchJson(`${server.baseUrl}/api/routebooks/${job.result.publicId || job.result.id}`, { headers: jsonHeaders({ 'x-routebook-token': API_TOKEN }) });
+    const stored = await fetchJson(`${server.baseUrl}/api/routebooks/${job.result.publicId || job.result.id}`, {
+      headers: jsonHeaders({ 'x-routebook-token': API_TOKEN })
+    });
     if (stored.status === 200) assert.equal((stored.data.routebook ?? stored.data).provider.fellBackFrom, 'deep');
   });
 }
@@ -110,7 +125,10 @@ test('fallback also fails → original error, 「用轻快重试」 offered, quo
   assert.notEqual(next.status, 429, JSON.stringify(next.data));
   assert.equal(next.job.status, 'succeeded', JSON.stringify(next.job?.error));
   // And by the quota rule itself: the logged failure row is an upstream failure that does not count.
-  const rows = (await readFile(join(server.dataDir, 'ai-logs.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+  const rows = (await readFile(join(server.dataDir, 'ai-logs.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
   const failedRow = rows.find((row) => row.kind === 'generate-routebook' && row.status === 'error' && row.fallbackTried?.mode === 'fast');
   assert.ok(failedRow, 'failure is logged');
   assert.equal(rowConsumesQuota(failedRow, false), false);
