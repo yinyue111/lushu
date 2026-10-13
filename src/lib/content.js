@@ -383,7 +383,9 @@ export function curatedRouteToRoutebook(route) {
       coordinateSystem: 'WGS84',
       coordinateSource: 'editorial-template',
       coordinatePrecision: 'poi',
-      ...stop
+      ...stop,
+      // 服务端只对精选路线里真实存在的站名承认这个来源（server/trust/provenance.mjs）。
+      provenance: { origin: 'editorial', name: stop.name }
     })),
     assets: route.tags.map((tag) => ({ label: tag, type: '主题', confidence: 82 })),
     validations: [

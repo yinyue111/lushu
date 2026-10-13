@@ -9,6 +9,7 @@
 export const STOP_ORIGINS = Object.freeze({
   'user-guide': { label: '来自你的攻略', detail: '站点名称出现在你提供的攻略或必去清单里。', points: 20 },
   'imported-source': { label: '来自导入来源', detail: '站点名称出现在平台读取并存证的导入来源里。', points: 15 },
+  editorial: { label: '编辑部选的点', detail: '运营编辑挑选的地点；营业时间和价格仍以现场为准。', points: 15 },
   'user-added': { label: '你手动添加', detail: '这一站是你在编辑时添加或改名的。', points: 10 },
   model: { label: 'AI 加的站', detail: '你的输入里没有提到这一站，是 AI 补充的，出发前请自行核对。', points: 0 },
   unknown: { label: '来源未记录', detail: '这条路书保存时还没有记录站点来源。', points: 5 }

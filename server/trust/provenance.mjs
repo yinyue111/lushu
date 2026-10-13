@@ -3,6 +3,7 @@
 // server-signed imported sources and the reviewed POI catalog); the model is
 // never asked to report its own sources.
 import { createHmac } from 'node:crypto';
+import { curatedRoutes } from '../../src/lib/content.js';
 import { countVerifiedPoiFacts, currentPoiPrice, findTrustedPoi } from '../poi/catalog.mjs';
 import { parseCostText } from '../../src/lib/cost.js';
 import { truncateString } from '../lib/util.mjs';
@@ -70,6 +71,16 @@ export function deriveStopProvenance(stop, { city = '', guideText = '', mustGo =
  * @param {string} name normalized stop name
  * @param {{ city?: string, importedSources?: any[], nowMs?: number }} context
  */
+const curatedStopNames = new Map();
+function isCuratedStopName(name, city) {
+  if (!curatedStopNames.size) {
+    for (const route of curatedRoutes) {
+      for (const stop of route.stops ?? []) curatedStopNames.set(`${route.city}|${normalizePlaceText(stop.name)}`, true);
+    }
+  }
+  return curatedStopNames.has(`${city}|${normalizePlaceText(name)}`);
+}
+
 export function normalizeStopProvenance(stop, name, { city = '', importedSources = [], nowMs = Date.now() } = {}) {
   const input = stop?.provenance && typeof stop.provenance === 'object' ? stop.provenance : null;
   const { reviewedPoi, verifiedFactCount, poiAliases } = catalogSignals(name, city, nowMs);
@@ -80,6 +91,10 @@ export function normalizeStopProvenance(stop, name, { city = '', importedSources
     const sameName = !recordedName || normalizePlaceText(recordedName) === normalizePlaceText(name);
     origin = sameName ? normalizeStopOrigin(input.origin) : 'user-added';
     matchedText = sameName ? truncateString(input.matchedText, 48) : '';
+    if (origin === 'editorial' && !isCuratedStopName(name, city)) {
+      // 只有编辑部精选路线里的站名才能自称「编辑部选的点」；其余一律当用户自己加的。
+      origin = 'user-added';
+    }
     if (origin === 'user-guide' && !safeEqualHex(String(input.proof ?? ''), provenanceProof('user-guide', recordedName || name, matchedText))) {
       // Unsigned claim: the user did supply this stop, but not verifiably from their guide text.
       origin = 'user-added';

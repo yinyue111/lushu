@@ -26,8 +26,8 @@ import { cn } from '../ui/cn';
 import { predictionAverage, productLinkLabel } from './routebookModel';
 import { useVisibleOnce } from '../../lib/useVisibleOnce';
 
-const OK_STATES = /通过|可执行|已更新|已应用|充足|正常|低/;
-const WARN_STATES = /复核|偏紧|缓冲|无数据|偏远|待|超|风险|高|未|冲突|不满足/;
+const OK_STATES = /通过|已查过|可执行|已更新|已应用|充足|正常|低/;
+const WARN_STATES = /复核|还没查|偏紧|缓冲|无数据|偏远|待|超|风险|高|未|冲突|不满足/;
 
 function stateTone(state) {
   const text = String(state ?? '');
@@ -40,7 +40,7 @@ function checkIcon(label) {
   const text = String(label ?? '');
   if (/节奏|密度/.test(text)) return Compass;
   if (/预算|费用/.test(text)) return Wallet;
-  if (/绕路|动线|转场/.test(text)) return Repeat2;
+  if (/绕路|动线|转场|^路线$/.test(text)) return Repeat2;
   if (/营业|时间/.test(text)) return CalendarClock;
   if (/定位|坐标/.test(text)) return MapPinned;
   if (/AI|校验/.test(text)) return ShieldCheck;

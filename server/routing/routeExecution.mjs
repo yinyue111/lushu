@@ -120,11 +120,11 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
   let routingState = '无需核验';
   let routingDetail = `${reason}后没有同日相邻转场。`;
   if (expectedLegs) {
-    routingState = allVerified && !missingCoordinate ? '已核验' : '需复核';
+    routingState = allVerified && !missingCoordinate ? '已查过' : '还没查';
     routingDetail =
       allVerified && !missingCoordinate
         ? `${reason}后已按道路结果核验 ${verifiedLegs} 段，合计约 ${formatDistance(stats.totalDistanceMeters)}、${formatDuration(stats.totalDurationSeconds)}。`
-        : `${reason}后仅 ${verifiedLegs}/${expectedLegs} 段取得可信道路结果；${missingCoordinate ? `${missingCoordinate} 个站点缺少可用坐标，` : ''}${unverifiedLegs} 段无法判断真实距离与耗时。`;
+        : `${verifiedLegs ? `已查 ${verifiedLegs}/${expectedLegs} 段；` : ''}${missingCoordinate ? `${missingCoordinate} 个站点缺少可用坐标，` : ''}${unverifiedLegs} 段路线还没查，距离和时间先按直线估算，出发前用导航看一眼。`;
   }
 
   let tempoState = '无需判断';
@@ -136,8 +136,8 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
     tempoState = '偏紧';
     tempoDetail = `${crowdedDay[0]} 有 ${crowdedDay[1]} 站，建议拆分或删减。`;
   } else if (expectedLegs && !allVerified) {
-    tempoState = '待复核';
-    tempoDetail = `${unverifiedLegs} 段没有可信道路耗时，当前不能判断行程是否可执行。`;
+    tempoState = '还没查';
+    tempoDetail = `${unverifiedLegs} 段路线还没查，暂时只能按直线估算时间是否够用。`;
   } else if (allVerified && Number(stats.unknownScheduleLegs) > 0) {
     tempoState = '待补充';
     tempoDetail = `${stats.unknownScheduleLegs} 段缺少规范到达时间或停留时长，暂不能完成时间可达性判断。`;
@@ -152,15 +152,15 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
     detourState = '需重排';
     detourDetail = `${firstRisk.from} → ${firstRisk.to} 道路约 ${formatDistance(firstRisk.distanceMeters)}、${formatDuration(firstRisk.durationSeconds)}，建议拆天或替换同区 POI。`;
   } else if (expectedLegs && !allVerified) {
-    detourState = '待复核';
-    detourDetail = `${unverifiedLegs} 段没有可信道路距离或耗时，暂不能排除绕路风险。`;
+    detourState = '还没查';
+    detourDetail = `${unverifiedLegs} 段路线还没查，查过之后才能判断会不会绕路。`;
   } else if (allVerified) {
     detourState = '可执行';
     detourDetail = `最长相邻道路转场约 ${formatDistance(stats.longestDistanceMeters)}、${formatDuration(stats.longestDurationSeconds)}。`;
   }
 
   return [
-    { id: 'edit-routing', label: '编辑后动线', state: routingState, detail: routingDetail },
+    { id: 'edit-routing', label: '路线', state: routingState, detail: routingDetail },
     { id: 'edit-tempo', label: '节奏密度', state: tempoState, detail: tempoDetail },
     { id: 'edit-detour', label: '绕路风险', state: detourState, detail: detourDetail }
   ];

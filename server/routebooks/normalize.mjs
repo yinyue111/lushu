@@ -983,10 +983,29 @@ export function getCuratedRoutebook(publicId) {
   };
 }
 
+// 精选路线的道路结果：配了高德路线 key 时，按需查一次并缓存 12 小时；没配就保持「还没查」，不伪造。
+const CURATED_LEGS_TTL_MS = 12 * 60 * 60 * 1000;
+const curatedLegsCache = new Map();
+async function withCuratedRouteLegs(routebook) {
+  if (!routebook) return routebook;
+  const { AMAP_ROUTING_KEY } = await import('../config/index.mjs');
+  if (!AMAP_ROUTING_KEY) return routebook;
+  const hit = curatedLegsCache.get(routebook.publicId);
+  if (hit && Date.now() - hit.at < CURATED_LEGS_TTL_MS) return hit.routebook;
+  try {
+    const { attachServerRouteLegs } = await import('../routing/service.mjs');
+    const routed = await attachServerRouteLegs(routebook, AbortSignal.timeout(15000));
+    curatedLegsCache.set(routebook.publicId, { at: Date.now(), routebook: routed });
+    return routed;
+  } catch {
+    return routebook;
+  }
+}
+
 export async function getResolvableRoutebook(publicId) {
   const saved = await getSavedRoutebook(publicId);
   if (saved?.tombstone || saved?.deletedAt) return null;
-  return saved ?? getCuratedRoutebook(publicId);
+  return saved ?? withCuratedRouteLegs(getCuratedRoutebook(publicId));
 }
 
 export function isCuratedRouteId(publicId) {
