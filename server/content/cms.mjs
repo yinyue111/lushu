@@ -13,7 +13,7 @@ export async function readCmsConfig() {
       defaultCity: '杭州',
       heroTitle: '把分散攻略，变成能照着走的可信路书',
       heroSubtitle: '',
-      featuredCities: ['杭州', '上海', '苏州', '成都', '北京', '广州'],
+      featuredCities: ['杭州', '上海', '苏州'],
       announcements: [],
       updatedAt: null
     };

@@ -185,7 +185,7 @@ export const aiRoutes = [
     const body = await readJsonBody(req);
     const urls = Array.isArray(body?.urls) ? body.urls.map((item) => truncateString(item, 800)).filter(Boolean) : extractUrls(body?.text);
     if (!urls.length) {
-      throw createHttpError('请提供小红书、抖音、X 或公开网页链接', 400, 'SOURCE_URL_REQUIRED');
+      throw createHttpError('请提供小红书、抖音或公开网页链接', 400, 'SOURCE_URL_REQUIRED');
     }
     const uniqueUrls = [...new Set(urls)].slice(0, MAX_IMPORT_URLS);
     const signal = bindRequestAbortSignal(req);

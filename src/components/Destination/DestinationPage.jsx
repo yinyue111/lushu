@@ -136,7 +136,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               />
               <h3 className="mt-4 text-xl font-extrabold">{city} 还没有公开精选路线</h3>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">
-                这座城市还没人走过。粘贴小红书、抖音、X 或公众号攻略链接，先生成你的路书；你出发打卡后，路线会更可信。
+                这座城市还没人走过。粘贴小红书、抖音或公开网页的攻略链接，先生成你的路书；你出发打卡后，路线会更可信。
               </p>
               <Button className="mt-5" variant="primary" onClick={() => onNewBook({ city, guide: `想去${city}，请基于我后续粘贴的攻略生成可信路书。` })}>
                 <Sparkles /> 导入攻略生成{city}路书
