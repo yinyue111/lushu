@@ -27,7 +27,7 @@
 ## 技术栈
 
 - React 19 + Vite 7
-- Node.js 20.19+
+- Node.js 22.23.3（见 `.nvmrc`；`package.json` engines `>=22.23.3 <23`，Dockerfile 和 CI 用同一版本）
 - Leaflet
 - 默认单进程 JSONL（索引/缓存）；可切换 PostgreSQL 权威存储（事务 CAS、跨实例锁）
 - OpenAI-compatible Responses / Chat Completions 模型接口

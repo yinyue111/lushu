@@ -2,7 +2,8 @@
 # Production image for 可信路书 (trusted-routebook). See docs/deploy.md.
 
 # ---- build: install all deps, build dist/, then drop dev deps ----
-FROM node:22-slim AS build
+# Keep in step with .nvmrc, package.json engines and the CI setup-node (node-version-file: .nvmrc).
+FROM node:22.23.3-slim AS build
 WORKDIR /app
 ENV NODE_OPTIONS=--max-old-space-size=1024
 COPY package.json package-lock.json ./
@@ -11,7 +12,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
 # ---- runtime: node + pruned node_modules + server + dist, non-root ----
-FROM node:22-slim AS runtime
+FROM node:22.23.3-slim AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3080 \
