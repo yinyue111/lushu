@@ -65,26 +65,44 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 ## Caddy 两种部署方式（PROXY_MODE）
 
-应用按「请求的上一跳地址」决定信不信 `X-Forwarded-For`。上一跳是谁取决于 Caddy 跑在哪，所以必须显式选模式；选错时启动检查会拒绝启动，而不是静默把所有用户算成一个人限流。
+应用按「请求的上一跳地址」决定信不信 `X-Forwarded-For`。上一跳是谁取决于 Caddy 跑在哪，所以必须显式选模式。启动检查只能核对**配置之间**是否自洽（模式、`CADDY_IP`、信任列表、子网），**看不到 Caddy 实际跑在哪**：Caddy 在容器里、却没用 override（应用仍是 host 模式）时，应用照常启动，所有用户静默共用一个限流桶。这种情况只能靠下面的「运行时检测」（概览红框 + 告警）和 SRE 核对项第 3 步发现。
 
 | | `PROXY_MODE=host`（默认，仓库推荐） | `PROXY_MODE=container` |
 | --- | --- | --- |
 | Caddy 在哪 | 宿主机进程，`reverse_proxy 127.0.0.1:3080`（上面的 Caddyfile） | 容器，接入 `lushu_backend`，固定 `ipv4_address`，`reverse_proxy app:3080`（`docs/Caddyfile.container.example`） |
 | 启动命令 | `docker compose -f docker-compose.prod.yml …` | `docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml …` |
-| 应用看到的来源 | 网关 `APP_NETWORK_GATEWAY`（docker-proxy 或 iptables MASQUERADE） | Caddy 容器 IP `CADDY_IP`（默认 `172.31.80.10`，`.env` 里改） |
+| 应用看到的来源 | 网关 `APP_NETWORK_GATEWAY`（docker-proxy 或 iptables MASQUERADE）；Caddy 自己看到真实客户端 | Caddy 容器 IP `CADDY_IP`（默认 `172.31.80.10`，`.env` 里改）；**Caddy 自己看到的来源**见下面「container 模式的前提」 |
 | `app.env` 的 `TRUSTED_PROXY_CIDRS` | `172.31.80.1,127.0.0.1,::1` | `172.31.80.10,127.0.0.1,::1` |
 | 启动检查 | 必须包含网关；非回环条目都在子网内；设了 `CADDY_IP` 拒绝启动 | `CADDY_IP` 必须是子网内单个地址且不是网关；信任列表必须包含它、只能有它和回环；**不能包含网关**（也就是不能写 `172.31.80.0/24`），否则宿主机上任何能连到 3080 的进程都能伪造 XFF |
 | 127.0.0.1:3080 | 发布（Caddy 用） | 不发布（override 用 `ports: !reset []` 去掉，需要 Compose ≥ 2.24） |
 
+- `PROXY_MODE` 不区分大小写（`container` / `CONTAINER` 都行），写成其他值一律拒绝启动（即使 `TRUST_PROXY_HEADERS=false`）。`CADDY_IP` 写 `172.31.80.10` 或 `172.31.80.10/32` 都可以（只接受单个地址）。
 - `PROXY_MODE` / `CADDY_IP` 只由 override 文件设给 app；不用 override 时不设，即 host 模式。不要在 `app.env` 里写 `PROXY_MODE=container` 却不用 override（启动检查会因信任列表不匹配而拒绝，但这是配置错误）。
 - `CADDY_IP` 必须是子网里没被占用的地址：compose 从 `.2` 起按启动顺序给 db/app 分配地址，所以默认选了 `.10`，别用 `.2`–`.9`。
 - 两种模式都要求 Caddy 自己**覆盖**客户端带来的 `X-Forwarded-For`（Caddy 2 默认不信任上游 XFF、只追加真实对端，满足）。
+
+### container 模式的前提（否则 Caddy 自己看到的就是网关）
+
+Caddy 容器只有在**流量经 iptables DNAT 直接进容器**时才看到真实客户端。经 docker-proxy（userland 转发）进来的连接，Caddy 看到的来源是网关 `172.31.80.1`，于是这些用户在 Caddy 的 XFF 里都是同一个地址、共用一个限流桶。复测实测会走 docker-proxy 的有：
+
+- **IPv6 客户端**：Docker 没开 IPv6 时，`:::80/:::443` 由 docker-proxy 用 IPv4 转给 Caddy。生产域名有 AAAA 记录 → 所有 IPv6 用户算成一个人。
+- 宿主机回环（`127.0.0.1:80`、`[::1]:80`）和其他容器访问发布端口。
+- dockerd `"iptables": false` 时：**全部**流量。
+
+所以 container 模式必须满足：
+
+1. `/etc/docker/daemon.json` **绝不设** `"iptables": false`（默认 true）。
+2. IPv6 二选一：给 Docker 开 IPv6（`"ipv6": true`、`"ip6tables": true`，并给 `lushu_backend` 配 IPv6 子网，让 IPv6 也走 DNAT），**或者**删掉域名的 AAAA 记录（只对外提供 IPv4）。都做不到就用 host 模式（宿主机 Caddy 不受影响）。
+3. 在 Caddy 访问日志里确认 `remote_ip` 是真实客户端地址，不是网关（示例 `docs/Caddyfile.container.example` 已开 `log`；`docker logs lushu-caddy-1 | grep -o '"remote_ip":"[^"]*"' | sort | uniq -c`）。
+
+运行时检测的第二个信号（「疑似所有用户被识别成同一个地址」）就是为这种情况准备的。
 
 ### 第一次切换前 SRE 必须确认（两种模式都要做）
 
 1. **Caddy 是不是容器**：`systemctl status caddy`、`pgrep -a caddy`、`docker ps --format '{{.Names}} {{.Image}}' | grep -i caddy`。宿主机进程 → host；容器 → container（并且要把它接入 `lushu_backend` 且固定 IP，现有 Caddy 容器如果在别的网络上，经宿主机端口转发进来时来源又会变成网关或别的地址，必须实测）。
 2. **dockerd 配置**：`cat /etc/docker/daemon.json`（没有这个文件 = 默认）。看 `userland-proxy`（默认 true；复测里 true/false 两种情况来源都是网关）和 `iptables`（默认 true；**设成 false 的情况没测过**，来源可能不同，必须实测）、`ipv6`。
-3. **应用实际看到的来源地址**（以这个为准，不要只看配置推断）：切流量后发几个请求，然后
+3. **（container 模式）Caddy 看到的来源**：见上面「container 模式的前提」第 3 条。
+4. **应用实际看到的来源地址**（以这个为准，不要只看配置推断）：切流量后发几个请求，然后
    ```bash
    nsenter -t "$(docker inspect -f '{{.State.Pid}}' lushu-app-1)" -n ss -tn state established '( sport = :3080 )'
    ```
@@ -97,6 +115,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 - 正确配置下这个数恒为 0：Caddy 的地址是受信任的，客户端也碰不到应用端口。
 - 第一次出现时打一条日志 `[proxy] WARNING: request with forwarded headers from untrusted peer <对端地址> …`（只有对端地址，不记客户端 IP 和其他信息），之后每 10 分钟最多一条。
 - 滚动 10 分钟内达到 `PROXY_MISCONFIG_THRESHOLD`（默认 `20`）：后台「概览」顶部出现红框「代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE」（小字写对端地址和次数），`/api/admin/dashboard` 的 `proxyMisconfig.tripped=true`；配置了 `ALERT_WEBHOOK_URL` 时发告警 `proxy-misconfig`，情况持续时**每小时最多一次**。
+- **第二个信号：大家被识别成同一个地址。** 来自受信任代理、带 `X-Forwarded-For` 的请求里，解析出的客户端地址如果 **≥90% 都是 `APP_NETWORK_GATEWAY`**，且窗口内样本 **≥`PROXY_SHARED_MIN_SAMPLE`（默认 20）**，概览显示「疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE」，并发同一类告警 `proxy-misconfig`（和第一个信号共用每小时一次的去重）。只有客户端地址等于网关才算，所以流量小或真实用户多时不会误报；不带 XFF 的请求（如在宿主机上直接 curl）不计入样本。典型原因见「container 模式的前提」。
 - 窗口长度 `PROXY_MISCONFIG_WINDOW_MS`（默认 `600000`，最小 1 分钟）。
 - **只按进程计数，不跨进程汇总**：生产每个部署只跑一个 app 容器（一个 Node 进程），所以等于全站数。重启后清零；如果以后跑多个实例，每个实例各自判断（任何一个超阈值就会告警），概览只显示处理这次请求的那个实例的数字。
 - 看到这个提示：按上面「第一次切换前 SRE 必须确认」第 3 步查对端地址，把 Caddy 的真实地址配进去（容器 Caddy 用 `docker-compose.caddy.yml` + `PROXY_MODE=container`）。注意能直连应用端口、自己带 `X-Forwarded-For` 的进程也会触发它；正常部署里应用端口只对 Caddy 开放，所以这本身也说明端口暴露有问题。
@@ -290,3 +309,4 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | `ENRICH_BUDGET_ALERT_RATIO` | `0.8` | 联网补全当日花费到预算的这个比例时告警一次（每份路书实测约 $0.5） |
 | `ALERT_CLIENT_ERRORS_PER_HOUR` | `30` | 前端错误激增的阈值（每进程近 1 小时条数） |
 | `PROXY_MISCONFIG_THRESHOLD` / `PROXY_MISCONFIG_WINDOW_MS` | `20` / `600000` | 带转发头但对端不受信任的请求，滚动窗口内达到这个数就在概览标红并告警（每进程计数） |
+| `PROXY_SHARED_MIN_SAMPLE` | `20` | 第二个信号的最小样本：窗口内至少这么多经代理的请求，且 ≥90% 解析为网关才标红 |

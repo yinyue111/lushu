@@ -1,6 +1,12 @@
 # Caddyfile for docker-compose.caddy.yml (Caddy container on lushu_backend). Copy to ./Caddyfile.
 lushu.aiwuq.cn {
 	encode zstd gzip
+	# JSON access log on stdout (docker logs lushu-caddy-1): check that request.remote_ip is the real
+	# client, not the network gateway 172.31.80.1 (docs/deploy.md「container 模式的前提」).
+	log {
+		output stdout
+		format json
+	}
 	reverse_proxy app:3080 {
 		transport http {
 			read_timeout 400s
