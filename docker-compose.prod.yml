@@ -45,7 +45,10 @@ services:
       # Requests reach the container from the compose network gateway (docker-proxy for the
       # 127.0.0.1:3080 publish). Trust X-Forwarded-For from that hop only.
       TRUST_PROXY_HEADERS: 'true'
-      # TRUSTED_PROXY_CIDRS comes from app.env only (not set here, so nothing overrides it).
+      # TRUSTED_PROXY_CIDRS comes from app.env only (not set here, so nothing overrides it). The app
+      # refuses to start if it is empty/invalid, outside this pinned subnet, or misses the gateway.
+      APP_NETWORK_SUBNET: ${APP_NETWORK_SUBNET:-172.31.80.0/24}
+      APP_NETWORK_GATEWAY: ${APP_NETWORK_GATEWAY:-172.31.80.1}
     ports:
       - '127.0.0.1:3080:3080'
     volumes:
@@ -105,10 +108,14 @@ services:
 
 networks:
   backend:
+    # Pinned: Caddy on the host reaches the app through 127.0.0.1:3080 (docker-proxy), so requests
+    # arrive from this bridge's gateway. Same values are handed to the app for the startup check.
+    # Changing them needs the network recreated (docs/deploy.md「网络」).
+    name: lushu_backend
     ipam:
       config:
-        - subnet: 172.31.80.0/24
-          gateway: 172.31.80.1
+        - subnet: ${APP_NETWORK_SUBNET:-172.31.80.0/24}
+          gateway: ${APP_NETWORK_GATEWAY:-172.31.80.1}
 
 volumes:
   pgdata:

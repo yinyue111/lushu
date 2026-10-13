@@ -66,7 +66,13 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
 
-- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `app.env` 里要有 `TRUSTED_PROXY_CIDRS=172.31.80.1,127.0.0.1,::1`（模板 `docs/deploy.env.example` 已写好）。compose 不再设置这个变量，只认 `app.env`；**旧部署切到新 compose 时务必把这一行加进 `app.env`**，否则应用只信任 `127.0.0.1,::1`，按 IP 限流会把所有人算成网关一个人。如果子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `app.env` 里的 `TRUSTED_PROXY_CIDRS`。
+- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `app.env` 里要有 `TRUSTED_PROXY_CIDRS=172.31.80.1,127.0.0.1,::1`（模板 `docs/deploy.env.example` 已写好）。compose 不再设置这个变量，只认 `app.env`；**旧部署切到新 compose 时务必把这一行加进 `app.env`**，否则应用只信任 `127.0.0.1,::1`，按 IP 限流会把所有人算成网关一个人。如果子网和宿主机已有网络冲突，见下面「网络（固定子网）」。
+- **网络（固定子网）**：compose 把应用网络固定为 `lushu_backend`，子网 `${APP_NETWORK_SUBNET:-172.31.80.0/24}`、网关 `${APP_NETWORK_GATEWAY:-172.31.80.1}`，同样的值传给应用。Caddy 在宿主机上访问 `127.0.0.1:3080`，经 docker-proxy 进容器，应用看到的来源就是这个网关。启动时检查：生产且 `TRUST_PROXY_HEADERS=true` 时，`TRUSTED_PROXY_CIDRS` 为空、有无效条目、含 `0.0.0.0/0`、有落在固定子网之外的非回环条目、或没包含网关，**都拒绝启动**。
+  - **172.31.80.1 的来历**：仓库里只有 2026-10-09 的提交 `3b3d974`（说明写「to match production」）和本文档的描述，**没有在生产机上实测记录**（`docker network inspect` 的输出、或应用日志里看到的来源地址）。所以这个值是否和现网一致**未确认**。
+  - **第一次切换前 SRE 必须确认**：在生产机上执行 `docker network inspect lushu_backend --format '{{json .IPAM.Config}}'`（老网络名可能不同，用 `docker network ls` 找 compose 项目 `lushu` 的网络），确认子网/网关；再看应用日志或 `docker compose exec app node -e "…"` 确认请求来源确实是网关。和 `172.31.80.0/24` / `172.31.80.1` 不一致时，二选一：在 `.env` 里设 `APP_NETWORK_SUBNET` / `APP_NETWORK_GATEWAY` 为现网值并同步 `app.env` 的 `TRUSTED_PROXY_CIDRS`；或按下面重建网络。
+  - **重建网络是必需的**：Docker 不会修改已存在网络的子网。现网如果不是固定子网（或名字不同），必须在维护窗口里 `docker compose -f docker-compose.prod.yml down`（不要加 `-v`，数据卷保留）→ 确认 `docker network rm lushu_backend` 已删除旧网络 → `up -d db` → `up -d app`，再用 `docker network inspect lushu_backend` 核对。重建期间站点不可用（约 1 分钟）。
+  - 改子网时：只改 `.env` 里的 `APP_NETWORK_SUBNET` / `APP_NETWORK_GATEWAY` 和 `app.env` 里的 `TRUSTED_PROXY_CIDRS`，然后按上面重建网络；三者不一致应用会拒绝启动。
+  - 同一个网关也是 `docs/login-rollout.md` 里 `MAIL_SMTP_HOST=172.31.80.1` 的前提，改子网要一起改。
 - 不用 Docker、直接 `npm start`：设 `HOST=127.0.0.1 PORT=3080 TRUST_PROXY_HEADERS=true`；`TRUSTED_PROXY_CIDRS` 的默认值 `127.0.0.1,::1` 正好是 Caddy。
 - 服务从右往左读 `X-Forwarded-For`，跳过可信代理，所以客户端自己伪造的最左项不会生效。带转发链的请求一律不算“本机”，生产环境也默认关闭本机免鉴权。
 
