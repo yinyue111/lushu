@@ -66,6 +66,8 @@ test('misconfig: warn once (then rate-limited), overview flag over threshold, al
   assert.equal(w.text, '代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE。');
   assert.doesNotMatch(w.text, /X-Forwarded|XFF|CIDR/);
   assert.match(w.detail, /172\.31\.80\.4/);
+  assert.equal(w.lastSeenAt, new Date(1_000_000_000_000).toISOString());
+  assert.equal(w.processLocal, true);
   // More traffic within the hour: no more alerts; another warn only after the log interval.
   for (let i = 0; i < 50; i++) m.observe(req('172.31.80.4', { 'x-forwarded-for': '1.1.1.1' }));
   assert.equal(alerts.length, 1);
@@ -133,6 +135,9 @@ test('shared-address signal: >=90% of forwarded requests resolving to the gatewa
   const w = dashboardWarnings(SNAP, {}, s).find((x) => x.key === 'proxy-shared-address');
   assert.equal(w.text, '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。');
   assert.match(w.detail, /172\.31\.80\.1/);
+  assert.equal(w.lastSeenAt, s.shared.lastSeenAt);
+  assert.ok(Date.parse(w.lastSeenAt) > 0);
+  assert.equal(w.processLocal, true);
   // Dedup: same hourly throttle as the other signal.
   for (let i = 0; i < 50; i++) m.observe(fwd('172.31.80.1'));
   assert.equal(alerts.length, 1);
@@ -151,4 +156,10 @@ test('shared-address signal: >=90% of forwarded requests resolving to the gatewa
   const direct = setup({ gateway: '172.31.80.1', resolveClient });
   for (let i = 0; i < 50; i++) direct.m.observe(/** @type {any} */ ({ ...req('172.31.80.1'), resolved: '172.31.80.1' }));
   assert.equal(direct.m.state().shared.samples, 0);
+});
+
+test('overview time is HH:mm in Asia/Taipei', async () => {
+  const { hhmmTaipei } = await import('../../admin/src/time.js');
+  assert.equal(hhmmTaipei('2026-10-13T18:05:00.000Z'), '02:05');
+  assert.equal(hhmmTaipei('2026-10-14T03:59:00.000Z'), '11:59');
 });

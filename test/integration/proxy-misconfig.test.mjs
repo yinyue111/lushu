@@ -79,6 +79,9 @@ test('misconfig: untrusted peer + X-Forwarded-For -> one warn, overview flag, on
   const flag = dash.warnings.find((w) => w.key === 'proxy-misconfig');
   assert.equal(flag?.tone, 'error');
   assert.equal(flag?.text, '代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE。');
+  assert.ok(Date.parse(dash.proxyMisconfig.lastSeenAt) > Date.now() - 60_000);
+  assert.equal(flag.lastSeenAt, dash.proxyMisconfig.lastSeenAt);
+  assert.equal(flag.processLocal, true);
   assert.equal((log.match(/\[proxy\] WARNING/g) ?? []).length, 1, log);
   assert.match(log, /untrusted peer 127\.0\.0\.1/);
   assert.doesNotMatch(log, /198\.51\.100/);
@@ -95,6 +98,8 @@ test('shared address: forwarded requests from a trusted proxy that all resolve t
   assert.equal(bad.dash.proxyMisconfig.count, 0);
   const flag = bad.dash.warnings.find((w) => w.key === 'proxy-shared-address');
   assert.equal(flag?.text, '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。');
+  assert.ok(Date.parse(bad.dash.proxyMisconfig.shared.lastSeenAt) > Date.now() - 60_000);
+  assert.equal(flag.lastSeenAt, bad.dash.proxyMisconfig.shared.lastSeenAt);
   assert.equal(bad.posts.length, 1, JSON.stringify(bad.posts));
   assert.equal(bad.posts[0].type, 'proxy-misconfig');
   // Same deployment, real client addresses: nothing.

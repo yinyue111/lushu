@@ -46,6 +46,7 @@ export function createProxyMisconfigMonitor({
   let total = 0;
   let lastPeer = '';
   let lastSeenAt = 0;
+  let sharedLastSeenAt = 0;
   let lastLogAt = -Infinity;
   let logged = 0;
   let lastAlertAt = -Infinity;
@@ -89,7 +90,10 @@ export function createProxyMisconfigMonitor({
       if (!gatewayAddr || !String(req.headers?.['x-forwarded-for'] ?? '').trim()) return false;
       const b = bucket(t);
       b.samples += 1;
-      if (plainAddress(resolveClient(req)) === gatewayAddr) b.gateway += 1;
+      if (plainAddress(resolveClient(req)) === gatewayAddr) {
+        b.gateway += 1;
+        sharedLastSeenAt = t;
+      }
       const x = sums(t);
       if (sharedTripped(x))
         maybeAlert(
@@ -131,6 +135,7 @@ export function createProxyMisconfigMonitor({
         minSample: sharedMinSample,
         threshold: sharedRatio,
         gateway: gatewayAddr || null,
+        lastSeenAt: sharedLastSeenAt ? new Date(sharedLastSeenAt).toISOString() : null,
         tripped: sharedTripped(x)
       },
       threshold,

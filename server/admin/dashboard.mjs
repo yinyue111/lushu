@@ -131,6 +131,8 @@ export function dashboardWarnings(snapshot = currentSnapshot(), env = process.en
     warnings.push({
       key: 'proxy-shared-address',
       tone: 'error',
+      lastSeenAt: proxy.shared.lastSeenAt,
+      processLocal: true,
       text: '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。',
       detail: `近 ${Math.round(proxy.windowMs / 60000)} 分钟 ${proxy.shared.samples} 个经代理的请求里，${proxy.shared.gatewayHits} 个（${Math.round(proxy.shared.ratio * 100)}%）的来源被识别为网关 ${proxy.shared.gateway}（阈值 ${Math.round(proxy.shared.threshold * 100)}%、至少 ${proxy.shared.minSample} 个，仅本进程计数）。常见原因：容器 Caddy 的流量经 docker-proxy（IPv6、回环、iptables:false）。见 docs/deploy.md「运行时检测」。`
     });
@@ -139,6 +141,8 @@ export function dashboardWarnings(snapshot = currentSnapshot(), env = process.en
     warnings.push({
       key: 'proxy-misconfig',
       tone: 'error',
+      lastSeenAt: proxy.lastSeenAt,
+      processLocal: true,
       text: '代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE。',
       detail: `近 ${Math.round(proxy.windowMs / 60000)} 分钟有 ${proxy.count} 个请求带 X-Forwarded-For/Proto，但来自不在 TRUSTED_PROXY_CIDRS 里的地址 ${proxy.lastPeer || 'unknown'}（阈值 ${proxy.threshold}，仅本进程计数）。见 docs/deploy.md「Caddy 两种部署方式」。`
     });
