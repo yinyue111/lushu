@@ -239,7 +239,8 @@ export const AUTH_ENABLED = AUTH_MODE !== 'access-code';
 const REGISTRATION_MODES = ['open', 'invite', 'closed'];
 export const REGISTRATION_MODE = REGISTRATION_MODES.includes(String(process.env.REGISTRATION_MODE ?? '').trim())
   ? String(process.env.REGISTRATION_MODE).trim()
-  : 'invite';
+  : // 2026-10：内测先取消邀请码；设 REGISTRATION_MODE=invite 可恢复。防滥用仍靠人机校验、邮箱验证、限流和配额。
+    'open';
 // The invite code falls back to the old access code so testers keep using what they already have.
 export const REGISTRATION_INVITE_CODE = String(process.env.REGISTRATION_INVITE_CODE || API_TOKEN || '').trim();
 // HMAC key for phone lookups. Losing it makes every account unfindable: back it up.

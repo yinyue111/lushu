@@ -20,7 +20,7 @@ export default function LoginSheet({
   reason = '',
   codes = [],
   afterRegister = false,
-  registration = 'invite',
+  registration = 'open',
   emailVerificationRequired = true,
   onAuthenticated,
   onCodesConfirmed,

@@ -193,7 +193,9 @@ export async function planningAccessState(req) {
   const account = await requestAccount(req);
   if (account) return PUBLIC_MODEL_PROXY_ALLOWED || (isLocalRequest(req) && ALLOW_LOCAL_API_BYPASS) ? 'open' : 'disabled';
   if (AUTH_MODE === 'login') return 'needs-login';
-  return apiAccessState(req);
+  // both：访问码仍然有效，但对没带码的匿名用户，引导登录而不是让他找访问码。
+  const state = apiAccessState(req);
+  return state === 'needs-access-code' ? 'needs-login' : state;
 }
 
 /**
