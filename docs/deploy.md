@@ -66,7 +66,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
 
-- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `TRUSTED_PROXY_CIDRS` 默认是 `172.31.80.1,127.0.0.1,::1`。如果这个子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `app.env` 里的 `TRUSTED_PROXY_CIDRS`。
+- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `app.env` 里要有 `TRUSTED_PROXY_CIDRS=172.31.80.1,127.0.0.1,::1`（模板 `docs/deploy.env.example` 已写好）。compose 不再设置这个变量，只认 `app.env`；**旧部署切到新 compose 时务必把这一行加进 `app.env`**，否则应用只信任 `127.0.0.1,::1`，按 IP 限流会把所有人算成网关一个人。如果子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `app.env` 里的 `TRUSTED_PROXY_CIDRS`。
 - 不用 Docker、直接 `npm start`：设 `HOST=127.0.0.1 PORT=3080 TRUST_PROXY_HEADERS=true`；`TRUSTED_PROXY_CIDRS` 的默认值 `127.0.0.1,::1` 正好是 Caddy。
 - 服务从右往左读 `X-Forwarded-For`，跳过可信代理，所以客户端自己伪造的最左项不会生效。带转发链的请求一律不算“本机”，生产环境也默认关闭本机免鉴权。
 
@@ -110,7 +110,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 | `JEV_SHADOW_ENABLED` | `true` | 开启 Jev 影子评审（只记录、不影响用户） |
 | `TYPESAFE_API_KEY` | 由 SRE 填写 | Jev 凭证；不填时影子评审自动不启用 |
 
-compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器内）、`PORT=3080`、`ROUTEBOOK_DATA_DIR=/data`、`STORAGE_BACKEND=postgres`、`DATABASE_URL`、`TRUST_PROXY_HEADERS=true`、`TRUSTED_PROXY_CIDRS`。不用 compose 时，这些要自己设置，其中 `HOST=127.0.0.1`。
+compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器内）、`PORT=3080`、`ROUTEBOOK_DATA_DIR=/data`、`STORAGE_BACKEND=postgres`、`DATABASE_URL`、`TRUST_PROXY_HEADERS=true`（`TRUSTED_PROXY_CIDRS` 在 `app.env`）。不用 compose 时，这些要自己设置，其中 `HOST=127.0.0.1`。
 
 ### 可选（默认即可）
 

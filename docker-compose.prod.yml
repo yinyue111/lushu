@@ -43,7 +43,7 @@ services:
       # Requests reach the container from the compose network gateway (docker-proxy for the
       # 127.0.0.1:3080 publish). Trust X-Forwarded-For from that hop only.
       TRUST_PROXY_HEADERS: 'true'
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.31.80.1,127.0.0.1,::1}
+      # TRUSTED_PROXY_CIDRS comes from app.env only (not set here, so nothing overrides it).
     ports:
       - '127.0.0.1:3080:3080'
     volumes:
