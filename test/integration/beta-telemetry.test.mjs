@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { adminHeaders, fetchJson, jsonHeaders, startServer } from '../helpers/server.mjs';
 import { buildActivationFunnel, normalizeClientError } from '../../server/analytics/funnelEvents.mjs';
 
-test('activation funnel counts unique people per step and first generation success from AI logs', () => {
+test('activation funnel is a cohort: later steps only count people who did every earlier step', () => {
   const at = new Date().toISOString();
   const rows = [
     { event: 'home_view', key: 'a', createdAt: at },
@@ -13,7 +13,9 @@ test('activation funnel counts unique people per step and first generation succe
     { event: 'share_open', key: '', createdAt: at }
   ];
   const steps = buildActivationFunnel(rows, [{ kind: 'generate-routebook', status: 'ok', profileId: 'p1', createdAt: at }]);
-  assert.deepEqual(steps.map((s) => s.count), [2, 1, 0, 1, 1]);
+  // p1 的生成成功和匿名分享打开不属于这批人，不计入
+  assert.deepEqual(steps.map((s) => s.count), [2, 1, 0, 0, 0]);
+  assert.equal(steps.anonymousEvents, 1);
   assert.equal(steps[1].rateFromPrevious, 50);
 });
 
