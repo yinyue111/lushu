@@ -56,6 +56,8 @@ export function publicRoutebookView(routebook) {
     city: routebook.city ? normalizeCityName(routebook.city) : '',
     trustScore: publicRouteTrustScore,
     trustMeta: publicTrustMeta(routebook.trustMeta),
+    // Only the fallback marker (「本次由备用模型生成」); model / base URL stay private.
+    ...(['fast', 'deep'].includes(routebook.provider?.fellBackFrom) ? { provider: { fellBackFrom: routebook.provider.fellBackFrom } } : {}),
     days: Array.isArray(routebook.days)
       ? routebook.days
           .map((day) => truncateString(day, 24))

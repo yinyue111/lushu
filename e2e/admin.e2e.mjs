@@ -154,9 +154,10 @@ try {
   await page.getByText('E2E 苏州一日（乙）', { exact: false }).first().waitFor();
   await axe('roadbooks');
   await shot('08-roadbooks');
-  await page.getByRole('button', { name: '下架分享链接' }).click();
-  await page.getByLabel(/下架分享链接的原因/).fill('E2E：下架测试');
-  await page.getByRole('button', { name: '确认', exact: true }).click();
+  const cardB = page.getByRole('region', { name: /E2E 苏州一日（乙）/ });
+  await cardB.getByRole('button', { name: '下架分享链接' }).click();
+  await cardB.getByLabel(/下架分享链接的原因/).fill('E2E：下架测试');
+  await cardB.getByRole('button', { name: '确认', exact: true }).click();
   await page.getByText('E2E 苏州一日（乙） · 苏州 · 已下架').waitFor();
   assert.equal((await fetch(`${server.baseUrl}/api/share/e2e-rb-b`)).status, 404);
 
@@ -165,7 +166,7 @@ try {
   await page.getByText(/当前版本 v0/).waitFor();
   await axe('config');
   await shot('09-config');
-  const home = page.getByLabel(/首页推荐城市.*generation\.homeCities/);
+  const home = page.getByLabel(/^首页推荐城市/);
   await home.fill('苏州');
   await page.getByRole('button', { name: '预览改动（改前 → 改后）' }).click();
   await page.getByRole('table', { name: '改动预览' }).waitFor();
@@ -192,10 +193,11 @@ try {
   await shot('11-config-versions-invites');
 
   // 7. model change without a passing test-run is blocked for save
-  const fast = page.getByLabel(/轻快档模型（model\.fast）/);
-  const tier = JSON.parse(await fast.inputValue());
-  await fast.fill(JSON.stringify({ ...tier, model: 'e2e-draft-model' }));
-  await page.getByRole('button', { name: '试跑轻快档' }).waitFor();
+  // The model tier is a form now (JSON only under 「高级」); the first 模型名 field is 轻快's.
+  const modelCard = page.getByRole('region', { name: '模型' });
+  await modelCard.getByLabel('模型名').first().fill('e2e-draft-model');
+  await page.getByRole('button', { name: '试跑「轻快」' }).waitFor();
+  await page.getByText(/保存前先点下面的「试跑」/).waitFor();
   assert.equal(await page.getByRole('button', { name: '保存为新版本' }).isDisabled(), true);
   await shot('12-config-model-needs-test-run');
   await page.reload({ waitUntil: 'load' });
@@ -260,6 +262,26 @@ try {
   await nav('概览');
   await axe('dashboard-mobile');
   await shot('19-dashboard-mobile');
+
+  // 11. user side: fallback marker, truthful source copy, report with a note → receipt + 「已反馈待复核」
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${BASE}/route/e2e-rb-c`);
+  await page.getByText(/本次由备用模型生成/).waitFor();
+  await page.getByText('人工核实门票').waitFor();
+  await page.getByText('人工核实门票').click();
+  await page.getByText(/人工核实：运营人员按来源核对过/).waitFor();
+  await axe('user-route');
+  await shot('20-user-route-fallback-and-verified');
+  const hoursFact = page.locator('li', { hasText: '开放时间：09:00-17:00' }).last();
+  await hoursFact.getByText(/开放时间：09:00-17:00/).click();
+  await hoursFact.getByText('2 个来源说法一致才会显示。以现场和官方公告为准。').waitFor();
+  await hoursFact.getByRole('button', { name: '这条不对，报告有误' }).click();
+  await hoursFact.getByLabel(/哪里不对/).fill('E2E：现场看到的是 10 点开门');
+  await hoursFact.getByRole('button', { name: '提交反馈' }).click();
+  await page.getByText(/已收到你的反馈（回执号/).waitFor();
+  await page.getByText('已反馈待复核').first().waitFor();
+  await axe('user-report-receipt');
+  await shot('21-user-report-receipt');
 } catch (error) {
   failures.push(`step failed: ${error.message.split('\n')[0]}`);
   const pages = browser.contexts().flatMap((c) => c.pages());

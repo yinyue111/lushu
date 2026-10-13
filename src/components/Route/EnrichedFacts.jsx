@@ -43,7 +43,7 @@ function EnrichedFact({ claim, onReport }) {
               <>
                 <span className="text-success-ink">{verifiedLabel}门票</span>
                 <span className="mx-1 text-muted">·</span>
-                <span>{claim.display.replace(/^门票[：:]?/, '')}</span>
+                <span>{claim.display.replace(/^门票[：:]?/, '').replace(/ · 人工核实(?= · )/, '')}</span>
               </>
             ) : (
               claim.display

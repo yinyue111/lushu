@@ -54,8 +54,8 @@ const int = (label, group, min, max, env, def, extra = {}) => ({ type: 'int', la
  * @type {Record<string, SettingSpec>}
  */
 export const RUNTIME_SCHEMA = {
-  'model.fast': { type: 'modelTier', label: '轻快档模型', group: 'model', role: 'admin', model: true, env: () => envTier('fast'), default: null },
-  'model.deep': { type: 'modelTier', label: '细品档模型', group: 'model', role: 'admin', model: true, env: () => envTier('deep'), default: null },
+  'model.fast': { type: 'modelTier', label: '「轻快」模式的模型', group: 'model', role: 'admin', model: true, env: () => envTier('fast'), default: null },
+  'model.deep': { type: 'modelTier', label: '「细品」模式的模型', group: 'model', role: 'admin', model: true, env: () => envTier('deep'), default: null },
   'model.fallbackOrder': {
     type: 'string[]',
     label: '备用模型顺序（所选模式没配好，或上游报错 / 超时时改用）',

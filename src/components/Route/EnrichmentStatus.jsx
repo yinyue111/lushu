@@ -33,7 +33,7 @@ export default function EnrichmentStatus({ enrichment }) {
                 .filter(Boolean)
                 .join(' · ')}
         </p>
-        {!gaveUp && <p className="pl-4 text-sky-ink/80">可以先离开，查好会存进路书。</p>}
+        {!gaveUp && <p className="pl-4 text-sky-ink">可以先离开，查好会存进路书。</p>}
       </div>
     );
   }

@@ -145,6 +145,7 @@
   }
   .rb-map .leaflet-control-attribution a {
     color: var(--color-sky-ink);
+    text-decoration: underline !important; /* layered rule must beat unlayered leaflet.css; links inside text need more than colour (axe link-in-text-block) */
   }
 
   .rb-pin {

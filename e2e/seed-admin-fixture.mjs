@@ -26,7 +26,15 @@ const rb = (id, title, profileId, extra = {}) => ({
 });
 writeFileSync(
   join(dataDir, 'routebooks.jsonl'),
-  [rb('e2e-rb-a', 'E2E 苏州一日（甲）', 'p_e2e_a'), rb('e2e-rb-b', 'E2E 苏州一日（乙）', 'p_e2e_b', { publishStatus: 'published' })]
+  [
+    rb('e2e-rb-a', 'E2E 苏州一日（甲）', 'p_e2e_a'),
+    rb('e2e-rb-b', 'E2E 苏州一日（乙）', 'p_e2e_b', { publishStatus: 'published' }),
+    // User-side view: written by the fallback model; one 人工核实 value and one automatic value to report.
+    rb('e2e-rb-c', 'E2E 苏州一日（丙）', 'p_e2e_c', {
+      publishStatus: 'published',
+      provider: { name: 'e2e', model: 'fast-model', mode: 'fast', fellBackFrom: 'deep', generatedAt: now }
+    })
+  ]
     .map((r) => JSON.stringify(r))
     .join('\n') + '\n'
 );
@@ -59,5 +67,26 @@ for (const id of ['e2e-rb-a', 'e2e-rb-b']) {
   await store.enqueue({ routebookId: id, userId: 'u_e2e' });
   await store.putResult(id, [claim]);
 }
+await store.enqueue({ routebookId: 'e2e-rb-c', userId: 'u_e2e' });
+await store.putResult('e2e-rb-c', [
+  {
+    ...claim,
+    cacheKey: '苏州|E2E 示例园林（丙）|price',
+    value: 'E2E 核实值',
+    display: '门票：E2E 核实值 · 人工核实 · 2026-10-13',
+    method: 'ops-verified',
+    sources: [{ kind: 'ops', url: 'https://example.org/e2e-verified', title: 'E2E 人工核实来源', domain: 'example.org', retrievedAt: '2026-10-13' }]
+  },
+  {
+    ...claim,
+    stopKey: 's2',
+    stopName: 'E2E 示例街区',
+    field: 'hours',
+    cacheKey: '苏州|E2E 示例街区|hours',
+    value: '09:00-17:00',
+    display: '开放时间：09:00-17:00（E2E 示例） · 来自2个来源',
+    sources: [claim.sources[0], { ...claim.sources[0], url: 'https://example.net/e2e-2', domain: 'example.net', title: 'E2E 示例来源二' }]
+  }
+]);
 await reportEnrichment({ routebookId: 'e2e-rb-a', stopKey: 's1', field: 'price', note: 'E2E：用户说这个值不对', userId: 'u_e2e' });
 console.log('seeded');
