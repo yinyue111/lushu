@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { trackFunnel } from '../../lib/betaTelemetry.js';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { analyzeGuideImages, checkHealth, getApiToken, getCities, importGuide, saveProfile, setApiToken, startGenerationJob } from '../../lib/api';
 import {
@@ -51,6 +52,7 @@ const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 /** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onModelHealth?: Function, onBack?: Function }} props */
 /** @param {Record<string, any>} props */
 export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onModelHealth, onBack }) {
+  useEffect(() => trackFunnel('create_start'), []);
   const [profile, setProfile] = useState(() => getProfile());
   const { required: loginRequired, account, generation, requireLogin, openLogin, refresh: refreshAccount } = useAccount();
   const needsLogin = loginRequired && !account;

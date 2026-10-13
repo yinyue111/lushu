@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportClientError } from '../../lib/betaTelemetry.js';
 import { AlertCircle, CalendarClock, HardDrive, MapPinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
 import { EmptyArt } from '../visual/EmptyArt';
@@ -107,6 +108,7 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error('[routebook] render error', error, info);
+    reportClientError('render', error);
   }
 
   render() {

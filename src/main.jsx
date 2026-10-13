@@ -1,8 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { installGlobalErrorReporting } from './lib/betaTelemetry.js';
 import 'leaflet/dist/leaflet.css';
 import './styles/tailwind.css';
 
+installGlobalErrorReporting();
 createRoot(document.getElementById('root')).render(<App />);
 
 // Development never installs a worker; production caches only the static shell,

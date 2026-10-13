@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { trackFunnel } from '../lib/betaTelemetry.js';
 import { ArrowRight, Bell, Clock3, Compass, Link2, MapPin, Route, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';
@@ -20,6 +21,7 @@ const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
 const HOME_CITY_STORAGE_KEY = 'trusted-routebook:home-city';
 
 export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestination, onRefresh }) {
+  useEffect(() => trackFunnel('home_view'), []);
   const { required: loginRequired, account } = useAccount();
   const [profile] = useState(() => getProfile());
   const [storedCity] = useState(() => readStoredHomeCity());
