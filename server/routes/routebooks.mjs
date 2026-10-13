@@ -417,6 +417,8 @@ export const routebookRoutes = [
           publicId: id,
           profileId: actor.profileId,
           editToken: body?.editToken,
+          // 乐观锁：客户端带上它看到的版本，别人在中间改过就 409，而不是悄悄覆盖。
+          expectedVersion: body?.expectedVersion,
           title: body?.title,
           summary: body?.summary,
           city: body?.city,
@@ -441,7 +443,7 @@ export const routebookRoutes = [
           ...(saved.validations || []).slice(0, 5)
         ]
       };
-      const again = await saveDraftRoutebook(merged, { verifiedProfileId: actor.verified ? actor.profileId : '' });
+      const again = await saveDraftRoutebook({ ...merged, editToken: body?.editToken, expectedVersion: body?.expectedVersion }, { verifiedProfileId: actor.verified ? actor.profileId : '' });
       await appendVersionedRoutebook(again, 'patch-applied', proposal.summary || '');
       return { routebook: again, enriched: await enrichRoutebook(again) };
     });

@@ -800,9 +800,11 @@ export function useRoutebookActions({
     setPatchState((s) => ({ ...s, busy: true, message: '正在应用…' }));
     pushUndo(latestRoutebookRef.current);
     try {
+      const appliedOnVersion = currentRoutebookVersion(latestRoutebookRef.current);
       const data = await applyRoutebookPatch(routeId, {
         profileId: profile.id,
         editToken: latestRoutebookRef.current.editToken,
+        ...(appliedOnVersion != null ? { expectedVersion: appliedOnVersion } : {}),
         proposal,
         title: routebook.title,
         summary: routebook.summary,
