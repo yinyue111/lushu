@@ -103,7 +103,11 @@ export default function OpsOverview() {
         <div className="ops-panel-head">
           <div>
             <h2 id="ops-activation-title">内测激活漏斗 · 近 30 天</h2>
-            <p className="text-caption">同一批人：近 30 天到过首页或创建页的 {funnel?.activationCohortSize ?? '?'} 人，每一步只数前面每一步都做过的人；注册前后的身份已经串起来。分享被打开记在分享者名下。没有匿名身份的事件 {funnel?.activationAnonymousEvents ?? 0} 条不计入。</p>
+            <p className="text-caption">
+              同一批人：近 30 天到过首页或创建页的 {funnel?.activationCohortSize ?? '?'}{' '}
+              人，每一步只数前面每一步都做过的人；注册前后的身份已经串起来。分享被打开记在分享者名下。没有匿名身份的事件{' '}
+              {funnel?.activationAnonymousEvents ?? 0} 条不计入。
+            </p>
           </div>
         </div>
         {Array.isArray(funnel?.activation) ? (
@@ -129,9 +133,9 @@ export default function OpsOverview() {
         {funnel?.trustBehavior && (
           <p className="ops-definition-note" data-testid="ops-trust-behavior">
             打开路书 {funnel.trustBehavior.route_view.people} 人 · 点开「待确认」{funnel.trustBehavior.confirm_open.people} 人
-            {funnel.trustBehavior.confirmOpenRate == null ? '' : `（${funnel.trustBehavior.confirmOpenRate}%）`} · 点开来源 {funnel.trustBehavior.source_open.people} 人 · 报错{' '}
-            {funnel.trustBehavior.fact_report.count} 次 · 隔天再打开 {funnel.trustBehavior.revisit.people} 人
-            {funnel.trustBehavior.revisitRate == null ? '' : `（${funnel.trustBehavior.revisitRate}%）`}
+            {funnel.trustBehavior.confirmOpenRate == null ? '' : `（${funnel.trustBehavior.confirmOpenRate}%）`} · 点开来源{' '}
+            {funnel.trustBehavior.source_open.people} 人 · 报错 {funnel.trustBehavior.fact_report.count} 次 · 隔天再打开 {funnel.trustBehavior.revisit.people}{' '}
+            人{funnel.trustBehavior.revisitRate == null ? '' : `（${funnel.trustBehavior.revisitRate}%）`}
           </p>
         )}
         <p className="ops-definition-note">

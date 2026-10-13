@@ -136,10 +136,7 @@ export function generationEtaText(job, elapsedMs) {
   const fallbackRange = mode === 'fast' ? '20–45 秒' : '2–3 分钟';
   const range = String(estimate.typicalRange || fallbackRange).trim() || fallbackRange;
   const p50 = Number(estimate.p50Ms) || 0;
-  const typical =
-    p50 && estimate.sampleSize >= 3
-      ? `大约 ${range}（最近 ${estimate.sampleSize} 次中位数 ${formatDuration(p50)}）`
-      : `大约 ${range}`;
+  const typical = p50 && estimate.sampleSize >= 3 ? `大约 ${range}（最近 ${estimate.sampleSize} 次中位数 ${formatDuration(p50)}）` : `大约 ${range}`;
   // Mid of the typical band: used only to decide "still on track" vs "slower than usual".
   const reference = p50 || (mode === 'fast' ? 32000 : 135000);
   const timeoutMs = Number(job?.timeoutMs) || (mode === 'fast' ? 120000 : 480000);

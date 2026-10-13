@@ -66,7 +66,7 @@ import {
   syncStatusLabel
 } from './tripModel';
 
-export default function TripView({ routebook, onBack, onAdoptTrip, onReview }) {
+export default function TripView({ routebook, onBack, onAdoptTrip = undefined, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
   const [profile, setProfile] = useState(() => getProfile());
   const [initialSession] = useState(() => readTripSession(routebook, profile.id));

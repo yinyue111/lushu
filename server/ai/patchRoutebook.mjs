@@ -19,7 +19,7 @@ function makeStopId() {
 
 /**
  * @param {Record<string, any>} routebook
- * @param {{ type: 'day'|'window', day?: string, stopIds?: string[], instruction?: string, mode?: string }} scope
+ * @param {{ type: string, day?: string, stopIds?: string[], instruction?: string, mode?: string }} scope
  * @param {{ profileId?: string, signal?: AbortSignal, requestId?: string }} [opts]
  */
 export async function proposeDayPatch(routebook, scope, opts = {}) {
@@ -142,7 +142,10 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
   const orderedDays = (routebook.days?.length ? routebook.days : [...byDay.keys()]).filter((d) => byDay.has(d));
   for (const d of byDay.keys()) if (!orderedDays.includes(d)) orderedDays.push(d);
   // 与前端同一规则：去掉空的天并顺延编号，不补站。
-  const compacted = compactDays(orderedDays.flatMap((d) => byDay.get(d) || []), orderedDays);
+  const compacted = compactDays(
+    orderedDays.flatMap((d) => byDay.get(d) || []),
+    orderedDays
+  );
   const finalStops = compacted.stops;
   orderedDays.splice(0, orderedDays.length, ...compacted.days);
 
@@ -161,7 +164,7 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
     mode: 'fast',
     stops: finalStops,
     days: orderedDays,
-    routeLegs: routed.routeLegs ?? routebook.routeLegs,
+    routeLegs: /** @type {any} */ (routed).routeLegs ?? routebook.routeLegs,
     guard: { events: guarded.events?.length || 0 },
     summary: `已重排 ${day}：${draftStops.map((s) => s.name).join('、')}`
   };

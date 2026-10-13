@@ -220,7 +220,8 @@ test('a failed search only keeps that stop; the summary counts failed searches s
 });
 
 test('conditions attach to a filled value, with source count; seasonal prices are not shown as one number', async () => {
-  const A = 'https://a.example.cn/p', B = 'https://b.example.com/p';
+  const A = 'https://a.example.cn/p',
+    B = 'https://b.example.com/p';
   const { deps } = fakes({
     amap: { 灵隐寺: scenic('灵隐寺', ''), 拙政园: scenic('拙政园', '') },
     web: {

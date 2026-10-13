@@ -167,9 +167,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </label>
             {!account && guideSeed.trim() && (
               <p className="mt-2 text-meta font-semibold leading-snug text-ink-2" role="status">
-                {loginRequired
-                  ? '下一步会请你登录，攻略会留着。'
-                  : '登录后路书会同步到账号，换设备也能看。'}
+                {loginRequired ? '下一步会请你登录，攻略会留着。' : '登录后路书会同步到账号，换设备也能看。'}
               </p>
             )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={guideSeed.trim() ? startFromImport : startFromHero}>
@@ -232,7 +230,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                     key={item}
                     aria-pressed={theme === item}
                     onClick={() => setTheme(item)}
-                    className={cn('h-10 rounded-full px-4 text-sm font-semibold sm:h-9', theme === item ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line')}
+                    className={cn(
+                      'h-10 rounded-full px-4 text-sm font-semibold sm:h-9',
+                      theme === item ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line'
+                    )}
                   >
                     {item}
                   </button>
@@ -246,11 +247,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
       <div className="mx-auto max-w-[1376px] px-4 lg:px-8">
         {/* Curated routes */}
         <section className="mt-10 lg:mt-14" aria-labelledby="home-curated-title">
-          <SectionHeading
-            id="home-curated-title"
-            kicker={`${city} · 精选路线`}
-            title="照着走就行的路线"
-          />
+          <SectionHeading id="home-curated-title" kicker={`${city} · 精选路线`} title="照着走就行的路线" />
           {cityRoutes.length ? (
             <div className={cn('grid grid-cols-1 gap-4', cityRoutes.length > 1 && 'sm:grid-cols-2', cityRoutes.length > 2 && 'lg:grid-cols-3')}>
               {cityRoutes.map((route) => {
@@ -290,7 +287,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 <MapPin className="size-7" />
               </span>
               <h3 className="text-lg font-extrabold">{city} 还没有精选路线</h3>
-              <p className="max-w-md text-copy leading-relaxed text-muted">粘贴当地攻略、收藏地点或想逛的商圈，AI 先帮你排一版；地点和营业信息出发前请再核对。</p>
+              <p className="max-w-md text-copy leading-relaxed text-muted">
+                粘贴当地攻略、收藏地点或想逛的商圈，AI 先帮你排一版；地点和营业信息出发前请再核对。
+              </p>
               <Button variant="primary" onClick={startFromHero}>
                 <Sparkles /> 生成{city}路书
               </Button>
@@ -354,11 +353,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
         {/* My routebooks */}
         <section className="mt-10 lg:mt-14" aria-labelledby="home-my-title">
-          <SectionHeading
-            id="home-my-title"
-            kicker="我的路书"
-            title="接着改，或者直接出发"
-          />
+          <SectionHeading id="home-my-title" kicker="我的路书" title="接着改，或者直接出发" />
           {books.length === 0 ? (
             <div className="flex flex-col items-start gap-3 rounded-panel bg-canvas p-6 sm:flex-row sm:items-center">
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white text-primary-strong shadow-card">
@@ -372,7 +367,13 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book, idx) => (
-                <RouteCard key={`${book.publicId || book.id || book.city}-${idx}`} routebook={book} layout="row" meta={routebookCardMeta(book)} onOpen={() => onOpenBook(book)} />
+                <RouteCard
+                  key={`${book.publicId || book.id || book.city}-${idx}`}
+                  routebook={book}
+                  layout="row"
+                  meta={routebookCardMeta(book)}
+                  onOpen={() => onOpenBook(book)}
+                />
               ))}
             </div>
           )}

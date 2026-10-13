@@ -7,7 +7,7 @@ import { LoaderCircle, MapPin, Replace } from 'lucide-react';
 /** Swap a stop via place search (AMap / catalog). */
 export default function ReplaceStopDialog({ stop, city, onSearch, onPick, onClose }) {
   const [query, setQuery] = useState(stop?.name || '');
-  const [pois, setPois] = useState([]);
+  const [pois, setPois] = useState(/** @type {any} */ ([]));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

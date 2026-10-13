@@ -5,16 +5,7 @@ import { Button } from './button';
  * In-app confirm (replaces window.confirm for destructive / important actions).
  * @param {{ open: boolean, title: string, description?: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean, onConfirm: () => void, onCancel: () => void }} props
  */
-export function ConfirmDialog({
-  open,
-  title,
-  description = '',
-  confirmLabel = '确定',
-  cancelLabel = '取消',
-  danger = false,
-  onConfirm,
-  onCancel
-}) {
+export function ConfirmDialog({ open, title, description = '', confirmLabel = '确定', cancelLabel = '取消', danger = false, onConfirm, onCancel }) {
   if (!open) return null;
   return (
     <Dialog

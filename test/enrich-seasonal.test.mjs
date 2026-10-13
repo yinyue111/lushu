@@ -15,7 +15,10 @@ test('conditions are quoted verbatim from the page near the place name', () => {
   assert.equal(c[0].kind, 'reservation');
   assert.ok(lingyin.includes(c[0].quote));
   const fzm = extractConditions('夫子庙景区全天免费开放，大成殿另收费，门票15元。', '夫子庙');
-  assert.deepEqual(fzm.map((x) => x.kind), ['extra-charge']);
+  assert.deepEqual(
+    fzm.map((x) => x.kind),
+    ['extra-charge']
+  );
   const zzy = extractConditions('拙政园 淡季票价：70元|旺季票价：80元', '拙政园');
   assert.equal(zzy[0].kind, 'seasonal');
   assert.deepEqual(extractConditions('鸡鸣寺 门票10元', '鸡鸣寺'), []);

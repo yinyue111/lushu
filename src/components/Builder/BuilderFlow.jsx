@@ -708,7 +708,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     (quotaExhausted && step === 2);
 
   return (
-    <div className={cn("page-enter mx-auto max-w-[760px] px-4 pt-5 lg:pt-8", step === 2 ? "pb-44 sm:pb-40" : "pb-32")}>
+    <div className={cn('page-enter mx-auto max-w-[760px] px-4 pt-5 lg:pt-8', step === 2 ? 'pb-44 sm:pb-40' : 'pb-32')}>
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
@@ -755,11 +755,35 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         // 合并原先叠在步骤上方的 3–4 条提示：只出一条，按「会挡住生成」的优先级排列。
         if (step >= 3) return null;
         const parts = [];
-        if (needsAccessCode) parts.push(<span key="code">这个站点要访问码才能生成。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={openAccessCode}>填写访问码</button></span>);
+        if (needsAccessCode)
+          parts.push(
+            <span key="code">
+              这个站点要访问码才能生成。{' '}
+              <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={openAccessCode}>
+                填写访问码
+              </button>
+            </span>
+          );
         if (defaults?.quotaWarning) parts.push(<span key="quota">{defaults.quotaWarning}</span>);
         if (!isTrustedCity && step > 0) parts.push(<span key="trial">{city} 暂时只能生成 AI 草稿，地点和营业时间出发前要自己确认。</span>);
-        if (needsLogin) parts.push(<span key="login">可以先填着，点生成时再登录，内容会留着。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>现在登录</button></span>);
-        else if (!account && step >= 1) parts.push(<span key="login">登录后路书存进账号，换设备也能看。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>登录 / 注册</button></span>);
+        if (needsLogin)
+          parts.push(
+            <span key="login">
+              可以先填着，点生成时再登录，内容会留着。{' '}
+              <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+                现在登录
+              </button>
+            </span>
+          );
+        else if (!account && step >= 1)
+          parts.push(
+            <span key="login">
+              登录后路书存进账号，换设备也能看。{' '}
+              <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
+                登录 / 注册
+              </button>
+            </span>
+          );
         if (!parts.length) return null;
         return (
           <Notice className="mt-3" tone={needsAccessCode || defaults?.quotaWarning ? 'warn' : 'sky'} data-testid="builder-notice">
@@ -792,7 +816,6 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           </div>
         </Notice>
       )}
-
 
       <div className="mt-8">
         {step === 0 && (

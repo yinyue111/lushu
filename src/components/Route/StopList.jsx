@@ -1,6 +1,5 @@
 import { trackEvent } from '../../lib/betaTelemetry.js';
-import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil,
-  Replace, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil, Replace, Trash2, TriangleAlert } from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
 import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { formatVerifiedDate, getStopTrustBadge } from '../../lib/trust';
@@ -50,7 +49,22 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
 }
 
 /** @param {Record<string, any>} props */
-function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, canEdit, canMoveUp, canMoveDown, handlers, draggedStopId, enrichment, guideBacked = false }) {
+function StopRow({
+  stop,
+  index,
+  next,
+  roadLeg,
+  theme,
+  selected,
+  routeTrustTone,
+  canEdit,
+  canMoveUp,
+  canMoveDown,
+  handlers,
+  draggedStopId,
+  enrichment,
+  guideBacked = false
+}) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
   const enrichedClaims = enrichment ? enrichment.claimsFor(stop) : [];
   const checked = { price: enrichedClaims.some((c) => c.field === 'price'), hours: enrichedClaims.some((c) => c.field === 'hours') };
@@ -158,9 +172,7 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
               className="mt-2 rounded-card bg-canvas/80 px-2.5 py-1.5 text-sm text-ink-2 open:bg-canvas"
               onToggle={(event) => event.currentTarget.open && trackEvent('confirm_open')}
             >
-              <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">
-                出发前要确认的事
-              </summary>
+              <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">出发前要确认的事</summary>
               {verifyText && <p className="mt-1.5 leading-relaxed">{verifyText}</p>}
               {riskText && (
                 <Notice className="mt-2">

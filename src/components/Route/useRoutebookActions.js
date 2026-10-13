@@ -71,11 +71,11 @@ export function useRoutebookActions({
   const localEditsDirtyRef = useRef(hasUnsyncedLocalEdits(routebook));
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
-  const [syncLabel, setSyncLabel] = useState(() =>
-    hasUnsyncedLocalEdits(routebook) ? '有改动未保存到云端' : '已保存'
-  );
+  const [syncLabel, setSyncLabel] = useState(() => (hasUnsyncedLocalEdits(routebook) ? '有改动未保存到云端' : '已保存'));
   const [undoEpoch, setUndoEpoch] = useState(0);
-  const [patchState, setPatchState] = useState({ busy: false, message: '', proposal: null });
+  const [patchState, setPatchState] = useState(
+    /** @type {{ busy: boolean, message: string, proposal: any, peek?: any, failed?: boolean }} */ ({ busy: false, message: '', proposal: null })
+  );
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
   const stops = routebook.stops ?? [];
@@ -100,7 +100,10 @@ export function useRoutebookActions({
     }
     if (recordUndo) pushUndo(latestRoutebookRef.current);
     // 删除/合并一天、AI 局部调整等都可能留下空的一天：统一收缩并顺延编号，不补站。
-    const compacted = compactDays(nextStops.map((stop) => ({ ...stop, id: stableStopId(stop.id) })), extra.days ?? base.days);
+    const compacted = compactDays(
+      nextStops.map((stop) => ({ ...stop, id: stableStopId(stop.id) })),
+      extra.days ?? base.days
+    );
     const normalizedStops = compacted.stops;
     const next = {
       ...base,
@@ -663,7 +666,6 @@ export function useRoutebookActions({
     }
   }
 
-
   function undoEdit() {
     const prev = undoStackRef.current.pop();
     if (!prev) {
@@ -672,7 +674,12 @@ export function useRoutebookActions({
     }
     redoStackRef.current.push(snapshotStops(latestRoutebookRef.current));
     setUndoEpoch((n) => n + 1);
-    updateRoutebook(prev.stops, { days: prev.days, routeLegs: prev.routeLegs, validations: prev.validations, activeVariantId: prev.activeVariantId, editReason: '撤销' }, latestRoutebookRef.current, { recordUndo: false });
+    updateRoutebook(
+      prev.stops,
+      { days: prev.days, routeLegs: prev.routeLegs, validations: prev.validations, activeVariantId: prev.activeVariantId, editReason: '撤销' },
+      latestRoutebookRef.current,
+      { recordUndo: false }
+    );
     setShareState('已撤销上一步');
   }
 
@@ -684,7 +691,12 @@ export function useRoutebookActions({
     }
     pushUndo(latestRoutebookRef.current);
     setUndoEpoch((n) => n + 1);
-    updateRoutebook(next.stops, { days: next.days, routeLegs: next.routeLegs, validations: next.validations, activeVariantId: next.activeVariantId, editReason: '重做' }, latestRoutebookRef.current, { recordUndo: false });
+    updateRoutebook(
+      next.stops,
+      { days: next.days, routeLegs: next.routeLegs, validations: next.validations, activeVariantId: next.activeVariantId, editReason: '重做' },
+      latestRoutebookRef.current,
+      { recordUndo: false }
+    );
     setShareState('已重做');
   }
 
@@ -763,7 +775,7 @@ export function useRoutebookActions({
     }
   }
 
-  async function proposePatch({ day, instruction = '', stopIds } = {}) {
+  async function proposePatch({ day = undefined, instruction = '', stopIds = undefined } = {}) {
     const routeId = routebook.publicId || routebook.id;
     if (!routeId) {
       setShareState('请先保存路书再做局部 AI 调整');
@@ -826,12 +838,22 @@ export function useRoutebookActions({
       if (status && status < 500) {
         undoStackRef.current.pop();
         const why =
-          status === 429 ? '今天调整次数用完了或操作太快' : status === 401 ? '登录已过期，请重新登录' : status === 403 ? '没有这条路书的编辑权限' : status === 409 ? '路书在别处改过了，请刷新后再试' : error.message;
+          status === 429
+            ? '今天调整次数用完了或操作太快'
+            : status === 401
+              ? '登录已过期，请重新登录'
+              : status === 403
+                ? '没有这条路书的编辑权限'
+                : status === 409
+                  ? '路书在别处改过了，请刷新后再试'
+                  : error.message;
         setPatchState((s) => ({ ...s, busy: false, message: `没有应用：${why}。路书没有改动。`, failed: true }));
         setShareState(`局部调整没有应用：${why}`);
         return;
       }
-      updateRoutebook(proposal.stops, { days: proposal.days, routeLegs: proposal.routeLegs, editReason: '局部调整(本机)' }, latestRoutebookRef.current, { recordUndo: false });
+      updateRoutebook(proposal.stops, { days: proposal.days, routeLegs: proposal.routeLegs, editReason: '局部调整(本机)' }, latestRoutebookRef.current, {
+        recordUndo: false
+      });
       localEditsDirtyRef.current = true;
       setSyncLabel('只存在本机 · 未保存到云端');
       setPatchState({ busy: false, message: `云端没保存成功，改动只在这台设备上（${error.message}）。联网后点「保存」同步。`, proposal: null, failed: true });

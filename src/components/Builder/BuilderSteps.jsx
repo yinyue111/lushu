@@ -325,7 +325,7 @@ export function StepGuide(props) {
                   aria-pressed={Boolean(place.mustGo)}
                   onClick={() => updateCandidate(index, { mustGo: !place.mustGo, included: true })}
                   className={cn(
-                    'relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-bold transition-colors after:absolute after:-inset-1.5 after:content-[\'\']',
+                    "relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-bold transition-colors after:absolute after:-inset-1.5 after:content-['']",
                     place.mustGo ? 'bg-primary-strong text-white' : 'border border-line-strong bg-white text-ink-2 hover:border-ink/40'
                   )}
                 >

@@ -47,7 +47,9 @@ export function trackRouteOpen(routeId) {
   trackEvent('route_view', routeId);
   if (last && last < today) trackEvent('revisit', routeId);
   seen[routeId] = today;
-  const keep = Object.entries(seen).sort((a, b) => (a[1] < b[1] ? 1 : -1)).slice(0, 50);
+  const keep = Object.entries(seen)
+    .sort((a, b) => (a[1] < b[1] ? 1 : -1))
+    .slice(0, 50);
   try {
     localStorage.setItem(OPENED_KEY, JSON.stringify(Object.fromEntries(keep)));
   } catch {
@@ -69,7 +71,7 @@ export function reportClientError(kind, error) {
     message,
     stack: String(error?.stack ?? '').slice(0, 1500),
     url: window.location.pathname,
-  
+
     userAgent: navigator.userAgent
   });
 }

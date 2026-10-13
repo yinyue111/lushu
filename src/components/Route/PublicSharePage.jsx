@@ -16,7 +16,9 @@ import { UNVERIFIED_CITY_NOTE, isUnverifiedCity } from './RouteStats';
 
 /** @param {Record<string, any>} props */
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
-  const [state, setState] = useState({ loading: true, error: '', routebook: null });
+  const [state, setState] = useState(
+    /** @type {{ loading: boolean, error: string, routebook: any, enrichedFacts?: any[] }} */ ({ loading: true, error: '', routebook: null })
+  );
   const [actionState, setActionState] = useState({ pending: '', message: '', isError: false, savedDraft: null, synced: false });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const exposureRef = useRef('');
@@ -30,7 +32,8 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
     getShareRoutebook(publicId, ctrl.signal, friendKey)
       .then((data) => {
         const routebook = data.routebook?.visibility === 'unlisted' ? { ...data.routebook, shareKey: friendKey } : data.routebook;
-        if (!ctrl.signal.aborted) setState({ loading: false, error: '', routebook, enrichedFacts: Array.isArray(data.enrichedFacts) ? data.enrichedFacts : [] });
+        if (!ctrl.signal.aborted)
+          setState({ loading: false, error: '', routebook, enrichedFacts: Array.isArray(data.enrichedFacts) ? data.enrichedFacts : [] });
       })
       .catch((error) => {
         if (!ctrl.signal.aborted) setState({ loading: false, error: error.message, routebook: null });
@@ -177,7 +180,11 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                 <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
               </span>
               {isUnverifiedCity(routebook.city) && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold backdrop-blur" data-testid="unverified-city" title={UNVERIFIED_CITY_NOTE}>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold backdrop-blur"
+                  data-testid="unverified-city"
+                  title={UNVERIFIED_CITY_NOTE}
+                >
                   暂无核实资料 · 地点可能不准
                 </span>
               )}
@@ -344,9 +351,9 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           onUse={useRoutebookNow}
           onSave={saveToMyRoutebooks}
           onCustomize={() => {
-                trackEvent('share_copy', 'customize');
-                onCustomize(routebook, { surface: 'public-share' });
-              }}
+            trackEvent('share_copy', 'customize');
+            onCustomize(routebook, { surface: 'public-share' });
+          }}
           onCopy={copyShareText}
         />
       </div>

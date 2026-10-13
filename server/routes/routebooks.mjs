@@ -390,14 +390,14 @@ export const routebookRoutes = [
     };
     const { proposal, routebookPreview } = await proposeDayPatch(current, scope, {
       profileId: actor.profileId,
-      signal: req.signal,
+      signal: /** @type {any} */ (req).signal,
       requestId: /** @type {any} */ (req).requestId
     });
     const peek = await peekPatchQuota(actor.profileId);
     return sendJson(res, 200, {
       ok: true,
       proposal,
-      preview: { stops: routebookPreview.stops, days: routebookPreview.days, routeLegs: routebookPreview.routeLegs },
+      preview: { stops: routebookPreview.stops, days: routebookPreview.days, routeLegs: /** @type {any} */ (routebookPreview).routeLegs },
       patchQuota: peek
     });
   }),
@@ -443,7 +443,10 @@ export const routebookRoutes = [
           ...(saved.validations || []).slice(0, 5)
         ]
       };
-      const again = await saveDraftRoutebook({ ...merged, editToken: body?.editToken, expectedVersion: body?.expectedVersion }, { verifiedProfileId: actor.verified ? actor.profileId : '' });
+      const again = await saveDraftRoutebook(
+        { ...merged, editToken: body?.editToken, expectedVersion: body?.expectedVersion },
+        { verifiedProfileId: actor.verified ? actor.profileId : '' }
+      );
       await appendVersionedRoutebook(again, 'patch-applied', proposal.summary || '');
       return { routebook: again, enriched: await enrichRoutebook(again) };
     });

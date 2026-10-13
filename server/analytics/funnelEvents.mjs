@@ -34,7 +34,7 @@ export async function recordFunnelEvent(event, { profileId = '', ref = '', alias
     await appendJsonLine(FUNNEL_LOG_PATH, row);
   } catch (error) {
     // 埋点失败不影响主流程，但要留痕，避免像缺迁移这样的问题被静默吞掉。
-    console.warn("[funnel] record failed", event, String(error?.message ?? error));
+    console.warn('[funnel] record failed', event, String(error?.message ?? error));
   }
   return row;
 }
@@ -78,8 +78,8 @@ export function buildActivationFunnel(rows = [], aiLogs = [], { sinceMs = 0 } = 
     previous = value;
     return item;
   });
-  steps.cohortSize = cohort.size;
-  steps.anonymousEvents = anonymous;
+  /** @type {any} */ (steps).cohortSize = cohort.size;
+  /** @type {any} */ (steps).anonymousEvents = anonymous;
   return steps;
 }
 
@@ -119,7 +119,7 @@ export function buildTrustBehavior(rows = [], { sinceMs = 0 } = {}) {
     stats[row.event].count += 1;
     if (row.key) stats[row.event].people.add(row.key);
   }
-  const out = Object.fromEntries(Object.entries(stats).map(([event, { people, count }]) => [event, { people: people.size, count }]));
+  const out = /** @type {any} */ (Object.fromEntries(Object.entries(stats).map(([event, { people, count }]) => [event, { people: people.size, count }])));
   const viewers = out.route_view.people;
   out.confirmOpenRate = viewers > 0 ? Math.round((out.confirm_open.people / viewers) * 100) : null;
   out.revisitRate = viewers > 0 ? Math.round((out.revisit.people / viewers) * 100) : null;
@@ -138,7 +138,13 @@ export function normalizeClientError(input = {}) {
   return {
     kind: ['render', 'error', 'unhandledrejection'].includes(input.kind) ? input.kind : 'error',
     message: truncateString(String(input.message ?? ''), MAX_CLIENT_ERROR_TEXT) || '(no message)',
-    stack: truncateString(String(input.stack ?? '').split('\n').slice(0, 6).join('\n'), 1200),
+    stack: truncateString(
+      String(input.stack ?? '')
+        .split('\n')
+        .slice(0, 6)
+        .join('\n'),
+      1200
+    ),
     path,
     release: truncateString(input.release, 40),
     userAgent: truncateString(input.userAgent, 160),

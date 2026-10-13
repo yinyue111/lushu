@@ -35,7 +35,6 @@ const SharePreview = lazy(() => import('./SharePreview'));
 const PoiDetail = lazy(() => import('./PoiDetail'));
 const StopEditor = lazy(() => import('./StopEditor'));
 
-
 export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onStartTrip, onBack }) {
   const profile = useMemo(() => getProfile(), []);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -78,7 +77,10 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           stops: dayStops,
           label: dayLabel(dayStops, routebook.city, index),
           distanceKm: km,
-          summary: dayStops.length === 0 ? '还没安排站点' : `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
+          summary:
+            dayStops.length === 0
+              ? '还没安排站点'
+              : `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
         };
       }),
     [days, stops, routebook.city, routebook.routeLegs]
@@ -261,7 +263,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
               {canEdit && days.length > 1 && (
                 <>
-                  <Button size="sm" variant="outline" onClick={() => setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })}
+                  >
                     合并到另一天
                   </Button>
                   <Button size="sm" variant="outline" className="text-danger" onClick={() => setDayAction({ type: 'delete', day: activeDay })}>

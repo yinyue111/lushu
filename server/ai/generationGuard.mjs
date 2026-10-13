@@ -205,9 +205,8 @@ export async function enforceGenerationQuota(profileId, options = {}) {
   throw error;
 }
 
-
 /** Patch (L2) quota: defaults to 2× full generation quota when GENERATION_QUOTA_PATCH_PER_PROFILE is 0. */
-export async function peekPatchQuota(profileId, { quota, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}) {
+export async function peekPatchQuota(profileId, { quota = undefined, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}) {
   const effective =
     Number.isInteger(quota) && quota > 0
       ? quota

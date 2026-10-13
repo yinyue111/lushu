@@ -392,7 +392,15 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       <RouteCard
                         key={bookKey}
                         routebook={book}
-                        meta={routebookCardMeta(book, { extra: [book.city || '城市待补充', publishStatusLabel(book.publishStatus), book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段路线还没查` : ''].filter(Boolean).join(' · ') })}
+                        meta={routebookCardMeta(book, {
+                          extra: [
+                            book.city || '城市待补充',
+                            publishStatusLabel(book.publishStatus),
+                            book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段路线还没查` : ''
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        })}
                         onOpen={() => onOpenBook(book)}
                         actions={
                           <>

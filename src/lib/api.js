@@ -475,4 +475,3 @@ export async function applyRoutebookPatch(publicId, payload, signal) {
   const body = { ...payload };
   return postJson(`/routebooks/${encodeURIComponent(publicId)}/patch/apply`, body, signal, ownerHeaders(body.profileId));
 }
-

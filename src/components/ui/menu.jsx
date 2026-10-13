@@ -10,7 +10,7 @@ export const MenuTrigger = DropdownMenu.Trigger;
 /** @param {{ className?: string, children?: any, align?: 'start' | 'center' | 'end', [key: string]: any }} props */
 export function MenuContent({ className, children, align = 'end', ...props }) {
   return (
-    <DropdownMenu.Portal container={typeof document !== 'undefined' ? document.querySelector('main') ?? undefined : undefined}>
+    <DropdownMenu.Portal container={typeof document !== 'undefined' ? (document.querySelector('main') ?? undefined) : undefined}>
       <DropdownMenu.Content
         align={align}
         sideOffset={8}

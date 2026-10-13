@@ -1,14 +1,7 @@
 import { isNavigableCoordinate } from '../src/lib/coordinates.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  stripModelSupplementStops,
-  deleteDayStops,
-  mergeDays,
-  replaceStopWithPoi,
-  applyPatchOps,
-  setStopTransportMode
-} from '../src/lib/routebookAdjust.js';
+import { stripModelSupplementStops, deleteDayStops, mergeDays, replaceStopWithPoi, applyPatchOps, setStopTransportMode } from '../src/lib/routebookAdjust.js';
 import { parseAdjustIntent } from '../src/lib/adjustIntents.js';
 
 const stops = [
@@ -71,10 +64,30 @@ test('parse intents', () => {
 
 test('replace stop does not carry old price/booking/risk/source', () => {
   const old = [
-    { id: 'a', day: 'Day 1', time: '09:00', stay: '2小时', name: '灵隐寺', area: '西湖区', lat: 30.24, lng: 120.1, cost: '香花券 45 元', costInfo: { known: true, amount: 45, reservationRequired: true }, verify: '需提前预约', risk: '周末排队', reason: '古刹', tips: ['早去'], sourceEvidence: [{ url: 'https://x' }], provenance: { origin: 'guide' }, hours: '07:00-18:00' },
+    {
+      id: 'a',
+      day: 'Day 1',
+      time: '09:00',
+      stay: '2小时',
+      name: '灵隐寺',
+      area: '西湖区',
+      lat: 30.24,
+      lng: 120.1,
+      cost: '香花券 45 元',
+      costInfo: { known: true, amount: 45, reservationRequired: true },
+      verify: '需提前预约',
+      risk: '周末排队',
+      reason: '古刹',
+      tips: ['早去'],
+      sourceEvidence: [{ url: 'https://x' }],
+      provenance: { origin: 'guide' },
+      hours: '07:00-18:00'
+    },
     { id: 'b', day: 'Day 1', time: '13:00', stay: '1小时', name: '茶馆', lat: 30.25, lng: 120.12 }
   ];
-  const amap = replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, address: '杭州', source: 'amap' }, { city: '杭州' }).stop;
+  const amap = /** @type {any} */ (
+    replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, address: '杭州', source: 'amap' }, { city: '杭州' }).stop
+  );
   assert.equal(amap.cost, '价格待确认');
   assert.equal(amap.costInfo.known, false);
   assert.equal(amap.costInfo.reservationRequired, false);
@@ -93,10 +106,25 @@ test('replace stop does not carry old price/booking/risk/source', () => {
 });
 
 test('swapped stop: no old risk/guide source, and not navigable when the map did not find it', () => {
-  const old = [{ id: 'a', day: 'Day 1', name: '灵隐寺', lat: 30.24, lng: 120.1, geoConfidence: 90, risk: '周末排队', verify: '需提前预约', poiId: 'poi-1', sourceEvidence: [{ url: 'x' }], provenance: { origin: 'user-guide', matchedText: '灵隐寺' }, guideSource: 'xhs' }];
+  const old = [
+    {
+      id: 'a',
+      day: 'Day 1',
+      name: '灵隐寺',
+      lat: 30.24,
+      lng: 120.1,
+      geoConfidence: 90,
+      risk: '周末排队',
+      verify: '需提前预约',
+      poiId: 'poi-1',
+      sourceEvidence: [{ url: 'x' }],
+      provenance: { origin: 'user-guide', matchedText: '灵隐寺' },
+      guideSource: 'xhs'
+    }
+  ];
   const found = replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, source: 'amap' }).stop;
   const lost = replaceStopWithPoi(old, 'a', { name: '某小店', source: 'demo' }).stop;
-  for (const s of [found, lost]) {
+  for (const s of /** @type {any[]} */ ([found, lost])) {
     assert.ok(!/排队|预约/.test(`${s.risk}${s.verify}`.replace('是否要预约', '')));
     assert.equal(s.poiId, undefined);
     assert.equal(s.guideSource, undefined);

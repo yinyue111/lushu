@@ -16,6 +16,9 @@ test('trusted cities stay a subset of the open region (only cities with reviewed
 });
 
 test('generation rejects a city outside the beta region with a plain message', () => {
-  assert.throws(() => sanitizePayload({ city: '成都', guide: '宽窄巷子' }), (error) => error.code === 'CITY_NOT_OPEN' && /江浙沪/.test(error.message));
+  assert.throws(
+    () => sanitizePayload({ city: '成都', guide: '宽窄巷子' }),
+    (/** @type {any} */ error) => error.code === 'CITY_NOT_OPEN' && /江浙沪/.test(error.message)
+  );
   assert.doesNotThrow(() => sanitizePayload({ city: '南京', guide: '夫子庙' }));
 });

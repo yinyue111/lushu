@@ -55,7 +55,9 @@ export default function AdjustChatSheet({ routebook, onClose, handlers }) {
     <>
       <Sheet title="用一句话改路线" description="说你想怎么改，我先给你看结果，你点确认才会改。" onClose={onClose}>
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <label htmlFor="adjust-chat-input" className="text-meta font-semibold text-ink-2">想怎么改？</label>
+          <label htmlFor="adjust-chat-input" className="text-meta font-semibold text-ink-2">
+            想怎么改？
+          </label>
           <textarea
             id="adjust-chat-input"
             className={`${inputClass} min-h-24`}

@@ -71,46 +71,46 @@ export function RoutePreflight({ routebook }) {
           <span className="text-meta font-semibold text-muted group-open:hidden">{summaryBits.join(' · ') || '展开详情'}</span>
           <span className="hidden text-meta font-semibold text-muted group-open:inline">收起</span>
         </summary>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {checks.map((check) => {
-          const Icon = checkIcon(check.label);
-          return (
-            <CheckTile key={check.id || check.label} icon={Icon} title={check.label} chip={check.state} tone={stateTone(check.state)}>
-              {check.detail}
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {checks.map((check) => {
+            const Icon = checkIcon(check.label);
+            return (
+              <CheckTile key={check.id || check.label} icon={Icon} title={check.label} chip={check.state} tone={stateTone(check.state)}>
+                {check.detail}
+              </CheckTile>
+            );
+          })}
+          {source && (
+            <CheckTile icon={FileSearch} title="攻略来源" chip={`${source.sourceCount} 条`} tone="sky">
+              来源预测均分 {predictionAverage(source)}，只辅助解析，不代表有人真的去过。
+              {Array.isArray(source.platforms) && source.platforms.filter(Boolean).length ? ` 来自：${source.platforms.filter(Boolean).join('、')}。` : ''}
             </CheckTile>
-          );
-        })}
-        {source && (
-          <CheckTile icon={FileSearch} title="攻略来源" chip={`${source.sourceCount} 条`} tone="sky">
-            来源预测均分 {predictionAverage(source)}，只辅助解析，不代表有人真的去过。
-            {Array.isArray(source.platforms) && source.platforms.filter(Boolean).length ? ` 来自：${source.platforms.filter(Boolean).join('、')}。` : ''}
-          </CheckTile>
-        )}
-        {feedback && (feedback.attestedCheckinCount || feedback.correctionCount || feedback.feedbackCount) > 0 && (
-          <CheckTile icon={MessageSquareText} title="走过的人怎么说" chip={`${feedback.attestedCheckinCount || 0} 次打卡`} tone="ok">
-            到达率 {feedback.completionRate || 0}% · 踩坑率 {feedback.pitfallRate || 0}% · 纠错 {feedback.correctionCount || 0} 条。
-          </CheckTile>
-        )}
-      </div>
-      {aiNotes.length > 0 && (
-        <div className="mt-3 rounded-card border border-dashed border-line-strong p-3.5" role="group" aria-labelledby="ai-notes-title">
-          <h3 id="ai-notes-title" className="flex items-center gap-2 text-base font-extrabold">
-            <Sparkles className="size-[18px]" aria-hidden="true" /> AI 提示
-            <Chip size="sm" tone="warn" className="h-6 text-meta">
-              未核验
-            </Chip>
-          </h3>
-          <p className="mt-0.5 text-meta text-muted">生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
-          <ul className="mt-2 grid gap-1.5 text-sm text-ink-2">
-            {aiNotes.map((note) => (
-              <li key={`${note.label}-${note.detail}`}>
-                <b className="font-bold">{note.label}：</b>
-                {note.detail}
-              </li>
-            ))}
-          </ul>
+          )}
+          {feedback && (feedback.attestedCheckinCount || feedback.correctionCount || feedback.feedbackCount) > 0 && (
+            <CheckTile icon={MessageSquareText} title="走过的人怎么说" chip={`${feedback.attestedCheckinCount || 0} 次打卡`} tone="ok">
+              到达率 {feedback.completionRate || 0}% · 踩坑率 {feedback.pitfallRate || 0}% · 纠错 {feedback.correctionCount || 0} 条。
+            </CheckTile>
+          )}
         </div>
-      )}
+        {aiNotes.length > 0 && (
+          <div className="mt-3 rounded-card border border-dashed border-line-strong p-3.5" role="group" aria-labelledby="ai-notes-title">
+            <h3 id="ai-notes-title" className="flex items-center gap-2 text-base font-extrabold">
+              <Sparkles className="size-[18px]" aria-hidden="true" /> AI 提示
+              <Chip size="sm" tone="warn" className="h-6 text-meta">
+                未核验
+              </Chip>
+            </h3>
+            <p className="mt-0.5 text-meta text-muted">生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
+            <ul className="mt-2 grid gap-1.5 text-sm text-ink-2">
+              {aiNotes.map((note) => (
+                <li key={`${note.label}-${note.detail}`}>
+                  <b className="font-bold">{note.label}：</b>
+                  {note.detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </details>
     </section>
   );

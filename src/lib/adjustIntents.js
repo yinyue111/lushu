@@ -68,7 +68,14 @@ export function parseAdjustIntent(text, ctx = {}) {
       kind: 'replace_stop',
       confidence: 0.8,
       label: `换掉「${named}」`,
-      params: { stopName: named, query: raw.replace(new RegExp(named, 'g'), '').replace(/换成|换掉|替换|不要去|别去|换一家/g, '').trim() || named },
+      params: {
+        stopName: named,
+        query:
+          raw
+            .replace(new RegExp(named, 'g'), '')
+            .replace(/换成|换掉|替换|不要去|别去|换一家/g, '')
+            .trim() || named
+      },
       level: 'L1'
     };
   }

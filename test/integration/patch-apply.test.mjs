@@ -17,6 +17,11 @@ test('patch apply saves to the cloud with expectedVersion and rejects a stale ve
   const ok = await post(`/api/routebooks/${book.publicId}/patch/apply`, { editToken: book.editToken, city: '杭州', expectedVersion: book.version, proposal });
   assert.equal(ok.status, 200, JSON.stringify(ok.data));
   assert.equal(ok.data.routebook.stops[0].name, '平湖秋月');
-  const stale = await post(`/api/routebooks/${book.publicId}/patch/apply`, { editToken: book.editToken, city: '杭州', expectedVersion: book.version, proposal });
+  const stale = await post(`/api/routebooks/${book.publicId}/patch/apply`, {
+    editToken: book.editToken,
+    city: '杭州',
+    expectedVersion: book.version,
+    proposal
+  });
   assert.equal(stale.status, 409);
 });

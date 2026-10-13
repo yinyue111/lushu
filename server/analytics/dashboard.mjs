@@ -122,20 +122,21 @@ export function summarizeImportAnalysis(imports) {
 
 export async function buildPlatformDashboard(limit = 1000) {
   const asOf = Date.now();
-  const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics, funnelRows, clientErrors] = await Promise.all([
-    readJsonLines(AI_LOG_PATH, limit),
-    listSavedRoutebooks(Math.min(limit, 500)),
-    readJsonLines(CHECKIN_LOG_PATH, limit),
-    readJsonLines(FAVORITE_LOG_PATH, limit),
-    readJsonLines(REVIEW_LOG_PATH, limit),
-    readJsonLines(IMPORT_LOG_PATH, limit),
-    readJsonLines(CLICK_LOG_PATH, limit),
-    readJsonLines(EXPOSURE_LOG_PATH, limit),
-    buildOpsAuditContext(),
-    buildOperationalMetrics(asOf),
-    readJsonLines(FUNNEL_LOG_PATH, Math.max(limit, 5000)),
-    readJsonLines(CLIENT_ERROR_LOG_PATH, 500)
-  ]);
+  const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics, funnelRows, clientErrors] =
+    await Promise.all([
+      readJsonLines(AI_LOG_PATH, limit),
+      listSavedRoutebooks(Math.min(limit, 500)),
+      readJsonLines(CHECKIN_LOG_PATH, limit),
+      readJsonLines(FAVORITE_LOG_PATH, limit),
+      readJsonLines(REVIEW_LOG_PATH, limit),
+      readJsonLines(IMPORT_LOG_PATH, limit),
+      readJsonLines(CLICK_LOG_PATH, limit),
+      readJsonLines(EXPOSURE_LOG_PATH, limit),
+      buildOpsAuditContext(),
+      buildOperationalMetrics(asOf),
+      readJsonLines(FUNNEL_LOG_PATH, Math.max(limit, 5000)),
+      readJsonLines(CLIENT_ERROR_LOG_PATH, 500)
+    ]);
   const checkins = rawCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext));
   const generatedOk = aiLogs.filter((item) => item.kind === 'generate-routebook' && item.status === 'ok').length;
   const generateAttempts = aiLogs.filter((item) => item.kind === 'generate-routebook').length;
@@ -199,15 +200,18 @@ export async function buildPlatformDashboard(limit = 1000) {
   const recentClientErrors = clientErrors.filter((row) => Date.parse(row.createdAt) >= asOf - 86_400_000);
   const funnel = {
     activation,
-    activationCohortSize: activation.cohortSize,
+    activationCohortSize: /** @type {any} */ (activation).cohortSize,
     // 分享页：被打开次数 → 在分享页上「用 / 存 / 改成适合我的」次数（近 30 天）。
     shareOpens30d: funnelRows.filter((row) => row?.event === 'share_open' && Date.parse(row.createdAt) >= asOf - 30 * 86_400_000).length,
     shareCopies30d: funnelRows.filter((row) => row?.event === 'share_copy' && Date.parse(row.createdAt) >= asOf - 30 * 86_400_000).length,
-    activationAnonymousEvents: activation.anonymousEvents,
+    activationAnonymousEvents: /** @type {any} */ (activation).anonymousEvents,
     timeToFirstSuccess: medianMinutesToFirstSuccess(funnelRows, aiLogs, { sinceMs: asOf - 30 * 86_400_000 }),
     trustBehavior: buildTrustBehavior(funnelRows, { sinceMs: asOf - 30 * 86_400_000 }),
     clientErrors24h: recentClientErrors.length,
-    latestClientErrors: recentClientErrors.slice(-5).reverse().map(({ kind, message, path, createdAt }) => ({ kind, message, path, createdAt })),
+    latestClientErrors: recentClientErrors
+      .slice(-5)
+      .reverse()
+      .map(({ kind, message, path, createdAt }) => ({ kind, message, path, createdAt })),
     generateAttempts,
     generatedOk,
     generatedRoutes: generatedRouteIds.size,

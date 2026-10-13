@@ -5,7 +5,10 @@ import { curatedRoutes } from '../../src/lib/content.js';
 
 test('curated stops carry 编辑部选的点, not 来源未记录', () => {
   const book = getCuratedRoutebook(curatedRoutes[0].id);
-  assert.ok(book.stops.every((stop) => stop.provenance.origin === 'editorial'), JSON.stringify(book.stops.map((s) => s.provenance.origin)));
+  assert.ok(
+    book.stops.every((stop) => stop.provenance.origin === 'editorial'),
+    JSON.stringify(book.stops.map((s) => s.provenance.origin))
+  );
 });
 
 test('a user routebook cannot forge the editorial origin', () => {

@@ -9,7 +9,7 @@ test('alert posts once per hour per type and skips without webhook', async () =>
   resetAlertThrottleForTests();
   process.env.ALERT_WEBHOOK_URL = 'https://hook.example/a';
   const calls = [];
-  const fetchImpl = async (url, init) => (calls.push([url, JSON.parse(init.body)]), { ok: true, status: 200 });
+  const fetchImpl = /** @type {any} */ async (url, init) => (calls.push([url, JSON.parse(init.body)]), { ok: true, status: 200 });
   assert.equal((await raiseAlert('x', 'm', { now: 1000, fetchImpl })).sent, true);
   assert.equal((await raiseAlert('x', 'm', { now: 2000, fetchImpl })).reason, 'throttled');
   assert.equal((await raiseAlert('y', 'm', { now: 2000, fetchImpl })).sent, true);

@@ -31,8 +31,7 @@ export default function LoginSheet({
   const description =
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'
-      : reason ||
-        (view === 'forgot' ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。' : '随便逛不用登录。导入攻略、生成路书时需要账号。');
+      : reason || (view === 'forgot' ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。' : '随便逛不用登录。导入攻略、生成路书时需要账号。');
   const lockCodes = view === 'codes' && afterRegister && !codesUnlocked;
   return (
     <Sheet title={TITLES[view]} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>
@@ -62,12 +61,7 @@ export default function LoginSheet({
         )}
         {view === 'forgot' && <ForgotForm onAuthenticated={onAuthenticated} onBack={() => setView('login')} />}
         {view === 'codes' && (
-          <RecoveryCodes
-            codes={codes}
-            afterRegister={afterRegister}
-            onConfirmed={onCodesConfirmed}
-            onUnlock={() => setCodesUnlocked(true)}
-          />
+          <RecoveryCodes codes={codes} afterRegister={afterRegister} onConfirmed={onCodesConfirmed} onUnlock={() => setCodesUnlocked(true)} />
         )}
       </div>
     </Sheet>
@@ -394,9 +388,7 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
       {errors.code && <span className="-mt-3 text-sm font-semibold text-danger">{errors.code}</span>}
       <PasswordField value={password} onChange={setPassword} autoComplete="new-password" hint={PASSWORD_HINT} />
       <PhoneField value={phone} onChange={setPhone} error={errors.phone} optional />
-      {registration === 'invite' && (
-        <TextField label="邀请码" value={inviteCode} onChange={setInviteCode} autoComplete="off" hint="内测阶段，注册需要邀请码" />
-      )}
+      {registration === 'invite' && <TextField label="邀请码" value={inviteCode} onChange={setInviteCode} autoComplete="off" hint="内测阶段，注册需要邀请码" />}
       <label className="flex items-start gap-2.5 text-sm text-ink-2">
         <input
           type="checkbox"

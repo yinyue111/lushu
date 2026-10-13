@@ -14,8 +14,11 @@ test('activation funnel is a cohort: later steps only count people who did every
   ];
   const steps = buildActivationFunnel(rows, [{ kind: 'generate-routebook', status: 'ok', profileId: 'p1', createdAt: at }]);
   // p1 的生成成功和匿名分享打开不属于这批人，不计入
-  assert.deepEqual(steps.map((s) => s.count), [2, 1, 0, 0, 0]);
-  assert.equal(steps.anonymousEvents, 1);
+  assert.deepEqual(
+    steps.map((s) => s.count),
+    [2, 1, 0, 0, 0]
+  );
+  assert.equal(/** @type {any} */ (steps).anonymousEvents, 1);
   assert.equal(steps[1].rateFromPrevious, 50);
 });
 
@@ -28,7 +31,8 @@ test('client errors keep only path (no query) and truncated text', () => {
 test('endpoints: client funnel events are whitelisted; server-only events cannot be forged; errors are logged and shown to ops', async (t) => {
   const server = await startServer();
   t.after(server.stop);
-  const post = (path, body) => fetchJson(`${server.baseUrl}${path}`, { method: 'POST', headers: jsonHeaders({ origin: server.baseUrl }), body: JSON.stringify(body) });
+  const post = (path, body) =>
+    fetchJson(`${server.baseUrl}${path}`, { method: 'POST', headers: jsonHeaders({ origin: server.baseUrl }), body: JSON.stringify(body) });
   assert.equal((await post('/api/funnel-events', { event: 'home_view', profileId: 'abc' })).status, 200);
   assert.equal((await post('/api/funnel-events', { event: 'register_complete' })).status, 400);
   assert.equal((await post('/api/client-errors', { kind: 'render', message: 'boom', url: '/x' })).status, 200);

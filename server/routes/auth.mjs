@@ -58,7 +58,7 @@ export const authRoutes = [
     const account = AUTH_ENABLED ? await currentAccount(req) : null;
     let generation = null;
     if (account?.profileId) {
-      generation = await peekGenerationQuota(account.profileId, { quota: quotaForUser({ generationQuota: account.generationQuota }) });
+      generation = await peekGenerationQuota(account.profileId, { quota: quotaForUser({ generationQuota: /** @type {any} */ (account).generationQuota }) });
     }
     return sendJson(res, 200, { ok: true, mode: AUTH_MODE, account, generation });
   }),

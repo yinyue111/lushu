@@ -95,7 +95,18 @@ export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = [
 }
 
 /** Metric labels the server computes itself (see buildRoutebookMetrics / mergeSourceMetrics). */
-const SYSTEM_METRIC_LABELS = new Set(['道路核验', '路线已查', '道路距离', '道路耗时', '资料核验分', '定位待复核', '预算估算', '编辑校验', '导入来源', '来源均分']);
+const SYSTEM_METRIC_LABELS = new Set([
+  '道路核验',
+  '路线已查',
+  '道路距离',
+  '道路耗时',
+  '资料核验分',
+  '定位待复核',
+  '预算估算',
+  '编辑校验',
+  '导入来源',
+  '来源均分'
+]);
 
 /** Hides model-written metrics on routebooks saved before they were dropped. */
 export function systemMetrics(metrics) {

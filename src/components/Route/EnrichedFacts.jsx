@@ -82,7 +82,6 @@ function EnrichedFact({ claim, onReport }) {
   );
 }
 
-
 /** 值下面一行短提示：只列来源原文里写明的条件；只有一个来源的单独标出。 */
 export function ConditionNotes({ conditions, className = '' }) {
   if (!conditions?.length) return null;

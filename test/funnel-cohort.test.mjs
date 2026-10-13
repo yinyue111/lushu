@@ -20,8 +20,11 @@ test('cohort funnel follows the same people across register alias', () => {
     { kind: 'generate-routebook', status: 'ok', profileId: 'acct-c', createdAt: at(5) }
   ];
   const steps = buildActivationFunnel(rows, logs);
-  assert.deepEqual(steps.map((s) => s.count), [2, 1, 1, 1, 1]);
-  assert.equal(steps.cohortSize, 2);
+  assert.deepEqual(
+    steps.map((s) => s.count),
+    [2, 1, 1, 1, 1]
+  );
+  assert.equal(/** @type {any} */ (steps).cohortSize, 2);
   assert.deepEqual(medianMinutesToFirstSuccess(rows, logs), { median: 4, samples: 1 });
 });
 

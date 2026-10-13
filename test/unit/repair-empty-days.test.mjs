@@ -8,8 +8,14 @@ test('all stops on Day 1 with 2 days chosen: redistributes existing stops in ord
   const r = repairEmptyDays(mk(['Day 1', 'Day 1', 'Day 1', 'Day 1', 'Day 1']), ['Day 1', 'Day 2']);
   assert.deepEqual(r.days, ['Day 1', 'Day 2']);
   assert.equal(r.stops.length, 5);
-  assert.deepEqual(r.stops.map((s) => s.name), ['站1', '站2', '站3', '站4', '站5']);
-  assert.deepEqual(r.stops.map((s) => s.day), ['Day 1', 'Day 1', 'Day 1', 'Day 2', 'Day 2']);
+  assert.deepEqual(
+    r.stops.map((s) => s.name),
+    ['站1', '站2', '站3', '站4', '站5']
+  );
+  assert.deepEqual(
+    r.stops.map((s) => s.day),
+    ['Day 1', 'Day 1', 'Day 1', 'Day 2', 'Day 2']
+  );
   assert.equal(r.validation.state, '已重新分配');
 });
 

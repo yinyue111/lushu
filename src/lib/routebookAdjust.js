@@ -68,7 +68,9 @@ export function mergeDays(stops, fromDay, toDay) {
 }
 
 export function setStopTransportMode(stops, stopId, mode) {
-  const normalized = String(mode ?? '').trim().toLowerCase();
+  const normalized = String(mode ?? '')
+    .trim()
+    .toLowerCase();
   if (!['walking', 'driving', 'transit', 'bicycling'].includes(normalized)) {
     return { stops, ok: false };
   }
@@ -81,7 +83,7 @@ export function setStopTransportMode(stops, stopId, mode) {
  * 旧店的价格、预约、风险、营业时间、攻略来源一律不带过来，改成「待确认」，保存后重新补全。
  * 坐标只有来自高德 / 已审核地点库的候选才算精确、才能导航。
  */
-export function replaceStopWithPoi(stops, stopId, poi, { city } = {}) {
+export function replaceStopWithPoi(stops, stopId, poi, { city = undefined } = {}) {
   const list = Array.isArray(stops) ? stops : [];
   const index = list.findIndex((stop) => String(stop.id) === String(stopId));
   if (index < 0 || !poi?.name) return { stops: list, ok: false };
@@ -123,7 +125,7 @@ export function replaceStopWithPoi(stops, stopId, poi, { city } = {}) {
 }
 
 /** Apply a confirmed L2 proposal ops list onto current stops. */
-export function applyPatchOps(stops, ops = [], { days: preferredDays } = {}) {
+export function applyPatchOps(stops, ops = [], { days: preferredDays = undefined } = {}) {
   let next = Array.isArray(stops) ? [...stops] : [];
   const touchedDays = new Set();
   for (const op of ops) {

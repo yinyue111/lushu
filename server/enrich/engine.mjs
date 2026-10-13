@@ -50,7 +50,11 @@ export function pageSupports(pageText, placeName, patterns) {
 
 const CONDITION_RULES = [
   { kind: 'reservation', label: '需提前预约', re: /(实名预约|提前预约|需预约|须预约|需要预约|预约入园|预约参观|预约游览|预约后)/ },
-  { kind: 'extra-charge', label: '部分区域另收费', re: /(另收费|另行收费|单独收费|另需购票|需另购|另购门票|单独购票|另行购票|内[^，,。]{0,6}(场馆|景点)[^，,。]{0,2}收费)/ },
+  {
+    kind: 'extra-charge',
+    label: '部分区域另收费',
+    re: /(另收费|另行收费|单独收费|另需购票|需另购|另购门票|单独购票|另行购票|内[^，,。]{0,6}(场馆|景点)[^，,。]{0,2}收费)/
+  },
   { kind: 'special-date', label: '特殊日期票价不同', re: /(特殊日期|节假日|法定假日|节日期间)[^。；]{0,8}\d+\s*元/ },
   { kind: 'seasonal-hours', label: '冬夏开放时间不同', re: /(夏令时|冬令时|夏季开放|冬季开放)/ },
   { kind: 'seasonal', label: '票价分淡旺季', re: /(淡季|旺季)[^。；]{0,30}\d+\s*元/ }
@@ -135,7 +139,7 @@ function display(field, value, sources, retrievedAt) {
 }
 
 /**
- * @param {{ routebook: any, deps?: any, store: any, now?: () => number, log?: (event: any) => void }} input
+ * @param {{ routebook: any, deps?: any, store: any, now?: () => number, log?: (event: any) => void, onProgress?: ((progress: any) => void) | null }} input
  */
 export async function enrichRoutebook({ routebook, store, deps = {}, now = () => Date.now(), log = () => {}, onProgress = null }) {
   const amap = deps.amapPlace ?? amapPlace;
@@ -230,8 +234,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) {
         budget.stoppedBy = 'daily-usd';
         void raiseAlert('enrich-daily-budget', `联网补全今日预算用完：$${spend.usd.toFixed(2)} / $${ENRICH_DAILY_BUDGET_USD}`);
-      }
-      else {
+      } else {
         let result;
         try {
           result = await search({ name, city, fields, variant });
@@ -304,12 +307,12 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           .sort((x, y) => Number(y.official) - Number(x.official) || x.order - y.order)
           .map(({ u }) => u)
           .filter((u) => {
-          try {
-            return !isBlockedDomain(new URL(u).hostname);
-          } catch {
-            return false;
-          }
-        });
+            try {
+              return !isBlockedDomain(new URL(u).hostname);
+            } catch {
+              return false;
+            }
+          });
         for (const [i, url] of urls.entries()) {
           if (verified.length >= 2 || counts.pages >= MAX_PAGES_PER_ROUTEBOOK) break;
           if (i >= MAX_PAGES_PER_FIELD + named.length) break;
@@ -331,7 +334,15 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       if (seasonal) {
         if (verified.length < 2) return { status: 'kept', reason: 'seasonal', reasonText: '票价分淡旺季，出发前按日期确认' };
         const at = retrievedAt();
-        return { status: 'filled', value: '分淡旺季', display: `门票分淡旺季 · 来自${verified[0].title || verified[0].domain}等${verified.length}个来源 · 查询于${at.slice(0, 10)}`, sources: verified, retrievedAt: at, method: 'pages', conditions };
+        return {
+          status: 'filled',
+          value: '分淡旺季',
+          display: `门票分淡旺季 · 来自${verified[0].title || verified[0].domain}等${verified.length}个来源 · 查询于${at.slice(0, 10)}`,
+          sources: verified,
+          retrievedAt: at,
+          method: 'pages',
+          conditions
+        };
       }
       const value = field === 'hours' ? /** @type {string} */ (canonical) : priceDisplay(canonical);
       const at = retrievedAt();
@@ -340,7 +351,15 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       }
       if (field === 'hours' && amapHours === canonical && verified.length >= 1) {
         const sources = [{ kind: 'amap', url: place.poi.url, title: `高德地图 · ${place.poi.name}`, domain: 'amap.com' }, ...verified.slice(0, 2)];
-        return { status: 'filled', value, display: display(field, value, sources, at), sources, retrievedAt: at, method: 'amap+page', ...(conditions.length ? { conditions } : {}) };
+        return {
+          status: 'filled',
+          value,
+          display: display(field, value, sources, at),
+          sources,
+          retrievedAt: at,
+          method: 'amap+page',
+          ...(conditions.length ? { conditions } : {})
+        };
       }
       if (verified.length >= 2) {
         return {
@@ -380,7 +399,15 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     }
   }
   await store.addSpend({ pages: counts.pages, amapCalls: counts.amapCalls }, now());
-  const summary = { ...counts, usd: Number(counts.usd.toFixed(4)), stoppedBy: budget.stoppedBy, ...(budget.lastError ? { lastError: budget.lastError.slice(0, 200) } : {}), stopsDone: stopsTotal, stopsTotal, phase: 'done' };
+  const summary = {
+    ...counts,
+    usd: Number(counts.usd.toFixed(4)),
+    stoppedBy: budget.stoppedBy,
+    ...(budget.lastError ? { lastError: budget.lastError.slice(0, 200) } : {}),
+    stopsDone: stopsTotal,
+    stopsTotal,
+    phase: 'done'
+  };
   log({ event: 'enrich', routebookId: routebook.id, ...summary });
   return { claims, summary };
 }

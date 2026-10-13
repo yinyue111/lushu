@@ -9,6 +9,7 @@ export function alertWebhookUrl() {
 }
 
 /** @param {string} type @param {string} message @param {{ now?: number, fetchImpl?: typeof fetch }} [options] */
+/** @returns {Promise<any>} */
 export async function raiseAlert(type, message, { now = Date.now(), fetchImpl = globalThis.fetch } = {}) {
   console.warn(`[alert] ${type}: ${message}`);
   const last = lastSent.get(type);

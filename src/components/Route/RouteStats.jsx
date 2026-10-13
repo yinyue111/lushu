@@ -25,9 +25,7 @@ export default function RouteStats({ routebook, trust, trustState }) {
         aria-label="路线可信度"
         className="rounded-card border border-lemon/40 bg-lemon-soft/70 px-3.5 py-3 text-meta leading-snug text-lemon-ink sm:px-4"
       >
-        <p className="text-copy font-extrabold text-ink">
-          {trial ? 'AI 草稿 · 出发前请确认' : '还没人走过 · 暂无评分'}
-        </p>
+        <p className="text-copy font-extrabold text-ink">{trial ? 'AI 草稿 · 出发前请确认' : '还没人走过 · 暂无评分'}</p>
         <p className="mt-1 text-meta leading-relaxed text-ink-2">
           {trial
             ? '地点、营业时间和路线都还没人实地确认。出发前看一眼标黄的地方；去过的人打卡后，这里会显示评分。'
