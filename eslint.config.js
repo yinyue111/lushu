@@ -5,7 +5,21 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'data/**', 'coverage/**', 'outputs/**', 'backups/**', '.codex-spreadsheet/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'dist-admin/**',
+      'dist-sourcemaps/**',
+      'test-results/**',
+      'playwright-report/**',
+      'node_modules/**',
+      'data/**',
+      'coverage/**',
+      'outputs/**',
+      'backups/**',
+      '.codex-spreadsheet/**'
+    ]
+  },
   js.configs.recommended,
   {
     files: ['public/sw.js'],
@@ -29,7 +43,7 @@ export default [
     }
   },
   {
-    files: ['src/**/*.{js,jsx}'],
+    files: ['src/**/*.{js,jsx}', 'admin/**/*.{js,jsx}', 'e2e/**/*.{js,mjs}'],
     plugins: { react, 'react-hooks': reactHooks },
     languageOptions: {
       globals: { ...globals.browser },

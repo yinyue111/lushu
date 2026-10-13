@@ -46,9 +46,9 @@ async function freePort() {
   return port;
 }
 
-/** @param {string} base @param {string} path @param {{method?:string,body?:any,profile?:any,admin?:boolean}} options */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** @param {string} base @param {string} path @param {{method?:string,body?:any,profile?:any,admin?:boolean}} options */
 async function request(base, path, { method = 'GET', body, profile, admin = false } = {}) {
   const response = await fetch(`${base}/api${path}`, {
     method,
@@ -157,10 +157,9 @@ try {
     throw new Error(`${base} did not reach config version ${version} within ${limitMs}ms`);
   };
   assert.equal(await healthVersion(a), 0);
-  await pool.query(
-    `insert into trusted_routebook.admin_config_versions (version, overrides, actor, note) values (1, $1::jsonb, 'regression', 'notify path')`,
-    [JSON.stringify({ 'generation.homeCities': ['苏州'] })]
-  );
+  await pool.query(`insert into trusted_routebook.admin_config_versions (version, overrides, actor, note) values (1, $1::jsonb, 'regression', 'notify path')`, [
+    JSON.stringify({ 'generation.homeCities': ['苏州'] })
+  ]);
   await pool.query(`select pg_notify('routebook_admin_config', '1')`);
   const notifyMs = Math.max(await waitForVersion(a, 1, 5000), await waitForVersion(b, 1, 5000));
   const cities = (await request(b, '/cities')).data;

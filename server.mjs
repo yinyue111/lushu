@@ -36,7 +36,7 @@ import {
 } from './server/config/index.mjs';
 import { assignRequestId } from './server/http/response.mjs';
 import { consumeRateLimit } from './server/http/rate-limit.mjs';
-import { matchShareLandingPath, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';
+import { isAdminStaticPath, matchShareLandingPath, sendAdminStatic, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';
 import { handleApi } from './server/routes/index.mjs';
 import { initializeRuntimeStorage, closeRuntimeStorage, usesPostgresStorage, getPostgresStorage } from './server/storage/runtime.mjs';
 import { configureRuntimeConfig, onConfigChange, startConfigSync, stopConfigSync } from './server/config/runtime.mjs';
@@ -156,6 +156,8 @@ function listen(port, attemptsLeft = DEV_PORT_FALLBACK_ATTEMPTS) {
       const served = await serveShareLandingHtml(req, res, shareLandingTarget, vite).catch(() => false);
       if (served) return;
     }
+    // Admin console: always the built dist-admin/ (also in dev; use `vite -c vite.admin.config.js` for HMR).
+    if (isAdminStaticPath(req)) return sendAdminStatic(req, res);
     if (vite) {
       vite.middlewares(req, res);
       return;

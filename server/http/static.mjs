@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
 import { extname, join, resolve, sep } from 'node:path';
-import { DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT } from '../config/index.mjs';
+import { ADMIN_DIST_DIR, ADMIN_ENABLED, DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT } from '../config/index.mjs';
 import { STATIC_SECURITY_HEADERS, sendJson, securityHeaders } from './response.mjs';
 import { sanitizePublicId, clampNumber, normalizeCityName, truncateString } from '../lib/util.mjs';
 import { cityStories, defaultCityImage } from '../../src/lib/content.js';
@@ -104,9 +104,56 @@ async function statOrNull(path) {
 }
 
 export async function sendStatic(req, res) {
+  return serveDirectory(req, res, { root: DIST_DIR, prefix: '', headers: STATIC_SECURITY_HEADERS, missing: 'dist 不存在，请先运行 npm run build' });
+}
+
+// Admin console static files: /admin/* → dist-admin/, only when ADMIN_ENABLED. Stricter headers than the
+// user app: no caching of the HTML shell, no indexing, no framing, API calls to self only.
+const ADMIN_STATIC_HEADERS = {
+  ...STATIC_SECURITY_HEADERS,
+  'content-security-policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; '),
+  'x-robots-tag': 'noindex, nofollow',
+  'referrer-policy': 'no-referrer'
+};
+
+export function isAdminStaticPath(req) {
+  const path = String(req.url ?? '').split('?')[0];
+  return path === '/admin' || path.startsWith('/admin/');
+}
+
+export async function sendAdminStatic(req, res) {
+  if (!ADMIN_ENABLED) return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
+  const path = String(req.url ?? '').split('?')[0];
+  if (path === '/admin') {
+    res.writeHead(308, { location: '/admin/', 'cache-control': 'no-store' });
+    res.end();
+    return;
+  }
+  return serveDirectory(req, res, {
+    root: ADMIN_DIST_DIR,
+    prefix: '/admin',
+    headers: ADMIN_STATIC_HEADERS,
+    missing: 'dist-admin 不存在，请先运行 npm run build',
+    noStoreHtml: true
+  });
+}
+
+/** @param {any} req @param {any} res @param {{ root: string, prefix: string, headers: Record<string, string>, missing: string, noStoreHtml?: boolean }} options */
+async function serveDirectory(req, res, { root, prefix, headers: baseHeaders, missing, noStoreHtml = false }) {
+  const DIST_DIR = root;
   if (!(await statOrNull(DIST_DIR))) {
     return sendJson(res, 503, {
-      error: 'dist 不存在，请先运行 npm run build',
+      error: missing,
       code: 'DIST_MISSING'
     });
   }
@@ -114,7 +161,7 @@ export async function sendStatic(req, res) {
   let decodedPath = '/';
   try {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    decodedPath = decodeURIComponent(url.pathname);
+    decodedPath = decodeURIComponent(url.pathname).slice(prefix.length) || '/';
   } catch {
     return sendJson(res, 400, { error: '请求路径不合法', code: 'BAD_PATH' });
   }
@@ -142,9 +189,9 @@ export async function sendStatic(req, res) {
     const entry = await loadStaticFile(filePath, fileStats);
     const encoding = preferredEncoding(req, ext, entry.size);
     const headers = {
-      ...STATIC_SECURITY_HEADERS,
+      ...baseHeaders,
       'content-type': MIME_TYPES[ext] ?? 'application/octet-stream',
-      'cache-control': staticCacheControl(filePath),
+      'cache-control': noStoreHtml && ext === '.html' ? 'no-store' : staticCacheControl(filePath),
       etag: entry.etag,
       ...(COMPRESSIBLE_EXTENSIONS.has(ext) ? { vary: 'accept-encoding' } : {})
     };

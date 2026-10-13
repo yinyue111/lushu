@@ -16,6 +16,7 @@ if (process.argv.includes('--production')) process.env.NODE_ENV = 'production';
 export const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const DIST_DIR = join(PROJECT_ROOT, 'dist');
+export const ADMIN_DIST_DIR = join(PROJECT_ROOT, 'dist-admin');
 export const DATA_DIR = process.env.ROUTEBOOK_DATA_DIR ? resolve(process.env.ROUTEBOOK_DATA_DIR) : join(PROJECT_ROOT, 'data');
 export const AI_LOG_PATH = join(DATA_DIR, 'ai-logs.jsonl');
 export const CHECKIN_LOG_PATH = join(DATA_DIR, 'checkins.jsonl');

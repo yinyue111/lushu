@@ -8,3 +8,7 @@ public
 outputs
 backups
 .codex-spreadsheet
+dist-admin
+dist-sourcemaps
+test-results
+playwright-report

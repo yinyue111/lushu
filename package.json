@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env server.mjs",
     "dev:frontend": "vite --host 127.0.0.1",
-    "build": "vite build && node scripts/move-sourcemaps.mjs",
+    "build": "vite build && vite build -c vite.admin.config.js && node scripts/move-sourcemaps.mjs && node scripts/check-bundle-leaks.mjs",
     "start": "node --env-file-if-exists=.env server.mjs --production",
     "check:syntax": "node scripts/check-syntax.mjs",
     "lint": "eslint .",
