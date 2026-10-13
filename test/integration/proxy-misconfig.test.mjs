@@ -109,3 +109,13 @@ test('shared address: forwarded requests from a trusted proxy that all resolve t
   assert.ok(!good.dash.warnings.some((w) => w.key.startsWith('proxy-')));
   assert.equal(good.posts.length, 0);
 });
+
+test('host mode regression (retest 4.1d P2-1): 25 requests with XFF 127.0.0.1 from the gateway peer -> no flag, no webhook', async () => {
+  // The integration client connects from 127.0.0.1, so here 127.0.0.1 plays the gateway (host mode trusts the gateway).
+  const env = { APP_NETWORK_SUBNET: '127.0.0.0/8', APP_NETWORK_GATEWAY: '127.0.0.1' };
+  const { dash, posts } = await scenario('127.0.0.1,::1', env, () => '127.0.0.1', 25);
+  assert.equal(dash.proxyMisconfig.shared.samples, 0, JSON.stringify(dash.proxyMisconfig));
+  assert.equal(dash.proxyMisconfig.shared.tripped, false);
+  assert.ok(!dash.warnings.some((w) => w.key.startsWith('proxy-')));
+  assert.equal(posts.length, 0);
+});

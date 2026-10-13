@@ -87,7 +87,15 @@ export function createProxyMisconfigMonitor({
     const t = now();
     const mins = Math.round(windowMs / MINUTE);
     if (isTrusted(peer)) {
-      if (!gatewayAddr || !String(req.headers?.['x-forwarded-for'] ?? '').trim()) return false;
+      if (!gatewayAddr) return false;
+      // Only sample requests whose forwarded chain names at least one untrusted (client) address. A chain of
+      // trusted addresses only (e.g. Caddy's `X-Forwarded-For: 127.0.0.1` for on-server loopback requests) makes
+      // the resolver fall back to the TCP peer, i.e. the gateway in host mode: not a shared-address symptom.
+      const chain = String(req.headers?.['x-forwarded-for'] ?? '')
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean);
+      if (!chain.some((e) => !isTrusted(e))) return false;
       const b = bucket(t);
       b.samples += 1;
       if (plainAddress(resolveClient(req)) === gatewayAddr) {

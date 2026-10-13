@@ -163,3 +163,15 @@ test('overview time is HH:mm in Asia/Taipei', async () => {
   assert.equal(hhmmTaipei('2026-10-13T18:05:00.000Z'), '02:05');
   assert.equal(hhmmTaipei('2026-10-14T03:59:00.000Z'), '11:59');
 });
+
+test('shared-address: host mode, on-server requests via Caddy (XFF 127.0.0.1 from the gateway) are not sampled', () => {
+  // Host mode trust list: gateway + loopback. Caddy on the host forwards a loopback client as XFF 127.0.0.1.
+  const hostTrusted = new Set(['172.31.80.1', '127.0.0.1', '::1']);
+  const { m, alerts } = setup({ isTrusted: (p) => hostTrusted.has(p), gateway: '172.31.80.1', resolveClient: () => '172.31.80.1' });
+  for (let i = 0; i < 25; i++) m.observe(req('172.31.80.1', { 'x-forwarded-for': '127.0.0.1' }));
+  for (let i = 0; i < 25; i++) m.observe(req('172.31.80.1', { 'x-forwarded-for': '::1, 127.0.0.1' }));
+  assert.equal(m.state().shared.samples, 0);
+  assert.equal(m.state().shared.tripped, false);
+  assert.equal(m.state().count, 0);
+  assert.deepEqual(alerts, []);
+});
