@@ -908,6 +908,8 @@ function normalizeStoredProvider(provider = {}, extra = {}) {
     name: truncateString(source.name, 40),
     model: truncateString(source.model, 80),
     mode: source.mode === 'fast' || source.mode === 'deep' ? source.mode : '',
+    // Set when the chosen mode's model failed upstream and the fallback model wrote this routebook.
+    fellBackFrom: source.fellBackFrom === 'fast' || source.fellBackFrom === 'deep' ? source.fellBackFrom : '',
     baseUrl: truncateString(source.baseUrl, 180),
     generatedAt: truncateString(source.generatedAt, 60),
     editedAt: truncateString(source.editedAt, 60),

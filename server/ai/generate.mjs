@@ -1,6 +1,7 @@
 // Model calls: routebook generation, OCR and prompt construction.
 import { normalizeGuideOrigins, routebookGuideOrigins } from '../../src/lib/importOrigins.js';
-import { isCityOpen, generationModeConfig, pickRuntime } from '../config/runtimeViews.mjs';
+import { getConfig } from '../config/runtime.mjs';
+import { isCityOpen, generationModeConfig, pickRuntime, runtimeForMode, fallbackModeFor } from '../config/runtimeViews.mjs';
 import { modelPricingFor } from '../admin/cost.mjs';
 import { repairEmptyDays } from '../../src/lib/dayRepair.js';
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
@@ -1041,10 +1042,53 @@ export function generationFailureReason(error) {
  * @param {AbortSignal} [signal]
  * @param {{ onStage?: GenerationStageListener, deadline?: number, mode?: string }} [options]
  */
-export async function generateRoutebook(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE } = {}) {
+export async function generateRoutebook(payload, signal, options = {}) {
+  const requested = resolveGenerationMode(options.mode ?? GENERATION_DEFAULT_MODE);
+  // The job budget may include room for a fallback run; the chosen mode still only gets its own timeout.
+  const ownDeadline = Date.now() + generationModeConfig(requested).timeoutMs;
+  const firstDeadline = options.deadline ? Math.min(options.deadline, ownDeadline) : 0;
+  try {
+    return await generateRoutebookWithMode(payload, signal, { ...options, mode: requested, deadline: firstDeadline });
+  } catch (error) {
+    const next = nextFallbackMode(requested, error, { signal, deadline: options.deadline ?? 0 });
+    if (!next) throw error;
+    // The requested mode's upstream failed (403 / 5xx / unreachable / timeout): try the next configured mode once.
+    options.onStage?.({ stage: 'model', state: 'started', detail: '所选模式暂时不可用，改用备用模型' });
+    let routebook;
+    try {
+      routebook = await generateRoutebookWithMode(payload, signal, { ...options, mode: next, forceMode: true });
+    } catch (fallbackError) {
+      // Report the original failure (it is what the user chose); the fallback attempt is recorded alongside.
+      error.fallbackTried = { mode: next, code: String(fallbackError?.code ?? 'MODEL_ERROR') };
+      if (error.observability) error.observability = { ...error.observability, fallbackTried: error.fallbackTried };
+      throw error;
+    }
+    return {
+      ...routebook,
+      provider: { ...routebook.provider, fellBackFrom: requested, fallbackReason: String(error?.code ?? 'MODEL_ERROR') },
+      observability: { ...routebook.observability, fellBackFrom: requested, fallbackReason: String(error?.code ?? 'MODEL_ERROR') }
+    };
+  }
+}
+
+/** Upstream failures that a different model may not share (not bad input, not user cancel). */
+export function isUpstreamModelFailure(error) {
+  const code = String(error?.code ?? '');
+  return ['MODEL_ERROR', 'MODEL_FETCH_FAILED', 'MODEL_TIMEOUT', 'MODEL_STALLED'].includes(code) || Number(error?.upstreamStatus) >= 500;
+}
+
+const FALLBACK_MIN_REMAINING_MS = 10000;
+function nextFallbackMode(requested, error, { signal, deadline }) {
+  if (signal?.aborted) return '';
+  if (!getConfig('model.fallbackOnUpstreamError') || !isUpstreamModelFailure(error)) return '';
+  if (deadline && deadline - Date.now() < FALLBACK_MIN_REMAINING_MS) return '';
+  return fallbackModeFor(requested);
+}
+
+async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE, forceMode = false } = {}) {
   // Runtime config (admin console): per-mode model / base URL / key / timeouts, and the fallback order
   // when the requested mode is not configured. Read per call, so a saved change applies to the next generation.
-  const picked = pickRuntime(await loadCodexRuntime(), resolveGenerationMode(mode));
+  const picked = forceMode ? { mode, runtime: runtimeForMode(await loadCodexRuntime(), mode), fellBackFrom: '' } : pickRuntime(await loadCodexRuntime(), resolveGenerationMode(mode));
   const modeConfig = generationModeConfig(picked.mode);
   const runtime = picked.runtime;
   if (!runtime.ready) {

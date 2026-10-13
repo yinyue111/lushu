@@ -67,3 +67,21 @@ export function pickRuntime(baseRuntime, requestedMode) {
   }
   return { mode: requested, runtime: first, fellBackFrom: '' };
 }
+
+/**
+ * Fallback mode used when the requested mode's upstream fails: the first other mode in
+ * model.fallbackOrder. '' when upstream fallback is off or nothing qualifies.
+ * @param {string} requested
+ */
+export function fallbackModeFor(requested) {
+  if (!getConfig('model.fallbackOnUpstreamError')) return '';
+  // Readiness is checked when the fallback run starts; an unconfigured fallback just reports the original error.
+  return getConfig('model.fallbackOrder').find((candidate) => candidate !== resolveGenerationMode(requested)) ?? '';
+}
+
+/** Whole-job budget: the mode's own timeout plus the fallback mode's when an upstream fallback is possible. */
+export function generationBudgetMs(mode) {
+  const own = generationModeConfig(mode).timeoutMs;
+  const fallback = fallbackModeFor(mode);
+  return fallback ? own + generationModeConfig(fallback).timeoutMs : own;
+}

@@ -26,6 +26,7 @@ const FAST_FAILURES_WORTH_DEEP = new Set([
   'MODEL_ERROR',
   'MODEL_FETCH_FAILED'
 ]);
+const DEEP_UPSTREAM_FAILURES = new Set(['MODEL_ERROR', 'MODEL_FETCH_FAILED', 'MODEL_TIMEOUT', 'MODEL_STALLED', 'MODEL_NOT_READY']);
 import { GENERATION_DEDUP_TTL_MS, GENERATION_JOB_RETENTION_MS, GENERATION_MAX_ACTIVE_JOBS } from '../config/index.mjs';
 
 export const GENERATION_STAGES = Object.freeze([
@@ -219,7 +220,10 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
           stage: job.stage,
           // A fast (轻快) generation that failed on the model side can be retried in 细品 mode; the client
           // offers it, nothing escalates on its own.
-          suggestDeep: mode === 'fast' && FAST_FAILURES_WORTH_DEEP.has(String(error?.code))
+          suggestDeep: mode === 'fast' && FAST_FAILURES_WORTH_DEEP.has(String(error?.code)),
+          // 细品's model failed upstream (403 / 5xx / unreachable / timeout): offer a 轻快 retry.
+          suggestFast: mode === 'deep' && DEEP_UPSTREAM_FAILURES.has(String(error?.code)),
+          ...(error?.fallbackTried ? { fallbackTried: error.fallbackTried } : {})
         };
         touch(job);
       }

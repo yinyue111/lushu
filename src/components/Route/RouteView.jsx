@@ -214,6 +214,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   return (
     <div className="min-h-dvh bg-white pb-[calc(84px+env(safe-area-inset-bottom))] text-ink lg:pb-0">
       <OfflineBanner routebook={routebook} />
+      {routebook?.provider?.fellBackFrom && (
+        <p role="note" className="bg-sky-soft px-4 py-2 text-center text-sm text-sky-ink">
+          本次由备用模型生成：所选的「{routebook.provider.fellBackFrom === 'deep' ? '细品' : '轻快'}」模型当时不可用。
+        </p>
+      )}
       <RouteHero
         routebook={routebook}
         dayCount={days.length}

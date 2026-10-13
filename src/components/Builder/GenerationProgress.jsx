@@ -26,6 +26,7 @@ export function GenerationProgress({
   onCancel,
   onRetry,
   onRetryDeep = () => {},
+  onRetryFast = () => {},
   onBackToPrefs
 }) {
   const modeLabel = generationModeLabel(mode);
@@ -182,7 +183,21 @@ export function GenerationProgress({
           {failure?.suggestDeep && mode === 'fast' && (
             <p className="mt-2 text-sm text-ink">「轻快」这次没跑通。可以换「细品」再试：想得更细，大约要 2–3 分钟。</p>
           )}
-          <ResultActions onRetry={onRetry} onBackToPrefs={onBackToPrefs} onRetryDeep={failure?.suggestDeep && mode === 'fast' ? onRetryDeep : null} />
+          {failure?.suggestFast && mode === 'deep' ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="primary" size="sm" onClick={onRetryFast}>
+                <Sparkles /> 用轻快重试
+              </Button>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                再试一次「细品」
+              </Button>
+              <Button variant="outline" size="sm" onClick={onBackToPrefs}>
+                <ArrowLeft /> 改改偏好
+              </Button>
+            </div>
+          ) : (
+            <ResultActions onRetry={onRetry} onBackToPrefs={onBackToPrefs} onRetryDeep={failure?.suggestDeep && mode === 'fast' ? onRetryDeep : null} />
+          )}
         </div>
       )}
 

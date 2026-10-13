@@ -151,7 +151,19 @@ export function generationEtaText(job, elapsedMs) {
 /** Friendly copy for a failed job / request error. */
 export function generationFailureCopy(error) {
   const code = String(error?.code ?? '');
+  // 细品's model is down or too slow: say so plainly and point at 轻快 (a different model).
+  if (error?.suggestFast === true) {
+    return {
+      title: '「细品」的模型这次没响应',
+      detail:
+        code === 'MODEL_TIMEOUT' || code === 'MODEL_STALLED'
+          ? '「细品」的模型在等待上限内没有返回结果，已自动停止。可以用「轻快」马上重试（用的是另一个模型，通常不到 1 分钟）。'
+          : '「细品」的模型服务暂时不可用。可以用「轻快」马上重试（用的是另一个模型，通常不到 1 分钟）。'
+    };
+  }
   switch (code) {
+    case 'MODEL_ERROR':
+      return { title: '模型服务调用失败', detail: '模型服务这次返回了错误，没有保存任何内容。你的攻略和偏好都已保留，稍后再试即可。' };
     case 'MODEL_STALLED':
       return { title: '模型卡住了', detail: '模型很久没有输出，已自动停止。可以稍后再试。' };
     case 'MODEL_TIMEOUT':

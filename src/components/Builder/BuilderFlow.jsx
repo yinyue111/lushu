@@ -433,7 +433,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function failGeneration(e) {
     setLoading(false);
     setGenerationOutcome('failed');
-    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '', suggestDeep: e?.suggestDeep === true });
+    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '', suggestDeep: e?.suggestDeep === true, suggestFast: e?.suggestFast === true });
     if (isAccessCodeError(e)) openAccessCode();
     checkHealth()
       .then((health) => {
@@ -873,6 +873,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             onCancel={handleCancelGeneration}
             onRetry={() => retryGenerate()}
             onRetryDeep={() => retryGenerate('deep')}
+            onRetryFast={() => retryGenerate('fast')}
             mode={generationJob?.mode || generationMode}
             onBackToPrefs={() => setStep(2)}
           />

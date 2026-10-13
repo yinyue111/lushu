@@ -58,12 +58,24 @@ export const RUNTIME_SCHEMA = {
   'model.deep': { type: 'modelTier', label: '细品档模型', group: 'model', role: 'admin', model: true, env: () => envTier('deep'), default: null },
   'model.fallbackOrder': {
     type: 'string[]',
-    label: '模型兜底顺序（所选档位没配好时依次尝试）',
+    label: '备用模型顺序（所选模式没配好，或上游报错 / 超时时改用）',
     group: 'model',
     role: 'admin',
     items: () => ['fast', 'deep'],
-    env: () => [],
+    env: () =>
+      String(process.env.AI_MODEL_FALLBACK_ORDER ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item === 'fast' || item === 'deep'),
     default: []
+  },
+  'model.fallbackOnUpstreamError': {
+    type: 'bool',
+    label: '上游报错时改用备用模型',
+    group: 'model',
+    role: 'admin',
+    env: () => true,
+    default: true
   },
   'model.pricing': {
     type: 'pricing',
