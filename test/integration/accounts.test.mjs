@@ -242,24 +242,21 @@ test('ops: masked search, disable/enable, one-time recovery with audit, quota; a
   assert.equal((await createClient(server.baseUrl).login('13612345678', PASSWORD)).data.code, 'ACCOUNT_DISABLED');
   await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'enable', reason: '核实后恢复' } });
 
+  // The legacy plain-text recovery path is off by default (OPS_RECOVERY_CODE_PLAINTEXT unset).
   const issued = await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'issue-recovery', reason: '电话核实本人后补发' } });
-  assert.match(issued.data.recoveryCode, /^[A-Z2-9-]{14}$/);
+  assert.equal(issued.status, 403);
+  assert.equal(issued.data.code, 'OPS_RECOVERY_PLAINTEXT_DISABLED');
+  assert.equal(issued.data.recoveryCode, undefined);
   const quota = await ops(`/api/ops/users/${found.id}`, { method: 'POST', body: { action: 'set-quota', quota: 2, reason: '内测加额度' } });
   assert.equal(quota.data.user.generationQuota, 2);
-  const recover = createClient(server.baseUrl);
-  const reset = await recover.request('/api/auth/reset-password', {
-    method: 'POST',
-    body: { phone: '13612345678', recoveryCode: issued.data.recoveryCode, password: '运维补发后重设的密码', humanCheck: await recover.humanCheck('reset') }
-  });
-  assert.equal(reset.status, 200, JSON.stringify(reset.data));
   const audits = await readFile(join(server.dataDir, 'ops-audits.jsonl'), 'utf8');
-  assert.match(audits, /"action":"issue-recovery"/);
-  assert.match(audits, /电话核实本人后补发/);
-  assert.ok(!audits.includes(issued.data.recoveryCode), 'the code itself is never stored');
+  assert.doesNotMatch(audits, /"action":"issue-recovery"/, 'a refused issue is not recorded as issued');
 
   // Delete account: password required; the number can register again afterwards.
+  const recover = createClient(server.baseUrl);
+  assert.equal((await recover.login('13612345678', PASSWORD)).status, 200);
   assert.equal((await recover.request('/api/auth/delete', { method: 'POST', body: { password: 'nope' } })).data.code, 'PASSWORD_MISMATCH');
-  const deleted = await recover.request('/api/auth/delete', { method: 'POST', body: { password: '运维补发后重设的密码' } });
+  const deleted = await recover.request('/api/auth/delete', { method: 'POST', body: { password: PASSWORD } });
   assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
   assert.equal((await recover.request('/api/auth/me')).data.account, null);
   assert.equal((await createClient(server.baseUrl).register('13612345678', PASSWORD)).status, 200);

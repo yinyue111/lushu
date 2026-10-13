@@ -8,7 +8,7 @@ const ACTIONS = {
   disable: { label: '停用', note: '停用后立刻退出所有设备，不能登录。' },
   enable: { label: '恢复', note: '恢复后可以重新登录。' },
   'revoke-sessions': { label: '强制退出', note: '所有设备退出登录，账号仍可用。' },
-  'issue-recovery': { label: '补发恢复码', note: '只在电话或其他方式核实本人后补发。恢复码只显示一次，交给本人后关闭窗口。' },
+  // 补发恢复码 moved to the admin console 「用户 → 发恢复码」 (mailed to the verified email only).
   'set-quota': { label: '设生成额度', note: '每个统计窗口内可生成的次数；留空 = 用默认额度。' }
 };
 
@@ -109,7 +109,7 @@ export default function UsersPanel() {
                         <td>{user.recoveryCodesLeft}</td>
                         <td>
                           <div className="flex flex-wrap gap-1.5">
-                            {(user.status === 'active' ? ['disable', 'revoke-sessions', 'issue-recovery', 'set-quota'] : ['enable']).map((action) => (
+                            {(user.status === 'active' ? ['disable', 'revoke-sessions', 'set-quota'] : ['enable']).map((action) => (
                               <button key={action} type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ user, action })}>
                                 {ACTIONS[action].label}
                               </button>

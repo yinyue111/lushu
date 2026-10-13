@@ -429,3 +429,6 @@ export const GENERATION_DAILY_LIMIT = envNumber('GENERATION_DAILY_LIMIT', 300, {
 // Admin console (docs/admin.md). /admin and /api/admin/* exist only when enabled; on by default in
 // development, off in production unless ADMIN_ENABLED=true (the gateway adds IP allowlist / basic auth on top).
 export const ADMIN_ENABLED = envFlag('ADMIN_ENABLED', !IS_PRODUCTION);
+
+// Legacy /api/ops/users issue-recovery returned the recovery code in plain text; off unless explicitly enabled.
+export const OPS_RECOVERY_CODE_PLAINTEXT = String(process.env.OPS_RECOVERY_CODE_PLAINTEXT ?? '').trim() === 'true';

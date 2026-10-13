@@ -21,6 +21,7 @@ import { sendMail } from '../mail/transport.mjs';
 import { alreadyRegisteredMail, emailChangedMail, passwordChangedMail } from '../mail/templates.mjs';
 import { assertPasswordPolicy, hashPassword, verifyPassword, passwordNeedsRehash } from './password.mjs';
 import { assertHumanCheck } from './pow.mjs';
+import { OPS_RECOVERY_CODE_PLAINTEXT } from '../config/index.mjs';
 import { issueRecoveryCodes, matchRecoveryCode, unusedRecoveryCount } from './recovery.mjs';
 import { startSession, endSession, resolveSession } from './session.mjs';
 import {
@@ -542,6 +543,10 @@ export async function opsUpdateUser(req, userId, input = {}, actor) {
   } else if (action === 'revoke-sessions') {
     extra.revoked = await accountStore().revokeUserSessions(id);
   } else if (action === 'issue-recovery') {
+    // Legacy script path that RETURNS the code in plain text. Off by default (PRD: a recovery code is never
+    // shown to operators); the admin console's 「发恢复码」 mails it to the verified email instead.
+    if (!OPS_RECOVERY_CODE_PLAINTEXT)
+      throw createHttpError('这个旧接口默认不再返回恢复码。请在管理后台「用户」里用「发恢复码」（只发到已验证邮箱）。', 403, 'OPS_RECOVERY_PLAINTEXT_DISABLED');
     // One extra one-time code, handed to the verified owner out of band. Ops never sets passwords.
     const { codes, hashes } = issueRecoveryCodes(1, 'ops');
     await accountStore().updateUser(id, { recoveryHashes: [...(user.recoveryHashes ?? []), ...hashes] });
