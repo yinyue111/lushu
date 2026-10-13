@@ -61,7 +61,10 @@ test('a value must appear near the place name on the page', () => {
   assert.ok(pageSupports('…灵隐寺 开放时间 7:30-17:30…', '灵隐寺', [/(?<!\d)0?7:30(?!\d)/, /17:30/]));
   assert.ok(!pageSupports(`灵隐寺${'。'.repeat(400)}免费WiFi`, '灵隐寺', [/免费/]), 'free WiFi far away does not count');
   assert.ok(!pageSupports('门票免费', '灵隐寺', [/免费/]), 'the place must be on the page');
-  assert.deepEqual(wantedFields(stop('x', { cost: '免费', costInfo: { known: true, free: true } })), ['hours']);
+  // v3: 模型写的「免费」不算已知，要核对；攻略写明的或用户填的才跳过。
+  assert.deepEqual(wantedFields(stop('x', { cost: '免费', costInfo: { known: true, free: true, source: 'model' } })), ['price', 'hours']);
+  assert.deepEqual(wantedFields(stop('x', { cost: '免费', costInfo: { known: true, free: true, source: 'model', basis: 'guide' } })), ['hours']);
+  assert.deepEqual(wantedFields(stop('x', { cost: '80 元', costInfo: { known: true, amount: 80, source: 'user' } })), ['hours']);
 });
 
 test('AMap + one verified page fill hours; two verified sites fill 免费; provenance is recorded', async () => {
@@ -244,4 +247,11 @@ test('conditions attach to a filled value, with source count; seasonal prices ar
   const zz = claims.find((c) => c.stopName === '拙政园' && c.field === 'price');
   assert.equal(zz.value, '分淡旺季');
   assert.ok(zz.conditions.some((c) => c.kind === 'seasonal'));
+});
+
+test('v3: ticketed / reservation sights are checked first, free streets last', async () => {
+  const { enrichPriority } = await import('../../server/enrich/engine.mjs');
+  const names = ['河坊街', '知味观', '灵隐寺', '西湖'];
+  const order = names.map((name, i) => [i, { name }]).sort(([ia, a], [ib, b]) => enrichPriority(a) - enrichPriority(b) || ia - ib).map(([, s]) => s.name);
+  assert.deepEqual(order, ['灵隐寺', '知味观', '西湖', '河坊街']);
 });

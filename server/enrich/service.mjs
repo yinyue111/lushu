@@ -79,13 +79,20 @@ export async function enrichmentView(routebook) {
           stopsDone: Number(summary.stopsDone) || 0,
           stopsTotal: Number(summary.stopsTotal) || (routebook.stops ?? []).length,
           filled: Number(summary.filled) || 0,
-          phase: summary.phase || 'checking'
+          phase: summary.phase || 'checking',
+          // 用户在等什么：刚查完 / 下一站；粗略预计：按已用时间 / 已查站数外推（没开始时不给数字）。
+          lastStop: String(summary.lastStop ?? ''),
+          nextStop: String(summary.nextStop ?? ''),
+          queued: job.status === 'queued'
         }
       : status === 'done'
         ? {
             stopsDone: Number(summary.stopsDone) || Number(summary.stopsTotal) || (routebook.stops ?? []).length,
             stopsTotal: Number(summary.stopsTotal) || (routebook.stops ?? []).length,
-            filled: Number(summary.filled) || claims.length,
+            filled: claims.length,
+            looked: claims.length + (Number(summary.kept) || 0),
+            notFound: Number(summary.kept) || 0,
+            stoppedBy: String(summary.stoppedBy ?? ''),
             phase: 'done'
           }
         : null;

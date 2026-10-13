@@ -26,13 +26,27 @@ const RESTAURANT_NAME = /店$|饭|面|饺|馆$|餐|火锅|小吃|茶社|茶馆|�
 const MAX_PAGES_PER_FIELD = 6;
 const MAX_PAGES_PER_ROUTEBOOK = 80;
 
+const TICKETED = /(寺|庙|道观|祠|宫|塔|阁|园|博物馆|纪念馆|美术馆|故居|遗址|陵|景区|古镇|城墙|乐园)$/;
+const FREE_STREET = /(街|巷|路|坊|广场|桥|堤|码头|夜市|步行街)$/;
+
+/** 补全顺序：0 收票/要预约的景点，1 其他，2 免费街区。 */
+export function enrichPriority(stop) {
+  const name = String(stop?.name ?? '').trim();
+  const notes = `${stop?.verify ?? ''}${stop?.risk ?? ''}${stop?.cost ?? ''}`;
+  if (TICKETED.test(name) || /预约|门票|购票/.test(notes)) return 0;
+  if (FREE_STREET.test(name)) return 2;
+  return 1;
+}
+
 export const cacheKeyFor = (city, name, field) => `${String(city).trim()}|${String(name).trim()}|${field}`;
 export const stopKeyOf = (stop, index) => String(stop.id ?? stop.stopId ?? `#${index}`);
 
 /** Which fields of a stop still need a source. Price only when the routebook has no known price. */
 export function wantedFields(stop) {
   const cost = `${stop.cost ?? ''} ${stop.costInfo?.text ?? ''}`;
-  const priceKnown = stop.costInfo?.known === true || stop.costInfo?.free === true || (/\d|免费/.test(cost) && !/待确认|未知|为准/.test(cost));
+  // 只有用户自己填的、或攻略里写明的价格才算已知；模型凭记忆写的「免费 / X 元」也要核对（灵隐寺就是旧价格的例子）。
+  const trusted = stop.costInfo?.source === 'user' || stop.costInfo?.basis === 'guide';
+  const priceKnown = trusted && (stop.costInfo?.known === true || stop.costInfo?.free === true || (/\d|免费/.test(cost) && !/待确认|未知|为准/.test(cost)));
   return [...(priceKnown ? [] : ['price']), 'hours'];
 }
 
@@ -161,7 +175,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
   const claims = [];
   const retrievedAt = () => new Date(now()).toISOString();
   const stopsTotal = (routebook.stops ?? []).length;
-  const report = async (stopsDone) => {
+  const report = async (stopsDone, lastStop = '') => {
     if (!onProgress) return;
     await onProgress({
       filled: counts.filled,
@@ -170,15 +184,21 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       searches: counts.searches,
       stopsDone,
       stopsTotal,
+      lastStop: String(lastStop).slice(0, 40),
+      nextStop: String(ordered[stopsDone]?.[1]?.name ?? '').trim().slice(0, 40),
       phase: 'checking'
     });
   };
 
-  for (const [index, stop] of (routebook.stops ?? []).entries()) {
+  let done = 0;
+  const step = (name) => report(++done, name);
+  // 先查收门票、要预约的景点，免费街区放最后：单本花费上限截断时，丢的是最不影响进门的那几站。
+  const ordered = [...(routebook.stops ?? []).entries()].sort(([ia, a], [ib, b]) => enrichPriority(a) - enrichPriority(b) || ia - ib);
+  for (const [index, stop] of ordered) {
     const stopKey = stopKeyOf(stop, index);
     const name = String(stop.name ?? '').trim();
     if (!name) {
-      await report(index + 1);
+      await step(name);
       continue;
     }
     const base = { stopKey, stopName: name };
@@ -201,7 +221,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       } else pending.push(field);
     }
     if (!pending.length) {
-      await report(index + 1);
+      await step(name);
       continue;
     }
 
@@ -209,18 +229,18 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     const place = await amap({ name, city, lat: Number(stop.lat), lng: Number(stop.lng) });
     if (place.status === 'chain') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'chain', reasonText: '连锁店，攻略没写哪一家' });
-      await report(index + 1);
+      await step(name);
       continue;
     }
     if (place.status === 'restaurant' || (place.status !== 'matched' && RESTAURANT_NAME.test(name) && !ATTRACTION_NAME.test(name))) {
       counts.skippedStops += 1;
-      await report(index + 1);
+      await step(name);
       continue; // restaurants: address / phone / 人均 are out of scope
     }
     const attraction = place.status === 'matched' ? place.poi.attraction || ATTRACTION_NAME.test(name) : ATTRACTION_NAME.test(name);
     if (!attraction) {
       counts.skippedStops += 1;
-      await report(index + 1);
+      await step(name);
       continue;
     }
 
@@ -263,18 +283,18 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
     const first = await trySearch(pending, 0);
     if (first === 'error') {
       for (const field of pending) keep(field, 'search-failed', { reasonText: '联网搜索暂时失败，稍后会再试' });
-      await report(index + 1);
+      await step(name);
       continue;
     }
     if (!first) {
       // Out of budget: keep 待确认 without caching, so a later routebook can try again.
       for (const field of pending) keep(field, 'budget', { reasonText: '本次核对额度已用完' });
-      await report(index + 1);
+      await step(name);
       continue;
     }
     if (first.answer?.ambiguous && place.status !== 'matched') {
       for (const field of pending) await remember(field, { status: 'kept', reason: 'ambiguous', reasonText: '同名地点不止一处' });
-      await report(index + 1);
+      await step(name);
       continue;
     }
 
@@ -388,7 +408,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       }
     }
     for (const field of pending) await remember(field, decisions.get(field));
-    await report(index + 1);
+    await step(name);
 
     async function remember(field, entry) {
       const key = cacheKeyFor(city, name, field);

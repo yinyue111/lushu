@@ -62,7 +62,7 @@ test('display text and sums keep unknowns separate', () => {
   assert.equal(formatCostInfo(parseCostText('免费（需预约）')), '免费（需预约）');
   assert.equal(formatCostInfo(parseCostText('80-120 元')), '80–120 元');
   assert.equal(formatCostInfo(parseCostText('30元/人')), '30 元/人');
-  assert.equal(formatCostInfo(parseCostText('待估算')), '费用待补充');
+  assert.equal(formatCostInfo(parseCostText('待估算')), '价格待确认');
   const sum = sumStopCosts([{ cost: '80-120 元' }, { cost: '待估算' }, { cost: '免费（需预约）' }]);
   assert.deepEqual([sum.min, sum.max, sum.knownCount, sum.unknownCount, sum.reservationCount], [80, 120, 2, 1, 1]);
 });

@@ -185,6 +185,7 @@ export function normalizeCostInfo(input, source = 'model') {
     note: String(input.note ?? '').slice(0, 60),
     items,
     source: ['model', 'user', 'legacy-text'].includes(input.source) ? input.source : source,
+    ...(['guide', 'model'].includes(input.basis) ? { basis: input.basis } : {}),
     known
   };
 }
@@ -201,9 +202,9 @@ export function stopCostInfo(stop) {
   return { ...parseCostText(costText), text: costText };
 }
 
-/** Short display text, e.g. "门票 约 75 元/人"、"免费（需预约）"、"80–120 元"、"费用待补充". */
+/** Short display text, e.g. "门票 约 75 元/人"、"免费（需预约）"、"80–120 元"、"价格待确认". */
 export function formatCostInfo(info) {
-  if (!info?.known) return info?.reservationRequired ? '费用待补充（需预约）' : '费用待补充';
+  if (!info?.known) return info?.reservationRequired ? '价格待确认（需预约）' : '价格待确认';
   const reservation = info.reservationRequired ? '（需预约）' : '';
   if (info.free) return `免费${reservation}`;
   const amount = info.min === info.max ? `${info.min} 元` : `${info.min}–${info.max} 元`;
@@ -225,4 +226,26 @@ export function sumStopCosts(stops = []) {
     estimate: known.length ? round(known.reduce((sum, row) => sum + (row.min + row.max) / 2, 0)) : null,
     reservationCount: rows.filter((row) => row.reservationRequired).length
   };
+}
+
+/** 统一的「不确定」写法：待核实 / 待核验 / 待补充 / 待复核 / 因店而异 一律写成「待确认」。 */
+export function unifyPendingWording(text) {
+  return String(text ?? '')
+    .replace(/待(?:核实|核验|补充|复核|估算)/g, '待确认')
+    .replace(/因店而异/g, '待确认')
+    .replace(/(待确认)(?:[，、\s]*待确认)+/g, '$1');
+}
+
+/**
+ * 卡片上显示的价格：用户填的、攻略写明的直接显示；模型凭记忆写的（如「免费」）没核对前显示「价格待确认」，
+ * 并在 aiNote 里说明 AI 写了什么，不当成已核实。
+ * @returns {{ text: string, pending: boolean, aiNote: string }}
+ */
+export function costDisplay(stop) {
+  const info = stopCostInfo(stop);
+  const raw = unifyPendingWording(String(stop?.cost ?? '').trim());
+  const trusted = info.source === 'user' || info.basis === 'guide';
+  if (info.known && trusted) return { text: raw || formatCostInfo(info), pending: false, aiNote: '' };
+  if (info.known) return { text: '价格待确认', pending: true, aiNote: `AI 写的「${raw || formatCostInfo(info)}」，还没核对` };
+  return { text: /待确认/.test(raw) ? raw : '价格待确认', pending: true, aiNote: '' };
 }
