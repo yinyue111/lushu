@@ -162,12 +162,15 @@ export async function startConfigSync({ pool, channel, pollMs = CONFIG_POLL_MS }
 
 async function connectListener(pool, channel) {
   try {
-    const client = await pool.connect();
+    // A dedicated client (not borrowed from the pool) so LISTEN never eats request capacity.
+    const { default: pg } = await import('pg');
+    const client = new pg.Client(pool.options);
+    await client.connect();
     client.on('notification', (msg) => {
       if (msg.channel === channel) void refreshConfig();
     });
     client.on('error', () => {
-      client.release(true);
+      client.end().catch(() => {});
       if (listenClient === client) listenClient = null;
     });
     await client.query(`listen ${channel}`);
@@ -185,7 +188,7 @@ export async function stopConfigSync() {
   listenClient = null;
   if (client) {
     await client.query('unlisten *').catch(() => {});
-    client.release();
+    await client.end().catch(() => {});
   }
 }
 

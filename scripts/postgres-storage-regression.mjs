@@ -81,10 +81,11 @@ try {
     '0008_accounts.sql',
     '0009_account_email.sql',
     '0010_fact_enrichment.sql',
-    '0011_funnel_client_errors.sql'
+    '0011_funnel_client_errors.sql',
+    '0012_admin_config.sql'
   ]);
   assert.deepEqual(firstMigration.skipped, ['0001_event_rows.sql']);
-  assert.equal(secondMigration.skipped.length, 11);
+  assert.equal(secondMigration.skipped.length, 12);
   const legacyKeyState = await pool.query(`select count(*)::int as pending from trusted_routebook.event_rows where entity_key is null`);
   assert.equal(legacyKeyState.rows[0].pending, historicalCredentialRows.length, 'rows written before 0006 keep NULL entity keys until backfilled');
 
