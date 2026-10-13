@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { compactDays } from '../../lib/dayRepair.js';
 import { coordinateForName, cityCenters, isValidCoordinate } from '../../lib/coordinates';
 import { clickStorageKey, getStoredRoutebookById, saveFavorite, saveRoutebook, safeWriteJsonStorage } from '../../lib/storage';
 import {
@@ -87,20 +88,27 @@ export function useRoutebookActions({
     setUndoEpoch((n) => n + 1);
   }
 
+  function withDayNote(validations, note) {
+    const list = (validations ?? []).filter((item) => item?.id !== 'day-count-compacted');
+    return note ? [note, ...list].slice(0, 8) : list;
+  }
+
   function updateRoutebook(nextStops, extra = {}, base = routebook, { recordUndo = true } = {}) {
     if (!canEdit) {
       setShareState('公开路线为只读，请先生成定制版再编辑');
       return;
     }
     if (recordUndo) pushUndo(latestRoutebookRef.current);
-    const normalizedStops = nextStops.map((stop) => ({ ...stop, id: stableStopId(stop.id) }));
+    // 删除/合并一天、AI 局部调整等都可能留下空的一天：统一收缩并顺延编号，不补站。
+    const compacted = compactDays(nextStops.map((stop) => ({ ...stop, id: stableStopId(stop.id) })), extra.days ?? base.days);
+    const normalizedStops = compacted.stops;
     const next = {
       ...base,
       ...extra,
       stops: normalizedStops,
       // F12: only legs touched by this edit lose their road verification.
       routeLegs: preserveUnaffectedRouteLegs(base.stops ?? [], normalizedStops, base.routeLegs ?? []),
-      days: orderedDays(normalizedStops, base.days),
+      days: compacted.days,
       trustScore: calculateLocalTrustScore(normalizedStops),
       trustMeta: {
         predictionScore: calculateLocalTrustScore(normalizedStops),
@@ -112,7 +120,7 @@ export function useRoutebookActions({
         feedbackWeight: 0
       },
       metrics: buildEditedMetrics(normalizedStops, base.metrics),
-      validations: buildEditedValidations(normalizedStops, extra.validations ?? base.validations, extra.editReason),
+      validations: withDayNote(buildEditedValidations(normalizedStops, extra.validations ?? base.validations, extra.editReason), compacted.validation),
       provider: {
         ...(base.provider ?? {}),
         editedAt: new Date().toISOString()
