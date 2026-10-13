@@ -76,7 +76,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
           </div>
         )}
         <h3 className="line-clamp-2 text-lead leading-snug font-extrabold">
-          <button type="button" onClick={onOpen} className="text-left transition-colors hover:text-primary-strong">
+          <button type="button" onClick={onOpen} className="relative text-left transition-colors after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] hover:text-primary-strong">
             {routebook.title || `${routebook.city} 路书`}
           </button>
         </h3>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Copy, Check, CloudUpload, Heart, List, Map as MapIcon, Navigation } from 'lucide-react';
+import { ArrowLeft, Copy, CloudUpload, List, Map as MapIcon, Navigation } from 'lucide-react';
 import { recordProductExposure } from '../../lib/productTelemetry';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import { getProfile } from '../../lib/profile';
@@ -426,21 +426,12 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       {/* Phone: list ↔ map pill + single bottom action bar */}
       {!isDesktop && (
         <>
-          <button
-            type="button"
-            onClick={() => setMobileView(mapMode ? 'list' : 'map')}
-            className={cn(
-              'fixed left-1/2 z-[1300] inline-flex h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-[18px] text-copy font-bold text-white shadow-pop',
-              mapMode ? 'bottom-[calc(300px+env(safe-area-inset-bottom))]' : 'bottom-[calc(90px+env(safe-area-inset-bottom))]'
-            )}
-          >
-            {mapMode ? <List size={18} /> : <MapIcon size={18} />}
-            {mapMode ? '列表' : '地图'}
-          </button>
           {/* @container: with large system text the bar is under 21rem (also 320px phones); the CTA then reads 出发 (icon hidden) instead of clipping. */}
           <div className="@container fixed inset-x-0 bottom-0 z-[1300] flex items-center gap-2.5 border-t border-line bg-white/96 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] backdrop-blur-md">
-            <Button size="icon" className="size-[50px]" onClick={favorite} aria-label={liked ? '已收藏' : '收藏'}>
-              <Heart className={cn(liked && 'animate-pop fill-current text-primary-strong')} />
+            {/* 地图切换放进底栏，不再浮在内容上方；收藏在顶部已有，底栏不重复。 */}
+            <Button className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs" onClick={() => setMobileView(mapMode ? 'list' : 'map')} aria-pressed={mapMode}>
+              {mapMode ? <List size={18} /> : <MapIcon size={18} />}
+              {mapMode ? '列表' : '地图'}
             </Button>
             {canEdit ? (
               <Button size="icon" className="size-[50px]" onClick={actions.saveCurrentRoutebook} disabled={actions.saving} aria-label="保存到云端">
