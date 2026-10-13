@@ -99,6 +99,36 @@ export default function OpsOverview() {
         )}
       </section>
 
+      <section className="ops-panel" aria-labelledby="ops-activation-title" data-testid="ops-activation">
+        <div className="ops-panel-head">
+          <div>
+            <h2 id="ops-activation-title">内测激活漏斗 · 近 30 天</h2>
+            <p className="text-caption">每一步按去重人数统计，各步之间不是同一批人（注册前后的匿名身份可能不同）。</p>
+          </div>
+        </div>
+        {Array.isArray(funnel?.activation) ? (
+          <ol className="stats-grid ops-metric-grid">
+            {funnel.activation.map((step) => (
+              <li key={step.key} className="stat-card ops-stat">
+                <span>{step.label}</span>
+                <strong>{step.count}</strong>
+                <small>{step.rateFromPrevious == null ? '起点' : `上一步的 ${step.rateFromPrevious}%`}</small>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-caption">数据状态未知</p>
+        )}
+        <p className="ops-definition-note">
+          前端错误（近 24 小时）：{dashboardKnown ? `${funnel?.clientErrors24h ?? 0} 条` : '未知'}
+          {(funnel?.latestClientErrors ?? []).map((item) => (
+            <span key={`${item.createdAt}-${item.message}`} className="block">
+              {formatOpsDate(item.createdAt)} · {item.path} · {item.message}
+            </span>
+          ))}
+        </p>
+      </section>
+
       <section className="ops-panel" aria-labelledby="ops-retention-title">
         <div className="ops-panel-head">
           <div>
