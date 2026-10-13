@@ -7,6 +7,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | `Dockerfile` | 构建阶段 `npm ci` + `vite build`；运行依赖单独 `npm ci --omit=dev`（不含 playwright/axe-core，不下载浏览器）；运行镜像 `node:22.23.3-slim`（和 `.nvmrc` 一致），非 root（`node` 用户），只有 `/data` 可写，`HEALTHCHECK` 访问 `/api/live` |
+| `docker-compose.caddy.yml` | 可选 override：Caddy 容器固定 IP 接入 `lushu_backend`，app 切到 `PROXY_MODE=container`（见「Caddy 两种部署方式」）。默认不用 |
 | `docker-compose.prod.yml` | `db`（postgres:16，`pgdata` 卷）+ `app`（`127.0.0.1:3080:3080`，`env_file: app.env`，`appdata` 卷挂到 `/data`）+ 一次性 `migrate`（profile `tools`） |
 | `docs/deploy.compose.env.example` | `.env` 模板（compose 变量替换用）：`APP_IMAGE`、owner 密码、应用角色密码 |
 | `docs/deploy.env.example` | `app.env` 模板（应用设置），只有变量名，没有任何密钥；不含数据库密码 |
@@ -62,6 +63,33 @@ lushu.aiwuq.cn {
 
 Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单次最长 15 秒），只有旧的同步接口需要长超时，上面的 400s 覆盖 `REQUEST_TIMEOUT_MS`（默认 390s）。
 
+## Caddy 两种部署方式（PROXY_MODE）
+
+应用按「请求的上一跳地址」决定信不信 `X-Forwarded-For`。上一跳是谁取决于 Caddy 跑在哪，所以必须显式选模式；选错时启动检查会拒绝启动，而不是静默把所有用户算成一个人限流。
+
+| | `PROXY_MODE=host`（默认，仓库推荐） | `PROXY_MODE=container` |
+| --- | --- | --- |
+| Caddy 在哪 | 宿主机进程，`reverse_proxy 127.0.0.1:3080`（上面的 Caddyfile） | 容器，接入 `lushu_backend`，固定 `ipv4_address`，`reverse_proxy app:3080`（`docs/Caddyfile.container.example`） |
+| 启动命令 | `docker compose -f docker-compose.prod.yml …` | `docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml …` |
+| 应用看到的来源 | 网关 `APP_NETWORK_GATEWAY`（docker-proxy 或 iptables MASQUERADE） | Caddy 容器 IP `CADDY_IP`（默认 `172.31.80.10`，`.env` 里改） |
+| `app.env` 的 `TRUSTED_PROXY_CIDRS` | `172.31.80.1,127.0.0.1,::1` | `172.31.80.10,127.0.0.1,::1` |
+| 启动检查 | 必须包含网关；非回环条目都在子网内；设了 `CADDY_IP` 拒绝启动 | `CADDY_IP` 必须是子网内单个地址且不是网关；信任列表必须包含它、只能有它和回环；**不能包含网关**（也就是不能写 `172.31.80.0/24`），否则宿主机上任何能连到 3080 的进程都能伪造 XFF |
+| 127.0.0.1:3080 | 发布（Caddy 用） | 不发布（override 用 `ports: !reset []` 去掉，需要 Compose ≥ 2.24） |
+
+- `PROXY_MODE` / `CADDY_IP` 只由 override 文件设给 app；不用 override 时不设，即 host 模式。不要在 `app.env` 里写 `PROXY_MODE=container` 却不用 override（启动检查会因信任列表不匹配而拒绝，但这是配置错误）。
+- `CADDY_IP` 必须是子网里没被占用的地址：compose 从 `.2` 起按启动顺序给 db/app 分配地址，所以默认选了 `.10`，别用 `.2`–`.9`。
+- 两种模式都要求 Caddy 自己**覆盖**客户端带来的 `X-Forwarded-For`（Caddy 2 默认不信任上游 XFF、只追加真实对端，满足）。
+
+### 第一次切换前 SRE 必须确认（两种模式都要做）
+
+1. **Caddy 是不是容器**：`systemctl status caddy`、`pgrep -a caddy`、`docker ps --format '{{.Names}} {{.Image}}' | grep -i caddy`。宿主机进程 → host；容器 → container（并且要把它接入 `lushu_backend` 且固定 IP，现有 Caddy 容器如果在别的网络上，经宿主机端口转发进来时来源又会变成网关或别的地址，必须实测）。
+2. **dockerd 配置**：`cat /etc/docker/daemon.json`（没有这个文件 = 默认）。看 `userland-proxy`（默认 true；复测里 true/false 两种情况来源都是网关）和 `iptables`（默认 true；**设成 false 的情况没测过**，来源可能不同，必须实测）、`ipv6`。
+3. **应用实际看到的来源地址**（以这个为准，不要只看配置推断）：切流量后发几个请求，然后
+   ```bash
+   nsenter -t "$(docker inspect -f '{{.State.Pid}}' lushu-app-1)" -n ss -tn state established '( sport = :3080 )'
+   ```
+   `Peer Address` 一列应该是：host 模式 = `APP_NETWORK_GATEWAY`，container 模式 = `CADDY_IP`。不一致就**回滚**并改配置，不要上线：否则按 IP 的限流会把所有用户算成一个人（或者信任了不该信的地址）。也可以用两台不同出口的客户端各打一次公开接口超过限流，确认互不影响。
+
 ## 反代与 TRUST_PROXY
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
@@ -75,6 +103,16 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
   - 同一个网关也是 `docs/login-rollout.md` 里 `MAIL_SMTP_HOST=172.31.80.1` 的前提，改子网要一起改。
 - 不用 Docker、直接 `npm start`：设 `HOST=127.0.0.1 PORT=3080 TRUST_PROXY_HEADERS=true`；`TRUSTED_PROXY_CIDRS` 的默认值 `127.0.0.1,::1` 正好是 Caddy。
 - 服务从右往左读 `X-Forwarded-For`，跳过可信代理，所以客户端自己伪造的最左项不会生效。带转发链的请求一律不算“本机”，生产环境也默认关闭本机免鉴权。
+
+## 镜像 digest 检查（定位与限制）
+
+- app 容器（`REQUIRE_PINNED_IMAGE=true`）和 `migrate` / `db-roles` 用同一条规则：`APP_IMAGE` 必须以 `@sha256:<64 位小写 hex>` 结尾。
+- **它只检查配置的字符串**（compose 把 `APP_IMAGE` 原样传成 `APP_IMAGE_DIGEST`），**不检查容器实际运行的镜像**。compose 里 `image:` 和 `APP_IMAGE_DIGEST` 来自同一个变量，所以正常流程下两者一致；它防的是「误用 tag / latest 部署」，不防有人手动 `docker run -e APP_IMAGE_DIGEST=…假 digest…`，也不做签名校验。不走 compose 又不设 `REQUIRE_PINNED_IMAGE` 时完全不检查。
+- **用 tag 部署时 app 会一直重启，这是设计如此（拒绝启动），不是崩溃**：`restart: unless-stopped` 下几秒内 RestartCount 就会涨到 5–6，日志是 `REQUIRE_PINNED_IMAGE=true but APP_IMAGE_DIGEST=… is not pinned by digest`。发布前先 `docker compose -f docker-compose.prod.yml config | grep image:` 核对，或先跑一次 `run --rm db-roles`（同样的检查，不通过立即退出）。
+
+## TRUSTED_PROXY_CIDRS 的已知限制
+
+- 只支持 IPv4 地址、IPv4 CIDR 和 `::1`；**IPv6 网段（如 `fd00::/8`）暂不支持**，写了会拒绝启动。现在的部署不需要 IPv6；以后给 `lushu_backend` 开 IPv6 时要先补这部分。
 
 ## 内存（1.4 GB 可用）
 
