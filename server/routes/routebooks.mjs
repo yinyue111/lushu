@@ -503,7 +503,8 @@ export const routebookRoutes = [
       throw createHttpError('分享路书不存在或已失效', 404, 'SHARE_NOT_FOUND');
     }
     if (unlisted) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    void recordFunnelEvent('share_open', { ref: id });
+    // 记在分享者名下，漏斗最后一步才是「这个人分享的东西被打开了」。
+    void recordFunnelEvent('share_open', { ref: id, profileId: routebook.profileId || '' });
     const publicRoutebook = { ...publicRoutebookView(routebook), visibility: unlisted ? 'unlisted' : 'public' };
     return sendJson(res, 200, {
       ok: true,

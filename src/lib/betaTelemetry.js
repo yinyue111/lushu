@@ -23,6 +23,38 @@ export function trackFunnel(event) {
   send('/funnel-events', { event, profileId: getProfile()?.id || '' });
 }
 
+/**
+ * 信任行为埋点（不去重，按次数）：route_view / confirm_open / source_open / fact_report / share_copy。
+ * @param {string} event @param {string} [ref]
+ */
+export function trackEvent(event, ref = '') {
+  send('/funnel-events', { event, ref: String(ref).slice(0, 40), profileId: getProfile()?.id || '' });
+}
+
+const OPENED_KEY = 'lushu:opened-routebooks';
+/** 打开路书：记一次 route_view；同一份路书隔天再打开记 revisit（只在本机记日期，不上传）。 @param {string} routeId */
+export function trackRouteOpen(routeId) {
+  if (!routeId) return;
+  const today = new Date().toISOString().slice(0, 10);
+  let seen = {};
+  try {
+    seen = JSON.parse(localStorage.getItem(OPENED_KEY) || '{}') || {};
+  } catch {
+    seen = {};
+  }
+  const last = seen[routeId];
+  if (last === today) return;
+  trackEvent('route_view', routeId);
+  if (last && last < today) trackEvent('revisit', routeId);
+  seen[routeId] = today;
+  const keep = Object.entries(seen).sort((a, b) => (a[1] < b[1] ? 1 : -1)).slice(0, 50);
+  try {
+    localStorage.setItem(OPENED_KEY, JSON.stringify(Object.fromEntries(keep)));
+  } catch {
+    /* ignore */
+  }
+}
+
 let reported = 0;
 const seen = new Set();
 /** @param {'render' | 'error' | 'unhandledrejection'} kind @param {any} error */

@@ -1,6 +1,6 @@
 // Ops dashboard, product analytics and creator profiles.
 import { countBy, sanitizePublicId, intersectSets, percent } from '../lib/util.mjs';
-import { buildActivationFunnel } from './funnelEvents.mjs';
+import { buildActivationFunnel, buildTrustBehavior, medianMinutesToFirstSuccess } from './funnelEvents.mjs';
 import { CLIENT_ERROR_LOG_PATH, FUNNEL_LOG_PATH } from '../config/index.mjs';
 import {
   CLICK_LOG_PATH,
@@ -199,6 +199,10 @@ export async function buildPlatformDashboard(limit = 1000) {
   const recentClientErrors = clientErrors.filter((row) => Date.parse(row.createdAt) >= asOf - 86_400_000);
   const funnel = {
     activation,
+    activationCohortSize: activation.cohortSize,
+    activationAnonymousEvents: activation.anonymousEvents,
+    timeToFirstSuccess: medianMinutesToFirstSuccess(funnelRows, aiLogs, { sinceMs: asOf - 30 * 86_400_000 }),
+    trustBehavior: buildTrustBehavior(funnelRows, { sinceMs: asOf - 30 * 86_400_000 }),
     clientErrors24h: recentClientErrors.length,
     latestClientErrors: recentClientErrors.slice(-5).reverse().map(({ kind, message, path, createdAt }) => ({ kind, message, path, createdAt })),
     generateAttempts,

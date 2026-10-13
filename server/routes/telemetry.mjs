@@ -2,7 +2,7 @@
 import { route } from '../http/router.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { consumeRateLimit, sendTelemetryThrottled } from '../http/rate-limit.mjs';
-import { CLIENT_FUNNEL_EVENTS, recordClientError, recordFunnelEvent } from '../analytics/funnelEvents.mjs';
+import { CLIENT_FUNNEL_EVENTS, CLIENT_TRUST_EVENTS, recordClientError, recordFunnelEvent } from '../analytics/funnelEvents.mjs';
 import { createHttpError, truncateString } from '../lib/util.mjs';
 import { normalizeProfileId } from '../auth/tokens.mjs';
 
@@ -12,8 +12,8 @@ export const telemetryRoutes = [
     const body = await readJsonBody(req);
     const event = truncateString(body?.event, 40);
     // 注册、分享打开只能由服务端记录，客户端不能伪造。
-    if (!CLIENT_FUNNEL_EVENTS.has(event)) throw createHttpError('不支持的漏斗事件', 400, 'FUNNEL_EVENT_INVALID');
-    await recordFunnelEvent(event, { profileId: normalizeProfileId(body?.profileId) });
+    if (!CLIENT_FUNNEL_EVENTS.has(event) && !CLIENT_TRUST_EVENTS.has(event)) throw createHttpError('不支持的漏斗事件', 400, 'FUNNEL_EVENT_INVALID');
+    await recordFunnelEvent(event, { profileId: normalizeProfileId(body?.profileId), ref: truncateString(body?.ref, 40) });
     return sendJson(res, 200, { ok: true });
   }),
   route('POST', '/api/client-errors', async ({ req, res }) => {

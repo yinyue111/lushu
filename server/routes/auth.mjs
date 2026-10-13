@@ -72,7 +72,7 @@ export const authRoutes = [
   post('/api/auth/register/code', sendRegisterCode),
   post('/api/auth/register', async (req, res, body) => {
     const result = await registerAccount(req, res, body);
-    await recordFunnelEvent('register_complete', { profileId: result?.account?.profileId || '' });
+    await recordFunnelEvent('register_complete', { profileId: result?.account?.profileId || '', aliasOf: String(body?.deviceProfile?.id ?? '') });
     return result;
   }),
   post('/api/auth/reset-password/code', sendResetCode),

@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/betaTelemetry.js';
 import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil,
   Replace, Trash2, TriangleAlert } from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
@@ -153,7 +154,10 @@ function StopRow({ stop, index, next, roadLeg, theme, selected, routeTrustTone, 
           {enrichment && <EnrichedFacts claims={enrichedClaims} onReport={enrichment.report} />}
           <StopTrustLine stop={stop} trust={trustBadge} verifiedCount={verifiedCount} approximate={approximate} className="mt-1.5" />
           {pendingFold && (
-            <details className="mt-2 rounded-card bg-canvas/80 px-2.5 py-1.5 text-sm text-ink-2 open:bg-canvas">
+            <details
+              className="mt-2 rounded-card bg-canvas/80 px-2.5 py-1.5 text-sm text-ink-2 open:bg-canvas"
+              onToggle={(event) => event.currentTarget.open && trackEvent('confirm_open')}
+            >
               <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">
                 出发前要确认的事
               </summary>

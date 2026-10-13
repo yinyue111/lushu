@@ -1,3 +1,4 @@
+import { trackRouteOpen } from '../../lib/betaTelemetry.js';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, CloudUpload, List, Map as MapIcon, Navigation } from 'lucide-react';
 import { recordProductExposure } from '../../lib/productTelemetry';
@@ -100,6 +101,8 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const { shareState, setShareState } = actions;
   const dismissToast = useCallback(() => setShareState(''), [setShareState]);
 
+  const openedRouteId = routebook?.publicId || routebook?.id || '';
+  useEffect(() => trackRouteOpen(openedRouteId), [openedRouteId]);
   useEffect(() => {
     if (dayStops.length && !dayStops.find((s) => stopKey(s.id) === stopKey(selectedId))) {
       setSelectedId(dayStops[0]?.id ?? null);

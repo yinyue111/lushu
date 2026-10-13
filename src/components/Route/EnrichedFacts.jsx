@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/betaTelemetry.js';
 import { useState } from 'react';
 import { BadgeCheck, ExternalLink } from 'lucide-react';
 
@@ -21,7 +22,7 @@ function EnrichedFact({ claim, onReport }) {
   const [state, setState] = useState('idle');
   return (
     <li className={claim.field === 'price' ? 'text-sm font-bold text-ink sm:text-copy' : 'text-meta text-ink-2 sm:text-sm'}>
-      <details className="group">
+      <details className="group" onToggle={(event) => event.currentTarget.open && trackEvent('source_open', claim.field)}>
         <summary className="inline-flex cursor-pointer list-none items-start gap-1.5 [&::-webkit-details-marker]:hidden">
           <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-success-ink" aria-hidden="true" />
           <span>
@@ -64,6 +65,7 @@ function EnrichedFact({ claim, onReport }) {
                 setState('sending');
                 try {
                   await onReport(claim);
+                  trackEvent('fact_report', claim.field);
                 } catch {
                   setState('idle');
                 }
