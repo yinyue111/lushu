@@ -746,36 +746,22 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         )}
       </div>
 
-            {defaults?.quotaWarning && step < 3 && (
-        <Notice className="mt-3" tone="warn">
-          {defaults.quotaWarning}
-        </Notice>
-      )}
-      {needsLogin && step < 3 && (
-        <Notice className="mt-3" tone="sky">
-          {step >= 1 ? '可以先填攻略和偏好；点生成时再登录，内容会留着。' : '可以先填着，生成时再登录也行。'}{' '}
-          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
-            现在登录
-          </button>
-        </Notice>
-      )}
-      {!needsLogin && !account && step >= 1 && step < 3 && (
-        <Notice className="mt-3" tone="sky">
-          登录后路书会存进账号，换设备也能看。{' '}
-          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
-            登录 / 注册
-          </button>
-        </Notice>
-      )}
-
-      {needsAccessCode && step < 3 && (
-        <Notice className="mt-3">
-          这个站点生成路书需要访问码。先在右上角「高级设置」里填好，再导入攻略、挑地点。{' '}
-          <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={openAccessCode}>
-            填写访问码
-          </button>
-        </Notice>
-      )}
+      {(() => {
+        // 合并原先叠在步骤上方的 3–4 条提示：只出一条，按「会挡住生成」的优先级排列。
+        if (step >= 3) return null;
+        const parts = [];
+        if (needsAccessCode) parts.push(<span key="code">这个站点要访问码才能生成。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={openAccessCode}>填写访问码</button></span>);
+        if (defaults?.quotaWarning) parts.push(<span key="quota">{defaults.quotaWarning}</span>);
+        if (!isTrustedCity && step > 0) parts.push(<span key="trial">{city} 暂时只能生成 AI 草稿，地点和营业时间出发前要自己确认。</span>);
+        if (needsLogin) parts.push(<span key="login">可以先填着，点生成时再登录，内容会留着。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>现在登录</button></span>);
+        else if (!account && step >= 1) parts.push(<span key="login">登录后路书存进账号，换设备也能看。 <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>登录 / 注册</button></span>);
+        if (!parts.length) return null;
+        return (
+          <Notice className="mt-3" tone={needsAccessCode || defaults?.quotaWarning ? 'warn' : 'sky'} data-testid="builder-notice">
+            <span className="flex flex-col gap-1">{parts}</span>
+          </Notice>
+        );
+      })()}
 
       <header className="mt-3">
         <span className="text-xs font-extrabold tracking-[0.08em] text-primary-strong">
@@ -802,7 +788,6 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         </Notice>
       )}
 
-      {!isTrustedCity && step > 0 && <Notice className="mt-5">{city} 暂时只能生成 AI 草稿：地点、营业时间和导航，出发前要自己确认一下。</Notice>}
 
       <div className="mt-8">
         {step === 0 && (
