@@ -76,7 +76,9 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
       signal: controller.signal
     });
     if (!response.ok) {
-      const text = await response.text().catch(() => '');
+      // 正文只进服务端日志（截断），不回给客户端。
+      const detail = (await response.text().catch(() => '')).slice(0, 200);
+      console.warn('[patch] model HTTP', response.status, detail);
       throw createHttpError(`模型调用失败：${response.status}`, 502, 'MODEL_HTTP_ERROR');
     }
     raw = await response.json();
