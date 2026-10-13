@@ -47,6 +47,17 @@ export function pageSupports(pageText, placeName, patterns) {
   return false;
 }
 
+/** 票价分淡旺季（或特殊日期另价）：单个数字会误导，保留待确认。 */
+export function pageHasSeasonalPrice(pageText, placeName) {
+  const text = compact(pageText);
+  const name = compact(placeName);
+  for (let i = text.indexOf(name); name && i >= 0; i = text.indexOf(name, i + name.length)) {
+    const window = text.slice(Math.max(0, i - 300), i + name.length + 300);
+    if (/(淡季|旺季)[^。；]{0,30}\d+\s*元/.test(window)) return true;
+  }
+  return false;
+}
+
 function display(field, value, sources, retrievedAt) {
   const first = sources[0];
   const firstName = first.kind === 'amap' ? '高德' : first.title || first.domain;
@@ -209,6 +220,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       const canonical = values[0];
       const patterns = field === 'hours' ? hoursEvidence(/** @type {string} */ (canonical)) : priceEvidence(canonical);
       const verified = [];
+      let seasonal = false;
       for (const w of webs) {
         // Only URLs the search really returned; the ones the model named for this field first.
         const named = (w.answer?.[`${field}Sources`] ?? []).filter((u) => w.cited.has(u));
@@ -225,9 +237,13 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           const domain = siteOf(new URL(url).hostname);
           if (verified.some((v) => v.domain === domain)) continue;
           const page = await fetchPage(url);
-          if (page.ok && pageSupports(page.text, name, patterns)) verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
+          if (page.ok && pageSupports(page.text, name, patterns)) {
+            if (field === 'price' && pageHasSeasonalPrice(page.text, name)) seasonal = true;
+            verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
+          }
         }
       }
+      if (seasonal) return { status: 'kept', reason: 'seasonal', reasonText: '票价分淡旺季，出发前按日期确认' };
       const value = field === 'hours' ? /** @type {string} */ (canonical) : priceDisplay(canonical);
       const at = retrievedAt();
       if (field === 'hours' && amapHours && amapHours !== canonical) {
