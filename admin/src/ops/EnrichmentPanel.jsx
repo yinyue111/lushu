@@ -5,7 +5,7 @@ import { EmptyState, ResourceNotice, formatOpsDate, useOpsResource } from './Ops
 const STATUS = { queued: '排队', running: '进行中', done: '完成', failed: '失败', skipped: '跳过' };
 const FIELD = { price: '门票', hours: '开放时间' };
 
-// 联网补全：只核对景点的门票和开放时间，两个来源一致才显示。这里看队列、花费、缓存和用户报错。
+// 联网核对：只核对景点的门票和开放时间，两个来源一致才显示。这里看队列、花费、缓存和用户报错。
 export default function EnrichmentPanel() {
   const resource = useOpsResource((signal) => getOpsEnrichment(signal));
   const data = resource.data?.enrichment;
@@ -15,14 +15,14 @@ export default function EnrichmentPanel() {
       <section className="ops-panel" aria-labelledby="ops-enrich-title">
         <div className="ops-panel-head">
           <div>
-            <h2 id="ops-enrich-title">联网补全</h2>
+            <h2 id="ops-enrich-title">联网核对</h2>
             <p className="text-caption">登录用户的路书生成后，后台核对景点门票和开放时间；两个独立来源一致才显示，否则保留“待确认”。</p>
           </div>
           <button className="btn btn-secondary btn-sm" type="button" onClick={resource.retry} disabled={resource.status === 'loading'}>
             <RefreshCw size={13} /> 刷新
           </button>
         </div>
-        <ResourceNotice resource={resource} label="联网补全统计" />
+        <ResourceNotice resource={resource} label="联网核对统计" />
         {data && !data.ready?.ready && <EmptyState>没有在运行：{data.ready?.reason || '未开启'}</EmptyState>}
         {data && (
           <>

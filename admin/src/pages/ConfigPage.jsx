@@ -3,7 +3,7 @@ import { can } from '../../../server/admin/permissions.mjs';
 import { adminGet, adminPost } from '../api';
 import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inputClass, useLoad } from '../ui';
 
-const GROUPS = { model: '模型', registration: '注册', cities: '开放区域与首页城市', quota: '额度与花费', enrich: '联网补全', admin: '后台安全' };
+const GROUPS = { model: '模型', registration: '注册', cities: '开放区域与首页城市', quota: '额度与花费', enrich: '联网核对', admin: '后台安全' };
 const SOURCE = { db: '后台设置', env: '环境变量' };
 const SECRET_STATE = { db: '已设置（后台）', env: '已设置（环境变量）', unset: '未设置' };
 const show = (value, max = 0) => {

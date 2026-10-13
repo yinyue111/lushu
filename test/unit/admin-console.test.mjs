@@ -117,7 +117,7 @@ test('two-source switch off needs explicit confirmation; home cities must be ope
 });
 
 test('secrets are write-only: config view and export never contain the value', async () => {
-  await svc.saveConfig({ admin, req, secrets: { 'enrich.apiKey': 'sk-very-secret-value-1' }, reason: '换补全 key' });
+  await svc.saveConfig({ admin, req, secrets: { 'enrich.apiKey': 'sk-very-secret-value-1' }, reason: '换核对 key' });
   const view = await svc.configView();
   const exported = await svc.exportConfig();
   const audits = await adminStore().listAudit({});
@@ -184,7 +184,10 @@ test('corrections: report → queue with sources; reset / verify (source require
   await store.putResult('rb-b', [claim('s9')]);
   await store.putCache('苏州|拙政园|price', { status: 'filled', value: '80 元' }, new Date(Date.now() + 86400000).toISOString());
 
-  assert.deepEqual(await reportEnrichment({ routebookId: 'rb-a', stopKey: 's1', field: 'price', note: '淡季 70', userId: 'u1' }), { ok: true });
+  const receipt = await reportEnrichment({ routebookId: 'rb-a', stopKey: 's1', field: 'price', note: '淡季 70', userId: 'u1' });
+  assert.equal(receipt.ok, true);
+  assert.ok(receipt.receiptId);
+  assert.equal((await store.getResult('rb-a')).claims.find((c) => c.stopKey === 's1').status, 'reported', 'stays visible as 已反馈待复核');
   let [item] = await listCorrectionQueue({ status: 'open' });
   assert.equal(item.city, '苏州');
   assert.equal(item.sources[0].url, 'https://example.gov.cn/a');
@@ -226,6 +229,9 @@ test('corrections: report → queue with sources; reset / verify (source require
   const verified = (await store.getResult('rb-a')).claims[0];
   assert.equal(verified.method, 'ops-verified');
   assert.match(verified.display, /人工核实 · \d{4}-\d{2}-\d{2}/);
+  const sibling = (await store.getResult('rb-b')).claims[0];
+  assert.equal(sibling.value, '淡季 70 元', 'a verified value applies to every routebook with that place (cache key)');
+  assert.equal(sibling.method, 'ops-verified');
   const fact = await verifiedFactClaim('苏州|拙政园|price');
   assert.equal(fact.value, '淡季 70 元');
   assert.ok(Date.parse(fact.expiresAt) - Date.now() > 89 * 86400000, 'manual verification lasts 90 days by default');

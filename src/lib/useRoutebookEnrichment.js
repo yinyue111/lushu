@@ -78,8 +78,10 @@ export function useRoutebookEnrichment(routebook) {
 
   const report = useCallback(
     async (claim, note = '') => {
-      await reportRoutebookEnrichment(routeId, { stopKey: claim.stopKey, field: claim.field, note, editToken });
-      setState((prev) => ({ ...prev, claims: prev.claims.filter((c) => !(c.stopKey === claim.stopKey && c.field === claim.field)) }));
+      const response = await reportRoutebookEnrichment(routeId, { stopKey: claim.stopKey, field: claim.field, note, editToken });
+      // The value stays visible, marked 「已反馈待复核」, until an operator reviews it.
+      setState((prev) => ({ ...prev, claims: prev.claims.map((c) => (c.stopKey === claim.stopKey && c.field === claim.field ? { ...c, reported: true } : c)) }));
+      return response;
     },
     [routeId, editToken]
   );

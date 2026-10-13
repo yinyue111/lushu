@@ -40,7 +40,7 @@ const OPS_TABS = [
   { id: 'products', label: '商品看板', icon: MousePointerClick },
   { id: 'versions', label: '路书版本', icon: History },
   { id: 'logs', label: 'AI 日志', icon: Bot },
-  { id: 'enrichment', label: '联网补全', icon: SearchCheck },
+  { id: 'enrichment', label: '联网核对', icon: SearchCheck },
   { id: 'config', label: '配置', icon: Settings }
 ];
 const TAB_IDS = new Set(OPS_TABS.map((tab) => tab.id));

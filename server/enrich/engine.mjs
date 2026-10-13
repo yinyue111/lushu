@@ -24,7 +24,7 @@ const MAX_PAGES_PER_ROUTEBOOK = 80;
 const TICKETED = /(寺|庙|道观|祠|宫|塔|阁|园|博物馆|纪念馆|美术馆|故居|遗址|陵|景区|古镇|城墙|乐园)$/;
 const FREE_STREET = /(街|巷|路|坊|广场|桥|堤|码头|夜市|步行街)$/;
 
-/** 补全顺序：0 收票/要预约的景点，1 其他，2 免费街区。 */
+/** 核对顺序：0 收票/要预约的景点，1 其他，2 免费街区。 */
 export function enrichPriority(stop) {
   const name = String(stop?.name ?? '').trim();
   const notes = `${stop?.verify ?? ''}${stop?.risk ?? ''}${stop?.cost ?? ''}`;
@@ -291,7 +291,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       else if (budget.usd + projected > ENRICH_MAX_USD_PER_ROUTEBOOK + 1e-9) budget.stoppedBy = 'routebook-usd';
       else if (spend.usd + projected > ENRICH_DAILY_BUDGET_USD + 1e-9) {
         budget.stoppedBy = 'daily-usd';
-        void raiseAlert('enrich-daily-budget', `联网补全今日预算用完：$${spend.usd.toFixed(2)} / $${ENRICH_DAILY_BUDGET_USD}`);
+        void raiseAlert('enrich-daily-budget', `联网核对今日预算用完：$${spend.usd.toFixed(2)} / $${ENRICH_DAILY_BUDGET_USD}`);
       } else {
         let result;
         try {
@@ -309,10 +309,10 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
         counts.searches += 1;
         counts.usd += usd;
         await store.addSpend({ usd, searches: 1 }, now());
-        // 补全花费计入当日预算（每份路书实测约 $0.5）；到 80% 先提醒一次。
+        // 核对花费计入当日预算（每份路书实测约 $0.5）；到 80% 先提醒一次。
         const spentToday = spend.usd + usd;
         if (ENRICH_DAILY_BUDGET_USD > 0 && spentToday >= ENRICH_DAILY_BUDGET_USD * ENRICH_BUDGET_ALERT_RATIO) {
-          void raiseAlert('enrich-budget-high', `联网补全今日已花 $${spentToday.toFixed(2)}，预算 $${ENRICH_DAILY_BUDGET_USD}`);
+          void raiseAlert('enrich-budget-high', `联网核对今日已花 $${spentToday.toFixed(2)}，预算 $${ENRICH_DAILY_BUDGET_USD}`);
         }
         return result;
       }

@@ -385,7 +385,7 @@ export const JEV_SHADOW_MAX_IN_FLIGHT = envNumber('JEV_SHADOW_MAX_IN_FLIGHT', 8,
 
 // Background fact enrichment (logged-in users only): after a routebook is saved, ticket price / 免费 and
 // opening hours of scenic stops are looked up (AMap first, then web search through the relay's Responses
-// API) and kept only when two independent sources agree. See docs/deploy.md「联网补全」.
+// API) and kept only when two independent sources agree. See docs/deploy.md「联网核对」.
 export const ENRICH_ENABLED = envFlag('ENRICH_ENABLED', false);
 export const ENRICH_BUDGET_ALERT_RATIO = envNumber('ENRICH_BUDGET_ALERT_RATIO', 0.8, { min: 0.1, max: 1 });
 export const ENRICH_MODEL = String(process.env.ENRICH_MODEL ?? 'grok-4.7').trim();

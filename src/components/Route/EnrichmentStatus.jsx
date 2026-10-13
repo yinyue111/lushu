@@ -8,7 +8,7 @@ function etaText(seconds) {
   return `大约还要 ${Math.round(seconds / 60)} 分钟`;
 }
 
-/** 补全进度和结果：在等什么、大概多久、查完不用刷新就提示。 */
+/** 核对进度和结果：在等什么、大概多久、查完不用刷新就提示。 */
 export default function EnrichmentStatus({ enrichment }) {
   const [dismissed, setDismissed] = useState(false);
   const { status, progress, etaSeconds, justFinished, gaveUp } = enrichment;
@@ -20,7 +20,7 @@ export default function EnrichmentStatus({ enrichment }) {
       <div role="status" className="mb-3 rounded-card bg-sky-soft px-3 py-2 text-meta text-sky-ink sm:text-sm">
         <p className="flex items-center gap-2 font-semibold">
           <span className="size-2 rounded-full bg-sky motion-safe:animate-pulse" aria-hidden="true" />
-          正在帮你查票价和开放时间
+          核对中：正在帮你查票价和开放时间
         </p>
         <p className="mt-0.5 pl-4">
           {gaveUp

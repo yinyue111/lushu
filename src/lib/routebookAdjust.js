@@ -80,7 +80,7 @@ export function setStopTransportMode(stops, stopId, mode) {
 
 /**
  * 换店：新站只继承「排在哪、待多久」（id、day、time、stay、交通方式），
- * 旧店的价格、预约、风险、营业时间、攻略来源一律不带过来，改成「待确认」，保存后重新补全。
+ * 旧店的价格、预约、风险、营业时间、攻略来源一律不带过来，改成「待确认」，保存后重新核对。
  * 坐标只有来自高德 / 已审核地点库的候选才算精确、才能导航。
  */
 export function replaceStopWithPoi(stops, stopId, poi, { city = undefined } = {}) {

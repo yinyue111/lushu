@@ -170,8 +170,8 @@ export const RUNTIME_SCHEMA = {
     env: () => (['auto', 'on', 'off'].includes(String(process.env.COST_CAP_MODE)) ? String(process.env.COST_CAP_MODE) : 'auto'),
     default: 'auto'
   },
-  'enrich.enabled': { type: 'bool', label: '联网补全开关', group: 'enrich', role: 'admin', env: () => ENRICH_ENABLED, default: false },
-  'enrich.model': { type: 'string', label: '补全模型', group: 'enrich', role: 'admin', env: () => ENRICH_MODEL, default: 'grok-4.7' },
+  'enrich.enabled': { type: 'bool', label: '联网核对开关', group: 'enrich', role: 'admin', env: () => ENRICH_ENABLED, default: false },
+  'enrich.model': { type: 'string', label: '核对模型', group: 'enrich', role: 'admin', env: () => ENRICH_MODEL, default: 'grok-4.7' },
   'enrich.maxSearchesPerRun': {
     type: 'int',
     label: '每本路书最多联网查询次数（地点×字段）',
@@ -182,8 +182,8 @@ export const RUNTIME_SCHEMA = {
     env: () => ENRICH_MAX_SEARCHES_PER_ROUTEBOOK,
     default: 12
   },
-  'enrich.baseUrl': { type: 'url', label: '补全 base URL（空 = 用 env）', group: 'enrich', role: 'admin', env: () => ENRICH_BASE_URL, default: '' },
-  'enrich.concurrency': { type: 'int', label: '补全并发', group: 'enrich', role: 'admin', min: 1, max: 10, env: () => ENRICH_CONCURRENCY, default: 2 },
+  'enrich.baseUrl': { type: 'url', label: '核对 base URL（空 = 用 env）', group: 'enrich', role: 'admin', env: () => ENRICH_BASE_URL, default: '' },
+  'enrich.concurrency': { type: 'int', label: '核对并发', group: 'enrich', role: 'admin', min: 1, max: 10, env: () => ENRICH_CONCURRENCY, default: 2 },
   'enrich.maxStopsPerRun': int('每本路书最多查几个站（0 = 不限）', 'enrich', 0, 100, () => envNumber('ENRICH_MAX_STOPS_PER_ROUTEBOOK', 0, { min: 0 }), 0),
   'enrich.requireTwoSources': {
     type: 'bool',
@@ -196,7 +196,7 @@ export const RUNTIME_SCHEMA = {
   },
   'enrich.dailyBudgetUsd': {
     type: 'number',
-    label: '补全日预算（USD）',
+    label: '核对日预算（USD）',
     group: 'enrich',
     role: 'admin',
     min: 0,
@@ -206,7 +206,7 @@ export const RUNTIME_SCHEMA = {
   },
   'enrich.budgetAlertRatio': {
     type: 'number',
-    label: '补全预算告警比例',
+    label: '核对预算告警比例',
     group: 'enrich',
     role: 'admin',
     min: 0.1,
@@ -226,7 +226,7 @@ export const RUNTIME_SCHEMA = {
 export const SECRET_SCHEMA = {
   'provider.fast.apiKey': { label: '轻快档 API Key', env: () => String(process.env.OPENAI_API_KEY ?? '').trim(), model: true },
   'provider.deep.apiKey': { label: '细品档 API Key', env: () => String(process.env.OPENAI_API_KEY ?? '').trim(), model: true },
-  'enrich.apiKey': { label: '补全 API Key', env: () => String(process.env.ENRICH_API_KEY ?? process.env.OPENAI_API_KEY ?? '').trim() }
+  'enrich.apiKey': { label: '核对 API Key', env: () => String(process.env.ENRICH_API_KEY ?? process.env.OPENAI_API_KEY ?? '').trim() }
 };
 
 /** Validates one value; throws ConfigValueError. Returns the normalized value. */

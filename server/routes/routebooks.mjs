@@ -345,7 +345,7 @@ export const routebookRoutes = [
     });
   }),
   route('GET', '/api/routebooks/:id/enrichment', async ({ req, res, params }) => {
-    // 联网补全（门票/开放时间）的结果：和路书详情同样的读权限。
+    // 联网核对（门票/开放时间）的结果：和路书详情同样的读权限。
     enforceRateLimit(req, 'public-read');
     const { savedRoutebook } = await readableRoutebook(req, params.id);
     return sendJson(res, 200, { ok: true, enrichment: await enrichmentView(savedRoutebook) });
@@ -365,7 +365,7 @@ export const routebookRoutes = [
       userId: account?.user?.id ?? null
     });
     if (!result.ok) throw createHttpError('这条信息已经不在了', 404, 'ENRICHMENT_NOT_FOUND');
-    return sendJson(res, 200, { ok: true });
+    return sendJson(res, 200, { ok: true, receiptId: result.receiptId, already: Boolean(result.already) });
   }),
 
   route('POST', '/api/routebooks/:id/patch/propose', async ({ req, res, params }) => {
@@ -484,7 +484,7 @@ export const routebookRoutes = [
       const renamed = Boolean(previous) && (savedRoutebook.stops ?? []).some((stop) => !previousNames.has(String(stop.name ?? '').trim()));
       return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook), renamedStops: renamed };
     });
-    // 换店、改名后重新排队补全（只对登录用户；新站点的门票/开放时间重新查，不沿用旧店）。
+    // 换店、改名后重新排队核对（只对登录用户；新站点的门票/开放时间重新查，不沿用旧店）。
     if (renamedStops) {
       const account = await requestAccount(req).catch(() => null);
       if (account?.user?.id) void enqueueEnrichment({ routebookId: routebook.publicId || routebook.id, userId: account.user.id, refresh: true });

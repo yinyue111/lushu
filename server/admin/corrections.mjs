@@ -144,7 +144,7 @@ export async function applyCorrection(input) {
       let touched = false;
       const next = claims.map((c) => {
         const match = id === routebookId && !input.batch ? c.stopKey === stopKey && c.field === field : c.cacheKey === cacheKey;
-        if (!match || c.status !== 'filled') return c;
+        if (!match || (c.status !== 'filled' && c.status !== 'reported')) return c;
         touched = true;
         return { ...c, status: 'disputed', resetBy: admin.username, resetAt: now };
       });
@@ -217,11 +217,40 @@ export async function applyCorrection(input) {
         expiresAt: new Date(Date.now() + getConfig('enrich.verifiedFactDays') * 86400000).toISOString()
       });
     }
-    detail = { before: brief(before), after: brief(after), sources: sources.map((s) => s.url) };
+    // The verified value belongs to the place, not one routebook: every routebook whose claim shares the
+    // cache key (city|place|field) shows it now, not only after its next enrichment.
+    const propagated = [];
+    if (after.cacheKey) {
+      const store = enrichStore();
+      for (const id of await store.routebooksWithCacheKey(after.cacheKey)) {
+        if (id === routebookId) continue;
+        const result = await store.getResult(id);
+        let touched = false;
+        const next = (result?.claims ?? []).map((c) => {
+          if (c.cacheKey !== after.cacheKey || c.field !== field) return c;
+          touched = true;
+          const { reportId: _drop, ...rest } = c;
+          return { ...rest, status: 'filled', value, display: after.display, sources: after.sources, retrievedAt: now, method: 'ops-verified', verifiedBy: admin.username, verifiedAt: now, conditions: [] };
+        });
+        if (touched) {
+          await store.putResult(id, next);
+          propagated.push(id);
+        }
+      }
+      // Open reports about the same place are answered by this verification too.
+      const states = await adminStore().reportStates();
+      for (const other of await store.listReports({ limit: 1000 })) {
+        if (other.id !== report?.id && other.cacheKey === after.cacheKey && other.field === field) {
+          const state = states.get(other.id);
+          if (!state || state.status === 'open') await adminStore().setReportState(other.id, { status: 'resolved', resolvedBy: admin.username, resolvedAt: now });
+        }
+      }
+    }
+    detail = { before: brief(before), after: brief(after), sources: sources.map((s) => s.url), routebooks: [routebookId, ...propagated] };
   } else if (input.action === 'reject') {
     if (!report) throw createHttpError('驳回需要针对一条报错', 400, 'ADMIN_REJECT_NEEDS_REPORT');
     const { before, after } = await setClaim(routebookId, stopKey, field, (prev) =>
-      prev && prev.status === 'disputed' ? { ...prev, status: 'filled' } : prev
+      prev && (prev.status === 'disputed' || prev.status === 'reported') ? { ...prev, status: 'filled', reportId: undefined } : prev
     );
     detail = { before: brief(before), after: brief(after) };
   } else {

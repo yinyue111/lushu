@@ -10,10 +10,10 @@ import { authEnv, createClient, signUpWithEmail } from '../helpers/accounts.mjs'
 // Background 门票/开放时间 enrichment end to end with a mock model, mock AMap, mock relay web search and
 // mock cited pages: only logged-in users' routebooks are queued; only scenic stops are filled, and only
 // with two agreeing sources; a chain and a conflict stay 待确认; a transient relay error is retried;
-// the queue survives a restart; a "wrong" report hides the value; ops sees the stats.
+// the queue survives a restart; a "wrong" report marks the value 已反馈待复核; ops sees the stats.
 const PASSWORD = '西湖边走一走2026';
 const generated = {
-  title: '联网补全测试',
+  title: '联网核对测试',
   city: '杭州',
   days: ['第1天'],
   stops: [
@@ -169,13 +169,16 @@ test('logged-in routebooks are enriched in the background with sourced 门票/�
   const book = (await user.request(`/api/routebooks/${id}`)).data.routebook;
   assert.equal(book.stops[0].cost, '门票待确认');
 
-  // "This is wrong": hidden on this routebook, cache entry dropped, ops sees the report.
+  // "This is wrong" (with a note): a receipt comes back, the value stays visible marked 「已反馈待复核」,
+  // cache entry dropped, ops sees the report. Reporting again just returns the same receipt.
   const reported = await user.post(`/api/routebooks/${id}/enrichment/report`, { stopKey: claim('灵隐寺', 'price').stopKey, field: 'price', note: '现场收费' });
   assert.equal(reported.status, 200, JSON.stringify(reported.data));
-  assert.equal(
-    (await read()).enrichment.claims.find((c) => c.stopName === '灵隐寺' && c.field === 'price'),
-    undefined
-  );
+  assert.ok(reported.data.receiptId);
+  const kept = (await read()).enrichment.claims.find((c) => c.stopName === '灵隐寺' && c.field === 'price');
+  assert.equal(kept?.reported, true);
+  const again = await user.post(`/api/routebooks/${id}/enrichment/report`, { stopKey: claim('灵隐寺', 'price').stopKey, field: 'price' });
+  assert.equal(again.data.receiptId, reported.data.receiptId);
+  assert.equal(again.data.already, true);
 
   const ops = await createClient(server.baseUrl).request('/api/ops/enrichment', { headers: adminHeaders() });
   assert.equal(ops.status, 200, JSON.stringify(ops.data));

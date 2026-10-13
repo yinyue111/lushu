@@ -184,7 +184,7 @@ export function guardRoutebookFacts(routebook, source) {
       next.costInfo = { ...stop.costInfo, text: guard(stop.costInfo.text, `stops[${index}].costInfo.text`) };
     }
     // v3: 记下价格的依据。攻略里写了的（数字已经过守卫，「免费」要在攻略里出现）算 guide；
-    // 其余是模型凭记忆写的（如「免费」），要交给补全核对，没核对前界面显示「价格待确认」。
+    // 其余是模型凭记忆写的（如「免费」），要交给核对核对，没核对前界面显示「价格待确认」。
     if (!priceRemoved && next.costInfo && typeof next.costInfo === 'object') {
       const costText = String(next.cost ?? '');
       const freeClaim = /免费/.test(costText) || next.costInfo.free === true;

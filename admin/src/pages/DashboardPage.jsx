@@ -41,7 +41,7 @@ export default function DashboardPage() {
             <p className="text-3xl font-semibold">{d.cost.lowerBound ? `至少 ${usd(d.cost.totalUsd)}` : usd(d.cost.totalUsd)}</p>
             {d.cost.lowerBound && <p className="mt-1 text-sm font-semibold text-warn-ink">另有 {d.cost.unknownCostCount} 次没有单价（没算进上面的金额）</p>}
             <p className="mt-1 text-sm text-muted">
-              生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网补全 {usd(d.cost.enrichUsd)}
+              生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网核对 {usd(d.cost.enrichUsd)}
             </p>
             <p className="mt-1 text-sm text-muted">
               {d.cost.dailyLimitUsd ? `日上限 ${usd(d.cost.dailyLimitUsd)}，已用 ${percent(d.cost.ratio)}` : '未设日上限'}

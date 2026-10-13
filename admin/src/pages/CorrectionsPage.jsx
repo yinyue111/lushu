@@ -13,7 +13,7 @@ export default function CorrectionsPage({ admin }) {
   const set = (key) => (event) => setFilters((f) => ({ ...f, [key]: event.target.value }));
   const items = data?.items ?? [];
   return (
-    <Page title="纠错队列" description="用户报错和联网补全结果。设为核实值必须附来源链接和查询日期；不确定就改回「待确认」。">
+    <Page title="纠错队列" description="用户报错和联网核对结果。设为核实值必须附来源链接和查询日期；不确定就改回「待确认」。">
       <Card title="筛选">
         <div className="grid gap-3 sm:grid-cols-4">
           <Field label="状态">
@@ -85,7 +85,7 @@ function CorrectionItem({ item, admin, onDone }) {
         <div>
           <dt className="inline text-muted">状态：</dt>
           <dd className="inline">
-            {STATUS[item.status] ?? item.status} · 补全结果 {item.claimStatus}
+            {STATUS[item.status] ?? item.status} · 核对结果 {item.claimStatus}
             {item.method ? ` · ${item.method}` : ''}
           </dd>
         </div>
@@ -151,7 +151,7 @@ function CorrectionItem({ item, admin, onDone }) {
             }
           />
           <ReasonAction label="驳回报错" onSubmit={act('reject')} />
-          <ReasonAction label="重跑联网补全" onSubmit={act('rerun')} />
+          <ReasonAction label="重跑联网核对" onSubmit={act('rerun')} />
         </div>
       )}
       {item.resolvedBy && (

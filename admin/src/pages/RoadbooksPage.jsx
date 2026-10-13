@@ -11,7 +11,7 @@ export default function RoadbooksPage() {
   const failures = useLoad(() => adminGet(`/failures${query({ profileId: filters.profileId })}`), [filters.profileId]);
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event.target.value }));
   return (
-    <Page title="路书" description="按路书 ID、城市或用户 profile 查。可下架分享链接、重跑联网补全。">
+    <Page title="路书" description="按路书 ID、城市或用户 profile 查。可下架分享链接、重跑联网核对。">
       <Card>
         <form
           className="grid gap-3 sm:grid-cols-4"
@@ -79,7 +79,7 @@ function RoadbookCard({ rb, onDone }) {
           <dd className="inline">{rb.generation ? `${rb.generation.mode || '—'} · ${rb.generation.model || '—'} · ${rb.generation.status}` : '无记录'}</dd>
         </div>
         <div>
-          <dt className="inline text-muted">联网补全：</dt>
+          <dt className="inline text-muted">联网核对：</dt>
           <dd className="inline">
             {rb.enrichment
               ? `${rb.enrichment.status} · 补到 ${rb.enrichment.filled} 项 · 留待确认 ${rb.enrichment.kept} 项${rb.enrichment.lastError ? ` · ${rb.enrichment.lastError}` : ''}`
@@ -96,7 +96,7 @@ function RoadbookCard({ rb, onDone }) {
         </div>
       </dl>
       <div className="mt-3 flex flex-wrap items-start gap-2">
-        <ReasonAction label="重跑联网补全" onSubmit={act('rerun-enrichment')} />
+        <ReasonAction label="重跑联网核对" onSubmit={act('rerun-enrichment')} />
         {(rb.status === 'public' || rb.status === 'friend-link') && <ReasonAction label="下架分享链接" variant="danger" onSubmit={act('take-down')} />}
       </div>
     </Card>

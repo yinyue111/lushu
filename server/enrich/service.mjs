@@ -22,7 +22,7 @@ export async function enqueueEnrichment({ routebookId, userId, refresh = false }
   try {
     const store = enrichStore();
     let { job, created } = await store.enqueue({ routebookId, userId });
-    // 换店 / 改名后：已结束的任务重新排队，新站点会被补全（旧店的结果按站名匹配，不会挂到新店上）。
+    // 换店 / 改名后：已结束的任务重新排队，新站点会被核对（旧店的结果按站名匹配，不会挂到新店上）。
     if (refresh && !created && job && !['queued', 'running'].includes(job.status)) {
       job = await store.updateJob(routebookId, { status: 'queued', nextAttemptAt: new Date().toISOString(), leaseUntil: null, lastError: '' });
     }
@@ -47,8 +47,10 @@ export async function enrichmentView(routebook) {
   const result = await store.getResult(id);
   const names = new Map((routebook.stops ?? []).map((stop, index) => [stopKeyOf(stop, index), String(stop.name ?? '').trim()]));
   const claims = (result?.claims ?? [])
-    .filter((c) => c.status === 'filled' && names.get(c.stopKey) === c.stopName)
-    .map(({ stopKey, stopName, field, value, display, sources, retrievedAt, method, conditions }) => ({
+    .filter((c) => (c.status === 'filled' || c.status === 'reported') && names.get(c.stopKey) === c.stopName)
+    .map(({ stopKey, stopName, field, value, display, sources, retrievedAt, method, conditions, status: claimStatus }) => ({
+      // 「已反馈待复核」: a user said it is wrong; it stays visible, marked, until an operator reviews it.
+      ...(claimStatus === 'reported' ? { reported: true } : {}),
       stopKey,
       stopName,
       field,
@@ -93,19 +95,26 @@ export async function enrichmentView(routebook) {
   return { status, claims, progress, updatedAt: result?.updatedAt ?? job.updatedAt };
 }
 
-/** A user says an enriched value is wrong: hide it on this routebook and drop the shared cache entry. */
+/**
+ * A user says a checked value is wrong: it stays on this routebook marked 「已反馈待复核」 (status 'reported')
+ * until an operator verifies, resets (→ 待确认) or rejects it; the shared cache entry is dropped so new
+ * routebooks do not pick the questioned value up. Returns a receipt id.
+ */
 export async function reportEnrichment({ routebookId, stopKey, field, note = '', userId = null }) {
   const store = enrichStore();
   const result = await store.getResult(routebookId);
+  const already = result?.claims?.find((c) => c.stopKey === stopKey && c.field === field && c.status === 'reported');
+  if (already) return { ok: true, receiptId: already.reportId ?? '', already: true };
   const claim = result?.claims?.find((c) => c.stopKey === stopKey && c.field === field && c.status === 'filled');
   if (!claim) return { ok: false };
+  const id = cryptoRandomId();
   await store.putResult(
     routebookId,
-    result.claims.map((c) => (c === claim ? { ...c, status: 'disputed' } : c))
+    result.claims.map((c) => (c === claim ? { ...c, status: 'reported', reportId: id } : c))
   );
   if (claim.cacheKey) await store.deleteCache(claim.cacheKey);
   await store.addReport({
-    id: cryptoRandomId(),
+    id,
     routebookId,
     stopKey,
     field,
@@ -115,7 +124,7 @@ export async function reportEnrichment({ routebookId, stopKey, field, note = '',
     createdAt: new Date().toISOString(),
     value: claim.value
   });
-  return { ok: true };
+  return { ok: true, receiptId: id };
 }
 
 // ---------------------------------------------------------------- worker
