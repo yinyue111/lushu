@@ -220,7 +220,7 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
       return quotaResets.get(profileId)?.resetAt ?? null;
     },
     async notifyConfigChanged() {},
-    async ping() {},
+    async ping() {}
   };
 }
 

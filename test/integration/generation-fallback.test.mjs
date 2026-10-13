@@ -122,7 +122,8 @@ test('轻快 never falls back to 细品 by default (轻快 failing just fails)',
     body: JSON.stringify({ city: '杭州', guide: 'BOTHFAIL 轻快失败', mode: 'fast' })
   });
   let job = data.job;
-  for (let i = 0; i < 60 && job.status === 'running'; i += 1) job = (await fetchJson(`${server.baseUrl}/api/generation-jobs/${job.jobId}?after=${job.seq}`, { headers })).data.job;
+  for (let i = 0; i < 60 && job.status === 'running'; i += 1)
+    job = (await fetchJson(`${server.baseUrl}/api/generation-jobs/${job.jobId}?after=${job.seq}`, { headers })).data.job;
   assert.equal(job.status, 'failed');
   assert.deepEqual(calls, ['fast-model-x']);
   assert.equal(job.error.suggestFast, false);

@@ -108,7 +108,11 @@ try {
   const me = await get('/api/admin/me');
   assert.equal(me.status, 503, JSON.stringify(me.data));
   assert.equal(me.data.code, 'ADMIN_SCHEMA_MISSING');
-  const login = await get('/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'x', password: 'y' }) });
+  const login = await get('/api/admin/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'x', password: 'y' })
+  });
   assert.equal(login.status, 503, JSON.stringify(login.data));
   assert.equal(child.exitCode, null, 'still running');
   console.log('PostgreSQL v11 compatibility passed: new code on schema 11 serves the user app; admin console reports ADMIN_SCHEMA_MISSING');
