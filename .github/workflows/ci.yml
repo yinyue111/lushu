@@ -56,5 +56,9 @@ jobs:
         run: npm run test:postgres-runtime
       - name: New code still runs on schema v11 (rollback = swap image)
         run: npm run test:postgres-v11
+      - name: App DB role is not the owner (existing v12 DB built by the superuser)
+        run: npm run test:postgres-app-role
+        env:
+          ROLE_TEST_OWNER_URL: postgres://routebook_ci:routebook_ci@127.0.0.1:5432/postgres
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high

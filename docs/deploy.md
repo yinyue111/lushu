@@ -7,24 +7,44 @@
 | 文件 | 用途 |
 | --- | --- |
 | `Dockerfile` | 两阶段构建：`npm ci` + `vite build` + `npm prune --omit=dev`；运行镜像 `node:22-slim`，非 root（`node` 用户），只有 `/data` 可写，`HEALTHCHECK` 访问 `/api/live` |
-| `docker-compose.prod.yml` | `db`（postgres:16，`pgdata` 卷）+ `app`（`127.0.0.1:3080:3080`，`env_file: .env`，`appdata` 卷挂到 `/data`）+ 一次性 `migrate`（profile `tools`） |
-| `docs/deploy.env.example` | `.env` 模板，只有变量名，没有任何密钥 |
+| `docker-compose.prod.yml` | `db`（postgres:16，`pgdata` 卷）+ `app`（`127.0.0.1:3080:3080`，`env_file: app.env`，`appdata` 卷挂到 `/data`）+ 一次性 `migrate`（profile `tools`） |
+| `docs/deploy.compose.env.example` | `.env` 模板（compose 变量替换用）：`APP_IMAGE`、owner 密码、应用角色密码 |
+| `docs/deploy.env.example` | `app.env` 模板（应用设置），只有变量名，没有任何密钥；不含数据库密码 |
 
 ## 首次上线
 
 ```bash
-cp docs/deploy.env.example .env && chmod 600 .env   # 填好密钥（见下方变量表）
-# APP_IMAGE = CI 构建的镜像（.github/workflows/image.yml），按 digest 固定，写进 .env：
+cp docs/deploy.compose.env.example .env && chmod 600 .env   # APP_IMAGE、两个数据库密码（见「数据库角色」）
+cp docs/deploy.env.example app.env && chmod 600 app.env     # 应用设置（见下方变量表）
+# APP_IMAGE = CI 构建的镜像（.github/workflows/image.yml），按 digest 固定：
 #   APP_IMAGE=ghcr.io/<owner>/lushu-app@sha256:<digest>
 # 服务器上不构建镜像，也不用 latest。
 docker compose -f docker-compose.prod.yml pull app
 docker compose -f docker-compose.prod.yml up -d db
-docker compose -f docker-compose.prod.yml run --rm migrate   # 建表 → 空数据回填 → 标记就绪
-docker compose -f docker-compose.prod.yml up -d app
+docker compose -f docker-compose.prod.yml run --rm migrate   # owner：建表 → 空数据回填 → 标记就绪 → 建应用角色并授权
+docker compose -f docker-compose.prod.yml up -d app          # 应用用 APP_DB_USER 连库
 curl -fsS http://127.0.0.1:3080/api/ready                     # storage.ready=true 才算好
 ```
 
-`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本：把 `.env` 里的 `APP_IMAGE` 换成新 digest（旧 digest 记进部署记录，用于回滚）→ `pull app` → `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）+ `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
+`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本：把 `.env` 里的 `APP_IMAGE` 换成新 digest（旧 digest 记进部署记录，用于回滚）→ `pull app` → **先** `up -d app`（新代码兼容上一版 schema）→ 观察 → `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）。回滚：`APP_IMAGE` 换回旧 digest → `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
+
+## 数据库角色（owner 和应用分开）
+
+两条连接，两个角色：
+
+| 角色 | 谁用 | 连接 | 权限 |
+| --- | --- | --- | --- |
+| owner（`POSTGRES_USER`，postgres:16 镜像里是超级用户） | `db` 初始化、`migrate`、`db-roles` | `MIGRATION_DATABASE_URL` | 拥有所有表，建表、迁移 |
+| 应用（`APP_DB_USER`，默认 `lushu_app`） | `app` | `DATABASE_URL` | 只有行级 `select/insert/update/delete`；`admin_audit` 只有 `select/insert`；不拥有任何表，所以不能 `TRUNCATE`、不能 `ALTER TABLE … DISABLE TRIGGER`、不能设 `session_replication_role` |
+
+- **密码在哪生成、存在哪**：都在生产机部署目录里用 `openssl rand -hex 32` 生成，只写进部署目录下的 `.env`（`chmod 600`，属主为部署用户，不进仓库、不进 `app.env`、不贴工单）。`app.env` 里没有任何数据库密码，应用容器只拿到应用角色的连接串。密码另存一份到团队的密钥库（由运维决定用哪个）。
+- **角色怎么建**：`scripts/postgres-app-role.mjs`（以 owner 身份连库，读 `APP_DB_USER` / `APP_DB_PASSWORD`）。幂等：角色不存在就建，存在就重设密码和权限。`migrate` 最后一步会自动跑；只建角色不迁移用 `run --rm db-roles`。
+- **已有库（现在线上：v11/v12，表都归超级用户 owner）第一次切换**：
+  1. 生成 `APP_DB_PASSWORD`，写进 `.env`；把旧 `.env` 里的应用设置挪到 `app.env`，从 `app.env` 删掉 `POSTGRES_PASSWORD`。
+  2. `docker compose -f docker-compose.prod.yml run --rm db-roles`（用新镜像，以 owner 建 `lushu_app` 并授权；不动表结构）。
+  3. `up -d app`：应用改用 `lushu_app` 连库。再按上面「升级版本」的顺序迁移。
+- 换应用角色密码：改 `.env` 里的 `APP_DB_PASSWORD` → `run --rm db-roles` → `up -d app`。
+- 回归：`ROLE_TEST_OWNER_URL=postgres://owner:…@host:5432/postgres npm run test:postgres-app-role`——在超级用户 owner 建好的**已有 v12 库**上补建应用角色，验证行读写正常、审计表 truncate/update/delete/禁用触发器/replica 都被拒、服务能用应用角色启动。
 
 ## Caddy
 
@@ -46,7 +66,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
 
-- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `TRUSTED_PROXY_CIDRS` 默认是 `172.31.80.1,127.0.0.1,::1`。如果这个子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `.env` 里的 `TRUSTED_PROXY_CIDRS`。
+- compose 部署：compose 文件已设置 `TRUST_PROXY_HEADERS=true`。请求经 docker-proxy 进容器，来源是网桥网关 `172.31.80.1`（compose 里把子网固定为 `172.31.80.0/24`），所以 `TRUSTED_PROXY_CIDRS` 默认是 `172.31.80.1,127.0.0.1,::1`。如果这个子网和宿主机已有网络冲突，就同时改 compose 里的 `subnet`/`gateway` 和 `app.env` 里的 `TRUSTED_PROXY_CIDRS`。
 - 不用 Docker、直接 `npm start`：设 `HOST=127.0.0.1 PORT=3080 TRUST_PROXY_HEADERS=true`；`TRUSTED_PROXY_CIDRS` 的默认值 `127.0.0.1,::1` 正好是 Caddy。
 - 服务从右往左读 `X-Forwarded-For`，跳过可信代理，所以客户端自己伪造的最左项不会生效。带转发链的请求一律不算“本机”，生产环境也默认关闭本机免鉴权。
 
@@ -62,7 +82,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 ## 环境变量
 
-“必填”指按本次上线决策必须设置；其余有安全默认值。密钥只放 `.env`（不进仓库），也不要贴进工单或日志。
+“必填”指按本次上线决策必须设置；其余有安全默认值。应用密钥只放 `app.env`，数据库密码和 `APP_IMAGE` 只放 `.env`（都不进仓库，chmod 600），也不要贴进工单或日志。
 
 ### 必填
 

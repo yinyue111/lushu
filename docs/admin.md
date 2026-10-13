@@ -235,7 +235,7 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 - 邀请码在创建用户前一刻才扣次数。
 - `enrich.maxSearchesPerRun` 对应原来的 `ENRICH_MAX_SEARCHES_PER_ROUTEBOOK`；`maxStopsPerRun` 是新加的。
 - 刷新后台页面需要重新登录（CSRF 只在内存里）。
-- `admin_audit` 只能追加：UPDATE/DELETE 被拦，TRUNCATE 也有语句级触发器拦截（有测试）。表 owner 角色仍能禁用触发器，生产应用账号不应是 owner。
+- `admin_audit` 只能追加：UPDATE/DELETE 被拦，TRUNCATE 也有语句级触发器拦截（有测试）。表 owner 角色仍能禁用触发器，所以生产应用改用不拥有任何表的 `APP_DB_USER` 连库（docs/deploy.md「数据库角色」，`npm run test:postgres-app-role` 验证）。
 - 用户端 service worker 完全不处理 `/admin` 和 `/admin/*`（不缓存、不拦截，有测试）。
 - 静态服务对点开头的路径（`/.env`、`/.git/…`）和 `/dist-sourcemaps/` 直接 404，不再回退到首页 HTML。
 

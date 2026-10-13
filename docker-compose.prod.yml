@@ -2,6 +2,11 @@
 # Usage and the env list: docs/deploy.md. Secrets live in .env (never committed).
 # The app image is never built on the server: APP_IMAGE is the CI-built image pinned by digest,
 # e.g. APP_IMAGE=ghcr.io/<owner>/lushu-app@sha256:<digest>. Rollback = set the previous digest + up -d app.
+# Two files, two DB roles (docs/deploy.md「数据库角色」):
+#   .env      compose-only: APP_IMAGE, POSTGRES_* (owner = migrations only), APP_DB_USER/APP_DB_PASSWORD
+#   app.env   app settings; never contains the owner password
+# The app connects as APP_DB_USER (no table ownership: cannot TRUNCATE the audit log or disable its
+# triggers); `migrate` and `db-roles` connect as the owner via MIGRATION_DATABASE_URL.
 name: lushu
 
 services:
@@ -26,7 +31,7 @@ services:
   app:
     image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
     restart: unless-stopped
-    env_file: .env
+    env_file: app.env
     environment:
       NODE_ENV: production
       APP_IMAGE_DIGEST: ${APP_IMAGE}
@@ -34,7 +39,7 @@ services:
       PORT: '3080'
       ROUTEBOOK_DATA_DIR: /data
       STORAGE_BACKEND: postgres
-      DATABASE_URL: postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
+      DATABASE_URL: postgres://${APP_DB_USER:-lushu_app}:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
       # Requests reach the container from the compose network gateway (docker-proxy for the
       # 127.0.0.1:3080 publish). Trust X-Forwarded-For from that hop only.
       TRUST_PROXY_HEADERS: 'true'
@@ -50,15 +55,20 @@ services:
     stop_grace_period: 30s
     networks: [backend]
 
-  # One-shot schema migration / first-time readiness: `docker compose -f docker-compose.prod.yml run --rm migrate`
+  # One-shot schema migration / first-time readiness, as the owner, then (re)apply the app role grants:
+  # `docker compose -f docker-compose.prod.yml run --rm migrate`
   migrate:
     image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
     profiles: ['tools']
-    env_file: .env
-    environment:
+    env_file: app.env
+    environment: &owner-env
       NODE_ENV: production
       ROUTEBOOK_DATA_DIR: /data
-      DATABASE_URL: postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
+      MIGRATION_DATABASE_URL: &owner-url postgres://${POSTGRES_USER:-lushu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-lushu}
+      # The migration scripts read DATABASE_URL; here it is the owner connection.
+      DATABASE_URL: *owner-url
+      APP_DB_USER: ${APP_DB_USER:-lushu_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
     volumes:
       - appdata:/data
     depends_on:
@@ -69,7 +79,20 @@ services:
       - >-
         node scripts/postgres-migrate.mjs &&
         node scripts/postgres-backfill.mjs --data-dir /data --apply &&
-        node scripts/postgres-parity.mjs --data-dir /data --mark-ready
+        node scripts/postgres-parity.mjs --data-dir /data --mark-ready &&
+        node scripts/postgres-app-role.mjs
+    networks: [backend]
+
+  # Create/update only the app role (no migration): needed once before the first image that uses it.
+  # `docker compose -f docker-compose.prod.yml run --rm db-roles`
+  db-roles:
+    image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
+    profiles: ['tools']
+    environment: *owner-env
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ['node', 'scripts/postgres-app-role.mjs']
     networks: [backend]
 
 networks:

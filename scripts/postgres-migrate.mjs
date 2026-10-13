@@ -4,7 +4,7 @@ import { createPostgresPool, redactPostgresError } from '../server/storage/postg
 
 const options = parseArgs(process.argv.slice(2));
 const pool = createPostgresPool({
-  connectionString: options.databaseUrl,
+  connectionString: options.databaseUrl || process.env.MIGRATION_DATABASE_URL || undefined,
   applicationName: 'trusted-routebook-migrate',
   max: 1
 });
