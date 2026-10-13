@@ -51,3 +51,12 @@ test('unfound POI gets a position item with an AMap name search', () => {
     ['门票 / 价格', '位置']
   );
 });
+
+test('a just-swapped store asks 是否要预约 and does not repeat the catch-all sentence as detail', () => {
+  const items = confirmItemsForStop(
+    { id: 'a', name: '夫子庙', lat: 32.02, lng: 118.78, geoConfidence: 70, cost: '价格待确认', verify: '刚换的店：营业时间、价格和是否要预约都待确认' },
+    { city: '南京' }
+  );
+  assert.equal(items.find((i) => i.kind === 'reservation').label, '是否要预约');
+  assert.ok(items.every((i) => !/刚换的店/.test(i.detail)));
+});

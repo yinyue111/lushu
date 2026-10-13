@@ -91,7 +91,8 @@ export function StopConfirmFold({ items, acks, onToggle }) {
 
 /** 当天汇总：按「要预约 / 门票 / 开放时间 / 位置」分组。 */
 export function DayConfirmSummary({ entries, acks, onToggle }) {
-  if (!entries.length) return null;
+  // 只有一站有待确认时，卡片里的清单就够了，不再重复一份当天汇总。
+  if (!entries.length || new Set(entries.map((entry) => entry.stopName)).size < 2) return null;
   const open = entries.filter(({ item }) => !acks.has(item.key)).length;
   return (
     <details

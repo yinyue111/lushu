@@ -31,7 +31,8 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
     .split(/[；;。\n]+/)
     .map((t) => t.trim())
     .filter(Boolean);
-  const said = (re) => (sentences.find((t) => re.test(t)) || '').slice(0, 60);
+  // 「营业时间、价格和是否要预约都待确认」这种一句话列一串的兜底句不当细节用，免得每条都重复同一句。
+  const said = (re) => (sentences.find((t) => re.test(t) && !/是否|都待确认|均待确认/.test(t)) || '').slice(0, 60);
   const used = new Set();
   const take = (re) => {
     const t = said(re);
@@ -43,7 +44,12 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
     add('position', '位置没核准', '地图上没找到准确位置，别直接导航', { label: '在高德按名字搜', url: amapNameSearchUrl(stop, cityName) });
   }
   if (/预约/.test(notes) && !NEGATED_RESERVATION.test(notes)) {
-    add('reservation', '可能要预约', take(/预约/) || '看官方公众号或官网的预约入口', { label: '搜官方预约', url: webSearch(`${cityName}${name} 预约 官方`) });
+    const unsure =
+      /是否(?:要|需要|需)?(?:提前)?预约/.test(notes) && !/(?:需|要|须)(?:提前)?(?:实名)?预约/.test(notes.replace(/是否(?:要|需要|需)?(?:提前)?预约/g, ''));
+    add('reservation', unsure ? '是否要预约' : '可能要预约', take(/预约/) || '看官方公众号或官网的预约入口', {
+      label: '搜官方预约',
+      url: webSearch(`${cityName}${name} 预约 官方`)
+    });
   }
   const price = costDisplay(stop);
   if (price.pending && !checked.price) {

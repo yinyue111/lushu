@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CircleCheckBig, X } from 'lucide-react';
+import { cn } from '../ui/cn';
 
 function etaText(seconds) {
   if (!seconds) return '一般要 2–8 分钟';
@@ -48,14 +49,20 @@ export default function EnrichmentStatus({ enrichment }) {
   const found = progress?.filled ?? 0;
   const missing = progress?.notFound ?? 0;
   return (
-    <div role="status" className="mb-3 flex items-start gap-2 rounded-card bg-success-soft px-3 py-2 text-meta text-success-ink sm:text-sm">
-      <CircleCheckBig className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+    <div
+      role="status"
+      className={cn(
+        'mb-3 flex items-start gap-2 rounded-card px-3 py-2 text-meta sm:text-sm',
+        found ? 'bg-success-soft text-success-ink' : 'bg-canvas text-ink-2'
+      )}
+    >
+      {found ? <CircleCheckBig className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> : null}
       <p className="min-w-0 flex-1">
-        <span className="font-semibold">查好了：</span>
+        <span className="font-semibold">{found ? '查好了：' : '查完了：'}</span>
         {found ? `${found} 处票价或开放时间找到了来源，已标在各站上` : '这次没找到能对得上的来源'}
         {missing ? `；${missing} 处没查到（连锁店没写分店、各网站说法不一等），仍是「待确认」` : ''}。
       </p>
-      <button type="button" className="-m-1 p-1 text-success-ink" aria-label="关闭提示" onClick={() => setDismissed(true)}>
+      <button type="button" className="-m-1 p-1" aria-label="关闭提示" onClick={() => setDismissed(true)}>
         <X className="size-4" />
       </button>
     </div>
