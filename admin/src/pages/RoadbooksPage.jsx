@@ -1,3 +1,4 @@
+import { ENRICH_JOB, GENERATION, MODE, term } from '../terms';
 import { useState } from 'react';
 import { adminGet, adminPost, query } from '../api';
 import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inputClass, useLoad } from '../ui';
@@ -11,7 +12,7 @@ export default function RoadbooksPage() {
   const failures = useLoad(() => adminGet(`/failures${query({ profileId: filters.profileId })}`), [filters.profileId]);
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event.target.value }));
   return (
-    <Page title="路书" description="按路书 ID、城市或用户 profile 查。可下架分享链接、重跑联网核对。">
+    <Page title="路书" description="按路书 ID、城市或用户 ID 查。可下架分享链接、重跑联网核对。">
       <Card>
         <form
           className="grid gap-3 sm:grid-cols-4"
@@ -22,7 +23,7 @@ export default function RoadbooksPage() {
         >
           <Field label="路书 ID 或标题">{(id) => <input id={id} className={inputClass} value={form.q} onChange={set('q')} />}</Field>
           <Field label="城市">{(id) => <input id={id} className={inputClass} value={form.city} onChange={set('city')} />}</Field>
-          <Field label="用户 profile">{(id) => <input id={id} className={inputClass} value={form.profileId} onChange={set('profileId')} />}</Field>
+          <Field label="用户 ID">{(id) => <input id={id} className={inputClass} value={form.profileId} onChange={set('profileId')} />}</Field>
           <div className="flex items-end">
             <Button type="submit" variant="primary" disabled={loading}>
               查找
@@ -46,7 +47,7 @@ export default function RoadbooksPage() {
           columns={[
             { key: 'createdAt', label: '时间', render: (r) => formatTime(r.createdAt) },
             { key: 'city', label: '城市' },
-            { key: 'mode', label: '档位' },
+            { key: 'mode', label: '模式', render: (r) => term(MODE, r.mode) },
             { key: 'code', label: '错误码' },
             { key: 'failureReason', label: '原因' },
             { key: 'requestId', label: '请求 ID', render: (r) => <span className="font-mono text-xs">{r.requestId}</span> }
@@ -55,6 +56,13 @@ export default function RoadbooksPage() {
       </Card>
     </Page>
   );
+}
+
+function enrichmentText(e) {
+  if (e.status === 'queued' || e.status === 'running') return `${term(ENRICH_JOB, e.status)}（还没出结果）`;
+  if (e.status === 'failed') return `失败${e.lastError ? `：${e.lastError}` : ''}`;
+  if (e.status === 'done') return `已查完：核对到 ${e.filled} 项，留待确认 ${e.kept} 项`;
+  return term(ENRICH_JOB, e.status);
 }
 
 function RoadbookCard({ rb, onDone }) {
@@ -76,13 +84,15 @@ function RoadbookCard({ rb, onDone }) {
         </div>
         <div>
           <dt className="inline text-muted">生成：</dt>
-          <dd className="inline">{rb.generation ? `${rb.generation.mode || '—'} · ${rb.generation.model || '—'} · ${rb.generation.status}` : '无记录'}</dd>
+          <dd className="inline">{rb.generation
+              ? `${term(MODE, rb.generation.mode)} · ${rb.generation.model || '—'} · ${term(GENERATION, rb.generation.status)}${rb.generation.fellBackFrom ? `（${term(MODE, rb.generation.fellBackFrom)}失败，由备用模型生成）` : ''}`
+              : '无记录'}</dd>
         </div>
         <div>
           <dt className="inline text-muted">联网核对：</dt>
           <dd className="inline">
             {rb.enrichment
-              ? `${rb.enrichment.status} · 补到 ${rb.enrichment.filled} 项 · 留待确认 ${rb.enrichment.kept} 项${rb.enrichment.lastError ? ` · ${rb.enrichment.lastError}` : ''}`
+              ? enrichmentText(rb.enrichment)
               : '未运行'}
           </dd>
         </div>

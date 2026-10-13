@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { PROJECT_ROOT } from '../config/index.mjs';
 import { POSTGRES_STORAGE_SCHEMA_VERSION } from '../storage/contract.mjs';
 import { usesPostgresStorage, getPostgresStorage } from '../storage/runtime.mjs';
-import { configStatus } from '../config/runtime.mjs';
+import { configStatus, currentSnapshot } from '../config/runtime.mjs';
 
 const clean = (v) => String(v ?? '').trim();
 export const APP_COMMIT = clean(process.env.APP_COMMIT) || 'unknown';
@@ -47,6 +47,15 @@ export async function systemInfo() {
     node: process.version,
     uptimeSeconds: Math.round(process.uptime()),
     migration,
-    config: configStatus()
+    config: configStatus(),
+    registration: registrationState()
+  };
+}
+
+/** Registration mode and whether anyone actually set it (unset → default 'open', see docs/admin.md). */
+export function registrationState(snapshot = currentSnapshot(), env = process.env) {
+  return {
+    mode: snapshot.values['registration.mode'],
+    explicitlySet: 'registration.mode' in (snapshot.overrides ?? {}) || String(env.REGISTRATION_MODE ?? '').trim() !== ''
   };
 }

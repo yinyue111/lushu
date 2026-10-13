@@ -140,11 +140,11 @@ try {
   await nav('用户');
   await page.getByLabel('查找用户').fill('1234');
   await page.getByRole('button', { name: '查找' }).click();
-  await page.getByRole('button', { name: '重置额度窗口' }).waitFor();
+  await page.getByRole('button', { name: '清零已用次数（从现在重新计）' }).waitFor();
   await axe('users');
   await shot('07-users');
-  await page.getByRole('button', { name: '重置额度窗口' }).click();
-  await page.getByLabel(/重置额度窗口的原因/).fill('E2E：额度测试');
+  await page.getByRole('button', { name: '清零已用次数（从现在重新计）' }).click();
+  await page.getByLabel(/清零已用次数.*的原因/).fill('E2E：额度测试');
   await page.getByRole('button', { name: '确认', exact: true }).click();
   await page.getByText('已完成').waitFor();
 

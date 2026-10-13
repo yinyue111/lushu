@@ -122,6 +122,7 @@ async function generationFor(publicId) {
   if (!row) return null;
   return {
     mode: row.mode ?? '',
+    fellBackFrom: row.fellBackFrom ?? '',
     model: row.model ?? row.observability?.model ?? row.provider?.model ?? '',
     durationMs: row.durationMs ?? null,
     requestId: row.requestId ?? '',

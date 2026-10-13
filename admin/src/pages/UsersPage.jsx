@@ -83,7 +83,7 @@ function UserCard({ user, admin, onDone }) {
         ) : (
           <ReasonAction label="解封" onSubmit={act('unban')} />
         )}
-        <ReasonAction label="重置额度窗口" onSubmit={act('reset-quota')} />
+        <ReasonAction label="清零已用次数（从现在重新计）" onSubmit={act('reset-quota')} />
         <ReasonAction
           label="改单人额度"
           onSubmit={act('set-quota', { quota: quota === '' ? null : Number(quota) })}

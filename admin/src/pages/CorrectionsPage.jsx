@@ -1,3 +1,4 @@
+import { CLAIM, METHOD, term } from '../terms';
 import { useState } from 'react';
 import { can } from '../../../server/admin/permissions.mjs';
 import { adminGet, adminPost, query } from '../api';
@@ -76,7 +77,7 @@ function CorrectionItem({ item, admin, onDone }) {
       return action === 'reset' && result.routebooks ? `已改回待确认（${result.routebooks.length} 本路书）` : '已完成';
     };
   return (
-    <Card title={`${item.city || '未知城市'} · ${item.stopName || item.stopKey} · ${FIELD[item.field] ?? item.field}`}>
+    <Card title={`${item.city || '城市未记录'} · ${item.stopName || item.stopKey} · ${FIELD[item.field] ?? item.field}`}>
       <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
         <div>
           <dt className="inline text-muted">当前值：</dt>
@@ -85,8 +86,8 @@ function CorrectionItem({ item, admin, onDone }) {
         <div>
           <dt className="inline text-muted">状态：</dt>
           <dd className="inline">
-            {STATUS[item.status] ?? item.status} · 核对结果 {item.claimStatus}
-            {item.method ? ` · ${item.method}` : ''}
+            {STATUS[item.status] ?? item.status} · 核对结果：{term(CLAIM, item.claimStatus)}
+            {item.method ? ` · ${term(METHOD, item.method)}` : ''}
           </dd>
         </div>
         <div>
@@ -104,9 +105,9 @@ function CorrectionItem({ item, admin, onDone }) {
           </div>
         )}
         <div className="sm:col-span-2">
-          <dt className="inline text-muted">同一地点（cacheKey）影响：</dt>
+          <dt className="inline text-muted">同一地点影响：</dt>
           <dd className="inline">
-            {item.cacheKey ? `${item.affectedRoutebooks} 本路书` : '无 cacheKey'} · 路书 {item.routebookId}
+            {item.cacheKey ? `${item.affectedRoutebooks} 本路书` : '没有地点标识'} · 路书 {item.routebookId}
           </dd>
         </div>
       </dl>
@@ -121,7 +122,7 @@ function CorrectionItem({ item, admin, onDone }) {
                 {s.title || s.domain || s.url}
               </a>
               {s.quote && <blockquote className="mt-1 border-l-2 border-line-strong pl-2 text-ink-2">“{s.quote}”</blockquote>}
-              <p className="text-xs text-muted">查询于 {s.retrievedAt ? String(s.retrievedAt).slice(0, 10) : '未知'}</p>
+              <p className="text-xs text-muted">查询于 {s.retrievedAt ? String(s.retrievedAt).slice(0, 10) : '未记录'}</p>
             </li>
           ))}
         </ul>

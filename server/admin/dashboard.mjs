@@ -6,6 +6,7 @@ import { enrichStore } from '../enrich/store.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
 import { stopKeyOf } from '../enrich/engine.mjs';
 import { costCapState } from './costCap.mjs';
+import { registrationState } from '../ops/systemInfo.mjs';
 
 const DAY = 86400000;
 const TZ_OFFSET_MS = 8 * 3600000; // "today" = Asia/Shanghai calendar day (UTC+8), same as the team's day
@@ -124,8 +125,7 @@ export async function dashboard(now = Date.now()) {
 /** Things an operator should see first on the overview. */
 export function dashboardWarnings(snapshot = currentSnapshot(), env = process.env) {
   const warnings = [];
-  const mode = snapshot.values['registration.mode'];
-  const explicitlySet = 'registration.mode' in (snapshot.overrides ?? {}) || String(env.REGISTRATION_MODE ?? '').trim() !== '';
+  const { mode, explicitlySet } = registrationState(snapshot, env);
   if (mode === 'open') {
     warnings.push({
       key: 'registration-open',

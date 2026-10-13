@@ -1,4 +1,5 @@
 import { adminGet } from '../api';
+import { injected } from '../terms';
 import { Card, Notice, Page, formatTime, useLoad } from '../ui';
 
 const Row = ({ label, value }) => (
@@ -11,16 +12,16 @@ const Row = ({ label, value }) => (
 export default function SystemPage() {
   const { data, error } = useLoad(() => adminGet('/system'));
   return (
-    <Page title="系统信息" description="只读。未注入的构建信息显示 unknown，不做猜测。">
+    <Page title="系统信息" description="只读。构建时没注入的信息显示「未注入」，不做猜测。">
       {error && <Notice tone="error">{error}</Notice>}
       {data && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title="版本">
             <dl>
-              <Row label="提交" value={data.commit} />
-              <Row label="构建时间" value={data.buildTime} />
-              <Row label="镜像摘要" value={data.imageDigest} />
-              <Row label="部署时间" value={data.deployTime} />
+              <Row label="提交" value={injected(data.commit)} />
+              <Row label="构建时间" value={injected(data.buildTime)} />
+              <Row label="镜像摘要" value={injected(data.imageDigest)} />
+              <Row label="部署时间" value={injected(data.deployTime)} />
               <Row label="进程启动" value={formatTime(data.processStartedAt)} />
               <Row label="package 版本" value={data.packageVersion} />
               <Row label="Node" value={data.node} />
@@ -43,6 +44,14 @@ export default function SystemPage() {
               <Row label="配置来源" value={data.config?.source === 'db' ? '数据库（覆盖环境变量）' : '环境变量'} />
               <Row label="配置状态" value={data.config?.stale ? `数据库暂时不可用，沿用上次的配置（${data.config?.error || ''}）` : '正常'} />
               <Row label="上次同步" value={formatTime(data.config?.loadedAt)} />
+              <Row
+                label="注册"
+                value={
+                  data.registration
+                    ? `${{ open: '开放', invite: '邀请制', closed: '关闭' }[data.registration.mode] ?? data.registration.mode}${data.registration.explicitlySet ? '' : '（未设置，默认）'}`
+                    : '—'
+                }
+              />
             </dl>
           </Card>
         </div>
