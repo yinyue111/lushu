@@ -89,7 +89,7 @@ export function routeExecutionMetricRows(stats = {}) {
   const verifiedLegs = nonNegativeInteger(stats.verifiedLegs);
   if (!expectedLegs) {
     return [
-      { label: '道路核验', value: '无同日转场' },
+      { label: '实际路程', value: '没有当天转场' },
       { label: '道路距离', value: '无需计算' },
       { label: '道路耗时', value: '无需计算' }
     ];
@@ -97,14 +97,14 @@ export function routeExecutionMetricRows(stats = {}) {
   const complete = verifiedLegs === expectedLegs;
   const suffix = complete ? '' : `（${verifiedLegs}/${expectedLegs} 段）`;
   return [
-    { label: '道路核验', value: complete ? `${verifiedLegs}/${expectedLegs} 段已核验` : `${verifiedLegs}/${expectedLegs} 段，待复核` },
+    { label: '实际路程', value: complete ? `${verifiedLegs}/${expectedLegs} 段已按导航查过` : `${verifiedLegs}/${expectedLegs} 段查过，其余还没查` },
     {
       label: '道路距离',
-      value: verifiedLegs ? `${complete ? '约 ' : '已核验 '}${formatDistance(stats.totalDistanceMeters)}${suffix}` : '待道路服务核验'
+      value: verifiedLegs ? `${complete ? '约 ' : '已查 '}${formatDistance(stats.totalDistanceMeters)}${suffix}` : '还没按导航查'
     },
     {
       label: '道路耗时',
-      value: verifiedLegs ? `${complete ? '约 ' : '已核验 '}${formatDuration(stats.totalDurationSeconds)}${suffix}` : '待道路服务核验'
+      value: verifiedLegs ? `${complete ? '约 ' : '已查 '}${formatDuration(stats.totalDurationSeconds)}${suffix}` : '还没按导航查'
     }
   ];
 }
@@ -131,7 +131,7 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
   let tempoDetail = '没有同日连续转场，无需判断道路节奏。';
   if (firstConflict) {
     tempoState = '时间冲突';
-    tempoDetail = `${firstConflict.from} → ${firstConflict.to} 仅预留 ${firstConflict.availableMinutes} 分钟转场，道路核验需 ${firstConflict.requiredMinutes} 分钟，至少再预留 ${firstConflict.shortfallMinutes} 分钟。`;
+    tempoDetail = `${firstConflict.from} → ${firstConflict.to} 仅预留 ${firstConflict.availableMinutes} 分钟转场，按导航实际需要 ${firstConflict.requiredMinutes} 分钟，至少再预留 ${firstConflict.shortfallMinutes} 分钟。`;
   } else if (crowdedDay) {
     tempoState = '偏紧';
     tempoDetail = `${crowdedDay[0]} 有 ${crowdedDay[1]} 站，建议拆分或删减。`;

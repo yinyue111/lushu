@@ -12,7 +12,7 @@ export const GENERATION_STAGE_LABELS = Object.freeze({
   match: '匹配地点',
   model: '模型生成',
   geocode: '地点定位',
-  route: '道路核验',
+  route: '查实际路程',
   save: '保存路书'
 });
 

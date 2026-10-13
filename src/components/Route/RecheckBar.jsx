@@ -13,7 +13,7 @@ export default function RecheckBar({ routebook, recheckState, onRecheck }) {
   const pending = stops.filter((stop) => stop.navigationDisabled === true || stop.coordinateSource === 'user-edit').length;
   return (
     <section
-      aria-label="道路核验"
+      aria-label="重新查路程"
       className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-tile border border-line bg-canvas px-3.5 py-2.5 text-sm"
       data-testid="recheck-bar"
     >

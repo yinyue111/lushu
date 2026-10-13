@@ -95,7 +95,7 @@ test('a job returns at once and reports real stages until the saved routebook', 
   assert.equal(data.job.status, 'running');
   assert.deepEqual(
     data.job.stages.map((stage) => stage.label),
-    ['解析攻略', '匹配地点', '模型生成', '地点定位', '道路核验', '保存路书']
+    ['解析攻略', '匹配地点', '模型生成', '地点定位', '查实际路程', '保存路书']
   );
   assert.equal(data.job.stages[0].status, 'completed', 'parsing finished when the job was accepted');
   assert.ok(data.job.timeoutMs >= 4000);

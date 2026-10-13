@@ -33,7 +33,7 @@ export const GENERATION_STAGES = Object.freeze([
   { key: 'match', label: '匹配地点' },
   { key: 'model', label: '模型生成' },
   { key: 'geocode', label: '地点定位' },
-  { key: 'route', label: '道路核验' },
+  { key: 'route', label: '查实际路程' },
   { key: 'save', label: '保存路书' }
 ]);
 const STAGE_KEYS = new Set(GENERATION_STAGES.map((stage) => stage.key));

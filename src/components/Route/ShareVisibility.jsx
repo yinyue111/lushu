@@ -96,7 +96,7 @@ export default function ShareVisibility({
               {(claimed || pendingReview) && <span className="mt-1 block">已提交授权审核，运营核实后才会公开。</span>}
             </>
           ) : (
-            <span className="block">提交审核，通过来源授权和道路核验后出现在城市列表与搜索里。</span>
+            <span className="block">提交审核，确认来源授权、查过路程后出现在城市列表与搜索里。</span>
           )}
         </Option>
       </ul>
