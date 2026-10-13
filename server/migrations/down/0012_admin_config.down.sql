@@ -1,5 +1,5 @@
--- Rollback for 0012. FIRST swap the app back to the schema-11 image (old servers refuse to start unless
--- schema_version matches exactly), THEN run this. Default keeps data and only moves the version marker back.
+-- Rollback for 0012. Code from this release on runs on schema 11 and 12, so rolling back between such
+-- images needs no SQL. Only needed to go back to a pre-0012 image (those require exactly 11). Default keeps data and only moves the version marker back.
 -- The admin tables and the enrich_reports.status/resolved_* columns are kept (older code ignores them),
 -- so rolling forward again loses nothing. To drop them for good, run the commented statements below.
 update trusted_routebook.storage_state

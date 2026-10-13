@@ -152,6 +152,12 @@ export function generationEtaText(job, elapsedMs) {
 export function generationFailureCopy(error) {
   const code = String(error?.code ?? '');
   // 细品's model is down or too slow: say so plainly and point at 轻快 (a different model).
+  if (error?.suggestFast === true && error?.fallbackTried?.mode === 'fast') {
+    return {
+      title: '「细品」的模型这次没响应',
+      detail: '「细品」的模型服务暂时不可用，已经自动换「轻快」试过一次，也没成功。可以稍后再用「轻快」重试。'
+    };
+  }
   if (error?.suggestFast === true) {
     return {
       title: '「细品」的模型这次没响应',

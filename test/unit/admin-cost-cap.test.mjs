@@ -47,3 +47,9 @@ test('pricing: a blank price is rejected (never stored as 0); source and date ar
     'grok-x': { input: 1, output: 2, source: '中继账单 2026-10', asOf: '2026-10-01' }
   });
 });
+
+test('细品 failure copy is honest about an automatic 轻快 attempt', async () => {
+  const { generationFailureCopy } = await import('../../src/lib/generationJob.js');
+  assert.match(generationFailureCopy({ code: 'MODEL_ERROR', suggestFast: true }).detail, /可以用「轻快」马上重试/);
+  assert.match(generationFailureCopy({ code: 'MODEL_ERROR', suggestFast: true, fallbackTried: { mode: 'fast' } }).detail, /已经自动换「轻快」试过一次/);
+});

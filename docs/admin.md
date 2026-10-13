@@ -5,7 +5,7 @@
 
 本文档：怎么开、怎么登录、权限、配置怎么生效、三个数的口径、迁移与回滚、网关建议、冒烟测试、E2E、二期占位，以及**和设计文档 / PRD 的差异与待定事项**。
 
-> 本分支没有改 `docker-compose.prod.yml`、Caddy、镜像仓库或 Dockerfile。下面涉及部署的部分都是**建议**，需要运维确认后再改。
+> 本分支已改 Dockerfile（带 `dist-admin`、注入 `APP_COMMIT`/`APP_BUILD_TIME`），并新增 CI 工作流 `.github/workflows/image.yml`（按 commit 打 tag 出镜像）；都只是本地提交，**没有推送、没有部署**。`docker-compose.prod.yml`、Caddy 没改，相关部分仍是建议。
 
 ---
 
@@ -74,7 +74,7 @@ npm run admin:create -- --username root --role admin --production
 
 ### 备用模型（上游报错 / 超时）
 
-- `model.fallbackOrder`（环境变量 `AI_MODEL_FALLBACK_ORDER`，如 `fast`）默认空 = 不切换，保持现状。
+- `model.fallbackOrder`（环境变量 `AI_MODEL_FALLBACK_ORDER`）默认 `fast`：细品失败自动用轻快再试一次；轻快失败不会转细品。设 `AI_MODEL_FALLBACK_ORDER=none` 关闭。全新部署什么都不配也会切换（有测试）。
 - 配了之后两种情况会改用备用模式：所选模式**没配好**；或所选模式的上游**报错**（403、5xx、连不上、超时、长时间没输出）。只切一次，不会来回试。开关 `model.fallbackOnUpstreamError` 默认开。
 - 有备用时，整次生成的时限 = 所选模式的超时 + 备用模式的超时；所选模式自己仍只用自己的超时，备用那段时间不会被它吃掉。
 - 用备用模型生成的路书在 `provider.fellBackFrom` 记下原模式，用户打开路书顶部显示「本次由备用模型生成：所选的「细品」模型当时不可用」；ai-logs 里这次记在实际运行的模式下，另带 `fellBackFrom`。
@@ -131,9 +131,13 @@ npm run admin:create -- --username root --role admin --production
 
 迁移 `server/migrations/0012_admin_config.sql` 只加表、加列（`enrich_reports` 加 `status / resolved_by / resolved_at / source`），`schema_version` 11 → 12。已验证：全新库迁移、二次迁移跳过、`apply → down → re-apply`（数据保留）。
 
-上线顺序：备份 → `npm run postgres:migrate` → 换新镜像。
+新代码同时支持 `schema_version` 11 和 12：在 11 上运行时用户端照常，后台相关表不存在时后台接口返回 503 `ADMIN_SCHEMA_MISSING`（后台关闭），运行时配置退回环境变量（`npm run test:postgres-v11` 验证）。0012 只加表加列，旧代码不读这些。
 
-**回滚顺序：先把镜像换回旧版本，再执行回滚 SQL**（`server/migrations/down/0012_admin_config.down.sql`）。旧版本要求 `schema_version` 完全等于 11，所以换回旧镜像后、执行回滚 SQL 前，旧进程会拒绝启动；两步要连着做。回滚 SQL 默认只把版本号改回 11，**不删表不删数据**，再次升级不丢东西；彻底删除的语句在文件里注释着。
+**上线顺序（推荐）**：备份 → 先换新镜像（此时库还是 11，后台不可用，用户端正常）→ 观察没问题 → `npm run postgres:migrate` 到 12 → 后台可用。
+
+**回滚 = 只换镜像**，前提如下：
+- 从本版本往后（新版本之间）：新代码接受 N-1..N，换回上一版镜像即可，不用动库。
+- **本次例外**：当前线上的旧镜像只接受 `schema_version` 恰好等于 11。如果已经迁移到 12 再换回旧镜像，旧进程会拒绝启动，这时还要执行 `server/migrations/down/0012_admin_config.down.sql`（只改版本号，不删表不删数据）。按上面推荐顺序、迁移前就发现问题的话，只换镜像即可。
 
 JSONL 部署：后台数据在 `data/admin.jsonl`，无需迁移。
 
@@ -146,19 +150,13 @@ JSONL 部署：后台数据在 `data/admin.jsonl`，无需迁移。
 3. **数据库**：备份 → `npm run postgres:migrate` → 换镜像（见第 6 节）。
 4. **/admin 放在 Caddy basic auth 后面**（加 IP 白名单，见 7.2），应用里 `ADMIN_ENABLED=true`；应用自己的账号 + 动态码是第三层。
 5. **冒烟**：`node scripts/smoke-prod.mjs …`（第 8 节），白名单机器上加 `--admin-reachable`。
-6. 回滚：把 digest 换回上一版（数据库回滚见第 6 节）。
+6. 回滚：把 digest 换回上一版（只换镜像；本次的例外见第 6 节）。
 
-本分支**没有**改 Dockerfile、compose、CI 和 Caddy，以上需要运维照做并确认上线日期。
+CI：`.github/workflows/image.yml` 先跑 verify + E2E/axe，通过后构建镜像，tag 为 commit 短 sha 和完整 sha（不用 `latest`），检查镜像里有 `dist-admin`、没有 `.map`，并把 digest 写进运行摘要。本地没有 docker，镜像构建没有实际跑过。compose 和 Caddy 仍需运维改并确认上线日期。
 
 ### 7.1 镜像
 
-当前 Dockerfile 的运行层只复制了 `dist/`。要在生产开后台，需要在运行层加一行：
-
-```dockerfile
-COPY --from=build --chown=root:root /app/dist-admin ./dist-admin
-```
-
-（构建层的 `npm run build` 已经会同时构建两个入口。）不加这一行时，即使 `ADMIN_ENABLED=true`，`/admin/` 也只会返回「dist-admin 不存在」。
+Dockerfile 运行层已加 `COPY --from=build --chown=root:root /app/dist-admin ./dist-admin`，并通过 build arg `GIT_COMMIT` / `BUILD_TIME` 注入 `APP_COMMIT` / `APP_BUILD_TIME`。`APP_IMAGE_DIGEST` 构建时拿不到，需要部署时注入。
 
 ### 7.2 Caddy：给 /admin 加 IP 白名单 + Basic Auth
 
@@ -203,6 +201,8 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 - 单元 / 集成：`npm run test:unit`（含 `admin-runtime-config`、`admin-console`、`admin-static`、`offline-banner`）。
 - PostgreSQL：`test:postgres-schema`、`test:postgres-storage`、`test:postgres-runtime`（新增两进程配置传播：NOTIFY 和仅轮询两条路径）。
 - E2E + 无障碍：`npm run build && npm run test:e2e:admin`。真服务器 + 真浏览器走完登录/绑定/备用码、纠错批量改回、用户、路书下架、配置预览/保存/城市列表 5 秒内生效、邀请码、试跑门槛、审计、系统信息、后台账号、运营只读，每页跑 axe（WCAG 2.1 AA）。需要 `playwright` 和 `axe-core`：目前**不是**仓库依赖，可以 `npm i -D playwright axe-core`，或设 `E2E_TOOLS_DIR` 指向已有的 node_modules。截图写到 `E2E_SCREENSHOT_DIR`（默认 `test-results/admin-e2e`）。
+- 用户端截图 + axe：`node e2e/user-v4-shots.e2e.mjs`（假上游全部 503）：细品失败页（含「用轻快重试」）和纠错回执，桌面 + 手机；`E2E_FALLBACK_ORDER=none` 时拍未自动切换的版本。
+- 兼容旧库：`npm run test:postgres-v11`（把库回退到 11 后启动新代码，用户端正常、后台 503）。
 - 开发：`npm run dev` 起服务后，`/admin/` 读的是构建好的 `dist-admin/`；要热更新用 `npx vite -c vite.admin.config.js`（端口 5175，代理 `/api`）。
 
 ## 10. 二期：已核实地点库（占位）
@@ -225,25 +225,26 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 
 - 表名和主键：用 `admin_config_versions` / `admin_audit` / `admin_invite_codes` 和文本 id，没有用设计里的 `config_versions` / `admin_audit_log` / `invite_codes` 和 bigserial。
 - `registration.mode`：环境变量没设时保持现在的 `open`，没有按设计默认成 `invite`。
-- `model.fallbackOrder` 默认 `[]`（保持现状），设计写的是 `['fast']`；配了之后对上游报错 / 超时也生效（第 4 节）。
+- `model.fallbackOrder` 默认 `['fast']`（和设计一致），对上游报错 / 超时也生效（第 4 节）。自动试过轻快仍失败时，失败页文案会说明已经试过。
 - `failuresConsumeQuota` 默认 `false`：**改变了现有行为**（以前失败也扣），这是按 PRD 来的。
 - 试跑限流用 PRD 的每小时 10 次；设计里的每分钟/每天上限和 `ADMIN_TEST_DAILY_COST_CAP` 没做。
 - 「N/N 个进程已生效」没做；各进程的版本号通过 `/api/health` 的 `configVersion` 看。
 - 用户列表没显示每个用户的路书数。
-- 旧接口 `/api/ops/users` 的 issue-recovery **默认不再返回恢复码**（403 `OPS_RECOVERY_PLAINTEXT_DISABLED`），设 `OPS_RECOVERY_CODE_PLAINTEXT=true` 才恢复旧行为；旧运维工具里的按钮已去掉。后台里的「发恢复码」只发到已验证邮箱，运营看不到码。
+- 旧接口 `/api/ops/users` 的 issue-recovery（明文返回恢复码）**已删除**，现在返回 400 `OPS_ACCOUNT_ACTION_INVALID`；`OPS_RECOVERY_CODE_PLAINTEXT` 开关也删了。用户自己的 `/api/profile/recovery-code` 不受影响。后台里的「发恢复码」只发到已验证邮箱，运营看不到码。
 - 未设置注册方式时默认 `open`，概览顶部红框警告、系统信息写「开放（未设置，默认）」。
 - 邀请码在创建用户前一刻才扣次数。
 - `enrich.maxSearchesPerRun` 对应原来的 `ENRICH_MAX_SEARCHES_PER_ROUTEBOOK`；`maxStopsPerRun` 是新加的。
 - 刷新后台页面需要重新登录（CSRF 只在内存里）。
+- `admin_audit` 只能追加：UPDATE/DELETE 被拦，TRUNCATE 也有语句级触发器拦截（有测试）。表 owner 角色仍能禁用触发器，生产应用账号不应是 owner。
+- 用户端 service worker 完全不处理 `/admin` 和 `/admin/*`（不缓存、不拦截，有测试）。
 - 静态服务对点开头的路径（`/.env`、`/.git/…`）和 `/dist-sourcemaps/` 直接 404，不再回退到首页 HTML。
 
 ## 13. 待定事项（需要负责人拍板）
 
-1. Dockerfile 加 `COPY dist-admin`、Caddy 白名单/Basic Auth、`APP_*` 注入、CI 出镜像按 digest 部署：本分支只写了建议（7.0），没有改；需要定上线日期。
-2. `playwright` / `axe-core` 是否加进 devDependencies（会改 lockfile），以及 E2E 是否进 CI。
-3. 旧 issue-recovery：已加开关并默认关；是否彻底删掉这个分支。
+1. Caddy 白名单/Basic Auth、compose 按 digest 引用、`APP_IMAGE_DIGEST` 注入、GHCR 推送权限：需要运维改并定上线日期（Dockerfile 和 CI 工作流已在本地提交）。
+2. `playwright` / `axe-core` 是否加进 devDependencies（会改 lockfile）；目前 CI 里单独安装固定版本。
 4. 未设置时注册方式默认 `open` 还是 `invite`。
 5. 模型单价由谁、按什么来源维护（目前全空：花费只显示下限，日上限 `auto` 模式不拦截）。
-8. 是否给 `model.fallbackOrder` 设默认值（如细品失败改用轻快）；现在默认空。
+8. `CONFIG_ENC_KEY` 的生成、保管和轮换方案（轮换会让现有管理员的动态码失效）；Node 版本是否固定。
 6. 挂路径 `/admin` 还是子域名。
 7. 「旧运维工具」各面板并入新页面的顺序和时间。
