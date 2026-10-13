@@ -14,7 +14,12 @@ function cityView() {
   const regionCityGroups = allRegionCityGroups
     .map((group) => ({ ...group, cities: group.cities.filter((city) => open.has(city)) }))
     .filter((group) => group.cities.length);
-  const openRegion = supportedCities.length === allSupportedCities.length ? 'all' : supportedCities.every((c) => JZH_CITIES.includes(c)) && supportedCities.length === JZH_CITIES.length ? 'jzh' : 'custom';
+  const openRegion =
+    supportedCities.length === allSupportedCities.length
+      ? 'all'
+      : supportedCities.every((c) => JZH_CITIES.includes(c)) && supportedCities.length === JZH_CITIES.length
+        ? 'jzh'
+        : 'custom';
   return { supportedCities, regionCityGroups, openRegion };
 }
 const isSupportedCity = (city) => isCityOpen(city);

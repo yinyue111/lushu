@@ -3,7 +3,17 @@
 import { createHash } from 'node:crypto';
 import { AI_LOG_PATH } from '../config/index.mjs';
 import { RUNTIME_SCHEMA, SECRET_SCHEMA, parseSetting } from '../config/runtimeSchema.mjs';
-import { currentSnapshot, decryptSecret, encryptSecret, getConfig, getSecret, refreshConfig, secretFingerprint, secretSource, buildSnapshot } from '../config/runtime.mjs';
+import {
+  currentSnapshot,
+  decryptSecret,
+  encryptSecret,
+  getConfig,
+  getSecret,
+  refreshConfig,
+  secretFingerprint,
+  secretSource,
+  buildSnapshot
+} from '../config/runtime.mjs';
 import { generationModeConfig } from '../config/runtimeViews.mjs';
 import { adminStore } from './store.mjs';
 import { adminAudit } from './audit.mjs';
@@ -38,7 +48,9 @@ export async function configView() {
     value: snap.values[key],
     source: key in snap.overrides ? 'db' : 'env'
   }));
-  const versions = await adminStore().listConfigVersions(200).catch(() => []);
+  const versions = await adminStore()
+    .listConfigVersions(200)
+    .catch(() => []);
   const secrets = Object.entries(SECRET_SCHEMA).map(([key, spec]) => {
     const last = versions.find((v) => (v.changes ?? []).some((c) => c.key === key));
     return { key, label: spec.label, state: secretSource(key), updatedAt: last?.createdAt ?? null, updatedBy: last?.actor ?? null };
@@ -85,7 +97,8 @@ export function previewConfig({ values = {}, secrets = {} } = {}, snap = current
   return { overrides, secretEnc, changes };
 }
 
-const tierOfChange = (c) => (/^model\.(fast|deep)$/.test(c.key) ? c.key.split('.')[1] : /^provider\.(fast|deep)\.apiKey$/.test(c.key) ? c.key.split('.')[1] : null);
+const tierOfChange = (c) =>
+  /^model\.(fast|deep)$/.test(c.key) ? c.key.split('.')[1] : /^provider\.(fast|deep)\.apiKey$/.test(c.key) ? c.key.split('.')[1] : null;
 
 /** Hash of what a test-run must have exercised: the draft tier settings + key fingerprint. */
 export function draftHash(tier, tierSettings, apiKey) {
@@ -109,7 +122,8 @@ export async function saveConfig({ admin, req, values, secrets, reason, testRunI
   const { overrides, secretEnc, changes } = previewConfig({ values, secrets }, snap);
   if (!changes.length) throw createHttpError('没有改动', 400, 'ADMIN_CONFIG_NO_CHANGES');
   const twoSourceOff = changes.find((c) => c.key === 'enrich.requireTwoSources' && c.after === false);
-  if (twoSourceOff && !confirmTwoSourceOff) throw createHttpError('关闭「两来源一致」会让只有一个来源的值也显示出来，请二次确认', 409, 'ADMIN_CONFIRM_REQUIRED');
+  if (twoSourceOff && !confirmTwoSourceOff)
+    throw createHttpError('关闭「两来源一致」会让只有一个来源的值也显示出来，请二次确认', 409, 'ADMIN_CONFIRM_REQUIRED');
 
   // Model change gate: a successful test-run of the same draft within 10 minutes, or an admin force-save with reason.
   const tiers = [...new Set(changes.map(tierOfChange).filter(Boolean))];
@@ -122,7 +136,8 @@ export async function saveConfig({ admin, req, values, secrets, reason, testRunI
       const hash = draftHash(tier, settings, key);
       const ok = runs.some((e) => e.detail?.draftHash === hash && e.detail?.ok === true && Date.now() - Date.parse(e.createdAt) < TEST_RUN_VALID_MS);
       if (!ok) {
-        if (!force) throw createHttpError(`改${tier === 'fast' ? '轻快' : '细品'}档模型前需要一次成功的试跑（10 分钟内，同一份草稿）`, 409, 'ADMIN_TEST_RUN_REQUIRED');
+        if (!force)
+          throw createHttpError(`改${tier === 'fast' ? '轻快' : '细品'}档模型前需要一次成功的试跑（10 分钟内，同一份草稿）`, 409, 'ADMIN_TEST_RUN_REQUIRED');
         if (admin.role !== 'admin') throw createHttpError('只有管理员能强制保存', 403, 'ADMIN_FORBIDDEN');
         forced = true;
       }
@@ -131,10 +146,17 @@ export async function saveConfig({ admin, req, values, secrets, reason, testRunI
   const entry = await adminStore().insertConfigVersion({ overrides, secrets: secretEnc, changes, actor: admin.username, note: why }, snap.version);
   await adminStore().notifyConfigChanged(entry.version);
   await refreshConfig();
-  await adminAudit(req, { admin, action: 'config.save', target: `config:v${entry.version}`, before: changes.map((c) => ({ key: c.key, value: c.before })), after: changes.map((c) => ({ key: c.key, value: c.after })), reason: why, extra: { version: entry.version, ...(forced ? { forcedWithoutTestRun: true } : {}), ...(twoSourceOff ? { twoSourceOffConfirmed: true } : {}) } });
+  await adminAudit(req, {
+    admin,
+    action: 'config.save',
+    target: `config:v${entry.version}`,
+    before: changes.map((c) => ({ key: c.key, value: c.before })),
+    after: changes.map((c) => ({ key: c.key, value: c.after })),
+    reason: why,
+    extra: { version: entry.version, ...(forced ? { forcedWithoutTestRun: true } : {}), ...(twoSourceOff ? { twoSourceOffConfirmed: true } : {}) }
+  });
   return { version: entry.version, changes, forced };
 }
-
 
 export async function restoreConfig({ admin, req, version, reason }) {
   const why = requireReason(reason);
@@ -148,17 +170,36 @@ export async function restoreConfig({ admin, req, version, reason }) {
     if (JSON.stringify(snap.values[key]) !== JSON.stringify(next.values[key])) changes.push({ key, before: snap.values[key], after: next.values[key] });
   }
   for (const key of Object.keys(SECRET_SCHEMA)) {
-    if ((snap.secrets[key] ?? '') !== (next.secrets[key] ?? '')) changes.push({ key, secret: true, before: snap.secrets[key] ? '已设置' : '未设置', after: next.secrets[key] ? '恢复为旧值' : '已清除（回到 env）' });
+    if ((snap.secrets[key] ?? '') !== (next.secrets[key] ?? ''))
+      changes.push({ key, secret: true, before: snap.secrets[key] ? '已设置' : '未设置', after: next.secrets[key] ? '恢复为旧值' : '已清除（回到 env）' });
   }
-  const entry = await adminStore().insertConfigVersion({ overrides: target.overrides, secrets: target.secrets, changes, actor: admin.username, note: why, restoredFrom: target.version }, snap.version);
+  const entry = await adminStore().insertConfigVersion(
+    { overrides: target.overrides, secrets: target.secrets, changes, actor: admin.username, note: why, restoredFrom: target.version },
+    snap.version
+  );
   await adminStore().notifyConfigChanged(entry.version);
   await refreshConfig();
-  await adminAudit(req, { admin, action: 'config.restore', target: `config:v${entry.version}`, before: changes.map((c) => ({ key: c.key, value: c.before })), after: changes.map((c) => ({ key: c.key, value: c.after })), reason: why, extra: { restoredFrom: target.version, version: entry.version } });
+  await adminAudit(req, {
+    admin,
+    action: 'config.restore',
+    target: `config:v${entry.version}`,
+    before: changes.map((c) => ({ key: c.key, value: c.before })),
+    after: changes.map((c) => ({ key: c.key, value: c.after })),
+    reason: why,
+    extra: { restoredFrom: target.version, version: entry.version }
+  });
   return { version: entry.version, restoredFrom: target.version, changes };
 }
 
 export async function listVersions() {
-  return (await adminStore().listConfigVersions(100)).map(({ version, changes, actor, note, restoredFrom, createdAt }) => ({ version, changes, actor, note, restoredFrom, createdAt }));
+  return (await adminStore().listConfigVersions(100)).map(({ version, changes, actor, note, restoredFrom, createdAt }) => ({
+    version,
+    changes,
+    actor,
+    note,
+    restoredFrom,
+    createdAt
+  }));
 }
 
 /** Export (build design §3): secrets → { redacted, fingerprint }. Carries commit + image id for deploy records. */
@@ -215,11 +256,14 @@ async function defaultModelTester({ baseUrl, apiKey, model, wireApi, reasoningEf
  * Runs the draft tier once. Rate-limited per admin (admin.testRunsPerHour, counted from the audit table so it
  * holds across processes). Logged to ai-logs with purpose admin_test: counts toward today's cost, not user quota.
  */
-export async function testRunModel({ admin, req, tier, draft, apiKey = '' }) {
+/** @param {{ admin: any, req: any, tier: string, draft?: any, apiKey?: string }} input */
+export async function testRunModel({ admin, req, tier, draft = undefined, apiKey = '' }) {
   if (!['fast', 'deep'].includes(tier)) throw createHttpError('档位只能是 fast 或 deep', 400, 'ADMIN_TIER_INVALID');
   const settings = parseSetting(`model.${tier}`, draft ?? generationModeConfig(tier));
   const hourAgo = Date.now() - 3600000;
-  const recent = (await adminStore().listAudit({ limit: 500, action: 'config.test-run' })).filter((e) => e.actor === admin.username && Date.parse(e.createdAt) > hourAgo);
+  const recent = (await adminStore().listAudit({ limit: 500, action: 'config.test-run' })).filter(
+    (e) => e.actor === admin.username && Date.parse(e.createdAt) > hourAgo
+  );
   const limit = getConfig('admin.testRunsPerHour');
   if (recent.length >= limit) {
     const oldest = Math.min(...recent.map((e) => Date.parse(e.createdAt)));
@@ -231,14 +275,60 @@ export async function testRunModel({ admin, req, tier, draft, apiKey = '' }) {
   const key = String(apiKey || '').trim() || getSecret(`provider.${tier}.apiKey`) || base.apiKey || '';
   const baseUrl = settings.baseUrl || base.baseUrl || '';
   const startedAt = Date.now();
-  const result = baseUrl && key ? await modelTester({ baseUrl, apiKey: key, model: settings.model, wireApi: base.wireApi ?? 'responses', reasoningEffort: settings.reasoningEffort, timeoutMs: settings.timeoutMs }) : { ok: false, usage: null, error: 'NOT_CONFIGURED' };
+  const result =
+    baseUrl && key
+      ? await modelTester({
+          baseUrl,
+          apiKey: key,
+          model: settings.model,
+          wireApi: base.wireApi ?? 'responses',
+          reasoningEffort: settings.reasoningEffort,
+          timeoutMs: settings.timeoutMs
+        })
+      : { ok: false, usage: null, error: 'NOT_CONFIGURED' };
   const durationMs = Date.now() - startedAt;
   const u = result.usage;
-  const modelUsage = summarizeModelUsage([{ usage: u ? { input_tokens: u.input_tokens ?? u.prompt_tokens, output_tokens: u.output_tokens ?? u.completion_tokens, total_tokens: u.total_tokens } : null }]);
+  const modelUsage = summarizeModelUsage([
+    {
+      usage: u ? { input_tokens: u.input_tokens ?? u.prompt_tokens, output_tokens: u.output_tokens ?? u.completion_tokens, total_tokens: u.total_tokens } : null
+    }
+  ]);
   const costEstimate = estimateModelCost({ modelUsage, model: settings.model, config: modelPricingFor(settings.model) });
   const testRunId = `tr_${cryptoRandomId()}`;
-  await appendJsonLine(AI_LOG_PATH, { requestId: testRunId, kind: 'admin-test-run', purpose: 'admin_test', mode: tier, model: settings.model, status: result.ok ? 'ok' : 'error', code: result.ok ? '' : result.error, durationMs, modelUsage, costEstimate, createdAt: new Date().toISOString() });
+  await appendJsonLine(AI_LOG_PATH, {
+    requestId: testRunId,
+    kind: 'admin-test-run',
+    purpose: 'admin_test',
+    mode: tier,
+    model: settings.model,
+    status: result.ok ? 'ok' : 'error',
+    code: result.ok ? '' : result.error,
+    durationMs,
+    modelUsage,
+    costEstimate,
+    createdAt: new Date().toISOString()
+  });
   const hash = draftHash(tier, settings, key);
-  await adminAudit(req, { admin, action: 'config.test-run', target: `model.${tier}`, extra: { testRunId, draftHash: hash, ok: result.ok, model: settings.model, durationMs, error: result.error || '', cost: costEstimate.status === 'estimated' ? costEstimate.amount : null } });
-  return { testRunId, ok: result.ok, durationMs, error: result.error || '', cost: costEstimate.status === 'estimated' ? { amount: costEstimate.amount, currency: costEstimate.currency } : null, remainingThisHour: limit - recent.length - 1 };
+  await adminAudit(req, {
+    admin,
+    action: 'config.test-run',
+    target: `model.${tier}`,
+    extra: {
+      testRunId,
+      draftHash: hash,
+      ok: result.ok,
+      model: settings.model,
+      durationMs,
+      error: result.error || '',
+      cost: costEstimate.status === 'estimated' ? costEstimate.amount : null
+    }
+  });
+  return {
+    testRunId,
+    ok: result.ok,
+    durationMs,
+    error: result.error || '',
+    cost: costEstimate.status === 'estimated' ? { amount: costEstimate.amount, currency: costEstimate.currency } : null,
+    remainingThisHour: limit - recent.length - 1
+  };
 }

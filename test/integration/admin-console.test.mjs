@@ -11,11 +11,20 @@ import { authEnv, createClient } from '../helpers/accounts.mjs';
 import { hermeticServerEnv } from '../../scripts/lib/hermetic-env.mjs';
 import { totpAt, totpStep } from '../../server/admin/totp.mjs';
 
-const ENV = authEnv('login', { REGISTRATION_MODE: 'open', ADMIN_ENABLED: 'true', CONFIG_ENC_KEY: 'unit-test-config-enc-key-0123456789', ADMIN_CONFIG_POLL_MS: '200' });
+const ENV = authEnv('login', {
+  REGISTRATION_MODE: 'open',
+  ADMIN_ENABLED: 'true',
+  CONFIG_ENC_KEY: 'unit-test-config-enc-key-0123456789',
+  ADMIN_CONFIG_POLL_MS: '200'
+});
 
 function createAdmin(dataDir, username, role) {
   const env = hermeticServerEnv({ NODE_ENV: 'production', ROUTEBOOK_DATA_DIR: dataDir, PROFILE_ID_SECRET: 'unit-test-profile-secret', ...ENV });
-  const out = spawnSync(process.execPath, ['scripts/admin-create.mjs', '--username', username, '--role', role, '--production'], { cwd: PROJECT_ROOT, env, encoding: 'utf8' });
+  const out = spawnSync(process.execPath, ['scripts/admin-create.mjs', '--username', username, '--role', role, '--production'], {
+    cwd: PROJECT_ROOT,
+    env,
+    encoding: 'utf8'
+  });
   const password = /shown once\): (\S+)/.exec(out.stdout)?.[1];
   assert.ok(password, out.stdout + out.stderr);
   return password;
@@ -77,7 +86,10 @@ test('admin console end to end (JSONL backend)', async () => {
     // Runtime config applies without restart: invite mode + open cities.
     const before = await fetchJson(`${server.baseUrl}/api/cities`);
     assert.equal(before.data.openRegion, 'jzh');
-    const saved = await root.write('/api/admin/config', { values: { 'registration.mode': 'invite', 'generation.openCities': ['杭州', '上海', '苏州'] }, reason: '内测收紧' });
+    const saved = await root.write('/api/admin/config', {
+      values: { 'registration.mode': 'invite', 'generation.openCities': ['杭州', '上海', '苏州'] },
+      reason: '内测收紧'
+    });
     assert.equal(saved.status, 200, JSON.stringify(saved.data));
     const authCfg = await fetchJson(`${server.baseUrl}/api/auth/config`);
     assert.equal(authCfg.data.registration, 'invite');
@@ -135,9 +147,15 @@ test('admin console end to end (JSONL backend)', async () => {
 
     // Backup code logs in once; lockout after 5 wrong attempts.
     const viaBackup = adminClient(server.baseUrl);
-    const b = await viaBackup.request('/api/admin/login', { method: 'POST', body: { username: 'root', password: rootPassword, backupCode: rootTotp.backupCodes[0] } });
+    const b = await viaBackup.request('/api/admin/login', {
+      method: 'POST',
+      body: { username: 'root', password: rootPassword, backupCode: rootTotp.backupCodes[0] }
+    });
     assert.equal(b.status, 200);
-    const again = await viaBackup.request('/api/admin/login', { method: 'POST', body: { username: 'root', password: rootPassword, backupCode: rootTotp.backupCodes[0] } });
+    const again = await viaBackup.request('/api/admin/login', {
+      method: 'POST',
+      body: { username: 'root', password: rootPassword, backupCode: rootTotp.backupCodes[0] }
+    });
     assert.equal(again.status, 401, 'backup codes are one-time');
     for (let i = 0; i < 5; i += 1) await viaBackup.request('/api/admin/login', { method: 'POST', body: { username: 'opsone', password: 'wrong-password-xx' } });
     const locked = await viaBackup.request('/api/admin/login', { method: 'POST', body: { username: 'opsone', password: opPassword, totp: '123456' } });
@@ -155,7 +173,10 @@ test('admin console end to end (JSONL backend)', async () => {
 test('admin console is off in production unless ADMIN_ENABLED=true', async () => {
   const server = await startServer();
   try {
-    assert.equal((await fetchJson(`${server.baseUrl}/api/admin/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 404);
+    assert.equal(
+      (await fetchJson(`${server.baseUrl}/api/admin/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status,
+      404
+    );
   } finally {
     await server.stop();
   }

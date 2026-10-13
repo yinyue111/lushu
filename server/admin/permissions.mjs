@@ -22,7 +22,7 @@ export const PERMISSIONS = {
   'admins.manage': ['admin']
 };
 
-/** @param {string} role @param {keyof typeof PERMISSIONS} permission */
+/** @param {string} role @param {string} permission */
 export function can(role, permission) {
   return Boolean(PERMISSIONS[permission]?.includes(role));
 }

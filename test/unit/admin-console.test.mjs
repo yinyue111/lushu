@@ -54,7 +54,10 @@ test('restore copies an old version into a new one; audit keeps the chain', asyn
   assert.equal(runtime.getConfig('generation.dailyLimit'), 10);
   assert.equal(runtime.getConfig('registration.mode'), 'open');
   const versions = await svc.listVersions();
-  assert.deepEqual(versions.map((v) => v.version), [3, 2, 1]);
+  assert.deepEqual(
+    versions.map((v) => v.version),
+    [3, 2, 1]
+  );
   const audit = (await adminStore().listAudit({ action: 'config.restore' }))[0];
   assert.equal(audit.detail.restoredFrom, 1);
   assert.ok(audit.detail.before.some((c) => c.key === 'registration.mode' && c.value === 'invite'));
@@ -72,14 +75,19 @@ test('model change needs a successful test-run of the same draft; failure blocks
   svc.setModelTesterForTests(async () => ({ ok: false, usage: null, error: 'HTTP 503' }));
   const failed = await svc.testRunModel({ admin, req, tier: 'deep', draft });
   assert.equal(failed.ok, false);
-  await assert.rejects(svc.saveConfig({ admin, req, values: { 'model.deep': draft }, reason: '切到备用模型', testRunIds: [failed.testRunId] }), { code: 'ADMIN_TEST_RUN_REQUIRED' });
+  await assert.rejects(svc.saveConfig({ admin, req, values: { 'model.deep': draft }, reason: '切到备用模型', testRunIds: [failed.testRunId] }), {
+    code: 'ADMIN_TEST_RUN_REQUIRED'
+  });
 
   svc.setModelTesterForTests(async () => ({ ok: true, usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 }, error: '' }));
   const ok = await svc.testRunModel({ admin, req, tier: 'deep', draft });
   assert.equal(ok.ok, true);
   assert.equal(ok.cost, null, 'no price configured → cost unknown, never guessed');
   // A different draft than the one tested is still refused.
-  await assert.rejects(svc.saveConfig({ admin, req, values: { 'model.deep': { ...draft, model: 'other' } }, reason: '换别的模型', testRunIds: [ok.testRunId] }), { code: 'ADMIN_TEST_RUN_REQUIRED' });
+  await assert.rejects(
+    svc.saveConfig({ admin, req, values: { 'model.deep': { ...draft, model: 'other' } }, reason: '换别的模型', testRunIds: [ok.testRunId] }),
+    { code: 'ADMIN_TEST_RUN_REQUIRED' }
+  );
   const saved = await svc.saveConfig({ admin, req, values: { 'model.deep': draft }, reason: '切到备用模型', testRunIds: [ok.testRunId] });
   assert.equal(saved.forced, false);
   assert.equal(runtime.getConfig('model.deep').model, 'backup-model');
@@ -96,7 +104,7 @@ test('test-runs are rate-limited per admin per hour', async () => {
   await svc.saveConfig({ admin, req, values: { 'admin.testRunsPerHour': 3 }, reason: '限流测试' });
   // 2 runs already happened in the previous test.
   await svc.testRunModel({ admin, req, tier: 'fast' });
-  await assert.rejects(svc.testRunModel({ admin, req, tier: 'fast' }), (e) => e.code === 'ADMIN_TEST_RUN_LIMIT' && e.retryAfterSeconds > 0);
+  await assert.rejects(svc.testRunModel({ admin, req, tier: 'fast' }), (/** @type {any} */ e) => e.code === 'ADMIN_TEST_RUN_LIMIT' && e.retryAfterSeconds > 0);
   svc.setModelTesterForTests(null);
 });
 
@@ -123,13 +131,26 @@ test('secrets are write-only: config view and export never contain the value', a
 });
 
 test('role table: operators cannot touch models, quota config, restore, export, invites or admin accounts', () => {
-  for (const p of ['config.write', 'config.restore', 'config.export', 'config.testRun', 'invites.manage', 'admins.manage', 'corrections.batch', 'audit.read.all']) {
+  for (const p of [
+    'config.write',
+    'config.restore',
+    'config.export',
+    'config.testRun',
+    'invites.manage',
+    'admins.manage',
+    'corrections.batch',
+    'audit.read.all'
+  ]) {
     assert.equal(can('operator', p), false, p);
     assert.equal(can('admin', p), true, p);
   }
-  for (const p of ['corrections.write', 'users.write', 'users.quota', 'roadbooks.write', 'dashboard.read', 'system.read', 'config.read', 'audit.read.own']) assert.equal(can('operator', p), true, p);
+  for (const p of ['corrections.write', 'users.write', 'users.quota', 'roadbooks.write', 'dashboard.read', 'system.read', 'config.read', 'audit.read.own'])
+    assert.equal(can('operator', p), true, p);
   assert.equal(can('script', 'config.read'), false);
-  assert.ok(Object.values(PERMISSIONS).every((roles) => roles.includes('admin')), 'admin can do everything operators can');
+  assert.ok(
+    Object.values(PERMISSIONS).every((roles) => roles.includes('admin')),
+    'admin can do everything operators can'
+  );
 });
 
 test('TOTP matches the RFC 6238 SHA-1 vector and accepts ±1 step only', () => {
@@ -177,8 +198,31 @@ test('corrections: report → queue with sources; reset / verify (source require
   assert.equal((await listCorrectionQueue({ status: 'rejected' })).length, 1);
 
   // verify without a source → refused
-  await assert.rejects(applyCorrection({ admin: operator, req, routebookId: 'rb-a', stopKey: 's1', field: 'price', action: 'verify', value: '70 元', sources: [], reason: '官网核实' }), { code: 'ADMIN_VERIFY_SOURCE_REQUIRED' });
-  await applyCorrection({ admin: operator, req, routebookId: 'rb-a', stopKey: 's1', field: 'price', action: 'verify', value: '淡季 70 元', sources: [{ url: 'https://example.gov.cn/price', retrievedAt: '2026-10-13' }], reason: '官网核实' });
+  await assert.rejects(
+    applyCorrection({
+      admin: operator,
+      req,
+      routebookId: 'rb-a',
+      stopKey: 's1',
+      field: 'price',
+      action: 'verify',
+      value: '70 元',
+      sources: [],
+      reason: '官网核实'
+    }),
+    { code: 'ADMIN_VERIFY_SOURCE_REQUIRED' }
+  );
+  await applyCorrection({
+    admin: operator,
+    req,
+    routebookId: 'rb-a',
+    stopKey: 's1',
+    field: 'price',
+    action: 'verify',
+    value: '淡季 70 元',
+    sources: [{ url: 'https://example.gov.cn/price', retrievedAt: '2026-10-13' }],
+    reason: '官网核实'
+  });
   const verified = (await store.getResult('rb-a')).claims[0];
   assert.equal(verified.method, 'ops-verified');
   assert.match(verified.display, /人工核实 · \d{4}-\d{2}-\d{2}/);
@@ -187,7 +231,10 @@ test('corrections: report → queue with sources; reset / verify (source require
   assert.ok(Date.parse(fact.expiresAt) - Date.now() > 89 * 86400000, 'manual verification lasts 90 days by default');
 
   // batch reset by cache key: operator refused, admin resets every routebook with that key + drops cache/fact
-  await assert.rejects(applyCorrection({ admin: operator, req, routebookId: 'rb-a', stopKey: 's1', field: 'price', action: 'reset', batch: true, reason: '全部改回' }), { code: 'ADMIN_FORBIDDEN' });
+  await assert.rejects(
+    applyCorrection({ admin: operator, req, routebookId: 'rb-a', stopKey: 's1', field: 'price', action: 'reset', batch: true, reason: '全部改回' }),
+    { code: 'ADMIN_FORBIDDEN' }
+  );
   const reset = await applyCorrection({ admin, req, routebookId: 'rb-a', stopKey: 's1', field: 'price', action: 'reset', batch: true, reason: '全部改回' });
   assert.deepEqual(reset.routebooks.sort(), ['rb-a', 'rb-b']);
   assert.equal((await store.getResult('rb-b')).claims[0].status, 'disputed');
@@ -195,7 +242,10 @@ test('corrections: report → queue with sources; reset / verify (source require
   assert.equal(await verifiedFactClaim('苏州|拙政园|price'), null);
 
   const audits = await adminStore().listAudit({ action: 'correction.' });
-  assert.deepEqual(audits.map((a) => a.action), ['correction.reset', 'correction.verify', 'correction.reject']);
+  assert.deepEqual(
+    audits.map((a) => a.action),
+    ['correction.reset', 'correction.verify', 'correction.reject']
+  );
   assert.equal(audits[1].detail.before.value, '80 元');
   assert.equal(audits[1].detail.after.value, '淡季 70 元');
 });

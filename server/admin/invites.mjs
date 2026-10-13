@@ -4,7 +4,10 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { PROFILE_ID_SECRET } from '../config/index.mjs';
 import { adminStore } from './store.mjs';
 
-export const inviteCodeHash = (code) => createHmac('sha256', PROFILE_ID_SECRET).update(`invite:v1:${String(code).trim().toUpperCase()}`).digest('hex');
+export const inviteCodeHash = (code) =>
+  createHmac('sha256', PROFILE_ID_SECRET)
+    .update(`invite:v1:${String(code).trim().toUpperCase()}`)
+    .digest('hex');
 
 export function generateInviteCode() {
   // 10 chars from an unambiguous alphabet, e.g. "K7QM-4XPR2"

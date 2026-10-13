@@ -49,7 +49,7 @@ export async function searchUsers(query) {
 }
 
 /**
- * @param {{ admin: any, req: any, userId: string, action: string, reason: string, quota?: number|null }} input
+ * @param {{ admin: any, req: any, userId: string, action: string, reason: string, quota?: number|string|null }} input
  */
 export async function updateUser({ admin, req, userId, action, reason, quota }) {
   const why = requireReason(reason);
@@ -59,7 +59,14 @@ export async function updateUser({ admin, req, userId, action, reason, quota }) 
   const actor = `admin:${admin.username}`;
   if (action === 'ban' || action === 'unban') {
     const result = await opsUpdateUser(req, id, { action: action === 'ban' ? 'disable' : 'enable', reason: why }, actor);
-    await adminAudit(req, { admin, action: `user.${action}`, target: `user:${id}`, before: { status: user.status }, after: { status: result.user.status }, reason: why });
+    await adminAudit(req, {
+      admin,
+      action: `user.${action}`,
+      target: `user:${id}`,
+      before: { status: user.status },
+      after: { status: result.user.status },
+      reason: why
+    });
     return { user: result.user };
   }
   if (action === 'set-quota') {
@@ -67,7 +74,14 @@ export async function updateUser({ admin, req, userId, action, reason, quota }) 
     const value = quota === null || quota === '' ? null : Number(quota);
     if (admin.role !== 'admin' && (value === null || value > max)) throw createHttpError(`运营单人额度最多改到 ${max}`, 403, 'ADMIN_QUOTA_CAP');
     const result = await opsUpdateUser(req, id, { action: 'set-quota', quota: value, reason: why }, actor);
-    await adminAudit(req, { admin, action: 'user.set-quota', target: `user:${id}`, before: { quota: user.generationQuota ?? null }, after: { quota: value }, reason: why });
+    await adminAudit(req, {
+      admin,
+      action: 'user.set-quota',
+      target: `user:${id}`,
+      before: { quota: user.generationQuota ?? null },
+      after: { quota: value },
+      reason: why
+    });
     return { user: result.user };
   }
   if (action === 'reset-quota') {
@@ -105,7 +119,14 @@ async function generationFor(publicId) {
   const rows = await readMatchingJsonLines(AI_LOG_PATH, (row) => row?.kind === 'generate-routebook' && row?.publicId === publicId, 1, 200000);
   const row = rows[0];
   if (!row) return null;
-  return { mode: row.mode ?? '', model: row.model ?? row.observability?.model ?? row.provider?.model ?? '', durationMs: row.durationMs ?? null, requestId: row.requestId ?? '', status: row.status, createdAt: row.createdAt };
+  return {
+    mode: row.mode ?? '',
+    model: row.model ?? row.observability?.model ?? row.provider?.model ?? '',
+    durationMs: row.durationMs ?? null,
+    requestId: row.requestId ?? '',
+    status: row.status,
+    createdAt: row.createdAt
+  };
 }
 
 export async function roadbookView(publicId) {
@@ -125,7 +146,16 @@ export async function roadbookView(publicId) {
     profileId: routebook.profileId ?? routebook.creator?.profileId ?? '',
     generation: await generationFor(routebook.publicId),
     enrichment: job
-      ? { status: job.status, attempts: job.attempts, lastError: job.lastError, filled: summary.filled ?? 0, kept: summary.kept ?? 0, usd: summary.usd ?? null, stoppedBy: summary.stoppedBy ?? '', updatedAt: job.updatedAt }
+      ? {
+          status: job.status,
+          attempts: job.attempts,
+          lastError: job.lastError,
+          filled: summary.filled ?? 0,
+          kept: summary.kept ?? 0,
+          usd: summary.usd ?? null,
+          stoppedBy: summary.stoppedBy ?? '',
+          updatedAt: job.updatedAt
+        }
       : null
   };
 }
@@ -137,14 +167,30 @@ export async function searchRoadbooks({ q = '', city = '', profileId = '' } = {}
     const one = await getSavedRoutebook(id).catch(() => null);
     if (one) return [await roadbookView(id)];
   }
-  const rows = await listSavedRoutebooks(50, (row) => (!city || row.city === city) && (!profileId || row.profileId === profileId) && (!q || id || String(row.title ?? '').includes(q)));
+  const rows = await listSavedRoutebooks(
+    50,
+    (row) => (!city || row.city === city) && (!profileId || row.profileId === profileId) && (!q || id || String(row.title ?? '').includes(q))
+  );
   return Promise.all(rows.map((r) => roadbookView(r.publicId)));
 }
 
 /** Recent failed generations (never saved as routebooks): code + request id for support. */
 export async function recentFailures({ profileId = '' } = {}) {
-  const rows = await readMatchingJsonLines(AI_LOG_PATH, (row) => row?.kind === 'generate-routebook' && row?.status === 'error' && (!profileId || row.profileId === profileId), 50, 100000);
-  return rows.map((r) => ({ requestId: r.requestId, code: r.code, failureReason: r.failureReason ?? '', mode: r.mode, city: r.city, profileId: r.profileId, createdAt: r.createdAt }));
+  const rows = await readMatchingJsonLines(
+    AI_LOG_PATH,
+    (row) => row?.kind === 'generate-routebook' && row?.status === 'error' && (!profileId || row.profileId === profileId),
+    50,
+    100000
+  );
+  return rows.map((r) => ({
+    requestId: r.requestId,
+    code: r.code,
+    failureReason: r.failureReason ?? '',
+    mode: r.mode,
+    city: r.city,
+    profileId: r.profileId,
+    createdAt: r.createdAt
+  }));
 }
 
 export async function roadbookAction({ admin, req, publicId, action, reason }) {

@@ -50,7 +50,13 @@ export const adminRoutes = [
     enforceRateLimit(req, 'ops-read');
     const result = await adminEnroll(req, res, await readJsonBody(req));
     await adminAudit(req, { admin: result.admin, action: 'totp.bind' });
-    return sendJson(res, 200, { ok: true, admin: adminView(result.admin), backupCodes: result.backupCodes, csrfToken: result.session.csrfToken, idleMinutes: result.session.idleMinutes });
+    return sendJson(res, 200, {
+      ok: true,
+      admin: adminView(result.admin),
+      backupCodes: result.backupCodes,
+      csrfToken: result.session.csrfToken,
+      idleMinutes: result.session.idleMinutes
+    });
   }),
   r('POST', '/api/admin/logout', async ({ req, res }) => {
     assertEnabled();
@@ -87,7 +93,16 @@ export const adminRoutes = [
   r('POST', '/api/admin/config', async ({ req, res }) => {
     const admin = await guard(req, 'config.write', { write: true });
     const body = await readJsonBody(req);
-    const result = await saveConfig({ admin, req, values: body.values, secrets: body.secrets, reason: body.reason, testRunIds: Array.isArray(body.testRunIds) ? body.testRunIds : [], force: body.force === true, confirmTwoSourceOff: body.confirmTwoSourceOff === true });
+    const result = await saveConfig({
+      admin,
+      req,
+      values: body.values,
+      secrets: body.secrets,
+      reason: body.reason,
+      testRunIds: Array.isArray(body.testRunIds) ? body.testRunIds : [],
+      force: body.force === true,
+      confirmTwoSourceOff: body.confirmTwoSourceOff === true
+    });
     return sendJson(res, 200, { ok: true, ...result });
   }),
   r('POST', '/api/admin/config/test-run', async ({ req, res }) => {
@@ -124,8 +139,20 @@ export const adminRoutes = [
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
     if (expiresAt && !(expiresAt.getTime() > Date.now())) throw createHttpError('过期时间要晚于现在', 400, 'ADMIN_INVITE_EXPIRY');
     const code = generateInviteCode();
-    const invite = await adminStore().createInvite({ id: `inv_${cryptoRandomId()}`, codeHash: inviteCodeHash(code), label: String(body.label ?? '').slice(0, 60), maxUses, expiresAt: expiresAt?.toISOString() ?? null, createdBy: admin.username });
-    await adminAudit(req, { admin, action: 'invite.create', target: `invite:${invite.id}`, after: { label: invite.label, maxUses, expiresAt: invite.expiresAt } });
+    const invite = await adminStore().createInvite({
+      id: `inv_${cryptoRandomId()}`,
+      codeHash: inviteCodeHash(code),
+      label: String(body.label ?? '').slice(0, 60),
+      maxUses,
+      expiresAt: expiresAt?.toISOString() ?? null,
+      createdBy: admin.username
+    });
+    await adminAudit(req, {
+      admin,
+      action: 'invite.create',
+      target: `invite:${invite.id}`,
+      after: { label: invite.label, maxUses, expiresAt: invite.expiresAt }
+    });
     const { codeHash: _h, ...rest } = invite;
     return sendJson(res, 200, { ok: true, invite: rest, code });
   }),
@@ -134,7 +161,13 @@ export const adminRoutes = [
     const body = await readJsonBody(req);
     const invite = await adminStore().revokeInvite(String(params.id));
     if (!invite) throw createHttpError('邀请码不存在', 404, 'ADMIN_INVITE_NOT_FOUND');
-    await adminAudit(req, { admin, action: 'invite.revoke', target: `invite:${invite.id}`, after: { revokedAt: invite.revokedAt }, reason: String(body.reason ?? '') });
+    await adminAudit(req, {
+      admin,
+      action: 'invite.revoke',
+      target: `invite:${invite.id}`,
+      after: { revokedAt: invite.revokedAt },
+      reason: String(body.reason ?? '')
+    });
     return sendJson(res, 200, { ok: true });
   }),
 
@@ -142,7 +175,13 @@ export const adminRoutes = [
   r('GET', '/api/admin/corrections', async ({ req, res, url }) => {
     await guard(req, 'corrections.read');
     const p = url.searchParams;
-    const items = await listCorrectionQueue({ status: p.get('status') || '', city: p.get('city') || '', field: p.get('field') || '', since: p.get('since') || '', until: p.get('until') || '' });
+    const items = await listCorrectionQueue({
+      status: p.get('status') || '',
+      city: p.get('city') || '',
+      field: p.get('field') || '',
+      since: p.get('since') || '',
+      until: p.get('until') || ''
+    });
     return sendJson(res, 200, { ok: true, items });
   }),
   r('POST', '/api/admin/corrections', async ({ req, res }) => {
@@ -159,14 +198,20 @@ export const adminRoutes = [
   r('POST', '/api/admin/users/:id', async ({ req, res, params }) => {
     const body = await readJsonBody(req);
     const admin = await guard(req, ['set-quota', 'reset-quota'].includes(body.action) ? 'users.quota' : 'users.write', { write: true });
-    return sendJson(res, 200, { ok: true, ...(await updateUser({ admin, req, userId: params.id, action: body.action, reason: body.reason, quota: body.quota })) });
+    return sendJson(res, 200, {
+      ok: true,
+      ...(await updateUser({ admin, req, userId: params.id, action: body.action, reason: body.reason, quota: body.quota }))
+    });
   }),
 
   // ---- roadbooks
   r('GET', '/api/admin/roadbooks', async ({ req, res, url }) => {
     await guard(req, 'roadbooks.read');
     const p = url.searchParams;
-    return sendJson(res, 200, { ok: true, items: await searchRoadbooks({ q: p.get('q') || '', city: p.get('city') || '', profileId: p.get('profileId') || '' }) });
+    return sendJson(res, 200, {
+      ok: true,
+      items: await searchRoadbooks({ q: p.get('q') || '', city: p.get('city') || '', profileId: p.get('profileId') || '' })
+    });
   }),
   r('GET', '/api/admin/roadbooks/:id', async ({ req, res, params }) => {
     await guard(req, 'roadbooks.read');
@@ -223,7 +268,14 @@ export const adminRoutes = [
     } else if (body.action === 'reset-totp') {
       after = adminView(await resetAdminTotp(target.id));
     } else throw createHttpError('不支持的操作', 400, 'ADMIN_ACTION_INVALID');
-    await adminAudit(req, { admin, action: `admin.${body.action}`, target: `admin:${target.username}`, before: adminView(target), after, reason: String(body.reason ?? '') });
+    await adminAudit(req, {
+      admin,
+      action: `admin.${body.action}`,
+      target: `admin:${target.username}`,
+      before: adminView(target),
+      after,
+      reason: String(body.reason ?? '')
+    });
     return sendJson(res, 200, { ok: true, admin: after });
   })
 ];

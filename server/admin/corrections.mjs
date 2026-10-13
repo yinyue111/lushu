@@ -67,7 +67,12 @@ export async function listCorrectionQueue({ status = '', city = '', field = '', 
       claimStatus: claim?.status ?? 'none',
       method: claim?.method ?? '',
       sources: sourceRows(claim),
-      conditions: (claim?.conditions ?? []).map((c) => ({ kind: c.kind, label: c.label, quote: String(c.quote ?? '').slice(0, 120), verifiedCount: c.verifiedCount ?? (c.sources ?? []).length })),
+      conditions: (claim?.conditions ?? []).map((c) => ({
+        kind: c.kind,
+        label: c.label,
+        quote: String(c.quote ?? '').slice(0, 120),
+        verifiedCount: c.verifiedCount ?? (c.sources ?? []).length
+      })),
       note: report.note ?? '',
       cacheKey: report.cacheKey ?? '',
       affectedRoutebooks: affected.get(report.cacheKey) ?? 0,
@@ -103,6 +108,7 @@ const brief = (claim) => (claim ? { status: claim.status, value: claim.value ?? 
 /**
  * @param {{ admin: any, req: any, reportId?: string, routebookId?: string, stopKey?: string, field?: string, action: string,
  *   reason: string, value?: string, sources?: { url: string, retrievedAt?: string, title?: string }[], batch?: boolean }} input
+ * @returns {Promise<Record<string, any>>}
  */
 export async function applyCorrection(input) {
   const { admin, req } = input;
@@ -111,7 +117,8 @@ export async function applyCorrection(input) {
   const routebookId = report?.routebookId ?? String(input.routebookId ?? '');
   const stopKey = report?.stopKey ?? String(input.stopKey ?? '');
   const field = report?.field ?? String(input.field ?? '');
-  if (!routebookId || (input.action !== 'rerun' && (!stopKey || !FIELDS.has(field)))) throw createHttpError('缺少路书 / 站点 / 字段', 400, 'ADMIN_CORRECTION_TARGET');
+  if (!routebookId || (input.action !== 'rerun' && (!stopKey || !FIELDS.has(field))))
+    throw createHttpError('缺少路书 / 站点 / 字段', 400, 'ADMIN_CORRECTION_TARGET');
   const routebook = await getSavedRoutebook(routebookId);
   if (!routebook) throw createHttpError('路书不存在', 404, 'ROUTEBOOK_NOT_FOUND');
   const store = enrichStore();
@@ -152,10 +159,16 @@ export async function applyCorrection(input) {
     }
     detail = { before: brief(existing), after: { status: '待确认' }, cacheKey, routebooks: changed, batch: Boolean(input.batch) };
   } else if (input.action === 'verify') {
-    const value = String(input.value ?? '').trim().slice(0, 80);
+    const value = String(input.value ?? '')
+      .trim()
+      .slice(0, 80);
     if (!value) throw createHttpError('请填核实后的值', 400, 'ADMIN_VERIFY_VALUE_REQUIRED');
     const sources = (Array.isArray(input.sources) ? input.sources : [])
-      .map((s) => ({ url: String(s?.url ?? '').trim(), retrievedAt: String(s?.retrievedAt ?? '').trim() || now.slice(0, 10), title: String(s?.title ?? '').slice(0, 120) }))
+      .map((s) => ({
+        url: String(s?.url ?? '').trim(),
+        retrievedAt: String(s?.retrievedAt ?? '').trim() || now.slice(0, 10),
+        title: String(s?.title ?? '').slice(0, 120)
+      }))
       .filter((s) => s.url);
     if (!sources.length) throw createHttpError('设为核实值必须填至少 1 个来源链接', 400, 'ADMIN_VERIFY_SOURCE_REQUIRED');
     for (const s of sources) {
@@ -207,15 +220,38 @@ export async function applyCorrection(input) {
     detail = { before: brief(before), after: brief(after), sources: sources.map((s) => s.url) };
   } else if (input.action === 'reject') {
     if (!report) throw createHttpError('驳回需要针对一条报错', 400, 'ADMIN_REJECT_NEEDS_REPORT');
-    const { before, after } = await setClaim(routebookId, stopKey, field, (prev) => (prev && prev.status === 'disputed' ? { ...prev, status: 'filled' } : prev));
+    const { before, after } = await setClaim(routebookId, stopKey, field, (prev) =>
+      prev && prev.status === 'disputed' ? { ...prev, status: 'filled' } : prev
+    );
     detail = { before: brief(before), after: brief(after) };
   } else {
     throw createHttpError('不支持的纠错动作', 400, 'ADMIN_CORRECTION_ACTION');
   }
 
-  await adminStore().addCorrection({ id: `cor_${cryptoRandomId()}`, routebookId, stopKey, field: field || '-', action: input.action, value: input.value ?? '', sourceUrl: input.sources?.[0]?.url ?? '', reportId: report?.id ?? null, reason, actor: admin.username, createdAt: now });
-  if (report && input.action !== 'rerun') await adminStore().setReportState(report.id, { status: input.action === 'reject' ? 'rejected' : 'resolved', resolvedBy: admin.username, resolvedAt: now });
-  await adminAudit(req, { admin, action: `correction.${input.action}`, target: `routebook:${routebookId}:${stopKey}:${field}`, before: detail.before, after: detail.after, reason, extra: { ...detail, before: undefined, after: undefined, reportId: report?.id ?? null } });
+  await adminStore().addCorrection({
+    id: `cor_${cryptoRandomId()}`,
+    routebookId,
+    stopKey,
+    field: field || '-',
+    action: input.action,
+    value: input.value ?? '',
+    sourceUrl: input.sources?.[0]?.url ?? '',
+    reportId: report?.id ?? null,
+    reason,
+    actor: admin.username,
+    createdAt: now
+  });
+  if (report && input.action !== 'rerun')
+    await adminStore().setReportState(report.id, { status: input.action === 'reject' ? 'rejected' : 'resolved', resolvedBy: admin.username, resolvedAt: now });
+  await adminAudit(req, {
+    admin,
+    action: `correction.${input.action}`,
+    target: `routebook:${routebookId}:${stopKey}:${field}`,
+    before: detail.before,
+    after: detail.after,
+    reason,
+    extra: { ...detail, before: undefined, after: undefined, reportId: report?.id ?? null }
+  });
   return { ok: true, action: input.action, ...detail };
 }
 

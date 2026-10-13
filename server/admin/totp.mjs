@@ -18,7 +18,9 @@ export function base32Encode(buffer) {
   return out;
 }
 export function base32Decode(text) {
-  const clean = String(text).replace(/[\s=-]/g, '').toUpperCase();
+  const clean = String(text)
+    .replace(/[\s=-]/g, '')
+    .toUpperCase();
   let bits = 0;
   let value = 0;
   const out = [];

@@ -18,7 +18,10 @@ function envValues() {
   return Object.fromEntries(Object.keys(RUNTIME_SCHEMA).map((key) => [key, envSetting(key)]));
 }
 
-/** Builds a snapshot from a stored version; throws if any stored override is invalid (whole snapshot rejected). */
+/**
+ * Builds a snapshot from a stored version; throws if any stored override is invalid (whole snapshot rejected).
+ * @returns {Snapshot}
+ */
 export function buildSnapshot(entry) {
   const values = envValues();
   const overrides = {};
@@ -27,9 +30,19 @@ export function buildSnapshot(entry) {
     overrides[key] = parseSetting(key, raw);
     values[key] = overrides[key];
   }
+  /** @type {Record<string, string>} */
   const secrets = {};
   for (const [key, enc] of Object.entries(entry?.secrets ?? {})) if (SECRET_SCHEMA[key] && typeof enc === 'string') secrets[key] = enc;
-  return { version: entry?.version ?? 0, values, overrides, secrets, source: entry ? 'db' : 'env', loadedAt: new Date().toISOString(), error: '', stale: false };
+  return {
+    version: entry?.version ?? 0,
+    values,
+    overrides,
+    secrets,
+    source: /** @type {'env'|'db'} */ (entry ? 'db' : 'env'),
+    loadedAt: new Date().toISOString(),
+    error: '',
+    stale: false
+  };
 }
 
 /** @type {Snapshot} */

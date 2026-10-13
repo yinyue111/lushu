@@ -1,12 +1,6 @@
 // Background enrichment: queue, worker, read model and "this is wrong" reports.
 import { getConfig, getSecret } from '../config/runtime.mjs';
-import {
-  ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS,
-  ENRICH_LEASE_MS,
-  ENRICH_MAX_ATTEMPTS,
-  ENRICH_POLL_MS,
-  ENRICH_RETRY_BASE_MS
-} from '../config/index.mjs';
+import { ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS, ENRICH_LEASE_MS, ENRICH_MAX_ATTEMPTS, ENRICH_POLL_MS, ENRICH_RETRY_BASE_MS } from '../config/index.mjs';
 import { cryptoRandomId } from '../auth/tokens.mjs';
 import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { enrichRoutebook, stopKeyOf } from './engine.mjs';

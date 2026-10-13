@@ -9,11 +9,7 @@
 import { getConfig } from '../config/runtime.mjs';
 import { verifiedFactClaim } from '../admin/verifiedFacts.mjs';
 import { raiseAlert } from '../ops/alerts.mjs';
-import {
-  ENRICH_ASSUMED_USD_PER_SEARCH,
-  ENRICH_CACHE_DAYS,
-  ENRICH_MAX_USD_PER_ROUTEBOOK
-} from '../config/index.mjs';
+import { ENRICH_ASSUMED_USD_PER_SEARCH, ENRICH_CACHE_DAYS, ENRICH_MAX_USD_PER_ROUTEBOOK } from '../config/index.mjs';
 import { amapPlace, webSearchPlace } from './sources.mjs';
 import { fetchCitedPage, isBlockedDomain, siteOf } from './pages.mjs';
 import { canonicalHours, canonicalPrice, compact, hoursEvidence, priceDisplay, priceEvidence, priceKey } from './text.mjs';

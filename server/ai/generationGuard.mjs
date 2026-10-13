@@ -118,13 +118,7 @@ export function clearGenerationDedupCache() {
  */
 export async function peekGenerationQuota(
   profileId,
-  {
-    quota = cfgQuota(),
-    windowMs = GENERATION_QUOTA_WINDOW_MS,
-    nowMs = Date.now(),
-    mode = '',
-    deepQuota = cfgDeepQuota()
-  } = {}
+  { quota = cfgQuota(), windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now(), mode = '', deepQuota = cfgDeepQuota() } = {}
 ) {
   if (!profileId || profileId === 'anonymous') {
     return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, retryAfterSeconds: 0 };
@@ -229,8 +223,7 @@ export async function enforceGenerationQuota(profileId, options = {}) {
 /** Patch (L2) quota: defaults to 2× full generation quota when GENERATION_QUOTA_PATCH_PER_PROFILE is 0. */
 export async function peekPatchQuota(profileId, { quota = undefined, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}) {
   const patchQuota = getConfig('generation.patchQuota');
-  const effective =
-    Number.isInteger(quota) && quota > 0 ? quota : patchQuota > 0 ? patchQuota : Math.max(1, (cfgQuota() || 30) * 2);
+  const effective = Number.isInteger(quota) && quota > 0 ? quota : patchQuota > 0 ? patchQuota : Math.max(1, (cfgQuota() || 30) * 2);
   if (!profileId || profileId === 'anonymous' || (quota === undefined && !getConfig('generation.patchQuotaEnabled'))) {
     return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, kind: 'patch' };
   }
@@ -240,10 +233,7 @@ export async function peekPatchQuota(profileId, { quota = undefined, windowMs = 
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
     (row) =>
-      row?.kind === 'patch-routebook' &&
-      row?.profileId === profileId &&
-      rowConsumesQuota(row, failuresConsume) &&
-      Date.parse(row?.createdAt ?? '') >= since,
+      row?.kind === 'patch-routebook' && row?.profileId === profileId && rowConsumesQuota(row, failuresConsume) && Date.parse(row?.createdAt ?? '') >= since,
     effective,
     50000
   );

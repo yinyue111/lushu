@@ -129,7 +129,11 @@ export async function adminRevokeFriendLink(publicId, note) {
   const routebook = await getSavedRoutebook(publicId);
   if (!routebook || isDeletedRoutebook(routebook)) throw createHttpError('路书不存在', 404, 'ROUTEBOOK_NOT_FOUND');
   if (!routebook.friendLink) return { routebook, changed: false };
-  const versionMetadata = await routebookMutationMetadata(routebook, {}, { changeReason: `运营停用朋友链接：${truncateString(note, 200)}`, actorType: 'admin' });
+  const versionMetadata = await routebookMutationMetadata(
+    routebook,
+    {},
+    { changeReason: `运营停用朋友链接：${truncateString(note, 200)}`, actorType: 'admin' }
+  );
   const updated = normalizeRoutebookForStorage(
     { ...routebook, ...versionMetadata, editToken: sanitizeEditToken(routebook.editToken), friendLink: null },
     routebook.publicId || routebook.id

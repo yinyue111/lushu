@@ -41,7 +41,7 @@ export function generationModeConfig(mode) {
  */
 export function runtimeForMode(baseRuntime, mode) {
   const key = resolveGenerationMode(mode);
-  const cfg = generationModeConfig(key);
+  const cfg = /** @type {any} */ (generationModeConfig(key));
   const apiKey = getSecretIfDb(`provider.${key}.apiKey`) || baseRuntime.apiKey;
   const baseUrl = cfg.baseUrl || baseRuntime.baseUrl;
   const model = cfg.model || baseRuntime.model;

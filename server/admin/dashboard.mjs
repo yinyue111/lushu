@@ -35,7 +35,10 @@ export function successRate(rows, now = Date.now()) {
     }
   }
   const pick = (k) => ({ ok: buckets[k]?.ok ?? 0, total: buckets[k]?.total ?? 0, rate: buckets[k]?.total ? buckets[k].ok / buckets[k].total : null });
-  return { today: { all: pick('today.all'), fast: pick('today.fast'), deep: pick('today.deep') }, week: { all: pick('week.all'), fast: pick('week.fast'), deep: pick('week.deep') } };
+  return {
+    today: { all: pick('today.all'), fast: pick('today.fast'), deep: pick('today.deep') },
+    week: { all: pick('week.all'), fast: pick('week.fast'), deep: pick('week.deep') }
+  };
 }
 
 /**
@@ -91,7 +94,9 @@ export function generationCostToday(rows, now = Date.now()) {
 export async function dashboard(now = Date.now()) {
   const rows = await readMatchingJsonLines(AI_LOG_PATH, (row) => Date.parse(row?.createdAt ?? '') >= now - 7 * DAY, 200000, 200000);
   const gen = generationCostToday(rows, now);
-  const enrichSpend = await enrichStore().getSpend(now).catch(() => ({ usd: 0 }));
+  const enrichSpend = await enrichStore()
+    .getSpend(now)
+    .catch(() => ({ usd: 0 }));
   const limit = getConfig('cost.dailyLimitUsd');
   const total = gen.generationUsd + gen.testRunUsd + Number(enrichSpend.usd || 0);
   return {

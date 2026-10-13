@@ -14,7 +14,12 @@ export const APP_COMMIT = clean(process.env.APP_COMMIT) || 'unknown';
 const startedAt = new Date().toISOString();
 
 export async function systemInfo() {
-  const migration = { expectedSchemaVersion: POSTGRES_STORAGE_SCHEMA_VERSION, schemaVersion: null, latest: null, backend: usesPostgresStorage() ? 'postgres' : 'jsonl' };
+  const migration = {
+    expectedSchemaVersion: POSTGRES_STORAGE_SCHEMA_VERSION,
+    schemaVersion: null,
+    latest: null,
+    backend: usesPostgresStorage() ? 'postgres' : 'jsonl'
+  };
   if (usesPostgresStorage()) {
     try {
       const pool = getPostgresStorage().pool;

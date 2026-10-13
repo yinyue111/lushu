@@ -35,19 +35,39 @@ function readCookie(req) {
   return '';
 }
 function setCookie(res, value, maxAgeSeconds) {
-  const cookie = [`${ADMIN_COOKIE}=${value}`, 'Path=/', 'HttpOnly', 'SameSite=Strict', `Max-Age=${maxAgeSeconds}`, ...(AUTH_COOKIE_SECURE ? ['Secure'] : [])].join('; ');
+  const cookie = [
+    `${ADMIN_COOKIE}=${value}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Strict',
+    `Max-Age=${maxAgeSeconds}`,
+    ...(AUTH_COOKIE_SECURE ? ['Secure'] : [])
+  ].join('; ');
   const existing = res.getHeader?.('set-cookie');
   const list = Array.isArray(existing) ? existing : existing ? [String(existing)] : [];
   res.setHeader('set-cookie', [...list, cookie]);
 }
 
 export function adminView(admin) {
-  return admin && { id: admin.id, username: admin.username, role: admin.role, status: admin.status, totpConfirmed: Boolean(admin.totpConfirmed), backupCodesLeft: (admin.backupCodeHashes ?? []).filter((c) => !c.usedAt).length, createdAt: admin.createdAt, lastLoginAt: admin.lastLoginAt };
+  return (
+    admin && {
+      id: admin.id,
+      username: admin.username,
+      role: admin.role,
+      status: admin.status,
+      totpConfirmed: Boolean(admin.totpConfirmed),
+      backupCodesLeft: (admin.backupCodeHashes ?? []).filter((c) => !c.usedAt).length,
+      createdAt: admin.createdAt,
+      lastLoginAt: admin.lastLoginAt
+    }
+  );
 }
 
 /** Creates an admin account. Returns a one-time initial password; TOTP is bound at first login. */
 export async function createAdminAccount({ username, role, password = '' }) {
-  const name = String(username ?? '').trim().toLowerCase();
+  const name = String(username ?? '')
+    .trim()
+    .toLowerCase();
   if (!USERNAME_RE.test(name)) throw createHttpError('用户名 3–32 位：小写字母、数字、. _ -', 400, 'ADMIN_USERNAME_INVALID');
   if (!ADMIN_ROLES.includes(role)) throw createHttpError('角色只能是 operator 或 admin', 400, 'ADMIN_ROLE_INVALID');
   const initialPassword = password || randomBytes(12).toString('base64url');
@@ -64,13 +84,19 @@ export async function createAdminAccount({ username, role, password = '' }) {
 
 /** Admin resets someone's 2FA: new secret, must bind again at next login; their sessions end. */
 export async function resetAdminTotp(adminId) {
-  const admin = await adminStore().updateAdmin(adminId, { totpSecretEnc: encryptSecret(generateTotpSecret()), totpConfirmed: false, backupCodeHashes: [], lastTotpStep: 0 });
+  const admin = await adminStore().updateAdmin(adminId, {
+    totpSecretEnc: encryptSecret(generateTotpSecret()),
+    totpConfirmed: false,
+    backupCodeHashes: [],
+    lastTotpStep: 0
+  });
   if (!admin) throw createHttpError('后台账号不存在', 404, 'ADMIN_NOT_FOUND');
   await adminStore().deleteAdminSessions(adminId);
   return admin;
 }
 
-const enrollToken = (admin, exp) => `${admin.id}.${exp}.${createHmac('sha256', PROFILE_ID_SECRET).update(`admin-enroll:${admin.id}:${exp}:${admin.passwordHash}`).digest('base64url')}`;
+const enrollToken = (admin, exp) =>
+  `${admin.id}.${exp}.${createHmac('sha256', PROFILE_ID_SECRET).update(`admin-enroll:${admin.id}:${exp}:${admin.passwordHash}`).digest('base64url')}`;
 async function checkEnrollToken(token) {
   const [id, exp, mac] = String(token ?? '').split('.');
   if (!id || !exp || !mac || Number(exp) < Date.now()) return null;
@@ -83,7 +109,10 @@ async function checkEnrollToken(token) {
 async function recordFailure(admin) {
   const attempts = (admin.failedAttempts ?? 0) + 1;
   const lockAt = getConfig('admin.lockoutAttempts');
-  const patch = attempts >= lockAt ? { failedAttempts: 0, lockedUntil: new Date(Date.now() + getConfig('admin.lockoutMinutes') * 60000).toISOString() } : { failedAttempts: attempts };
+  const patch =
+    attempts >= lockAt
+      ? { failedAttempts: 0, lockedUntil: new Date(Date.now() + getConfig('admin.lockoutMinutes') * 60000).toISOString() }
+      : { failedAttempts: attempts };
   await adminStore().updateAdmin(admin.id, patch);
 }
 const LOGIN_FAILED = () => createHttpError('用户名、密码或验证码不对', 401, 'ADMIN_LOGIN_FAILED');
@@ -93,7 +122,11 @@ const LOGIN_FAILED = () => createHttpError('用户名、密码或验证码不对
  * @returns {Promise<{ session?: any, enroll?: any, admin: any }>}
  */
 export async function adminLogin(req, res, input = {}) {
-  const admin = await adminStore().findAdminByUsername(String(input.username ?? '').trim().toLowerCase());
+  const admin = await adminStore().findAdminByUsername(
+    String(input.username ?? '')
+      .trim()
+      .toLowerCase()
+  );
   if (!admin || admin.status !== 'active') {
     await verifyPassword(String(input.password ?? ''), null).catch(() => false); // similar timing
     throw LOGIN_FAILED();
@@ -137,7 +170,8 @@ export async function adminEnroll(req, res, input = {}) {
   const admin = await checkEnrollToken(input.token);
   if (!admin || admin.totpConfirmed) throw createHttpError('绑定已过期，请重新登录', 401, 'ADMIN_ENROLL_EXPIRED');
   const step = verifyTotp(decryptSecret(admin.totpSecretEnc), input.totp);
-  if (!step || !(await adminStore().consumeTotpStep(admin.id, step))) throw createHttpError('验证码不对，请看验证器 App 上的 6 位数', 400, 'ADMIN_TOTP_INVALID');
+  if (!step || !(await adminStore().consumeTotpStep(admin.id, step)))
+    throw createHttpError('验证码不对，请看验证器 App 上的 6 位数', 400, 'ADMIN_TOTP_INVALID');
   const codes = Array.from({ length: BACKUP_CODE_COUNT }, generateRecoveryCode);
   const fresh = await adminStore().updateAdmin(admin.id, {
     totpConfirmed: true,
@@ -152,7 +186,14 @@ async function startAdminSession(res, admin) {
   const sid = randomBytes(32).toString('base64url');
   const csrf = randomBytes(24).toString('base64url');
   const now = Date.now();
-  await adminStore().createSession({ sidHash: hashSid(sid), adminId: admin.id, csrfHash: sha(csrf), expiresAt: new Date(now + ABSOLUTE_SESSION_MS).toISOString(), lastSeenAt: new Date(now).toISOString(), createdAt: new Date(now).toISOString() });
+  await adminStore().createSession({
+    sidHash: hashSid(sid),
+    adminId: admin.id,
+    csrfHash: sha(csrf),
+    expiresAt: new Date(now + ABSOLUTE_SESSION_MS).toISOString(),
+    lastSeenAt: new Date(now).toISOString(),
+    createdAt: new Date(now).toISOString()
+  });
   setCookie(res, sid, ABSOLUTE_SESSION_MS / 1000);
   return { csrfToken: csrf, idleMinutes: getConfig('admin.sessionIdleMinutes') };
 }

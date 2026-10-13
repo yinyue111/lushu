@@ -44,12 +44,13 @@ const envTier = (key) => ({
   timeoutMs: GENERATION_MODES[key].timeoutMs,
   idleTimeoutMs: GENERATION_MODES[key].idleTimeoutMs
 });
+/** @returns {any} */
 const int = (label, group, min, max, env, def, extra = {}) => ({ type: 'int', label, group, role: 'admin', min, max, env, default: def, ...extra });
 
 /**
  * @typedef {{ type: string, label: string, group: string, role: 'admin'|'operator', env: () => any, default: any,
  *   values?: string[], min?: number, max?: number, items?: () => string[], secret?: boolean, locked?: boolean,
- *   model?: boolean, help?: string }} SettingSpec
+ *   model?: boolean, help?: string, confirmOff?: boolean }} SettingSpec
  * @type {Record<string, SettingSpec>}
  */
 export const RUNTIME_SCHEMA = {
@@ -172,8 +173,26 @@ export const RUNTIME_SCHEMA = {
     env: () => true,
     default: true
   },
-  'enrich.dailyBudgetUsd': { type: 'number', label: '补全日预算（USD）', group: 'enrich', role: 'admin', min: 0, max: 100000, env: () => ENRICH_DAILY_BUDGET_USD, default: 30 },
-  'enrich.budgetAlertRatio': { type: 'number', label: '补全预算告警比例', group: 'enrich', role: 'admin', min: 0.1, max: 1, env: () => ENRICH_BUDGET_ALERT_RATIO, default: 0.8 },
+  'enrich.dailyBudgetUsd': {
+    type: 'number',
+    label: '补全日预算（USD）',
+    group: 'enrich',
+    role: 'admin',
+    min: 0,
+    max: 100000,
+    env: () => ENRICH_DAILY_BUDGET_USD,
+    default: 30
+  },
+  'enrich.budgetAlertRatio': {
+    type: 'number',
+    label: '补全预算告警比例',
+    group: 'enrich',
+    role: 'admin',
+    min: 0.1,
+    max: 1,
+    env: () => ENRICH_BUDGET_ALERT_RATIO,
+    default: 0.8
+  },
   'enrich.verifiedFactDays': int('人工核实值有效期（天）', 'enrich', 1, 3650, () => 90, 90),
   'admin.sessionIdleMinutes': int('后台登录空闲失效（分钟）', 'admin', 5, 480, () => 30, 30),
   'admin.lockoutAttempts': int('连续输错几次锁定', 'admin', 3, 20, () => 5, 5),
@@ -208,7 +227,9 @@ export function parseSetting(key, value) {
       return n;
     }
     case 'url': {
-      const u = String(value ?? '').trim().replace(/\/+$/, '');
+      const u = String(value ?? '')
+        .trim()
+        .replace(/\/+$/, '');
       if (u && !URL_RE.test(u)) throw new ConfigValueError(key, '需要 http(s) 地址或留空');
       return u;
     }
@@ -230,16 +251,22 @@ export function parseSetting(key, value) {
       if (!value || typeof value !== 'object') throw new ConfigValueError(key, '需要对象');
       const provider = String(value.provider ?? 'openai-compatible');
       if (!PROVIDERS.includes(provider)) throw new ConfigValueError(key, `provider 只能是 ${PROVIDERS.join(' / ')}`);
-      const baseUrl = String(value.baseUrl ?? '').trim().replace(/\/+$/, '');
+      const baseUrl = String(value.baseUrl ?? '')
+        .trim()
+        .replace(/\/+$/, '');
       if (baseUrl && !URL_RE.test(baseUrl)) throw new ConfigValueError(key, 'baseUrl 需要 http(s) 地址');
       const model = String(value.model ?? '').trim();
       if (!model || model.length > 160 || /\s/.test(model)) throw new ConfigValueError(key, 'model 不能为空');
-      const reasoningEffort = String(value.reasoningEffort ?? '').trim().toLowerCase();
+      const reasoningEffort = String(value.reasoningEffort ?? '')
+        .trim()
+        .toLowerCase();
       if (!REASONING.includes(reasoningEffort)) throw new ConfigValueError(key, `reasoningEffort 只能是 ${REASONING.filter(Boolean).join(' / ')} 或留空`);
       const timeoutMs = Number(value.timeoutMs);
-      if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > Math.max(600000, AI_TIMEOUT_MS)) throw new ConfigValueError(key, 'timeoutMs 范围 1000–600000');
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > Math.max(600000, AI_TIMEOUT_MS))
+        throw new ConfigValueError(key, 'timeoutMs 范围 1000–600000');
       const idleTimeoutMs = value.idleTimeoutMs == null || value.idleTimeoutMs === '' ? Math.min(timeoutMs, 150000) : Number(value.idleTimeoutMs);
-      if (!Number.isInteger(idleTimeoutMs) || idleTimeoutMs < 1000 || idleTimeoutMs > timeoutMs) throw new ConfigValueError(key, 'idleTimeoutMs 范围 1000–总超时');
+      if (!Number.isInteger(idleTimeoutMs) || idleTimeoutMs < 1000 || idleTimeoutMs > timeoutMs)
+        throw new ConfigValueError(key, 'idleTimeoutMs 范围 1000–总超时');
       return { provider, baseUrl, model, reasoningEffort, timeoutMs, idleTimeoutMs };
     }
     case 'pricing': {
@@ -248,7 +275,8 @@ export function parseSetting(key, value) {
       for (const [model, price] of Object.entries(value)) {
         const input = Number(price?.input);
         const output = Number(price?.output);
-        if (!model.trim() || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) throw new ConfigValueError(key, `${model} 单价无效`);
+        if (!model.trim() || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0)
+          throw new ConfigValueError(key, `${model} 单价无效`);
         out[model.trim()] = { input, output };
       }
       return out;

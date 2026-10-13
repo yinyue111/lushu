@@ -13,5 +13,15 @@
     "types": ["node", "vite/client"],
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
-  "include": ["server.mjs", "server/**/*.mjs", "scripts/**/*.mjs", "test/**/*.mjs", "src/**/*.js", "src/**/*.jsx"]
+  "include": [
+    "server.mjs",
+    "server/**/*.mjs",
+    "scripts/**/*.mjs",
+    "test/**/*.mjs",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "admin/**/*.js",
+    "admin/**/*.jsx",
+    "vite.admin.config.js"
+  ]
 }

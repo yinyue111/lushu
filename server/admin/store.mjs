@@ -26,13 +26,13 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
     const v = row.v;
     if (row.t === 'config') versions.push(v);
     else if (row.t === 'user') users.set(v.id, v);
-    else if (row.t === 'session') (v.deleted ? sessions.delete(v.sidHash) : sessions.set(v.sidHash, v));
+    else if (row.t === 'session') v.deleted ? sessions.delete(v.sidHash) : sessions.set(v.sidHash, v);
     else if (row.t === 'audit') audit.push(v);
     else if (row.t === 'invite') invites.set(v.id, v);
     else if (row.t === 'correction') corrections.push(v);
     else if (row.t === 'quota-reset') quotaResets.set(v.profileId, v);
     else if (row.t === 'report-state') reportStates.set(v.reportId, v);
-    else if (row.t === 'fact') (v.deleted ? facts.delete(v.cacheKey) : facts.set(v.cacheKey, v));
+    else if (row.t === 'fact') v.deleted ? facts.delete(v.cacheKey) : facts.set(v.cacheKey, v);
   };
   const load = () =>
     (loaded ??= (async () => {
@@ -316,10 +316,13 @@ function createPostgresStore(poolProvider) {
     },
     async createAdmin(user) {
       try {
-        const { rows } = await q(
-          `insert into ${S}.admin_users (id, username, password_hash, totp_secret_enc, role) values ($1,$2,$3,$4,$5) returning *`,
-          [user.id, user.username, user.passwordHash, user.totpSecretEnc, user.role]
-        );
+        const { rows } = await q(`insert into ${S}.admin_users (id, username, password_hash, totp_secret_enc, role) values ($1,$2,$3,$4,$5) returning *`, [
+          user.id,
+          user.username,
+          user.passwordHash,
+          user.totpSecretEnc,
+          user.role
+        ]);
         return adminFromRow(rows[0]);
       } catch (error) {
         if (error?.code === '23505') throw createHttpError('用户名已存在', 409, 'ADMIN_USERNAME_TAKEN');
@@ -358,10 +361,10 @@ function createPostgresStore(poolProvider) {
       return adminFromRow((await q(`update ${S}.admin_users set ${sets.join(', ')} where id = $1 returning *`, values)).rows[0]) ?? null;
     },
     async consumeTotpStep(id, step) {
-      const { rowCount } = await q(
-        `update ${S}.admin_users set last_totp_step = $2, last_login_at = clock_timestamp() where id = $1 and last_totp_step < $2`,
-        [id, step]
-      );
+      const { rowCount } = await q(`update ${S}.admin_users set last_totp_step = $2, last_login_at = clock_timestamp() where id = $1 and last_totp_step < $2`, [
+        id,
+        step
+      ]);
       return rowCount === 1;
     },
     async createSession(session) {
@@ -377,7 +380,14 @@ function createPostgresStore(poolProvider) {
     async getSession(sidHash) {
       const r = (await q(`select * from ${S}.admin_sessions where sid_hash = $1`, [sidHash])).rows[0];
       return r
-        ? { sidHash: r.sid_hash, adminId: r.admin_id, csrfHash: r.csrf_hash, expiresAt: iso(r.expires_at), lastSeenAt: iso(r.last_seen_at), createdAt: iso(r.created_at) }
+        ? {
+            sidHash: r.sid_hash,
+            adminId: r.admin_id,
+            csrfHash: r.csrf_hash,
+            expiresAt: iso(r.expires_at),
+            lastSeenAt: iso(r.last_seen_at),
+            createdAt: iso(r.created_at)
+          }
         : null;
     },
     async deleteSession(sidHash) {
@@ -404,7 +414,16 @@ function createPostgresStore(poolProvider) {
     },
     async listAudit({ limit = 100, action = '' } = {}) {
       const { rows } = await q(`select * from ${S}.admin_audit where ($2 = '' or action like $2 || '%') order by created_at desc limit $1`, [limit, action]);
-      return rows.map((r) => ({ id: r.id, actor: r.actor, role: r.role, action: r.action, target: r.target, detail: r.detail, ip: r.ip, createdAt: iso(r.created_at) }));
+      return rows.map((r) => ({
+        id: r.id,
+        actor: r.actor,
+        role: r.role,
+        action: r.action,
+        target: r.target,
+        detail: r.detail,
+        ip: r.ip,
+        createdAt: iso(r.created_at)
+      }));
     },
     async createInvite(invite) {
       const { rows } = await q(
@@ -437,7 +456,9 @@ function createPostgresStore(poolProvider) {
       return c;
     },
     async listCorrections(routebookId) {
-      const { rows } = await q(`select * from ${S}.admin_corrections where ($1 = '' or routebook_id = $1) order by created_at desc limit 200`, [routebookId ?? '']);
+      const { rows } = await q(`select * from ${S}.admin_corrections where ($1 = '' or routebook_id = $1) order by created_at desc limit 200`, [
+        routebookId ?? ''
+      ]);
       return rows.map((r) => ({
         id: r.id,
         routebookId: r.routebook_id,
@@ -453,7 +474,12 @@ function createPostgresStore(poolProvider) {
       }));
     },
     async setReportState(reportId, state) {
-      await q(`update ${S}.enrich_reports set status = $2, resolved_by = $3, resolved_at = $4 where id = $1`, [reportId, state.status, state.resolvedBy, state.resolvedAt]);
+      await q(`update ${S}.enrich_reports set status = $2, resolved_by = $3, resolved_at = $4 where id = $1`, [
+        reportId,
+        state.status,
+        state.resolvedBy,
+        state.resolvedAt
+      ]);
       return { reportId, ...state };
     },
     async reportStates() {
@@ -466,12 +492,27 @@ function createPostgresStore(poolProvider) {
          values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)
          on conflict (cache_key) do update set value = excluded.value, sources = excluded.sources, verified_by = excluded.verified_by,
            verified_at = excluded.verified_at, expires_at = excluded.expires_at`,
-        [f.cacheKey, f.city ?? '', f.place ?? '', f.field, f.value, JSON.stringify(f.sources ?? []), f.scope ?? 'cache-key', f.verifiedBy, f.verifiedAt, f.expiresAt]
+        [
+          f.cacheKey,
+          f.city ?? '',
+          f.place ?? '',
+          f.field,
+          f.value,
+          JSON.stringify(f.sources ?? []),
+          f.scope ?? 'cache-key',
+          f.verifiedBy,
+          f.verifiedAt,
+          f.expiresAt
+        ]
       );
       return f;
     },
     async getVerifiedFact(cacheKey, now = Date.now()) {
-      return factFromRow((await q(`select * from ${S}.admin_verified_facts where cache_key = $1 and expires_at > $2`, [cacheKey, new Date(now).toISOString()])).rows[0]) ?? null;
+      return (
+        factFromRow(
+          (await q(`select * from ${S}.admin_verified_facts where cache_key = $1 and expires_at > $2`, [cacheKey, new Date(now).toISOString()])).rows[0]
+        ) ?? null
+      );
     },
     async deleteVerifiedFact(cacheKey) {
       await q(`delete from ${S}.admin_verified_facts where cache_key = $1`, [cacheKey]);

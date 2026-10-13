@@ -3,12 +3,7 @@
 import { getConfig } from '../config/runtime.mjs';
 import { inviteCodeHash, findLiveInvite, consumeInviteCode } from '../admin/invites.mjs';
 import { createHash } from 'node:crypto';
-import {
-  EMAIL_VERIFICATION_REQUIRED,
-  REGISTRATION_INVITE_CODE,
-  PROFILE_LOG_PATH,
-  OPS_AUDIT_LOG_PATH,
-} from '../config/index.mjs';
+import { EMAIL_VERIFICATION_REQUIRED, REGISTRATION_INVITE_CODE, PROFILE_LOG_PATH, OPS_AUDIT_LOG_PATH } from '../config/index.mjs';
 import { createHttpError, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { cryptoRandomId, hashSecretToken, normalizeProfileId, safeTokenEqual, sanitizeEditToken } from '../auth/tokens.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
