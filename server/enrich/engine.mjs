@@ -61,19 +61,16 @@ export function extractConditions(pageText, placeName) {
   const text = compact(pageText);
   const name = compact(placeName);
   const found = new Map();
-  for (let i = text.indexOf(name); name && i >= 0; i = text.indexOf(name, i + name.length)) {
-    const window = text.slice(Math.max(0, i - 300), i + name.length + 300);
+  if (!name) return [];
+  // 必须是同一句话里既有地点名又有条件词：窗口取近邻会把别的景点的「需预约」算进来（实测：南京博物院→鸡鸣寺）。
+  const sentences = text.split(/[。；！？!?\n|]/);
+  for (const sentence of sentences) {
+    const quote = sentence.trim();
+    if (!quote.includes(name) || quote.length > 120) continue;
+    // 「与夫子庙独立售票」说的是别的景点，不是这个地方本身的条件。
+    if (new RegExp(`[与和跟同][^，,]{0,2}${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(quote)) continue;
     for (const rule of CONDITION_RULES) {
-      if (found.has(rule.kind)) continue;
-      const m = rule.re.exec(window);
-      if (!m) continue;
-      // 摘出含命中词的那一句（按句号、分号、换行切）。
-      const start = Math.max(window.lastIndexOf('。', m.index), window.lastIndexOf('；', m.index), window.lastIndexOf('\n', m.index)) + 1;
-      const ends = ['。', '；', '\n'].map((ch) => window.indexOf(ch, m.index)).filter((x) => x >= 0);
-      const end = ends.length ? Math.min(...ends) : window.length;
-      let quote = window.slice(start, end).trim();
-      if (quote.length > 80) quote = window.slice(Math.max(start, m.index - 30), Math.min(end, m.index + 50)).trim();
-      found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
+      if (!found.has(rule.kind) && rule.re.test(quote)) found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
     }
   }
   return [...found.values()];
