@@ -56,3 +56,7 @@ test('夫子庙: free, but halls inside charge (大成殿 etc.)', () => {
   const c = extractConditions(text, '夫子庙', { pageTitle: '2025南京夫子庙开放时间+门票' });
   assert.ok(c.some((x) => x.kind === 'extra-charge' && x.quote.includes('场馆收费')));
 });
+
+test('negated reservation is not a condition (鸡鸣寺赏樱不需要预约)', () => {
+  assert.deepEqual(extractConditions('2025年，南京鸡鸣寺赏樱不需要预约，开放时间及交通等信息可查看正文', '鸡鸣寺'), []);
+});

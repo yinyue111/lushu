@@ -83,7 +83,10 @@ export function extractConditions(pageText, placeName, { pageTitle = '' } = {}) 
     const quote = sentences[index];
     if (!quote || quote.length > 120 || comparesOther.test(quote)) continue;
     for (const rule of CONDITION_RULES) {
-      if (!found.has(rule.kind) && rule.re.test(quote)) found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
+      if (found.has(rule.kind) || !rule.re.test(quote)) continue;
+      // 否定说法不算（实测：「鸡鸣寺赏樱不需要预约」）。
+      if (rule.kind === 'reservation' && /(不需|无需|不用|免)(要)?(提前)?(实名)?预约/.test(quote)) continue;
+      found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
     }
   }
   return [...found.values()];
