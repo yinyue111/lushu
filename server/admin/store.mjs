@@ -20,6 +20,7 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
   const corrections = [];
   const quotaResets = new Map();
   const reportStates = new Map();
+  const facts = new Map();
   let loaded = null;
   const apply = (row) => {
     const v = row.v;
@@ -31,6 +32,7 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
     else if (row.t === 'correction') corrections.push(v);
     else if (row.t === 'quota-reset') quotaResets.set(v.profileId, v);
     else if (row.t === 'report-state') reportStates.set(v.reportId, v);
+    else if (row.t === 'fact') (v.deleted ? facts.delete(v.cacheKey) : facts.set(v.cacheKey, v));
   };
   const load = () =>
     (loaded ??= (async () => {
@@ -80,7 +82,17 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
     async createAdmin(user) {
       await load();
       if ([...users.values()].some((u) => u.username === user.username)) throw createHttpError('用户名已存在', 409, 'ADMIN_USERNAME_TAKEN');
-      return write('user', { status: 'active', lastTotpStep: 0, lastLoginAt: null, createdAt: new Date().toISOString(), ...user });
+      return write('user', {
+        status: 'active',
+        totpConfirmed: false,
+        backupCodeHashes: [],
+        failedAttempts: 0,
+        lockedUntil: null,
+        lastTotpStep: 0,
+        lastLoginAt: null,
+        createdAt: new Date().toISOString(),
+        ...user
+      });
     },
     async getAdmin(id) {
       await load();
@@ -120,6 +132,15 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
       await load();
       if (sessions.has(sidHash)) await write('session', { sidHash, deleted: true });
     },
+    async touchSession(sidHash, lastSeenAt) {
+      await load();
+      const session = sessions.get(sidHash);
+      if (session) await write('session', { ...session, lastSeenAt });
+    },
+    async deleteAdminSessions(adminId) {
+      await load();
+      for (const session of [...sessions.values()]) if (session.adminId === adminId) await write('session', { sidHash: session.sidHash, deleted: true });
+    },
     // ---- audit
     async addAudit(event) {
       await load();
@@ -135,7 +156,7 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
     // ---- invites
     async createInvite(invite) {
       await load();
-      return write('invite', { revokedAt: null, createdAt: new Date().toISOString(), ...invite });
+      return write('invite', { revokedAt: null, used: 0, maxUses: 1, expiresAt: null, createdAt: new Date().toISOString(), ...invite });
     },
     async listInvites() {
       await load();
@@ -148,9 +169,12 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
       if (invite.revokedAt) return invite;
       return write('invite', { ...invite, revokedAt: new Date().toISOString() });
     },
-    async findActiveInviteByHash(codeHash) {
+    /** Atomically takes one use of a live invite code. Returns the invite or null. */
+    async consumeInvite(codeHash, now = Date.now()) {
       await load();
-      return [...invites.values()].find((i) => i.codeHash === codeHash && !i.revokedAt) ?? null;
+      const invite = [...invites.values()].find((i) => i.codeHash === codeHash);
+      if (!invite || invite.revokedAt || (invite.expiresAt && Date.parse(invite.expiresAt) <= now) || invite.used >= invite.maxUses) return null;
+      return write('invite', { ...invite, used: invite.used + 1 });
     },
     // ---- corrections / reports
     async addCorrection(correction) {
@@ -170,6 +194,23 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
       return new Map(reportStates);
     },
     // ---- quota resets
+    async putVerifiedFact(fact) {
+      await load();
+      return write('fact', fact);
+    },
+    async getVerifiedFact(cacheKey, now = Date.now()) {
+      await load();
+      const fact = facts.get(cacheKey);
+      return fact && Date.parse(fact.expiresAt) > now ? fact : null;
+    },
+    async deleteVerifiedFact(cacheKey) {
+      await load();
+      if (facts.has(cacheKey)) await write('fact', { cacheKey, deleted: true });
+    },
+    async listVerifiedFacts(limit = 200) {
+      await load();
+      return [...facts.values()].slice(-limit).reverse();
+    },
     async setQuotaReset(profileId, resetAt, actor) {
       await load();
       return write('quota-reset', { profileId, resetAt, actor });
@@ -203,11 +244,39 @@ function createPostgresStore(poolProvider) {
       totpSecretEnc: r.totp_secret_enc,
       role: r.role,
       status: r.status,
+      totpConfirmed: r.totp_confirmed,
+      backupCodeHashes: r.backup_code_hashes ?? [],
+      failedAttempts: r.failed_attempts,
+      lockedUntil: iso(r.locked_until),
       lastTotpStep: Number(r.last_totp_step),
       createdAt: iso(r.created_at),
       lastLoginAt: iso(r.last_login_at)
     };
-  const inviteFromRow = (r) => r && { id: r.id, codeHash: r.code_hash, label: r.label, createdBy: r.created_by, createdAt: iso(r.created_at), revokedAt: iso(r.revoked_at) };
+  const inviteFromRow = (r) =>
+    r && {
+      id: r.id,
+      codeHash: r.code_hash,
+      label: r.label,
+      maxUses: r.max_uses,
+      used: r.used,
+      expiresAt: iso(r.expires_at),
+      createdBy: r.created_by,
+      createdAt: iso(r.created_at),
+      revokedAt: iso(r.revoked_at)
+    };
+  const factFromRow = (r) =>
+    r && {
+      cacheKey: r.cache_key,
+      city: r.city,
+      place: r.place,
+      field: r.field,
+      value: r.value,
+      sources: r.sources ?? [],
+      scope: r.scope,
+      verifiedBy: r.verified_by,
+      verifiedAt: iso(r.verified_at),
+      expiresAt: iso(r.expires_at)
+    };
   return {
     kind: 'postgres',
     async latestConfig() {
@@ -267,13 +336,23 @@ function createPostgresStore(poolProvider) {
       return (await q(`select * from ${S}.admin_users order by created_at`)).rows.map(adminFromRow);
     },
     async updateAdmin(id, patch) {
-      const cols = { passwordHash: 'password_hash', totpSecretEnc: 'totp_secret_enc', role: 'role', status: 'status' };
+      const cols = {
+        passwordHash: 'password_hash',
+        totpSecretEnc: 'totp_secret_enc',
+        role: 'role',
+        status: 'status',
+        totpConfirmed: 'totp_confirmed',
+        backupCodeHashes: 'backup_code_hashes',
+        failedAttempts: 'failed_attempts',
+        lockedUntil: 'locked_until',
+        lastTotpStep: 'last_totp_step'
+      };
       const sets = [];
       const values = [id];
       for (const [key, column] of Object.entries(cols)) {
         if (!(key in patch)) continue;
-        values.push(patch[key]);
-        sets.push(`${column} = $${values.length}`);
+        values.push(key === 'backupCodeHashes' ? JSON.stringify(patch[key]) : patch[key]);
+        sets.push(`${column} = $${values.length}${key === 'backupCodeHashes' ? '::jsonb' : ''}`);
       }
       if (!sets.length) return this.getAdmin(id);
       return adminFromRow((await q(`update ${S}.admin_users set ${sets.join(', ')} where id = $1 returning *`, values)).rows[0]) ?? null;
@@ -286,40 +365,52 @@ function createPostgresStore(poolProvider) {
       return rowCount === 1;
     },
     async createSession(session) {
-      await q(`insert into ${S}.admin_sessions (sid_hash, admin_id, expires_at) values ($1,$2,$3)`, [session.sidHash, session.adminId, session.expiresAt]);
+      await q(`insert into ${S}.admin_sessions (sid_hash, admin_id, csrf_hash, expires_at) values ($1,$2,$3,$4)`, [
+        session.sidHash,
+        session.adminId,
+        session.csrfHash ?? '',
+        session.expiresAt
+      ]);
       await q(`delete from ${S}.admin_sessions where expires_at < clock_timestamp()`);
       return session;
     },
     async getSession(sidHash) {
       const r = (await q(`select * from ${S}.admin_sessions where sid_hash = $1`, [sidHash])).rows[0];
-      return r ? { sidHash: r.sid_hash, adminId: r.admin_id, expiresAt: iso(r.expires_at), createdAt: iso(r.created_at) } : null;
+      return r
+        ? { sidHash: r.sid_hash, adminId: r.admin_id, csrfHash: r.csrf_hash, expiresAt: iso(r.expires_at), lastSeenAt: iso(r.last_seen_at), createdAt: iso(r.created_at) }
+        : null;
     },
     async deleteSession(sidHash) {
       await q(`delete from ${S}.admin_sessions where sid_hash = $1`, [sidHash]);
     },
+    async touchSession(sidHash, lastSeenAt) {
+      await q(`update ${S}.admin_sessions set last_seen_at = $2 where sid_hash = $1`, [sidHash, lastSeenAt]);
+    },
+    async deleteAdminSessions(adminId) {
+      await q(`delete from ${S}.admin_sessions where admin_id = $1`, [adminId]);
+    },
     async addAudit(e) {
-      await q(`insert into ${S}.admin_audit (id, actor, role, action, target, detail, created_at) values ($1,$2,$3,$4,$5,$6::jsonb,$7)`, [
+      await q(`insert into ${S}.admin_audit (id, actor, role, action, target, detail, ip, created_at) values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)`, [
         e.id,
         e.actor,
         e.role ?? '',
         e.action,
         e.target ?? '',
         JSON.stringify(e.detail ?? {}),
+        e.ip ?? '',
         e.createdAt
       ]);
       return e;
     },
     async listAudit({ limit = 100, action = '' } = {}) {
       const { rows } = await q(`select * from ${S}.admin_audit where ($2 = '' or action like $2 || '%') order by created_at desc limit $1`, [limit, action]);
-      return rows.map((r) => ({ id: r.id, actor: r.actor, role: r.role, action: r.action, target: r.target, detail: r.detail, createdAt: iso(r.created_at) }));
+      return rows.map((r) => ({ id: r.id, actor: r.actor, role: r.role, action: r.action, target: r.target, detail: r.detail, ip: r.ip, createdAt: iso(r.created_at) }));
     },
     async createInvite(invite) {
-      const { rows } = await q(`insert into ${S}.admin_invite_codes (id, code_hash, label, created_by) values ($1,$2,$3,$4) returning *`, [
-        invite.id,
-        invite.codeHash,
-        invite.label ?? '',
-        invite.createdBy
-      ]);
+      const { rows } = await q(
+        `insert into ${S}.admin_invite_codes (id, code_hash, label, max_uses, expires_at, created_by) values ($1,$2,$3,$4,$5,$6) returning *`,
+        [invite.id, invite.codeHash, invite.label ?? '', invite.maxUses ?? 1, invite.expiresAt ?? null, invite.createdBy]
+      );
       return inviteFromRow(rows[0]);
     },
     async listInvites() {
@@ -329,14 +420,19 @@ function createPostgresStore(poolProvider) {
       await q(`update ${S}.admin_invite_codes set revoked_at = coalesce(revoked_at, clock_timestamp()) where id = $1`, [id]);
       return inviteFromRow((await q(`select * from ${S}.admin_invite_codes where id = $1`, [id])).rows[0]) ?? null;
     },
-    async findActiveInviteByHash(codeHash) {
-      return inviteFromRow((await q(`select * from ${S}.admin_invite_codes where code_hash = $1 and revoked_at is null`, [codeHash])).rows[0]) ?? null;
+    async consumeInvite(codeHash, now = Date.now()) {
+      const { rows } = await q(
+        `update ${S}.admin_invite_codes set used = used + 1
+         where code_hash = $1 and revoked_at is null and used < max_uses and (expires_at is null or expires_at > $2) returning *`,
+        [codeHash, new Date(now).toISOString()]
+      );
+      return inviteFromRow(rows[0]) ?? null;
     },
     async addCorrection(c) {
       await q(
-        `insert into ${S}.admin_corrections (id, routebook_id, stop_key, field, action, value, source_url, report_id, actor, created_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [c.id, c.routebookId, c.stopKey, c.field, c.action, c.value ?? '', c.sourceUrl ?? '', c.reportId ?? null, c.actor, c.createdAt]
+        `insert into ${S}.admin_corrections (id, routebook_id, stop_key, field, action, value, source_url, report_id, reason, actor, created_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [c.id, c.routebookId, c.stopKey, c.field, c.action, c.value ?? '', c.sourceUrl ?? '', c.reportId ?? null, c.reason ?? '', c.actor, c.createdAt]
       );
       return c;
     },
@@ -351,6 +447,7 @@ function createPostgresStore(poolProvider) {
         value: r.value,
         sourceUrl: r.source_url,
         reportId: r.report_id,
+        reason: r.reason,
         actor: r.actor,
         createdAt: iso(r.created_at)
       }));
@@ -362,6 +459,25 @@ function createPostgresStore(poolProvider) {
     async reportStates() {
       const { rows } = await q(`select id, status, resolved_by, resolved_at from ${S}.enrich_reports where status <> 'open'`);
       return new Map(rows.map((r) => [r.id, { reportId: r.id, status: r.status, resolvedBy: r.resolved_by, resolvedAt: iso(r.resolved_at) }]));
+    },
+    async putVerifiedFact(f) {
+      await q(
+        `insert into ${S}.admin_verified_facts (cache_key, city, place, field, value, sources, scope, verified_by, verified_at, expires_at)
+         values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)
+         on conflict (cache_key) do update set value = excluded.value, sources = excluded.sources, verified_by = excluded.verified_by,
+           verified_at = excluded.verified_at, expires_at = excluded.expires_at`,
+        [f.cacheKey, f.city ?? '', f.place ?? '', f.field, f.value, JSON.stringify(f.sources ?? []), f.scope ?? 'cache-key', f.verifiedBy, f.verifiedAt, f.expiresAt]
+      );
+      return f;
+    },
+    async getVerifiedFact(cacheKey, now = Date.now()) {
+      return factFromRow((await q(`select * from ${S}.admin_verified_facts where cache_key = $1 and expires_at > $2`, [cacheKey, new Date(now).toISOString()])).rows[0]) ?? null;
+    },
+    async deleteVerifiedFact(cacheKey) {
+      await q(`delete from ${S}.admin_verified_facts where cache_key = $1`, [cacheKey]);
+    },
+    async listVerifiedFacts(limit = 200) {
+      return (await q(`select * from ${S}.admin_verified_facts order by verified_at desc limit $1`, [limit])).rows.map(factFromRow);
     },
     async setQuotaReset(profileId, resetAt, actor) {
       await q(

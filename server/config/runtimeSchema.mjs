@@ -4,12 +4,17 @@
 // No new dependency: a tiny hand-written validator in the style of envNumber().
 import {
   AI_TIMEOUT_MS,
+  ENRICH_BASE_URL,
+  ENRICH_BUDGET_ALERT_RATIO,
   ENRICH_CONCURRENCY,
+  ENRICH_DAILY_BUDGET_USD,
   ENRICH_ENABLED,
   ENRICH_MAX_SEARCHES_PER_ROUTEBOOK,
   ENRICH_MODEL,
   GENERATION_DAILY_LIMIT,
   GENERATION_MODES,
+  GENERATION_QUOTA_DEEP_PER_PROFILE,
+  GENERATION_QUOTA_PATCH_PER_PROFILE,
   GENERATION_QUOTA_PER_PROFILE,
   GENERATION_REGION,
   REGISTRATION_MODE
@@ -36,8 +41,10 @@ const envTier = (key) => ({
   baseUrl: String(process.env.OPENAI_BASE_URL ?? '').trim(),
   model: GENERATION_MODES[key].model || String(process.env.OPENAI_MODEL ?? '').trim(),
   reasoningEffort: GENERATION_MODES[key].reasoningEffort,
-  timeoutMs: GENERATION_MODES[key].timeoutMs
+  timeoutMs: GENERATION_MODES[key].timeoutMs,
+  idleTimeoutMs: GENERATION_MODES[key].idleTimeoutMs
 });
+const int = (label, group, min, max, env, def, extra = {}) => ({ type: 'int', label, group, role: 'admin', min, max, env, default: def, ...extra });
 
 /**
  * @typedef {{ type: string, label: string, group: string, role: 'admin'|'operator', env: () => any, default: any,
@@ -85,12 +92,12 @@ export const RUNTIME_SCHEMA = {
   },
   'generation.homeCities': {
     type: 'string[]',
-    label: '首页推荐城市（须在开放城市内；空 = 用前端默认）',
+    label: '首页推荐城市（只能从开放城市里选；不在开放范围内的会自动隐藏）',
     group: 'cities',
     role: 'admin',
     items: () => ALL_CITIES,
-    env: () => [],
-    default: []
+    env: () => ['杭州', '上海', '苏州'],
+    default: ['杭州', '上海', '苏州']
   },
   'generation.dailyLimit': {
     type: 'int',
@@ -111,6 +118,17 @@ export const RUNTIME_SCHEMA = {
     max: 1000,
     env: () => GENERATION_QUOTA_PER_PROFILE,
     default: 30
+  },
+  'generation.deepPerUserQuota': int('细品单独上限（每人窗口内，0 = 只用共享额度）', 'quota', 0, 1000, () => GENERATION_QUOTA_DEEP_PER_PROFILE, 0),
+  'generation.patchQuotaEnabled': { type: 'bool', label: '局部调整单独计次', group: 'quota', role: 'admin', env: () => true, default: true },
+  'generation.patchQuota': int('局部调整每人窗口内次数（0 = 生成额度的 2 倍）', 'quota', 0, 1000, () => GENERATION_QUOTA_PATCH_PER_PROFILE, 0),
+  'generation.failuresConsumeQuota': {
+    type: 'bool',
+    label: '生成失败（上游出错/超时）也扣用户次数',
+    group: 'quota',
+    role: 'admin',
+    env: () => process.env.GENERATION_FAILURES_CONSUME_QUOTA === 'true',
+    default: false
   },
   'generation.patchCountsDaily': {
     type: 'bool',
@@ -142,16 +160,26 @@ export const RUNTIME_SCHEMA = {
     env: () => ENRICH_MAX_SEARCHES_PER_ROUTEBOOK,
     default: 12
   },
+  'enrich.baseUrl': { type: 'url', label: '补全 base URL（空 = 用 env）', group: 'enrich', role: 'admin', env: () => ENRICH_BASE_URL, default: '' },
   'enrich.concurrency': { type: 'int', label: '补全并发', group: 'enrich', role: 'admin', min: 1, max: 10, env: () => ENRICH_CONCURRENCY, default: 2 },
+  'enrich.maxStopsPerRun': int('每本路书最多查几个站（0 = 不限）', 'enrich', 0, 100, () => envNumber('ENRICH_MAX_STOPS_PER_ROUTEBOOK', 0, { min: 0 }), 0),
   'enrich.requireTwoSources': {
     type: 'bool',
-    label: '必须两个独立来源一致才填入（一期锁定为开）',
+    label: '必须两个独立来源一致才填入（关掉要二次确认）',
     group: 'enrich',
     role: 'admin',
-    locked: true,
+    confirmOff: true,
     env: () => true,
     default: true
-  }
+  },
+  'enrich.dailyBudgetUsd': { type: 'number', label: '补全日预算（USD）', group: 'enrich', role: 'admin', min: 0, max: 100000, env: () => ENRICH_DAILY_BUDGET_USD, default: 30 },
+  'enrich.budgetAlertRatio': { type: 'number', label: '补全预算告警比例', group: 'enrich', role: 'admin', min: 0.1, max: 1, env: () => ENRICH_BUDGET_ALERT_RATIO, default: 0.8 },
+  'enrich.verifiedFactDays': int('人工核实值有效期（天）', 'enrich', 1, 3650, () => 90, 90),
+  'admin.sessionIdleMinutes': int('后台登录空闲失效（分钟）', 'admin', 5, 480, () => 30, 30),
+  'admin.lockoutAttempts': int('连续输错几次锁定', 'admin', 3, 20, () => 5, 5),
+  'admin.lockoutMinutes': int('锁定时长（分钟）', 'admin', 1, 1440, () => 15, 15),
+  'admin.testRunsPerHour': int('每个管理员每小时试跑次数', 'admin', 1, 100, () => 10, 10),
+  'admin.operatorQuotaMax': int('运营单人改额度上限', 'admin', 0, 1000, () => 20, 20)
 };
 
 /** Write-only secrets: encrypted in DB, never returned. Env stays the fallback. */
@@ -171,7 +199,6 @@ export function parseSetting(key, value) {
       return value;
     case 'bool':
       if (typeof value !== 'boolean') throw new ConfigValueError(key, '需要 true / false');
-      if (spec.locked && value !== spec.default) throw new ConfigValueError(key, '一期锁定，不能修改');
       return value;
     case 'int':
     case 'number': {
@@ -179,6 +206,11 @@ export function parseSetting(key, value) {
       if (typeof n !== 'number' || !Number.isFinite(n) || (spec.type === 'int' && !Number.isInteger(n))) throw new ConfigValueError(key, '需要数字');
       if (n < spec.min || n > spec.max) throw new ConfigValueError(key, `范围 ${spec.min}–${spec.max}`);
       return n;
+    }
+    case 'url': {
+      const u = String(value ?? '').trim().replace(/\/+$/, '');
+      if (u && !URL_RE.test(u)) throw new ConfigValueError(key, '需要 http(s) 地址或留空');
+      return u;
     }
     case 'string': {
       const s = String(value ?? '').trim();
@@ -206,7 +238,9 @@ export function parseSetting(key, value) {
       if (!REASONING.includes(reasoningEffort)) throw new ConfigValueError(key, `reasoningEffort 只能是 ${REASONING.filter(Boolean).join(' / ')} 或留空`);
       const timeoutMs = Number(value.timeoutMs);
       if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > Math.max(600000, AI_TIMEOUT_MS)) throw new ConfigValueError(key, 'timeoutMs 范围 1000–600000');
-      return { provider, baseUrl, model, reasoningEffort, timeoutMs };
+      const idleTimeoutMs = value.idleTimeoutMs == null || value.idleTimeoutMs === '' ? Math.min(timeoutMs, 150000) : Number(value.idleTimeoutMs);
+      if (!Number.isInteger(idleTimeoutMs) || idleTimeoutMs < 1000 || idleTimeoutMs > timeoutMs) throw new ConfigValueError(key, 'idleTimeoutMs 范围 1000–总超时');
+      return { provider, baseUrl, model, reasoningEffort, timeoutMs, idleTimeoutMs };
     }
     case 'pricing': {
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ConfigValueError(key, '需要 { 模型名: { input, output } }');
