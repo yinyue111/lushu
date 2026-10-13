@@ -136,6 +136,9 @@ test('fallback also fails → original error, 「用轻快重试」 offered, quo
   assert.equal(failed.job.error.code, 'MODEL_ERROR');
   assert.equal(failed.job.error.suggestFast, true);
   assert.equal(failed.job.error.fallbackTried.mode, 'fast');
+  // Real timestamp of when the last attempt ended, for 「最后一次尝试」 on the failure page.
+  assert.ok(Number.isFinite(Date.parse(failed.job.error.failedAt)));
+  assert.ok(Math.abs(Date.parse(failed.job.error.failedAt) - Date.now()) < 120000);
   // Quota is 1 per profile: the failed run must not have used it.
   const next = await runJob('柳浪闻莺和北山街', profileId);
   assert.notEqual(next.status, 429, JSON.stringify(next.data));

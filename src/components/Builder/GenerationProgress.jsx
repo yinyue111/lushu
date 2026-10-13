@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Ban, Check, Clock, Loader2, Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
-import { GENERATION_STAGE_LABELS, formatDuration, generationEtaText } from '../../lib/generationJob';
+import { GENERATION_STAGE_LABELS, formatDuration, generationEtaText, lastAttemptText } from '../../lib/generationJob';
 import { generationModeLabel } from '../../lib/generationModes';
 
 const STAGE_ORDER = Object.keys(GENERATION_STAGE_LABELS);
@@ -183,7 +183,25 @@ export function GenerationProgress({
           {failure?.suggestDeep && mode === 'fast' && (
             <p className="mt-2 text-sm text-ink">「轻快」这次没跑通。可以换「细品」再试：想得更细，大约要 2–3 分钟。</p>
           )}
-          {failure?.suggestFast && mode === 'deep' ? (
+          {failure?.failedAt && lastAttemptText(failure.failedAt) && (
+            <p className="mt-1 text-xs text-ink-2">
+              <time dateTime={failure.failedAt}>{lastAttemptText(failure.failedAt)}</time>
+            </p>
+          )}
+          {failure?.suggestFast && mode === 'deep' && failure?.fallbackTriedFast ? (
+            // 轻快 was already tried automatically and failed too: waiting is the honest first suggestion.
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="primary" size="sm" onClick={onBackToPrefs}>
+                <Clock /> 稍后再试
+              </Button>
+              <Button variant="outline" size="sm" onClick={onRetryFast}>
+                <Sparkles /> 用轻快重试
+              </Button>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                再试一次「细品」
+              </Button>
+            </div>
+          ) : failure?.suggestFast && mode === 'deep' ? (
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="primary" size="sm" onClick={onRetryFast}>
                 <Sparkles /> 用轻快重试

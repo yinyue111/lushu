@@ -124,6 +124,18 @@ async function deepFailure(page, label) {
   await page.getByText('「细品」的模型这次没响应').first().waitFor();
   await axe(page, `deep-failure${VARIANT}-${label}`);
   await shot(page, `30-deep-failure${VARIANT}-${label}`);
+  if (VARIANT) return;
+  // 轻快 was auto-tried and failed too: 「稍后再试」 is primary, 「用轻快重试」 secondary, real last-attempt time shown.
+  const actions = page.getByRole('alert').filter({ hasText: '已经自动换「轻快」试过一次' });
+  const later = actions.getByRole('button', { name: '稍后再试' });
+  await later.waitFor();
+  const first = await actions.getByRole('button').first().textContent();
+  if (!first.includes('稍后再试')) failures.push(`${label}: first action is ${first}`);
+  const time = actions.locator('time');
+  const iso = await time.getAttribute('datetime');
+  if (!Number.isFinite(Date.parse(iso)) || Math.abs(Date.parse(iso) - Date.now()) > 5 * 60000) failures.push(`${label}: bad failedAt ${iso}`);
+  if (!/最后一次尝试：\d+月\d+日 \d{2}:\d{2}/.test(await time.textContent())) failures.push(`${label}: missing last-attempt text`);
+  await shot(page, `33-deep-failure-later-${label}`);
 }
 
 async function reportFlow(page, label, factText) {
@@ -141,13 +153,33 @@ async function reportFlow(page, label, factText) {
   await shot(page, `32-report-receipt-${label}`);
 }
 
+/** Reported operator-verified value: only 「已反馈待复核」, no 「人工核实」, plus where the shown value came from. */
+async function reportedVerified(page, label) {
+  const fact = page.locator('li', { hasText: 'E2E 核实值' }).last();
+  const summary = fact.locator('summary').first();
+  await summary.getByText('已反馈待复核').waitFor();
+  await summary.getByText('当前显示的是上次人工核实的值', { exact: false }).waitFor();
+  if (/人工核实门票|· 人工核实 ·/.test(await summary.textContent())) failures.push(`${label}: reported value still marked 人工核实`);
+  await axe(page, `reported-verified-${label}`);
+  await summary.scrollIntoViewIfNeeded();
+  await shot(page, `34-reported-verified-${label}`);
+}
+
 try {
   const desktop = await signedInPage({ width: 1280, height: 900 }, '13800002001');
   await deepFailure(desktop, 'desktop');
-  if (!VARIANT) await reportFlow(desktop, 'desktop', '开放时间：09:00-17:00');
+  if (!VARIANT) {
+    await reportFlow(desktop, 'desktop', '开放时间：09:00-17:00');
+  }
   const mobile = await signedInPage({ width: 390, height: 844 }, '13800002002');
   await deepFailure(mobile, 'mobile');
-  if (!VARIANT) await reportFlow(mobile, 'mobile', 'E2E 核实值');
+  if (!VARIANT) {
+    await reportFlow(mobile, 'mobile', 'E2E 核实值');
+    await reportedVerified(mobile, 'mobile');
+    // The report is stored server-side: a fresh load on desktop shows the same pending-review state.
+    await desktop.goto(`${BASE}/route/e2e-rb-c`);
+    await reportedVerified(desktop, 'desktop');
+  }
 } catch (error) {
   failures.push(`step failed: ${String(error.message).split('\n')[0]}`);
   const pages = browser.contexts().flatMap((c) => c.pages());

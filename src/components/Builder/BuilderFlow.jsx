@@ -433,7 +433,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function failGeneration(e) {
     setLoading(false);
     setGenerationOutcome('failed');
-    setGenerationFailure({ ...generationFailureCopy(e), code: e?.code ?? '', suggestDeep: e?.suggestDeep === true, suggestFast: e?.suggestFast === true });
+    setGenerationFailure({
+      ...generationFailureCopy(e),
+      code: e?.code ?? '',
+      suggestDeep: e?.suggestDeep === true,
+      suggestFast: e?.suggestFast === true,
+      fallbackTriedFast: e?.fallbackTried?.mode === 'fast',
+      failedAt: typeof e?.failedAt === 'string' ? e.failedAt : ''
+    });
     if (isAccessCodeError(e)) openAccessCode();
     checkHealth()
       .then((health) => {

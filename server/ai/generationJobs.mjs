@@ -223,7 +223,9 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
           suggestDeep: mode === 'fast' && FAST_FAILURES_WORTH_DEEP.has(String(error?.code)),
           // 细品's model failed upstream (403 / 5xx / unreachable / timeout): offer a 轻快 retry.
           suggestFast: mode === 'deep' && DEEP_UPSTREAM_FAILURES.has(String(error?.code)),
-          ...(error?.fallbackTried ? { fallbackTried: error.fallbackTried } : {})
+          ...(error?.fallbackTried ? { fallbackTried: error.fallbackTried } : {}),
+          // When the last attempt (including any automatic fallback) ended; shown on the failure page.
+          failedAt: new Date(job.finishedAt).toISOString()
         };
         touch(job);
       }

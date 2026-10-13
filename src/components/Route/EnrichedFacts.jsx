@@ -1,11 +1,13 @@
 import { trackEvent } from '../../lib/betaTelemetry.js';
 import { useState } from 'react';
 import { BadgeCheck, ExternalLink } from 'lucide-react';
+import { factPresentation } from '../../lib/factPresentation.js';
 
 /** Truthful basis line: operator-verified values have a single source; automatic ones say how many agreed. */
 export function claimBasisText(claim) {
   const n = claim?.sources?.length ?? 0;
-  if (claim?.method === 'ops-verified') return `人工核实：运营人员按${n > 1 ? ` ${n} 个` : ''}来源核对过。以现场和官方公告为准。`;
+  if (claim?.method === 'ops-verified')
+    return `${claim?.reported ? '上次' : ''}人工核实：运营人员按${n > 1 ? ` ${n} 个` : ''}来源核对过。以现场和官方公告为准。`;
   if (n >= 2) return `${n} 个来源说法一致才会显示。以现场和官方公告为准。`;
   return '只找到 1 个来源，出发前最好再看一眼。以现场和官方公告为准。';
 }
@@ -32,23 +34,24 @@ function EnrichedFact({ claim, onReport }) {
   const [note, setNote] = useState('');
   const [receipt, setReceipt] = useState('');
   const [error, setError] = useState('');
-  const verifiedLabel = claim.method === 'ops-verified' ? '人工核实' : '已核对';
+  const view = factPresentation(claim);
   return (
     <li className={claim.field === 'price' ? 'text-sm font-bold text-ink sm:text-copy' : 'text-meta text-ink-2 sm:text-sm'}>
       <details className="group" onToggle={(event) => event.currentTarget.open && trackEvent('source_open', claim.field)}>
         <summary className="inline-flex cursor-pointer list-none items-start gap-1.5 [&::-webkit-details-marker]:hidden">
-          <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-success-ink" aria-hidden="true" />
+          <BadgeCheck className={`mt-0.5 size-3.5 shrink-0 ${claim.reported ? 'text-warn-ink' : 'text-success-ink'}`} aria-hidden="true" />
           <span>
             {claim.field === 'price' ? (
               <>
-                <span className="text-success-ink">{verifiedLabel}门票</span>
+                <span className={view.label ? 'text-success-ink' : undefined}>{view.label}门票</span>
                 <span className="mx-1 text-muted">·</span>
-                <span>{claim.display.replace(/^门票[：:]?/, '').replace(/ · 人工核实(?= · )/, '')}</span>
+                <span>{view.display.replace(/^门票[：:]?/, '').replace(/ · 人工核实(?= · )/, '')}</span>
               </>
             ) : (
-              claim.display
+              view.display
             )}
             {claim.reported && <span className="ml-1.5 rounded bg-warn-soft px-1 text-meta font-semibold text-warn-ink">已反馈待复核</span>}
+            {view.reviewNote && <span className="ml-1 text-meta font-normal text-ink-2">（{view.reviewNote}）</span>}
             <span className="ml-1 font-semibold text-sky-ink underline underline-offset-2">来源</span>
           </span>
         </summary>

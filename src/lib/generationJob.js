@@ -148,6 +148,17 @@ export function generationEtaText(job, elapsedMs) {
   return { typical, remaining };
 }
 
+/**
+ * 「最后一次尝试：10月14日 00:41」 from the job's real failedAt; '' when the server sent none (never guessed).
+ * @param {string | undefined} iso
+ */
+export function lastAttemptText(iso) {
+  const at = iso ? new Date(iso) : null;
+  if (!at || Number.isNaN(at.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `最后一次尝试：${at.getMonth() + 1}月${at.getDate()}日 ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
 /** Friendly copy for a failed job / request error. */
 export function generationFailureCopy(error) {
   const code = String(error?.code ?? '');
@@ -155,7 +166,7 @@ export function generationFailureCopy(error) {
   if (error?.suggestFast === true && error?.fallbackTried?.mode === 'fast') {
     return {
       title: '「细品」的模型这次没响应',
-      detail: '「细品」的模型服务暂时不可用，已经自动换「轻快」试过一次，也没成功。可以稍后再用「轻快」重试。'
+      detail: '「细品」的模型服务暂时不可用，已经自动换「轻快」试过一次，也没成功。建议过一会儿再试。'
     };
   }
   if (error?.suggestFast === true) {
