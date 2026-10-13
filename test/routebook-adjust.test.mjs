@@ -1,3 +1,4 @@
+import { isNavigableCoordinate } from '../src/lib/coordinates.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -89,4 +90,18 @@ test('replace stop does not carry old price/booking/risk/source', () => {
   assert.equal(unknown.navigationDisabled, true);
   assert.equal(unknown.coordinatePrecision, 'approximate');
   assert.equal(unknown.lat, 30.24);
+});
+
+test('swapped stop: no old risk/guide source, and not navigable when the map did not find it', () => {
+  const old = [{ id: 'a', day: 'Day 1', name: '灵隐寺', lat: 30.24, lng: 120.1, geoConfidence: 90, risk: '周末排队', verify: '需提前预约', poiId: 'poi-1', sourceEvidence: [{ url: 'x' }], provenance: { origin: 'user-guide', matchedText: '灵隐寺' }, guideSource: 'xhs' }];
+  const found = replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, source: 'amap' }).stop;
+  const lost = replaceStopWithPoi(old, 'a', { name: '某小店', source: 'demo' }).stop;
+  for (const s of [found, lost]) {
+    assert.ok(!/排队|预约/.test(`${s.risk}${s.verify}`.replace('是否要预约', '')));
+    assert.equal(s.poiId, undefined);
+    assert.equal(s.guideSource, undefined);
+    assert.equal(s.provenance.matchedText, undefined);
+  }
+  assert.equal(isNavigableCoordinate(found), true);
+  assert.equal(isNavigableCoordinate(lost), false);
 });
