@@ -120,6 +120,9 @@ export default function OpsOverview() {
           <p className="text-caption">数据状态未知</p>
         )}
         <p className="ops-definition-note">
+          分享页被打开 {funnel?.shareOpens30d ?? 0} 次 → 在分享页上用 / 存 / 改成适合我的 {funnel?.shareCopies30d ?? 0} 次
+        </p>
+        <p className="ops-definition-note">
           进入创建 → 首份生成成功，中位耗时：
           {funnel?.timeToFirstSuccess?.median == null ? '暂无样本' : `${funnel.timeToFirstSuccess.median} 分钟（${funnel.timeToFirstSuccess.samples} 人）`}
         </p>

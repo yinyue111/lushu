@@ -1,4 +1,3 @@
-import { trackEvent } from '../../lib/betaTelemetry.js';
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, ExternalLink, Link2, MapPin, Share2 } from 'lucide-react';
 import { createFriendLink, getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, revokeFriendLink, saveRoutebookRemote } from '../../lib/api';
@@ -112,7 +111,6 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
       try {
         if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
         await navigator.clipboard.writeText(shareUrl);
-        trackEvent('share_copy');
         setShareState((prev) => ({ ...prev, loading: false, message: '已复制分享链接' }));
       } catch {
         setShareState((prev) => ({ ...prev, loading: false, message: '分享链接已就绪；浏览器未允许自动复制，请手动复制下方链接' }));
@@ -161,7 +159,6 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
       try {
         if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
         await navigator.clipboard.writeText(url);
-        trackEvent('share_copy');
         setShareState({ loading: false, message: '已发布并复制分享链接', url });
       } catch {
         setShareState({ loading: false, message: '已发布分享链接；浏览器未允许自动复制，请手动复制下方链接', url });

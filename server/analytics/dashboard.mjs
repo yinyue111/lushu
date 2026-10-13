@@ -200,6 +200,9 @@ export async function buildPlatformDashboard(limit = 1000) {
   const funnel = {
     activation,
     activationCohortSize: activation.cohortSize,
+    // 分享页：被打开次数 → 在分享页上「用 / 存 / 改成适合我的」次数（近 30 天）。
+    shareOpens30d: funnelRows.filter((row) => row?.event === 'share_open' && Date.parse(row.createdAt) >= asOf - 30 * 86_400_000).length,
+    shareCopies30d: funnelRows.filter((row) => row?.event === 'share_copy' && Date.parse(row.createdAt) >= asOf - 30 * 86_400_000).length,
     activationAnonymousEvents: activation.anonymousEvents,
     timeToFirstSuccess: medianMinutesToFirstSuccess(funnelRows, aiLogs, { sinceMs: asOf - 30 * 86_400_000 }),
     trustBehavior: buildTrustBehavior(funnelRows, { sinceMs: asOf - 30 * 86_400_000 }),

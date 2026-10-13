@@ -10,6 +10,7 @@ import { CityBackdrop } from '../visual/CityBackdrop';
 import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
 import AigcChip from './AigcChip';
+import { trackEvent } from '../../lib/betaTelemetry.js';
 import { UNVERIFIED_CITY_NOTE, isUnverifiedCity } from './RouteStats';
 
 /** @param {Record<string, any>} props */
@@ -108,6 +109,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   }
 
   async function saveToMyRoutebooks() {
+    trackEvent('share_copy', 'save');
     if (!onSave || actionState.pending || actionState.savedDraft) return;
     setActionState((current) => ({ ...current, pending: 'save', message: '', isError: false }));
     try {
@@ -130,6 +132,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   }
 
   async function useRoutebookNow() {
+    trackEvent('share_copy', 'use');
     if (!onUse || actionState.pending) return;
     setActionState((current) => ({ ...current, pending: 'use', message: '', isError: false }));
     try {
@@ -278,7 +281,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               busy={busy}
               onUse={useRoutebookNow}
               onSave={saveToMyRoutebooks}
-              onCustomize={() => onCustomize(routebook, { surface: 'public-share' })}
+              onCustomize={() => {
+                trackEvent('share_copy', 'customize');
+                onCustomize(routebook, { surface: 'public-share' });
+              }}
               onCopy={copyShareText}
             />
           </div>
@@ -328,7 +334,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           busy={busy}
           onUse={useRoutebookNow}
           onSave={saveToMyRoutebooks}
-          onCustomize={() => onCustomize(routebook, { surface: 'public-share' })}
+          onCustomize={() => {
+                trackEvent('share_copy', 'customize');
+                onCustomize(routebook, { surface: 'public-share' });
+              }}
           onCopy={copyShareText}
         />
       </div>
