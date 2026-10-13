@@ -185,7 +185,9 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       stopsDone,
       stopsTotal,
       lastStop: String(lastStop).slice(0, 40),
-      nextStop: String(ordered[stopsDone]?.[1]?.name ?? '').trim().slice(0, 40),
+      nextStop: String(ordered[stopsDone]?.[1]?.name ?? '')
+        .trim()
+        .slice(0, 40),
       phase: 'checking'
     });
   };

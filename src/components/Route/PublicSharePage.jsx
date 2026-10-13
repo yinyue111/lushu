@@ -1,3 +1,4 @@
+import { costDisplay } from '../../lib/cost';
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
@@ -270,7 +271,9 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                               {stopTrust.value}
                             </span>
                           </div>
-                          <p className="num mt-0.5 text-xs font-semibold text-muted">{[stop.time, stop.stay, stop.cost].filter(Boolean).join(' · ')}</p>
+                          <p className="num mt-0.5 text-xs font-semibold text-muted">
+                            {[stop.time, stop.stay, costDisplay(stop).text].filter(Boolean).join(' · ')}
+                          </p>
                           {(state.enrichedFacts ?? [])
                             .filter((fact) => fact.stopName === stop.name)
                             .map((fact) => (

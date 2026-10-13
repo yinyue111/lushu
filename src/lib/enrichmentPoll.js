@@ -15,4 +15,3 @@ export function estimateRemainingSeconds(samples, progress) {
   const perStop = (last.at - first.at) / 1000 / doneDelta;
   return Math.max(10, Math.round(perStop * Math.max(0, progress.stopsTotal - last.done)));
 }
-

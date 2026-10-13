@@ -252,6 +252,9 @@ test('conditions attach to a filled value, with source count; seasonal prices ar
 test('v3: ticketed / reservation sights are checked first, free streets last', async () => {
   const { enrichPriority } = await import('../../server/enrich/engine.mjs');
   const names = ['河坊街', '知味观', '灵隐寺', '西湖'];
-  const order = names.map((name, i) => [i, { name }]).sort(([ia, a], [ib, b]) => enrichPriority(a) - enrichPriority(b) || ia - ib).map(([, s]) => s.name);
+  const order = names
+    .map((name, i) => /** @type {[number, any]} */ ([i, { name }]))
+    .sort(([ia, a], [ib, b]) => enrichPriority(a) - enrichPriority(b) || ia - ib)
+    .map(([, s]) => s.name);
   assert.deepEqual(order, ['灵隐寺', '知味观', '西湖', '河坊街']);
 });

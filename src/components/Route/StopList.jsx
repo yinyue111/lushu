@@ -13,8 +13,23 @@ import { StopTrustLine } from './StopProvenance';
 import { Notice } from '../ui/notice';
 import EnrichedFacts from './EnrichedFacts';
 import { withoutCheckedPending } from '../../lib/enrichmentText';
+import { costDisplay } from '../../lib/cost';
+import { confirmItemsForStop } from '../../lib/confirmChecklist';
+import { StopConfirmFold } from './ConfirmChecklist';
 
-export default function StopList({ stops, theme, selectedId, routeTrustTone, canEdit, draggedStopId, activeDay, handlers, routeLegs = [], enrichment = null }) {
+export default function StopList({
+  stops,
+  theme,
+  selectedId,
+  routeTrustTone,
+  canEdit,
+  draggedStopId,
+  activeDay,
+  handlers,
+  routeLegs = [],
+  enrichment = null,
+  confirm = null
+}) {
   return (
     <ol className="m-0 list-none p-0" aria-label={`${activeDay} 站点`}>
       {stops.map((stop, index) => (
@@ -33,6 +48,7 @@ export default function StopList({ stops, theme, selectedId, routeTrustTone, can
           handlers={handlers}
           draggedStopId={draggedStopId}
           enrichment={enrichment}
+          confirm={confirm}
         />
       ))}
       {canEdit && draggedStopId && (
@@ -63,16 +79,21 @@ function StopRow({
   handlers,
   draggedStopId,
   enrichment,
+  confirm = null,
   guideBacked = false
 }) {
   const trustBadge = getStopTrustBadge(stop, routeTrustTone);
   const enrichedClaims = enrichment ? enrichment.claimsFor(stop) : [];
   const checked = { price: enrichedClaims.some((c) => c.field === 'price'), hours: enrichedClaims.some((c) => c.field === 'hours') };
   // A checked price replaces the cost line; checked hours remove 「开放时间待确认」 from the notes.
-  const costText = checked.price ? '' : stop.cost;
+  const approximateEarly = !isNavigableCoordinate(stop);
+  const price = costDisplay(stop);
+  // 一张卡最多露出一个「待确认」：位置没核准时，价格的待确认收进下面的清单。
+  const costText = checked.price || (price.pending && approximateEarly) ? '' : price.text;
   const verifyText = withoutCheckedPending(stop.verify, checked);
   const riskText = withoutCheckedPending(stop.risk, checked);
-  const pendingFold = Boolean(verifyText || riskText);
+  const confirmItems = confirm ? confirmItemsForStop(stop, { city: confirm.city, checked }) : [];
+  const pendingFold = !confirm && Boolean(verifyText || riskText);
   const isGuideSupplement = guideBacked && stop?.provenance?.origin === 'model';
   const approximate = !isNavigableCoordinate(stop);
   const verifiedCount = Number(stop.poiTrust?.validArrivals ?? stop.poiTrust?.sampleCount ?? 0) || 0;
@@ -182,6 +203,7 @@ function StopRow({
               )}
             </details>
           )}
+          {confirm && <StopConfirmFold items={confirmItems} acks={confirm.acks} onToggle={confirm.toggle} />}
           {isGuideSupplement && canEdit && (
             <p className="mt-1.5 text-meta text-muted">
               你的攻略里没有这一站，是 AI 加的。

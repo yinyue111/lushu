@@ -105,9 +105,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [generationOutcome, setGenerationOutcome] = useState(null);
   const [generationFailure, setGenerationFailure] = useState(null);
   const [generationMode, setGenerationModeState] = useState(() => readGenerationMode());
+  const accountId = account?.profileId;
   useEffect(() => {
-    if (step === 2 && account) refreshAccount().catch(() => {});
-  }, [step, account?.profileId, refreshAccount]);
+    if (step === 2 && accountId) refreshAccount().catch(() => {});
+  }, [step, accountId, refreshAccount]);
   const setGenerationMode = (/** @type {string} */ next) => {
     setGenerationModeState(next);
     rememberGenerationMode(next);

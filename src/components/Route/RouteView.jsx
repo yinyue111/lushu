@@ -4,6 +4,8 @@ import { ArrowLeft, Copy, CloudUpload, List, Map as MapIcon, Navigation } from '
 import { recordProductExposure } from '../../lib/productTelemetry';
 import { isNavigableCoordinate } from '../../lib/coordinates';
 import EnrichmentStatus from './EnrichmentStatus';
+import { DayConfirmSummary, useConfirmAcks } from './ConfirmChecklist';
+import { confirmItemsForStop } from '../../lib/confirmChecklist';
 import { getProfile } from '../../lib/profile';
 import { getStoredFavorites } from '../../lib/storage';
 import { productsForRoutebook, useProductCards } from '../../lib/products';
@@ -57,6 +59,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
   const stops = useMemo(() => routebook.stops ?? [], [routebook.stops]);
   const enrichment = useRoutebookEnrichment(routebook);
+  const { acks: confirmAcks, toggle: toggleConfirm } = useConfirmAcks(routebook?.publicId || routebook?.id || '');
   const days = useMemo(() => (routebook.days?.length ? routebook.days : ['Day 1']), [routebook.days]);
   const routeProducts = useMemo(() => productsForRoutebook(productCards, routebook, 4), [routebook, productCards]);
   const trust = getRouteTrustPresentation(routebook);
@@ -88,6 +91,16 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   );
   const activeEntry = dayEntries.find((entry) => entry.day === activeDay) ?? dayEntries[0];
   const dayStops = useMemo(() => activeEntry?.stops ?? [], [activeEntry]);
+  const confirm = useMemo(() => ({ city: routebook?.city || '', acks: confirmAcks, toggle: toggleConfirm }), [routebook?.city, confirmAcks, toggleConfirm]);
+  const dayConfirmEntries = useMemo(
+    () =>
+      dayStops.flatMap((stop) => {
+        const claims = enrichment.claimsFor(stop);
+        const checked = { price: claims.some((c) => c.field === 'price'), hours: claims.some((c) => c.field === 'hours') };
+        return confirmItemsForStop(stop, { city: confirm.city, checked }).map((item) => ({ item, stopName: stop.name }));
+      }),
+    [dayStops, enrichment, confirm.city]
+  );
 
   const actions = useRoutebookActions({
     routebook,
@@ -279,9 +292,11 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             </span>
           </div>
           <EnrichmentStatus enrichment={enrichment} />
+          <DayConfirmSummary entries={dayConfirmEntries} acks={confirmAcks} onToggle={toggleConfirm} />
           {dayStops.length ? (
             <StopList
               enrichment={enrichment}
+              confirm={confirm}
               stops={dayStops}
               routeLegs={routebook.routeLegs}
               theme={activeEntry.theme}

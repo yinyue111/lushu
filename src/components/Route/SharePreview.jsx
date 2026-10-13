@@ -1,3 +1,4 @@
+import { costDisplay } from '../../lib/cost';
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, ExternalLink, Link2, MapPin, Share2 } from 'lucide-react';
 import { createFriendLink, getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, revokeFriendLink, saveRoutebookRemote } from '../../lib/api';
@@ -298,7 +299,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
                         <span className="num w-11 shrink-0 text-xs font-bold text-muted">{stop.time}</span>
                         <span className="min-w-0 flex-1">
                           <strong className="block truncate text-sm font-bold">{stop.name}</strong>
-                          <span className="text-xs text-muted">{[stop.stay, stop.cost].filter(Boolean).join(' · ')}</span>
+                          <span className="text-xs text-muted">{[stop.stay, costDisplay(stop).text].filter(Boolean).join(' · ')}</span>
                         </span>
                         <span
                           className={cn(

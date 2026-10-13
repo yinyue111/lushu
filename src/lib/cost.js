@@ -242,7 +242,7 @@ export function unifyPendingWording(text) {
  * @returns {{ text: string, pending: boolean, aiNote: string }}
  */
 export function costDisplay(stop) {
-  const info = stopCostInfo(stop);
+  const info = /** @type {any} */ (stopCostInfo(stop));
   const raw = unifyPendingWording(String(stop?.cost ?? '').trim());
   const trusted = info.source === 'user' || info.basis === 'guide';
   if (info.known && trusted) return { text: raw || formatCostInfo(info), pending: false, aiNote: '' };

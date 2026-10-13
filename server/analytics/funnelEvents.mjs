@@ -8,7 +8,7 @@ import { raiseAlert } from '../ops/alerts.mjs';
 
 export const CLIENT_FUNNEL_EVENTS = new Set(['home_view', 'create_start', 'share_copy']);
 // 信任行为：点开「待确认」、点开来源、报错、隔天再打开同一份路书。只记次数和人，不记内容。
-export const CLIENT_TRUST_EVENTS = new Set(['route_view', 'confirm_open', 'source_open', 'fact_report', 'revisit']);
+export const CLIENT_TRUST_EVENTS = new Set(['route_view', 'confirm_open', 'confirm_search', 'source_open', 'fact_report', 'revisit']);
 export const SERVER_FUNNEL_EVENTS = new Set(['register_complete', 'share_open']);
 export const ACTIVATION_STEPS = [
   { key: 'home_view', label: '到达首页/创建页' },

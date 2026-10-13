@@ -1,3 +1,4 @@
+import { costDisplay } from '../../lib/cost';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Clock, Wallet, Users, AlertTriangle, ShieldCheck, ExternalLink, Ticket, Flag, FileSearch } from 'lucide-react';
 import { createPoiCorrection, getPoiKnowledge } from '../../lib/api';
@@ -173,7 +174,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
             hint={verifiedPriceHint(stop.verifiedPrice)}
           />
         ) : (
-          <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="预计费用（未核验）" value={stop.cost || '—'} />
+          <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="价格" value={costDisplay(stop).text || '—'} />
         )}
         <InfoTile
           icon={MapPin}
