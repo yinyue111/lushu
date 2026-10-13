@@ -28,6 +28,7 @@ import RecheckBar from './RecheckBar';
 import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
 import { useRoutebookEnrichment } from '../../lib/useRoutebookEnrichment';
+import OfflineBanner from './OfflineBanner';
 import ReplaceStopDialog from './ReplaceStopDialog';
 import AdjustChatSheet from './AdjustChatSheet';
 import PatchProposalDialog from './PatchProposalDialog';
@@ -212,6 +213,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
   return (
     <div className="min-h-dvh bg-white pb-[calc(84px+env(safe-area-inset-bottom))] text-ink lg:pb-0">
+      <OfflineBanner routebook={routebook} />
       <RouteHero
         routebook={routebook}
         dayCount={days.length}
