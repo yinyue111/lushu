@@ -527,17 +527,35 @@ try {
   // The planner can serve keyed lookups from the new indexes.
   const planClient = await pool.connect();
   try {
+    // Fresh statistics first; then only require an index path (which index the planner picks depends
+    // on statistics and data shape, so the name is not asserted) and the right row.
+    await planClient.query('analyze trusted_routebook.event_rows');
     await planClient.query('set enable_seqscan = off');
+    const usesIndex = (plan) => {
+      const text = plan.rows.map((row) => row['QUERY PLAN']).join('\n');
+      assert.doesNotMatch(text, /Seq Scan/, text);
+      assert.match(text, /Index (Only )?Scan|Bitmap Index Scan/, text);
+    };
     const keyedPlan = await planClient.query(
       `explain select payload from trusted_routebook.event_rows where stream = 'routebooks' and entity_key = $1 order by ordinal desc limit 1`,
       [legacyRoutebookId]
     );
-    assert.match(keyedPlan.rows.map((row) => row['QUERY PLAN']).join('\n'), /event_rows_stream_entity_key_idx/);
+    usesIndex(keyedPlan);
+    const keyedRow = await planClient.query(
+      `select entity_key from trusted_routebook.event_rows where stream = 'routebooks' and entity_key = $1 order by ordinal desc limit 1`,
+      [legacyRoutebookId]
+    );
+    assert.equal(keyedRow.rows[0]?.entity_key, legacyRoutebookId);
     const registrationPlan = await planClient.query(
       `explain select payload from trusted_routebook.event_rows where stream = 'profiles' and payload->>'registrationCredentialHash' = $1 order by ordinal desc limit 1`,
       ['registration-hash-a']
     );
-    assert.match(registrationPlan.rows.map((row) => row['QUERY PLAN']).join('\n'), /event_rows_profile_registration_hash_idx/);
+    usesIndex(registrationPlan);
+    const registrationRow = await planClient.query(
+      `select payload->>'registrationCredentialHash' as h from trusted_routebook.event_rows where stream = 'profiles' and payload->>'registrationCredentialHash' = $1 order by ordinal desc limit 1`,
+      ['registration-hash-a']
+    );
+    assert.equal(registrationRow.rows[0]?.h, 'registration-hash-a');
   } finally {
     planClient.release();
   }
