@@ -6,7 +6,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `Dockerfile` | 两阶段构建：`npm ci` + `vite build` + `npm prune --omit=dev`；运行镜像 `node:22.23.3-slim`（和 `.nvmrc` 一致），非 root（`node` 用户），只有 `/data` 可写，`HEALTHCHECK` 访问 `/api/live` |
+| `Dockerfile` | 构建阶段 `npm ci` + `vite build`；运行依赖单独 `npm ci --omit=dev`（不含 playwright/axe-core，不下载浏览器）；运行镜像 `node:22.23.3-slim`（和 `.nvmrc` 一致），非 root（`node` 用户），只有 `/data` 可写，`HEALTHCHECK` 访问 `/api/live` |
 | `docker-compose.prod.yml` | `db`（postgres:16，`pgdata` 卷）+ `app`（`127.0.0.1:3080:3080`，`env_file: app.env`，`appdata` 卷挂到 `/data`）+ 一次性 `migrate`（profile `tools`） |
 | `docs/deploy.compose.env.example` | `.env` 模板（compose 变量替换用）：`APP_IMAGE`、owner 密码、应用角色密码 |
 | `docs/deploy.env.example` | `app.env` 模板（应用设置），只有变量名，没有任何密钥；不含数据库密码 |

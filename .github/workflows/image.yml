@@ -2,7 +2,7 @@ name: Image
 
 # Builds the production image and tags it by commit, so every release has an immutable image to deploy
 # and to roll back to (rollback = deploy the previous commit's image; no SQL needed, see docs/admin.md §6).
-# The admin E2E + axe run must pass before the image is built.
+# npm run verify and the admin + user E2E with axe must pass before the image is built.
 on:
   push:
     branches: [main]
@@ -27,16 +27,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: E2E tools (not repo dependencies yet; pinned here)
-        run: |
-          mkdir -p /tmp/e2e-tools && cd /tmp/e2e-tools
-          npm init -y >/dev/null && npm i playwright@1.64.0 axe-core@4.14.0
-          npx playwright install --with-deps chromium
+      - name: Verify (syntax, lint, format, typecheck, build, node:test, regression scripts)
+        run: npm run verify
+      - name: Chromium for Playwright (CI runner only; never in the image)
+        run: npx playwright install --with-deps chromium
       - run: npm run build
       - name: Admin E2E + axe (must be 0 violations)
-        env:
-          E2E_TOOLS_DIR: /tmp/e2e-tools
         run: npm run test:e2e:admin
+      - name: User E2E + axe (must be 0 violations)
+        run: node e2e/user-v4-shots.e2e.mjs
 
   image:
     needs: e2e
@@ -68,9 +67,9 @@ jobs:
           build-args: |
             GIT_COMMIT=${{ steps.meta.outputs.sha7 }}
             BUILD_TIME=${{ steps.meta.outputs.built }}
-      - name: Image contains the admin build and no source maps
+      - name: Image contains the admin build, no source maps, no dev/test tooling
         run: |
           docker pull "$IMAGE:${{ steps.meta.outputs.sha7 }}"
-          docker run --rm --entrypoint sh "$IMAGE:${{ steps.meta.outputs.sha7 }}" -c 'test -f /app/dist-admin/index.html && test -f /app/dist/index.html && test ! -e /app/dist-sourcemaps && ! find /app/dist /app/dist-admin -name "*.map" | grep -q .'
+          docker run --rm --entrypoint sh "$IMAGE:${{ steps.meta.outputs.sha7 }}" -c 'test -f /app/dist-admin/index.html && test -f /app/dist/index.html && test ! -e /app/dist-sourcemaps && ! find /app/dist /app/dist-admin -name "*.map" | grep -q . && test ! -e /app/node_modules/playwright && test ! -e /app/node_modules/axe-core && test ! -e /home/node/.cache/ms-playwright'
       - name: Record digest (deploy by digest)
         run: echo "Deploy with APP_IMAGE=$IMAGE@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
