@@ -92,6 +92,8 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 
 | 变量 | 默认 | 作用 |
 | --- | --- | --- |
+| `GENERATION_DAILY_LIMIT` | `300` | 全站每日生成上限（整本生成 + AI 局部调整，滚动 24 小时，所有用户合计）；超出返回 429 并在服务端日志告警。`0` = 不限 |
+| `GENERATION_REGION` | `jzh` | 能生成的城市范围：`jzh`＝江浙沪（上海、江苏 13 市、浙江 11 市），`all`＝全国已支持城市。可信城市仍只有有已审核数据的那几座 |
 | `GENERATION_QUOTA_WINDOW_MS` | `86400000` | 配额滚动窗口（24 小时） |
 | `AI_TIMEOUT_MS` | `300000` | 一次生成的总时长上限（所有模型调用 + 定位 + 道路核验）；到点自动停止，报 MODEL_TIMEOUT。grok-4.7 单次调用实测 85–180 秒 |
 | `AI_CALL_TIMEOUT_MS` | 同 `AI_TIMEOUT_MS` | 单次模型调用上限，且不会超过剩余的总时长 |

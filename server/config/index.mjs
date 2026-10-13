@@ -419,3 +419,7 @@ export const ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS = envFlag('ENRICH_ALLOW_PRIVAT
 
 // 生成开放的城市范围：jzh（默认，江浙沪）或 all（全国已支持城市）。
 export const GENERATION_REGION = String(process.env.GENERATION_REGION ?? '').trim() === 'all' ? 'all' : 'jzh';
+
+// 全站每日生成上限（整本生成 + AI 局部调整，滚动 24 小时，所有用户合计）。0 = 不限。
+// 开放注册后的成本兜底；超出时返回 429，并在服务端日志告警。
+export const GENERATION_DAILY_LIMIT = envNumber('GENERATION_DAILY_LIMIT', 300, { min: 0 });

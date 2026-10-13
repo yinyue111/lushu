@@ -17,7 +17,8 @@ import {
   GENERATION_QUOTA_PER_PROFILE,
   GENERATION_QUOTA_DEEP_PER_PROFILE,
   GENERATION_QUOTA_PATCH_PER_PROFILE,
-  GENERATION_QUOTA_WINDOW_MS
+  GENERATION_QUOTA_WINDOW_MS,
+  GENERATION_DAILY_LIMIT
 } from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { readMatchingJsonLines } from '../storage/jsonl.mjs';
@@ -163,8 +164,35 @@ export async function peekGenerationQuota(
   };
 }
 
+/** 全站每日上限：所有人的整本生成 + 局部调整合计。 */
+export async function peekDailyGenerationLimit({ limit = GENERATION_DAILY_LIMIT, nowMs = Date.now() } = {}) {
+  if (!limit) return { limited: false, used: 0, limit: 0 };
+  const since = nowMs - 86_400_000;
+  const rows = await readMatchingJsonLines(
+    AI_LOG_PATH,
+    (row) =>
+      (row?.kind === 'generate-routebook' || row?.kind === 'patch-routebook') &&
+      row?.deduplicated !== true &&
+      row?.status !== 'cancelled' &&
+      Date.parse(row?.createdAt ?? '') >= since,
+    limit,
+    200000
+  );
+  return { limited: rows.length >= limit, used: rows.length, limit };
+}
+
+export async function enforceDailyGenerationLimit(options = {}) {
+  const peek = await peekDailyGenerationLimit(options);
+  if (!peek.limited) return peek;
+  console.warn(`[generation] daily limit reached: ${peek.used}/${peek.limit} in 24h`);
+  const error = createHttpError('今天的 AI 生成名额用完了，明天再来试试。已经生成的路书不受影响。', 429, 'GENERATION_DAILY_LIMIT');
+  /** @type {any} */ (error).retryAfterSeconds = 3600;
+  throw error;
+}
+
 /** Throws 429 GENERATION_QUOTA_EXCEEDED when the profile used its window quota. */
 export async function enforceGenerationQuota(profileId, options = {}) {
+  await enforceDailyGenerationLimit(options.daily);
   const peek = await peekGenerationQuota(profileId, options);
   if (!peek.limited) return peek;
   const message =
@@ -217,6 +245,7 @@ export async function peekPatchQuota(profileId, { quota, windowMs = GENERATION_Q
 }
 
 export async function enforcePatchQuota(profileId, options = {}) {
+  await enforceDailyGenerationLimit(options.daily);
   const peek = await peekPatchQuota(profileId, options);
   if (!peek.limited) return peek;
   const error = createHttpError(
