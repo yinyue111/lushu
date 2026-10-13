@@ -25,7 +25,7 @@ async function webhook() {
   return { url: `http://127.0.0.1:${/** @type {any} */ (server.address()).port}/hook`, posts, close: () => server.close() };
 }
 
-async function scenario(trustedCidrs) {
+async function scenario(trustedCidrs, extraEnv = {}, xff = (i) => `198.51.100.${i}`, n = 12) {
   const hook = await webhook();
   const ENV = authEnv('login', {
     ADMIN_ENABLED: 'true',
@@ -33,7 +33,8 @@ async function scenario(trustedCidrs) {
     TRUST_PROXY_HEADERS: 'true',
     TRUSTED_PROXY_CIDRS: trustedCidrs,
     PROXY_MISCONFIG_THRESHOLD: '5',
-    ALERT_WEBHOOK_URL: hook.url
+    ALERT_WEBHOOK_URL: hook.url,
+    ...extraEnv
   });
   const dataDir = await mkdtemp(join(tmpdir(), 'proxy-misconfig-it-'));
   const env = hermeticServerEnv({ NODE_ENV: 'production', ROUTEBOOK_DATA_DIR: dataDir, PROFILE_ID_SECRET: 'unit-test-profile-secret', ...ENV });
@@ -50,7 +51,7 @@ async function scenario(trustedCidrs) {
     const first = await admin.request('/api/admin/login', { method: 'POST', body: { username: 'root', password } });
     const { token, secret } = first.data.enroll;
     assert.equal((await admin.request('/api/admin/enroll', { method: 'POST', body: { token, totp: totpAt(secret, totpStep()) } })).status, 200);
-    for (let i = 0; i < 12; i++) await fetch(`${server.baseUrl}/api/live`, { headers: { 'x-forwarded-for': `198.51.100.${i}` } });
+    for (let i = 0; i < n; i++) await fetch(`${server.baseUrl}/api/live`, { headers: { 'x-forwarded-for': xff(i) } });
     await new Promise((r) => setTimeout(r, 300));
     const dash = await admin.request('/api/admin/dashboard');
     assert.equal(dash.status, 200, JSON.stringify(dash.data));
@@ -83,4 +84,23 @@ test('misconfig: untrusted peer + X-Forwarded-For -> one warn, overview flag, on
   assert.doesNotMatch(log, /198\.51\.100/);
   assert.equal(posts.length, 1, JSON.stringify(posts));
   assert.equal(posts[0].type, 'proxy-misconfig');
+});
+
+test('shared address: forwarded requests from a trusted proxy that all resolve to the gateway -> overview flag + one webhook', async () => {
+  // Container mode where Caddy itself only sees the gateway (docker-proxy): XFF = gateway, peer = trusted Caddy (here 127.0.0.1).
+  const env = { APP_NETWORK_SUBNET: '172.31.80.0/24', APP_NETWORK_GATEWAY: '172.31.80.1', PROXY_MODE: 'container', CADDY_IP: '172.31.80.10' };
+  const cidrs = '172.31.80.10,127.0.0.1,::1';
+  const bad = await scenario(cidrs, env, () => '172.31.80.1', 25);
+  assert.equal(bad.dash.proxyMisconfig.shared.tripped, true, JSON.stringify(bad.dash.proxyMisconfig));
+  assert.equal(bad.dash.proxyMisconfig.count, 0);
+  const flag = bad.dash.warnings.find((w) => w.key === 'proxy-shared-address');
+  assert.equal(flag?.text, '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。');
+  assert.equal(bad.posts.length, 1, JSON.stringify(bad.posts));
+  assert.equal(bad.posts[0].type, 'proxy-misconfig');
+  // Same deployment, real client addresses: nothing.
+  const good = await scenario(cidrs, env, (i) => `203.0.113.${i}`, 25);
+  assert.equal(good.dash.proxyMisconfig.shared.tripped, false);
+  assert.equal(good.dash.proxyMisconfig.shared.samples, 25);
+  assert.ok(!good.dash.warnings.some((w) => w.key.startsWith('proxy-')));
+  assert.equal(good.posts.length, 0);
 });

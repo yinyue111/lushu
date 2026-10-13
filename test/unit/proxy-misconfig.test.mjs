@@ -106,3 +106,49 @@ test('webhook goes through ALERT_WEBHOOK_URL once (raiseAlert throttle)', async 
     resetAlertThrottleForTests();
   }
 });
+
+test('shared-address signal: >=90% of forwarded requests resolving to the gateway, with a minimum sample', () => {
+  const resolveClient = (r) => r.resolved;
+  const fwd = (resolved) => ({ ...req('172.31.80.10', { 'x-forwarded-for': resolved }), resolved });
+  const { m, alerts, warns, advance } = setup({ gateway: '172.31.80.1', resolveClient, sharedMinSample: 20 });
+  // Low traffic: 19 requests all from the gateway never trips.
+  for (let i = 0; i < 19; i++) m.observe(fwd('172.31.80.1'));
+  assert.equal(m.state().shared.tripped, false);
+  assert.equal(alerts.length, 0);
+  // Healthy mix (real clients) stays quiet even with many requests.
+  const healthy = setup({ gateway: '172.31.80.1', resolveClient });
+  for (let i = 0; i < 200; i++) healthy.m.observe(fwd(i % 20 === 0 ? '172.31.80.1' : `203.0.113.${i % 250}`));
+  assert.equal(healthy.m.state().shared.tripped, false);
+  assert.equal(healthy.alerts.length, 0);
+  assert.equal(healthy.m.state().count, 0);
+  // 20th gateway request: >= 90% of >= 20 -> tripped, one alert, overview flag.
+  m.observe(fwd('::ffff:172.31.80.1'));
+  const s = m.state();
+  assert.equal(s.shared.tripped, true);
+  assert.equal(s.shared.samples, 20);
+  assert.equal(s.count, 0, 'untrusted-peer signal stays at zero');
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0].message, /疑似所有用户被识别成同一个地址/);
+  assert.equal(warns.length, 0);
+  const w = dashboardWarnings(SNAP, {}, s).find((x) => x.key === 'proxy-shared-address');
+  assert.equal(w.text, '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。');
+  assert.match(w.detail, /172\.31\.80\.1/);
+  // Dedup: same hourly throttle as the other signal.
+  for (let i = 0; i < 50; i++) m.observe(fwd('172.31.80.1'));
+  assert.equal(alerts.length, 1);
+  // Window rolls over: quiet again.
+  advance(11 * 60_000);
+  assert.equal(m.state().shared.tripped, false);
+  // 85% gateway with plenty of samples: below the 90% ratio.
+  const mixed = setup({ gateway: '172.31.80.1', resolveClient });
+  for (let i = 0; i < 100; i++) mixed.m.observe(fwd(i < 85 ? '172.31.80.1' : '203.0.113.7'));
+  assert.equal(mixed.m.state().shared.tripped, false);
+  // No gateway configured (npm start): signal off.
+  const nogw = setup({ resolveClient });
+  for (let i = 0; i < 50; i++) nogw.m.observe(fwd('172.31.80.1'));
+  assert.equal(nogw.m.state().shared.tripped, false);
+  // Requests without X-Forwarded-For (direct curl from the host) are not sampled.
+  const direct = setup({ gateway: '172.31.80.1', resolveClient });
+  for (let i = 0; i < 50; i++) direct.m.observe(/** @type {any} */ ({ ...req('172.31.80.1'), resolved: '172.31.80.1' }));
+  assert.equal(direct.m.state().shared.samples, 0);
+});

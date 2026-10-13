@@ -127,6 +127,14 @@ export async function dashboard(now = Date.now()) {
 /** Things an operator should see first on the overview. */
 export function dashboardWarnings(snapshot = currentSnapshot(), env = process.env, proxy = proxyMisconfigMonitor().state()) {
   const warnings = [];
+  if (proxy?.shared?.tripped) {
+    warnings.push({
+      key: 'proxy-shared-address',
+      tone: 'error',
+      text: '疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE。',
+      detail: `近 ${Math.round(proxy.windowMs / 60000)} 分钟 ${proxy.shared.samples} 个经代理的请求里，${proxy.shared.gatewayHits} 个（${Math.round(proxy.shared.ratio * 100)}%）的来源被识别为网关 ${proxy.shared.gateway}（阈值 ${Math.round(proxy.shared.threshold * 100)}%、至少 ${proxy.shared.minSample} 个，仅本进程计数）。常见原因：容器 Caddy 的流量经 docker-proxy（IPv6、回环、iptables:false）。见 docs/deploy.md「运行时检测」。`
+    });
+  }
   if (proxy?.tripped) {
     warnings.push({
       key: 'proxy-misconfig',

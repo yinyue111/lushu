@@ -4,19 +4,28 @@
 // Signal: a request carries a forwarded header the app reads (X-Forwarded-For / X-Forwarded-Proto)
 // while its TCP peer is not a trusted proxy. Counted per process in a rolling window (minute buckets);
 // the app runs as one process per deployment (docs/deploy.md), so there is nothing to aggregate.
+// Second signal (container mode, traffic reaching Caddy through docker-proxy, e.g. IPv6 or iptables:false):
+// Caddy itself only sees the network gateway, so the resolved client address of almost every
+// forwarded request IS the gateway. Flag when >= sharedRatio of them resolve to APP_NETWORK_GATEWAY,
+// with at least sharedMinSample forwarded requests in the window (low traffic never trips it).
 import { envNumber } from '../config/env.mjs';
 import { raiseAlert } from './alerts.mjs';
 import { TRUST_PROXY_HEADERS } from '../config/index.mjs';
-import { isTrustedProxyAddress } from '../auth/request-access.mjs';
+import { isTrustedProxyAddress, requestClientKey } from '../auth/request-access.mjs';
 
 const MINUTE = 60_000;
 const FORWARDED_HEADERS = ['x-forwarded-for', 'x-forwarded-proto'];
 export const PROXY_MISCONFIG_ALERT_TYPE = 'proxy-misconfig';
+const plainAddress = (a) =>
+  String(a ?? '')
+    .trim()
+    .replace(/^::ffff:/i, '');
 
 /**
  * @param {{ enabled: boolean, isTrusted: (peer: string) => boolean, threshold?: number, windowMs?: number,
  *   logIntervalMs?: number, now?: () => number, warn?: (msg: string) => void,
- *   alert?: (type: string, message: string) => unknown }} options
+ *   alert?: (type: string, message: string) => unknown, gateway?: string, resolveClient?: (req: any) => string,
+ *   sharedMinSample?: number, sharedRatio?: number }} options
  */
 export function createProxyMisconfigMonitor({
   enabled,
@@ -26,9 +35,14 @@ export function createProxyMisconfigMonitor({
   logIntervalMs = 10 * MINUTE,
   now = Date.now,
   warn = (msg) => console.warn(msg),
-  alert = (type, message) => raiseAlert(type, message)
+  alert = (type, message) => raiseAlert(type, message),
+  gateway = '',
+  resolveClient = () => '',
+  sharedMinSample = 20,
+  sharedRatio = 0.9
 }) {
-  const buckets = new Map(); // minute index -> count
+  const gatewayAddr = plainAddress(gateway);
+  const buckets = new Map(); // minute index -> { untrusted, samples, gateway }
   let total = 0;
   let lastPeer = '';
   let lastSeenAt = 0;
@@ -41,11 +55,27 @@ export function createProxyMisconfigMonitor({
     const oldest = Math.floor((t - windowMs) / MINUTE);
     for (const key of buckets.keys()) if (key <= oldest) buckets.delete(key);
   };
-  const windowCount = (t = now()) => {
+  const sums = (t = now()) => {
     prune(t);
-    let n = 0;
-    for (const v of buckets.values()) n += v;
-    return n;
+    const out = { untrusted: 0, samples: 0, gateway: 0 };
+    for (const v of buckets.values()) {
+      out.untrusted += v.untrusted;
+      out.samples += v.samples;
+      out.gateway += v.gateway;
+    }
+    return out;
+  };
+  const bucket = (t) => {
+    const key = Math.floor(t / MINUTE);
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, (b = { untrusted: 0, samples: 0, gateway: 0 }));
+    return b;
+  };
+  const sharedTripped = (x) => Boolean(gatewayAddr) && x.samples >= sharedMinSample && x.gateway / x.samples >= sharedRatio;
+  const maybeAlert = (t, message) => {
+    if (t - lastAlertAt < ALERT_EVERY_MS) return;
+    lastAlertAt = t;
+    Promise.resolve(alert(PROXY_MISCONFIG_ALERT_TYPE, message)).catch(() => {});
   };
 
   /** @param {{ headers: Record<string, any>, socket?: { remoteAddress?: string } }} req */
@@ -53,38 +83,56 @@ export function createProxyMisconfigMonitor({
     if (!enabled) return false;
     if (!FORWARDED_HEADERS.some((h) => String(req.headers?.[h] ?? '').trim())) return false;
     const peer = String(req.socket?.remoteAddress ?? '');
-    if (isTrusted(peer)) return false;
     const t = now();
-    const key = Math.floor(t / MINUTE);
-    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+    const mins = Math.round(windowMs / MINUTE);
+    if (isTrusted(peer)) {
+      if (!gatewayAddr || !String(req.headers?.['x-forwarded-for'] ?? '').trim()) return false;
+      const b = bucket(t);
+      b.samples += 1;
+      if (plainAddress(resolveClient(req)) === gatewayAddr) b.gateway += 1;
+      const x = sums(t);
+      if (sharedTripped(x))
+        maybeAlert(
+          t,
+          `疑似所有用户被识别成同一个地址：近 ${mins} 分钟 ${x.samples} 个经代理的请求里 ${x.gateway} 个的来源是网关 ${gatewayAddr}，可能共用限流额度。请检查 Caddy 看到的来源（docker-proxy / IPv6 / iptables）。`
+        );
+      return false;
+    }
+    bucket(t).untrusted += 1;
     total += 1;
     lastPeer = peer;
     lastSeenAt = t;
-    const count = windowCount(t);
+    const count = sums(t).untrusted;
     if (t - lastLogAt >= logIntervalMs) {
       lastLogAt = t;
       logged += 1;
       warn(
-        `[proxy] WARNING: request with forwarded headers from untrusted peer ${peer || 'unknown'} (${count} in the last ${Math.round(windowMs / MINUTE)} min). ` +
+        `[proxy] WARNING: request with forwarded headers from untrusted peer ${peer || 'unknown'} (${count} in the last ${mins} min). ` +
           'If the reverse proxy runs at this address, add it to TRUSTED_PROXY_CIDRS (docs/deploy.md「Caddy 两种部署方式」); otherwise all users share one rate-limit bucket.'
       );
     }
-    if (count >= threshold && t - lastAlertAt >= ALERT_EVERY_MS) {
-      lastAlertAt = t;
-      Promise.resolve(
-        alert(
-          PROXY_MISCONFIG_ALERT_TYPE,
-          `代理配置疑似有误：${count} 个请求带转发头但来自不受信任的地址 ${peer || 'unknown'}（近 ${Math.round(windowMs / MINUTE)} 分钟），所有用户可能共用限流额度。请检查 TRUSTED_PROXY_CIDRS / PROXY_MODE。`
-        )
-      ).catch(() => {});
-    }
+    if (count >= threshold)
+      maybeAlert(
+        t,
+        `代理配置疑似有误：${count} 个请求带转发头但来自不受信任的地址 ${peer || 'unknown'}（近 ${mins} 分钟），所有用户可能共用限流额度。请检查 TRUSTED_PROXY_CIDRS / PROXY_MODE。`
+      );
     return true;
   }
 
   function state() {
-    const count = windowCount();
+    const x = sums();
+    const count = x.untrusted;
     return {
       count,
+      shared: {
+        samples: x.samples,
+        gatewayHits: x.gateway,
+        ratio: x.samples ? x.gateway / x.samples : null,
+        minSample: sharedMinSample,
+        threshold: sharedRatio,
+        gateway: gatewayAddr || null,
+        tripped: sharedTripped(x)
+      },
       threshold,
       windowMs,
       tripped: count >= threshold,
@@ -105,7 +153,10 @@ export function proxyMisconfigMonitor() {
     enabled: TRUST_PROXY_HEADERS,
     isTrusted: isTrustedProxyAddress,
     threshold: envNumber('PROXY_MISCONFIG_THRESHOLD', 20, { min: 1 }),
-    windowMs: envNumber('PROXY_MISCONFIG_WINDOW_MS', 10 * MINUTE, { min: MINUTE })
+    windowMs: envNumber('PROXY_MISCONFIG_WINDOW_MS', 10 * MINUTE, { min: MINUTE }),
+    gateway: process.env.APP_NETWORK_GATEWAY,
+    resolveClient: requestClientKey,
+    sharedMinSample: envNumber('PROXY_SHARED_MIN_SAMPLE', 20, { min: 1 })
   });
   return defaultMonitor;
 }
