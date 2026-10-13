@@ -37,7 +37,7 @@ export function createClientCheckinId() {
   return `checkin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export { nextStopEta } from '../../lib/stopTiming';
+export { nextStopEta, isTripLiveToday } from '../../lib/stopTiming';
 
 export function buildReview(checkins, stops) {
   if (!checkins.length) return '记录到达后会自动沉淀完成度、花费、排队和踩坑反馈';

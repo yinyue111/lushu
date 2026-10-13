@@ -60,3 +60,25 @@ export function nextStopEta(stop, nowMs, currentStop = null) {
   if (diffMinutes >= 0) return { overdue: false, label: `距建议到达还有 ${diffMinutes} 分钟` };
   return { overdue: true, label: `已超出建议时间 ${Math.abs(diffMinutes)} 分钟` };
 }
+
+/**
+ * 行程今天是不是「真的在走」：只有这时才拿钟点去比「晚没晚」。
+ * - 设了出发日期：今天 = 出发日期 + (当前站的第几天 - 1)。
+ * - 没设日期：今天在这条路线上打过卡才算。
+ * 其他情况（提前预览、非出行日）不显示迟到提醒，避免「已超出 480 分钟」这类误报。
+ * @param {{ travelDate?: string, day?: string, checkins?: any[], nowMs: number }} input
+ */
+export function isTripLiveToday({ travelDate = '', day = 'Day 1', checkins = [], nowMs }) {
+  const now = new Date(nowMs);
+  const sameDay = (date) => date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+  const match = String(travelDate).match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (match) {
+    const offset = Math.max(0, (Number(String(day).match(/(\d+)/)?.[1]) || 1) - 1);
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + offset);
+    return sameDay(date);
+  }
+  return (checkins ?? []).some((item) => {
+    const at = new Date(item?.createdAt ?? item?.time ?? '');
+    return !Number.isNaN(at.getTime()) && sameDay(at);
+  });
+}

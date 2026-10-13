@@ -58,6 +58,7 @@ import {
   latestCheckinsByStop,
   navigationForStop,
   nextStopEta,
+  isTripLiveToday,
   publicTrustEvidenceLabel,
   safeReadCheckins,
   stopKeyForStop,
@@ -135,7 +136,12 @@ export default function TripView({ routebook, onBack, onAdoptTrip, onReview }) {
   );
   const nearbyVisible = filterNearbyRecommendations(nearbyItems, nearbyFilter);
   const navigation = useMemo(() => navigationForStop(stops, effectiveIdx, routebook, latestByStop), [effectiveIdx, latestByStop, routebook, stops]);
-  const nextStopCountdown = useMemo(() => nextStopEta(next, nowTick, current), [next, nowTick, current]);
+  const travelDate = routebook?.constraints?.date || routebook?.travelDate || '';
+  const tripLiveToday = useMemo(
+    () => isTripLiveToday({ travelDate, day: current?.day, checkins, nowMs: nowTick }),
+    [travelDate, current?.day, checkins, nowTick]
+  );
+  const nextStopCountdown = useMemo(() => (tripLiveToday ? nextStopEta(next, nowTick, current) : null), [tripLiveToday, next, nowTick, current]);
 
   useEffect(() => {
     checkinsRef.current = checkins;

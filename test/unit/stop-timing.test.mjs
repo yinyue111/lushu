@@ -46,3 +46,13 @@ test('the next stop on another day never shows as 超时 against today’s clock
   assert.deepEqual(nextStopEta({ day: 'Day 1', time: '18:10-19:50' }, now, { day: 'Day 1' }), { overdue: false, label: '距建议到达还有 100 分钟' });
   assert.equal(nextStopEta({ day: 'Day 1', time: '15:00' }, now, { day: 'Day 1' }).overdue, true);
 });
+
+test('isTripLiveToday: no overdue warnings outside the trip day', async () => {
+  const { isTripLiveToday } = await import('../../src/lib/stopTiming.js');
+  const now = new Date(2026, 9, 13, 18, 0).getTime();
+  assert.equal(isTripLiveToday({ travelDate: '', checkins: [], nowMs: now }), false, 'preview without date or check-ins');
+  assert.equal(isTripLiveToday({ travelDate: '2026-10-20', day: 'Day 1', nowMs: now }), false);
+  assert.equal(isTripLiveToday({ travelDate: '2026-10-12', day: 'Day 2', nowMs: now }), true);
+  assert.equal(isTripLiveToday({ checkins: [{ createdAt: new Date(2026, 9, 13, 10, 0).toISOString() }], nowMs: now }), true);
+  assert.equal(isTripLiveToday({ checkins: [{ createdAt: new Date(2026, 9, 1, 10, 0).toISOString() }], nowMs: now }), false);
+});
