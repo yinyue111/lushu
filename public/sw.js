@@ -58,6 +58,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // The admin console is a separate app with no-store HTML: never cache it, never let it become the user shell.
+  if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return;
   if (isRoutebookDataRequest(url)) {
     event.respondWith(routebookDataResponse(request));
     return;

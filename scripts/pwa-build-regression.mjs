@@ -124,6 +124,19 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
     assert.equal((await sandbox.dispatchFetch(path)).intercepted, false, `${path} must not be cached`);
   }
   assert.equal((await sandbox.dispatchFetch('/api/routebooks/x', { method: 'POST' })).intercepted, false);
+  // /admin is excluded entirely: navigation, assets, nothing is intercepted or written to any cache.
+  const shellCacheName = [...sandbox.stores.keys()].find((name) => name.includes('shell'));
+  const shellBefore = shellCacheName ? (await sandbox.stores.get(shellCacheName).keys()).map((k) => k.url).join() : '';
+  for (const [path, mode] of [
+    ['/admin', 'navigate'],
+    ['/admin/', 'navigate'],
+    ['/admin/config', 'navigate'],
+    ['/admin/assets/index-abc.js', 'no-cors']
+  ]) {
+    assert.equal((await sandbox.dispatchFetch(path, { mode })).intercepted, false, `${path} must not be handled by the user service worker`);
+  }
+  const shellAfter = shellCacheName ? (await sandbox.stores.get(shellCacheName).keys()).map((k) => k.url).join() : '';
+  assert.equal(shellAfter, shellBefore, 'admin HTML never replaces the user App Shell');
   assert.equal((await sandbox.dispatchFetch('https://tiles.example.com/1/2/3.png')).intercepted, false);
   assert.equal((await sandbox.dispatchFetch('/assets/scene-cat-temple.webp', { method: 'POST' })).intercepted, false);
 
@@ -135,5 +148,5 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
 }
 
 console.log(
-  `PWA 构建回归通过：已预缓存 ${assetNames.length} 个 hashed JS/CSS 产物；缓存策略行为（hash 产物缓存优先、public 图片 SWR+上限、路书数据网络优先+离线兜底、index.html 网络优先、其他 API 不拦截）通过`
+  `PWA 构建回归通过：已预缓存 ${assetNames.length} 个 hashed JS/CSS 产物；缓存策略行为（hash 产物缓存优先、public 图片 SWR+上限、路书数据网络优先+离线兜底、index.html 网络优先、其他 API 不拦截、/admin 完全不拦截）通过`
 );
