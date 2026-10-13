@@ -14,7 +14,7 @@ export async function adminAudit(req, { admin, actor, role, action, target = '',
     role: role ?? admin?.role ?? '',
     action,
     target,
-    detail: { ...(before !== undefined ? { before } : {}), ...(after !== undefined ? { after } : {}), ...(reason ? { reason } : {}), ...extra },
+    detail: { ...extra, ...(before !== undefined ? { before } : {}), ...(after !== undefined ? { after } : {}), ...(reason ? { reason } : {}) },
     ip: req ? clientIp(req) : '',
     createdAt: new Date().toISOString()
   });
