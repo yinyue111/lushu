@@ -728,7 +728,11 @@ export function useRoutebookActions({
     }
     updateRoutebook(result.stops, { editReason: `替换为${poi.name}` });
     setSelectedId(result.stop.id);
-    setShareState(`已换成「${poi.name}」，正在核验道路…`);
+    setShareState(
+      result.stop.navigationDisabled
+        ? `已换成「${poi.name}」。地图上没找到它的准确位置，价格和营业时间也待确认，出发前请自己查一下`
+        : `已换成「${poi.name}」，价格、营业时间待确认（保存后会自动去查），正在核验道路…`
+    );
     await recheckRoute({ auto: true, stopIds: [result.stop.id] });
   }
 
@@ -750,10 +754,12 @@ export function useRoutebookActions({
   async function searchPlaceCandidates(query) {
     try {
       const data = await searchPois(routebook.city, query);
-      return data?.pois ?? [];
+      const pois = data?.pois ?? [];
+      if (data?.reason === 'search-failed') pois.searchFailed = true;
+      return pois;
     } catch (error) {
       setShareState(`地点搜索失败：${error.message}`);
-      return [];
+      return Object.assign([], { searchFailed: true });
     }
   }
 

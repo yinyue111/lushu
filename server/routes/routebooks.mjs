@@ -18,7 +18,7 @@ import {
   requestAccount
 } from '../auth/request-access.mjs';
 import { accountProfileIds } from '../accounts/service.mjs';
-import { enrichmentView, reportEnrichment } from '../enrich/service.mjs';
+import { enqueueEnrichment, enrichmentView, reportEnrichment } from '../enrich/service.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
@@ -471,11 +471,19 @@ export const routebookRoutes = [
     const body = await readJsonBody(req);
     const actor = await resolveWriteProfile(req, body?.profileId);
     const lockKey = sanitizePublicId(body?.id || body?.publicId) || `new:${/** @type {any} */ (req).requestId}`;
-    const { routebook, enriched } = await withStorageEntityLock('routebook', lockKey, async () => {
+    const { routebook, enriched, renamedStops } = await withStorageEntityLock('routebook', lockKey, async () => {
+      const previous = body?.id || body?.publicId ? await getSavedRoutebook(sanitizePublicId(body.id || body.publicId)).catch(() => null) : null;
       const savedRoutebook = await saveDraftRoutebook({ ...body, profileId: actor.profileId }, { verifiedProfileId: actor.verified ? actor.profileId : '' });
       await appendVersionedRoutebook(savedRoutebook, savedRoutebook.parentVersion ? 'draft-saved' : 'created');
-      return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook) };
+      const previousNames = new Set((previous?.stops ?? []).map((stop) => String(stop.name ?? '').trim()));
+      const renamed = Boolean(previous) && (savedRoutebook.stops ?? []).some((stop) => !previousNames.has(String(stop.name ?? '').trim()));
+      return { routebook: savedRoutebook, enriched: await enrichRoutebook(savedRoutebook), renamedStops: renamed };
     });
+    // 换店、改名后重新排队补全（只对登录用户；新站点的门票/开放时间重新查，不沿用旧店）。
+    if (renamedStops) {
+      const account = await requestAccount(req).catch(() => null);
+      if (account?.user?.id) void enqueueEnrichment({ routebookId: routebook.publicId || routebook.id, userId: account.user.id, refresh: true });
+    }
     return sendJson(res, 200, {
       ok: true,
       routebook: { ...enriched, ...(await ownerPublicationFields(routebook)), ownerAccessVerified: actor.verified },

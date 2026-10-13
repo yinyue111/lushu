@@ -67,3 +67,26 @@ test('parse intents', () => {
   assert.equal(parseAdjustIntent('用 AI 重排 Day 1', ctx).level, 'L2');
   assert.equal(parseAdjustIntent('整本重新生成', ctx).level, 'L4');
 });
+
+test('replace stop does not carry old price/booking/risk/source', () => {
+  const old = [
+    { id: 'a', day: 'Day 1', time: '09:00', stay: '2小时', name: '灵隐寺', area: '西湖区', lat: 30.24, lng: 120.1, cost: '香花券 45 元', costInfo: { known: true, amount: 45, reservationRequired: true }, verify: '需提前预约', risk: '周末排队', reason: '古刹', tips: ['早去'], sourceEvidence: [{ url: 'https://x' }], provenance: { origin: 'guide' }, hours: '07:00-18:00' },
+    { id: 'b', day: 'Day 1', time: '13:00', stay: '1小时', name: '茶馆', lat: 30.25, lng: 120.12 }
+  ];
+  const amap = replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, address: '杭州', source: 'amap' }, { city: '杭州' }).stop;
+  assert.equal(amap.cost, '价格待确认');
+  assert.equal(amap.costInfo.known, false);
+  assert.equal(amap.costInfo.reservationRequired, false);
+  assert.ok(!/预约|排队/.test(amap.risk) && !/香花券/.test(JSON.stringify(amap)));
+  assert.equal(amap.sourceEvidence, undefined);
+  assert.equal(amap.reason, undefined);
+  assert.equal(amap.tips, undefined);
+  assert.equal(amap.hours, undefined);
+  assert.equal(amap.provenance.origin, 'user-added');
+  assert.equal(amap.navigationDisabled, false);
+  assert.equal(amap.stay, '2小时');
+  const unknown = replaceStopWithPoi(old, 'a', { name: '某小店', lat: 31.2, lng: 121.4, source: 'demo' }, { city: '杭州' }).stop;
+  assert.equal(unknown.navigationDisabled, true);
+  assert.equal(unknown.coordinatePrecision, 'approximate');
+  assert.equal(unknown.lat, 30.24);
+});

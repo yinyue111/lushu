@@ -76,28 +76,43 @@ export function setStopTransportMode(stops, stopId, mode) {
   return { stops: next, ok: true };
 }
 
+/**
+ * 换店：新站只继承「排在哪、待多久」（id、day、time、stay、交通方式），
+ * 旧店的价格、预约、风险、营业时间、攻略来源一律不带过来，改成「待确认」，保存后重新补全。
+ * 坐标只有来自高德 / 已审核地点库的候选才算精确、才能导航。
+ */
 export function replaceStopWithPoi(stops, stopId, poi, { city } = {}) {
   const list = Array.isArray(stops) ? stops : [];
   const index = list.findIndex((stop) => String(stop.id) === String(stopId));
   if (index < 0 || !poi?.name) return { stops: list, ok: false };
   const prev = list[index];
+  const name = String(poi.name).trim();
   const lat = Number(poi.lat);
   const lng = Number(poi.lng);
+  const hasCoord = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+  const trustedSource = ['amap', 'catalog', 'geocode', 'ops-poi'].includes(String(poi.source ?? ''));
+  const precise = hasCoord && trustedSource;
   const nextStop = {
-    ...prev,
-    name: String(poi.name).trim(),
-    area: String(poi.address || prev.area || city || '').trim(),
-    lat: Number.isFinite(lat) ? lat : prev.lat,
-    lng: Number.isFinite(lng) ? lng : prev.lng,
-    geoConfidence: Number.isFinite(lat) && Number.isFinite(lng) ? 70 : 45,
+    id: prev.id,
+    day: prev.day,
+    time: prev.time,
+    stay: prev.stay,
+    ...(prev.transportMode ? { transportMode: prev.transportMode } : {}),
+    name,
+    area: String(poi.address || city || '').trim(),
+    lat: precise ? lat : Number.isFinite(Number(prev.lat)) ? Number(prev.lat) : 0,
+    lng: precise ? lng : Number.isFinite(Number(prev.lng)) ? Number(prev.lng) : 0,
+    geoConfidence: precise ? 70 : 20,
     coordinateSystem: 'WGS84',
-    coordinateSource: Number.isFinite(lat) ? 'amap-search' : 'user-edit',
-    coordinatePrecision: Number.isFinite(lat) ? 'poi' : 'approximate',
-    coordinateRadiusMeters: Number.isFinite(lat) ? 0 : 1500,
-    navigationDisabled: !Number.isFinite(lat),
-    provenance: { origin: 'user-added', name: String(poi.name).trim(), replacedFrom: prev.name },
-    verify: prev.verify || '已从地点搜索替换，请出发前再核对营业信息',
-    risk: prev.risk || '需复核开放时间与交通'
+    coordinateSource: precise ? 'amap-search' : 'user-edit',
+    coordinatePrecision: precise ? 'poi' : 'approximate',
+    coordinateRadiusMeters: precise ? 0 : 3000,
+    navigationDisabled: !precise,
+    provenance: { origin: 'user-added', name, replacedFrom: prev.name },
+    cost: '价格待确认',
+    costInfo: { known: false, amount: null, min: null, max: null, free: false, reservationRequired: false, text: '价格待确认' },
+    verify: '刚换的店：营业时间、价格和是否要预约都待确认',
+    risk: precise ? '待确认' : '位置待确认：没有从地图找到准确位置，出发前请自己搜一下'
   };
   const next = [...list];
   next[index] = nextStop;

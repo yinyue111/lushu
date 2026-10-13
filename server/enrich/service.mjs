@@ -22,10 +22,15 @@ export function enrichmentReady() {
 }
 
 /** Called after a logged-in user's routebook is saved. Never throws, never delays the caller. */
-export async function enqueueEnrichment({ routebookId, userId }) {
+export async function enqueueEnrichment({ routebookId, userId, refresh = false }) {
   if (!routebookId || !userId || !enrichmentReady().ready) return null;
   try {
-    const { job } = await enrichStore().enqueue({ routebookId, userId });
+    const store = enrichStore();
+    let { job, created } = await store.enqueue({ routebookId, userId });
+    // 换店 / 改名后：已结束的任务重新排队，新站点会被补全（旧店的结果按站名匹配，不会挂到新店上）。
+    if (refresh && !created && job && !['queued', 'running'].includes(job.status)) {
+      job = await store.updateJob(routebookId, { status: 'queued', nextAttemptAt: new Date().toISOString(), leaseUntil: null, lastError: '' });
+    }
     kickWorker();
     return job;
   } catch (error) {
