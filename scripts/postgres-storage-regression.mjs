@@ -165,7 +165,7 @@ try {
   assert.equal(cutover.markedReady, true);
   const readiness = await adapter.checkReadiness();
   assert.equal(readiness.ready, true);
-  assert.equal(readiness.schemaVersion, 11);
+  assert.equal(readiness.schemaVersion, 12);
   const wrongSecretAdapter = createPostgresAdapter({
     pool,
     profileIdSecret: 'postgres-storage-regression-wrong-secret'

@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 
 export const POSTGRES_SCHEMA = 'trusted_routebook';
-export const POSTGRES_STORAGE_SCHEMA_VERSION = 11;
+export const POSTGRES_STORAGE_SCHEMA_VERSION = 12;
 
 export const EVENT_STREAMS = Object.freeze([
   { name: 'ai-logs', fileName: 'ai-logs.jsonl' },
