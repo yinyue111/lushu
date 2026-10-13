@@ -60,6 +60,7 @@ services:
     stop_grace_period: 30s
     networks: [backend]
 
+  # migrate / db-roles use the same rule as the app (…@sha256:<64 lowercase hex> at the end); see docs/deploy.md「镜像 digest」.
   # One-shot schema migration as the owner, app role grants right after (before backfill/parity), then readiness:
   # `docker compose -f docker-compose.prod.yml run --rm migrate`
   migrate:
@@ -83,7 +84,7 @@ services:
     entrypoint: ['sh', '-c']
     command:
       - >-
-        case "$$APP_IMAGE_DIGEST" in *@sha256:*) ;; *) echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:...), got $$APP_IMAGE_DIGEST" >&2; exit 1;; esac &&
+        { printf '%s' "$$APP_IMAGE_DIGEST" | grep -Eq '@sha256:[0-9a-f]{64}$$' || { echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:<64 hex>), got $$APP_IMAGE_DIGEST" >&2; exit 1; }; } &&
         node scripts/postgres-migrate.mjs &&
         node scripts/postgres-app-role.mjs &&
         node scripts/postgres-backfill.mjs --data-dir /data --apply &&
@@ -102,7 +103,7 @@ services:
     entrypoint: ['sh', '-c']
     command:
       - >-
-        case "$$APP_IMAGE_DIGEST" in *@sha256:*) ;; *) echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:...), got $$APP_IMAGE_DIGEST" >&2; exit 1;; esac &&
+        { printf '%s' "$$APP_IMAGE_DIGEST" | grep -Eq '@sha256:[0-9a-f]{64}$$' || { echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:<64 hex>), got $$APP_IMAGE_DIGEST" >&2; exit 1; }; } &&
         node scripts/postgres-app-role.mjs
     networks: [backend]
 
