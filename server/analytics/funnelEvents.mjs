@@ -26,8 +26,9 @@ export async function recordFunnelEvent(event, { profileId = '', ref = '' } = {}
   const row = { event, key: funnelKey(profileId), ref: truncateString(ref, 40), createdAt: new Date().toISOString() };
   try {
     await appendJsonLine(FUNNEL_LOG_PATH, row);
-  } catch {
-    /* 埋点失败不影响主流程 */
+  } catch (error) {
+    // 埋点失败不影响主流程，但要留痕，避免像缺迁移这样的问题被静默吞掉。
+    console.warn("[funnel] record failed", event, String(error?.message ?? error));
   }
   return row;
 }
