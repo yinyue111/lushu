@@ -40,7 +40,7 @@ try {
       },
       // The audit table is append-only at the database level, not just by convention.
       appendOnly: async () => {
-        for (const sql of ["update trusted_routebook.admin_audit set action = 'x'", 'delete from trusted_routebook.admin_audit']) {
+        for (const sql of ["update trusted_routebook.admin_audit set action = 'x'", 'delete from trusted_routebook.admin_audit', 'truncate trusted_routebook.admin_audit']) {
           const blocked = await pool.query(sql).then(
             () => false,
             () => true

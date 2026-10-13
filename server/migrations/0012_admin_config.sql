@@ -63,6 +63,10 @@ end $$;
 drop trigger if exists admin_audit_append_only on trusted_routebook.admin_audit;
 create trigger admin_audit_append_only before update or delete on trusted_routebook.admin_audit
   for each row execute function trusted_routebook.admin_audit_append_only();
+-- TRUNCATE bypasses row triggers: block it with a statement-level trigger too.
+drop trigger if exists admin_audit_no_truncate on trusted_routebook.admin_audit;
+create trigger admin_audit_no_truncate before truncate on trusted_routebook.admin_audit
+  for each statement execute function trusted_routebook.admin_audit_append_only();
 
 -- Invite codes (REGISTRATION_MODE=invite). Only a hash is stored; the code is shown once at creation.
 create table if not exists trusted_routebook.admin_invite_codes (
