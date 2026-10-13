@@ -184,6 +184,14 @@ export function isNavigableCoordinate(stop) {
   );
 }
 
+/** 没有准确坐标时的出路：在高德按「站名」+ 城市搜，让用户自己挑，不编坐标。 */
+export function amapNameSearchUrl(stop, city = '') {
+  const params = new URLSearchParams({ keyword: String(stop?.name ?? '').trim(), src: 'trusted-routebook', callnative: '1' });
+  const scope = String(city || stop?.city || '').trim();
+  if (scope) params.set('city', scope);
+  return `https://uri.amap.com/search?${params}`;
+}
+
 export function coordinateReviewLabel(stop) {
   if (isNavigableCoordinate(stop)) return '可导航';
   if (isValidCoordinate(Number(stop?.lat), Number(stop?.lng))) return '定位待复核';

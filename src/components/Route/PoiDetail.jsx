@@ -5,7 +5,7 @@ import { recordProductClick, recordProductExposure } from '../../lib/productTele
 import { getProfile } from '../../lib/profile';
 import { productsForStop, useProductCards } from '../../lib/products';
 import { clickStorageKey, safeWriteJsonStorage } from '../../lib/storage';
-import { coordinateReviewLabel, isNavigableCoordinate } from '../../lib/coordinates';
+import { amapNameSearchUrl, coordinateReviewLabel, isNavigableCoordinate } from '../../lib/coordinates';
 import { trustedCities } from '../../lib/content';
 import { PUBLIC_TRUST_SAMPLE_THRESHOLD, evaluatePoiTrustSample } from '../../lib/trust';
 import { coordinateVerificationLevel } from '../../lib/trustSignals';
@@ -116,8 +116,12 @@ export default function PoiDetail({ stop, routebook, onClose }) {
   }
 
   function openInMap() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setMessage('需要网络：联网后才能打开高德地图');
+      return;
+    }
     if (!canNavigate) {
-      setMessage('这个地点的位置还没确认，先不打开地图');
+      window.open(amapNameSearchUrl(stop, routeCity), '_blank', 'noopener,noreferrer');
       return;
     }
     window.open(
@@ -336,8 +340,8 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       )}
 
       <div className="sticky -bottom-6 -mx-6 mt-5 flex flex-wrap gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
-        <Button variant="dark" onClick={openInMap} disabled={!canNavigate}>
-          <ExternalLink /> 在地图中查看
+        <Button variant="dark" onClick={openInMap}>
+          <ExternalLink /> {canNavigate ? '在地图中查看' : '在高德按名字搜'}
         </Button>
         <Button variant="outline" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
           <Flag /> 信息有误？纠错

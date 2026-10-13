@@ -21,7 +21,7 @@ import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/ap
 import { canSyncToCloud, getProfile, hasProfileCloudRegistrationConsent } from '../../lib/profile';
 import { useAccount } from '../Account/AccountProvider';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
-import { isNavigableCoordinate } from '../../lib/coordinates';
+import { amapNameSearchUrl, isNavigableCoordinate } from '../../lib/coordinates';
 import { buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
 import { normalizeTripStops, readTripSession, saveTripSession, tripRoutebookId } from '../../lib/tripSession';
 import {
@@ -444,8 +444,13 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
 
   function openNavigation() {
     if (!current) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setModeNote('需要网络：联网后才能打开高德导航。行程和地址离线也能看。');
+      return;
+    }
     if (!isNavigableCoordinate(current)) {
-      setModeNote('当前站点定位待复核，已禁用一键导航；请先在 POI 详情里补充真实坐标或改走下一个高置信站点。');
+      // 位置没核准：不导航到猜的坐标，改为在高德按名字搜，让用户自己挑。
+      window.open(amapNameSearchUrl(current, routebook.city), '_blank', 'noopener,noreferrer');
       return;
     }
     window.open(
@@ -611,8 +616,8 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
             <Button variant="primary" size="lg" className="flex-[2]" onClick={() => setShowCheckin(true)} disabled={actionDisabled}>
               <Camera /> {checkinLabel(isFinished, currentProcessed, currentSyncPending, currentLatest)}
             </Button>
-            <Button variant="dark" size="lg" className="flex-1" onClick={openNavigation} disabled={!isNavigableCoordinate(current)}>
-              <Navigation /> {navigation.label}
+            <Button variant="dark" size="lg" className="flex-1" onClick={openNavigation}>
+              <Navigation /> {isNavigableCoordinate(current) ? navigation.label : '在高德按名字搜'}
             </Button>
           </div>
 
@@ -824,10 +829,9 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
           size="lg"
           className="h-[54px] flex-1 text-base @max-[22rem]:flex-none @max-[22rem]:px-3"
           onClick={openNavigation}
-          disabled={!isNavigableCoordinate(current)}
-          aria-label="导航"
+          aria-label={isNavigableCoordinate(current) ? '导航' : '在高德按名字搜'}
         >
-          <Navigation /> <span className="@max-[22rem]:sr-only">导航</span>
+          <Navigation /> <span className="@max-[22rem]:sr-only">{isNavigableCoordinate(current) ? '导航' : '按名字搜'}</span>
         </Button>
         <Button
           variant="primary"

@@ -133,3 +133,15 @@ test('swapped stop: no old risk/guide source, and not navigable when the map did
   assert.equal(isNavigableCoordinate(found), true);
   assert.equal(isNavigableCoordinate(lost), false);
 });
+
+test('v3: precise swap leaves no bare 待确认 risk; unfound POI gets an AMap name search link', async () => {
+  const { amapNameSearchUrl } = await import('../src/lib/coordinates.js');
+  const old = [{ id: 'a', day: 'Day 1', time: '09:00', stay: '1小时', name: '灵隐寺', lat: 30.24, lng: 120.1, risk: '需预约' }];
+  const found = /** @type {any} */ (replaceStopWithPoi(old, 'a', { name: '永福寺', lat: 30.245, lng: 120.105, source: 'amap' }).stop);
+  assert.equal(found.risk, '');
+  const url = new URL(amapNameSearchUrl({ name: '某小店' }, '杭州'));
+  assert.equal(url.host, 'uri.amap.com');
+  assert.equal(url.pathname, '/search');
+  assert.equal(url.searchParams.get('keyword'), '某小店');
+  assert.equal(url.searchParams.get('city'), '杭州');
+});

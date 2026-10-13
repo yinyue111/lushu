@@ -116,7 +116,8 @@ export function replaceStopWithPoi(stops, stopId, poi, { city = undefined } = {}
     cost: '价格待确认',
     costInfo: { known: false, amount: null, min: null, max: null, free: false, reservationRequired: false, text: '价格待确认' },
     verify: '刚换的店：营业时间、价格和是否要预约都待确认',
-    risk: precise ? '待确认' : '位置待确认：没有从地图找到准确位置，出发前请自己搜一下'
+    // 找到准确位置时不留风险框：一个只写「待确认」的黄框让人不知道要确认什么（verify 已写明）。
+    risk: precise ? '' : '位置待确认：没有从地图找到准确位置，可以在高德按名字搜'
   };
   const next = [...list];
   next[index] = nextStop;
