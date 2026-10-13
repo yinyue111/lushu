@@ -47,6 +47,51 @@ export function pageSupports(pageText, placeName, patterns) {
   return false;
 }
 
+const CONDITION_RULES = [
+  { kind: 'reservation', label: '需提前预约', re: /(实名预约|提前预约|需预约|须预约|需要预约|预约入园|预约参观|预约游览|预约后)/ },
+  { kind: 'extra-charge', label: '部分区域另收费', re: /(另收费|另行收费|单独收费|另需购票|需另购|另购门票|单独购票|另行购票)/ },
+  { kind: 'seasonal', label: '票价分淡旺季', re: /(淡季|旺季)[^。；]{0,30}\d+\s*元/ }
+];
+
+/**
+ * 附带条件：只从抓到的页面原文里摘，地点名附近的那一句原话；不推断、不改写。
+ * @returns {{ kind: string, label: string, quote: string }[]}
+ */
+export function extractConditions(pageText, placeName) {
+  const text = compact(pageText);
+  const name = compact(placeName);
+  const found = new Map();
+  for (let i = text.indexOf(name); name && i >= 0; i = text.indexOf(name, i + name.length)) {
+    const window = text.slice(Math.max(0, i - 300), i + name.length + 300);
+    for (const rule of CONDITION_RULES) {
+      if (found.has(rule.kind)) continue;
+      const m = rule.re.exec(window);
+      if (!m) continue;
+      // 摘出含命中词的那一句（按句号、分号、换行切）。
+      const start = Math.max(window.lastIndexOf('。', m.index), window.lastIndexOf('；', m.index), window.lastIndexOf('\n', m.index)) + 1;
+      const ends = ['。', '；', '\n'].map((ch) => window.indexOf(ch, m.index)).filter((x) => x >= 0);
+      const end = ends.length ? Math.min(...ends) : window.length;
+      let quote = window.slice(start, end).trim();
+      if (quote.length > 80) quote = window.slice(Math.max(start, m.index - 30), Math.min(end, m.index + 50)).trim();
+      found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
+    }
+  }
+  return [...found.values()];
+}
+
+/** 合并各页条件：同一类在几个不同网站原文里出现。 */
+function mergeConditions(perPage) {
+  const byKind = new Map();
+  for (const { conditions, url, domain } of perPage) {
+    for (const c of conditions) {
+      const entry = byKind.get(c.kind) ?? { kind: c.kind, label: c.label, quote: c.quote, sources: [] };
+      if (!entry.sources.some((s) => s.domain === domain)) entry.sources.push({ url, domain });
+      byKind.set(c.kind, entry);
+    }
+  }
+  return [...byKind.values()].map((c) => ({ ...c, verifiedCount: c.sources.length, singleSource: c.sources.length < 2 }));
+}
+
 /** 票价分淡旺季（或特殊日期另价）：单个数字会误导，保留待确认。 */
 export function pageHasSeasonalPrice(pageText, placeName) {
   const text = compact(pageText);
@@ -221,6 +266,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       const patterns = field === 'hours' ? hoursEvidence(/** @type {string} */ (canonical)) : priceEvidence(canonical);
       const verified = [];
       let seasonal = false;
+      const pageConditions = [];
       for (const w of webs) {
         // Only URLs the search really returned; the ones the model named for this field first.
         const named = (w.answer?.[`${field}Sources`] ?? []).filter((u) => w.cited.has(u));
@@ -240,10 +286,18 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           if (page.ok && pageSupports(page.text, name, patterns)) {
             if (field === 'price' && pageHasSeasonalPrice(page.text, name)) seasonal = true;
             verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
+            const conditions = extractConditions(page.text, name).filter((c) => field === 'price' || c.kind === 'reservation');
+            if (conditions.length) pageConditions.push({ conditions, url, domain });
           }
         }
       }
-      if (seasonal) return { status: 'kept', reason: 'seasonal', reasonText: '票价分淡旺季，出发前按日期确认' };
+      const conditions = mergeConditions(pageConditions);
+      // 分淡旺季：不填单个数字；两个来源核对过票价时，显示原文里的淡旺季说明。
+      if (seasonal) {
+        if (verified.length < 2) return { status: 'kept', reason: 'seasonal', reasonText: '票价分淡旺季，出发前按日期确认' };
+        const at = retrievedAt();
+        return { status: 'filled', value: '分淡旺季', display: `门票分淡旺季 · 来自${verified[0].title || verified[0].domain}等${verified.length}个来源 · 查询于${at.slice(0, 10)}`, sources: verified, retrievedAt: at, method: 'pages', conditions };
+      }
       const value = field === 'hours' ? /** @type {string} */ (canonical) : priceDisplay(canonical);
       const at = retrievedAt();
       if (field === 'hours' && amapHours && amapHours !== canonical) {
@@ -251,7 +305,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       }
       if (field === 'hours' && amapHours === canonical && verified.length >= 1) {
         const sources = [{ kind: 'amap', url: place.poi.url, title: `高德地图 · ${place.poi.name}`, domain: 'amap.com' }, ...verified.slice(0, 2)];
-        return { status: 'filled', value, display: display(field, value, sources, at), sources, retrievedAt: at, method: 'amap+page' };
+        return { status: 'filled', value, display: display(field, value, sources, at), sources, retrievedAt: at, method: 'amap+page', ...(conditions.length ? { conditions } : {}) };
       }
       if (verified.length >= 2) {
         return {
@@ -261,7 +315,8 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           display: display(field, value, verified, at),
           sources: verified,
           retrievedAt: at,
-          method: 'pages'
+          method: 'pages',
+          ...(conditions.length ? { conditions } : {})
         };
       }
       return { status: 'kept', reason: 'single-source', reasonText: `只核对到 ${verified.length + (amapHours ? 1 : 0)} 个来源` };

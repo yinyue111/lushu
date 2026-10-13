@@ -218,3 +218,29 @@ test('a failed search only keeps that stop; the summary counts failed searches s
   const { summary } = await enrichRoutebook({ routebook: { id: 'r11', city: '杭州', stops: [stop('雷峰塔')] }, store: freshStore(), deps: down });
   assert.equal(summary.searchErrors, 1);
 });
+
+test('conditions attach to a filled value, with source count; seasonal prices are not shown as one number', async () => {
+  const A = 'https://a.example.cn/p', B = 'https://b.example.com/p';
+  const { deps } = fakes({
+    amap: { 灵隐寺: scenic('灵隐寺', ''), 拙政园: scenic('拙政园', '') },
+    web: {
+      灵隐寺: { answer: { price: '免费' }, cited: [A, B] },
+      拙政园: { answer: { price: '70元' }, cited: [`${A}2`, `${B}2`] }
+    },
+    pages: {
+      [A]: page('灵隐寺', '灵隐寺免费开放，需提前实名预约。'),
+      [B]: page('灵隐寺', '灵隐寺门票免费。'),
+      [`${A}2`]: page('拙政园', '拙政园 淡季票价：70元|旺季票价：80元'),
+      [`${B}2`]: page('拙政园', '拙政园门票70元，旺季80元')
+    }
+  });
+  const { claims } = await enrichRoutebook({ routebook: { id: 'r', city: '杭州', stops: [stop('灵隐寺'), stop('拙政园')] }, store: freshStore(), deps });
+  const ly = claims.find((c) => c.stopName === '灵隐寺' && c.field === 'price');
+  assert.equal(ly.status, 'filled');
+  assert.equal(ly.conditions[0].kind, 'reservation');
+  assert.equal(ly.conditions[0].singleSource, true, 'only one page states the reservation');
+  assert.match(ly.conditions[0].quote, /实名预约/);
+  const zz = claims.find((c) => c.stopName === '拙政园' && c.field === 'price');
+  assert.equal(zz.value, '分淡旺季');
+  assert.ok(zz.conditions.some((c) => c.kind === 'seasonal'));
+});

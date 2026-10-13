@@ -53,7 +53,7 @@ export async function enrichmentView(routebook) {
   const names = new Map((routebook.stops ?? []).map((stop, index) => [stopKeyOf(stop, index), String(stop.name ?? '').trim()]));
   const claims = (result?.claims ?? [])
     .filter((c) => c.status === 'filled' && names.get(c.stopKey) === c.stopName)
-    .map(({ stopKey, stopName, field, value, display, sources, retrievedAt, method }) => ({
+    .map(({ stopKey, stopName, field, value, display, sources, retrievedAt, method, conditions }) => ({
       stopKey,
       stopName,
       field,
@@ -61,7 +61,15 @@ export async function enrichmentView(routebook) {
       display,
       sources: (sources ?? []).map(({ url, title, domain, kind }) => ({ url, title, domain, kind })),
       retrievedAt,
-      method
+      method,
+      conditions: (conditions ?? []).map(({ kind, label, quote, sources: cs, verifiedCount, singleSource }) => ({
+        kind,
+        label,
+        quote: String(quote ?? '').slice(0, 120),
+        sources: (cs ?? []).map(({ url, domain }) => ({ url, domain })),
+        verifiedCount,
+        singleSource
+      }))
     }));
   const summary = job.summary && typeof job.summary === 'object' ? job.summary : {};
   const progress =
