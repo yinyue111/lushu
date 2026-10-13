@@ -119,6 +119,8 @@ export async function sendStatic(req, res) {
     return sendJson(res, 400, { error: '请求路径不合法', code: 'BAD_PATH' });
   }
   const normalizedPath = decodedPath === '/' ? '/index.html' : decodedPath;
+  // Source map 只留在服务器上，不对外提供（即使有人把 .map 放进了 dist）。
+  if (/\.map$/i.test(normalizedPath)) return sendJson(res, 404, { error: '文件不存在', code: 'NOT_FOUND' });
   const requestedPath = resolve(DIST_DIR, `.${normalizedPath}`);
   const rootPath = resolve(DIST_DIR);
   const isInsideDist = requestedPath === rootPath || requestedPath.startsWith(`${rootPath}${sep}`);

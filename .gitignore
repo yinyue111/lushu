@@ -20,3 +20,4 @@ data/*.tmp
 data/*.bak
 backups/
 data/mail-outbox/
+dist-sourcemaps

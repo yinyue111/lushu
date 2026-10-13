@@ -36,7 +36,7 @@ export function pwaPrecachePlugin() {
       // (fonts, imported images). public/ files never appear in `bundle`.
       const precached = new Set(entries.map((entry) => entry.url));
       const hashedAssets = Object.values(bundle)
-        .filter((item) => item.type === 'asset' && !precached.has(item.fileName) && !/\.html$/i.test(item.fileName) && item.fileName !== 'sw.js')
+        .filter((item) => item.type === 'asset' && !precached.has(item.fileName) && !/\.html$/i.test(item.fileName) && item.fileName !== 'sw.js' && !/\.map$/i.test(item.fileName))
         .map((item) => item.fileName)
         .sort();
       const revision = createHash('sha256')

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env server.mjs",
     "dev:frontend": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && node scripts/move-sourcemaps.mjs",
     "start": "node --env-file-if-exists=.env server.mjs --production",
     "check:syntax": "node scripts/check-syntax.mjs",
     "lint": "eslint .",
@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^20.19.43",
     "@types/react": "^19.3.0",
