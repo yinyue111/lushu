@@ -2,6 +2,7 @@
 import { peekGenerationQuota } from '../ai/generationGuard.mjs';
 import { decryptEmail } from '../accounts/email.mjs';
 import { route } from '../http/router.mjs';
+import { recordFunnelEvent } from '../analytics/funnelEvents.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { AUTH_ENABLED, AUTH_MODE, AUTH_POW_DIFFICULTY, EMAIL_VERIFICATION_REQUIRED, REGISTRATION_MODE } from '../config/index.mjs';
@@ -69,7 +70,11 @@ export const authRoutes = [
     return sendJson(res, 200, { ok: true, ...issueChallenge(purpose) });
   }),
   post('/api/auth/register/code', sendRegisterCode),
-  post('/api/auth/register', registerAccount),
+  post('/api/auth/register', async (req, res, body) => {
+    const result = await registerAccount(req, res, body);
+    await recordFunnelEvent('register_complete', { profileId: result?.account?.profileId || '' });
+    return result;
+  }),
   post('/api/auth/reset-password/code', sendResetCode),
   post('/api/auth/email/code', sendChangeEmailCode),
   post('/api/auth/email', confirmChangeEmail),

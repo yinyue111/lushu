@@ -1,5 +1,7 @@
 // Ops dashboard, product analytics and creator profiles.
 import { countBy, sanitizePublicId, intersectSets, percent } from '../lib/util.mjs';
+import { buildActivationFunnel } from './funnelEvents.mjs';
+import { CLIENT_ERROR_LOG_PATH, FUNNEL_LOG_PATH } from '../config/index.mjs';
 import {
   CLICK_LOG_PATH,
   EXPOSURE_LOG_PATH,
@@ -120,7 +122,7 @@ export function summarizeImportAnalysis(imports) {
 
 export async function buildPlatformDashboard(limit = 1000) {
   const asOf = Date.now();
-  const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics] = await Promise.all([
+  const [aiLogs, routebooks, rawCheckins, favorites, reviews, imports, clicks, exposures, opsAuditContext, operationalMetrics, funnelRows, clientErrors] = await Promise.all([
     readJsonLines(AI_LOG_PATH, limit),
     listSavedRoutebooks(Math.min(limit, 500)),
     readJsonLines(CHECKIN_LOG_PATH, limit),
@@ -130,7 +132,9 @@ export async function buildPlatformDashboard(limit = 1000) {
     readJsonLines(CLICK_LOG_PATH, limit),
     readJsonLines(EXPOSURE_LOG_PATH, limit),
     buildOpsAuditContext(),
-    buildOperationalMetrics(asOf)
+    buildOperationalMetrics(asOf),
+    readJsonLines(FUNNEL_LOG_PATH, Math.max(limit, 5000)),
+    readJsonLines(CLIENT_ERROR_LOG_PATH, 500)
   ]);
   const checkins = rawCheckins.map((item) => applyCheckinOpsOverlay(item, opsAuditContext));
   const generatedOk = aiLogs.filter((item) => item.kind === 'generate-routebook' && item.status === 'ok').length;
@@ -190,7 +194,13 @@ export async function buildPlatformDashboard(limit = 1000) {
   const copiedCount = totalRoutebookCopyCount(exposures);
   const productAnalytics = await buildProductAnalytics(limit);
   const constraintSatisfaction = buildConstraintSatisfaction(routebooks, { routeIds: generatedRouteIds });
+  // 内测激活漏斗（近 30 天）与前端错误（近 24 小时）。
+  const activation = buildActivationFunnel(funnelRows, aiLogs, { sinceMs: asOf - 30 * 86_400_000 });
+  const recentClientErrors = clientErrors.filter((row) => Date.parse(row.createdAt) >= asOf - 86_400_000);
   const funnel = {
+    activation,
+    clientErrors24h: recentClientErrors.length,
+    latestClientErrors: recentClientErrors.slice(-5).reverse().map(({ kind, message, path, createdAt }) => ({ kind, message, path, createdAt })),
     generateAttempts,
     generatedOk,
     generatedRoutes: generatedRouteIds.size,

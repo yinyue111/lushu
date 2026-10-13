@@ -24,7 +24,9 @@ export const EVENT_STREAMS = Object.freeze([
   { name: 'checkin-photos', fileName: 'checkin-photos.jsonl' },
   { name: 'poi-merges', fileName: 'poi-merges.jsonl' },
   { name: 'moderation-queue', fileName: 'moderation-queue.jsonl' },
-  { name: 'shadow-judgments', fileName: 'shadow-judgments.jsonl' }
+  { name: 'shadow-judgments', fileName: 'shadow-judgments.jsonl' },
+  { name: 'funnel-events', fileName: 'funnel-events.jsonl' },
+  { name: 'client-errors', fileName: 'client-errors.jsonl' }
 ]);
 
 export const CONFIG_DOCUMENTS = Object.freeze([

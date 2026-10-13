@@ -1,5 +1,6 @@
 // Routebook, share, creator and favorite API routes.
 import { clampNumber, createHttpError, normalizeCityName, positiveInteger, safeDecodePathSegment, sanitizePublicId, truncateString } from '../lib/util.mjs';
+import { recordFunnelEvent } from '../analytics/funnelEvents.mjs';
 import { compareRowsDesc, decodeCursor, encodeCursor, isAfterCursor } from '../ops/paging.mjs';
 import { ALLOW_LOCAL_ADMIN_BYPASS, FAVORITE_LOG_PATH, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { appendJsonLine, readJsonLines, readMatchingJsonLines } from '../storage/jsonl.mjs';
@@ -494,6 +495,7 @@ export const routebookRoutes = [
       throw createHttpError('分享路书不存在或已失效', 404, 'SHARE_NOT_FOUND');
     }
     if (unlisted) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    void recordFunnelEvent('share_open', { ref: id });
     const publicRoutebook = { ...publicRoutebookView(routebook), visibility: unlisted ? 'unlisted' : 'public' };
     return sendJson(res, 200, {
       ok: true,
