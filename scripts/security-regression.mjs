@@ -90,6 +90,7 @@ async function main() {
       ALLOW_PUBLIC_MODEL_PROXY: 'true',
       ROUTEBOOK_API_TOKEN: PUBLIC_TOKEN,
       TRUST_PROXY_HEADERS: 'true',
+      TRUSTED_PROXY_CIDRS: '127.0.0.1,::1',
       IMPORT_TIMEOUT_MS: '3000',
       VITE_HMR_PORT: '24799'
     },

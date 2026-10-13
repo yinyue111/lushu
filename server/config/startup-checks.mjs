@@ -242,3 +242,75 @@ export function inviteStartupWarning({ mode, envCode, invites, now = Date.now() 
   if (usable.length) return '';
   return `REGISTRATION_MODE=invite but there is no usable invite code (no REGISTRATION_INVITE_CODE; ${invites.length} admin invite code(s), none active): nobody can register. Create one in the admin console or set REGISTRATION_INVITE_CODE.`;
 }
+
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+function ipv4ToInt(text) {
+  const m = IPV4.exec(String(text ?? '').trim());
+  if (!m) return null;
+  const parts = m.slice(1).map(Number);
+  if (parts.some((p) => p > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+/** @returns {{ base: number, prefix: number } | null} an IPv4 address (as /32) or IPv4 CIDR */
+function parseIpv4Range(text) {
+  const [addr, prefixText, extra] = String(text ?? '')
+    .trim()
+    .split('/');
+  if (extra !== undefined) return null;
+  const base = ipv4ToInt(addr);
+  const prefix = prefixText === undefined ? 32 : /^\d{1,2}$/.test(prefixText) ? Number(prefixText) : NaN;
+  if (base == null || !(prefix >= 0 && prefix <= 32)) return null;
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return { base: (base & mask) >>> 0, prefix };
+}
+const within = (inner, outer) => {
+  if (inner.prefix < outer.prefix) return false;
+  const mask = outer.prefix === 0 ? 0 : (0xffffffff << (32 - outer.prefix)) >>> 0;
+  return (inner.base & mask) >>> 0 === outer.base;
+};
+const isLoopbackEntry = (entry) => entry === '::1' || (parseIpv4Range(entry) && within(parseIpv4Range(entry), { base: 0x7f000000, prefix: 8 }));
+
+/**
+ * TRUSTED_PROXY_CIDRS in production (behind a proxy): must be set, every entry a valid IPv4 address /
+ * CIDR or ::1, and — when the compose network is pinned (APP_NETWORK_SUBNET / APP_NETWORK_GATEWAY) —
+ * every non-loopback entry inside that subnet and the gateway itself trusted. Otherwise X-Forwarded-For
+ * is either trusted from strangers or ignored (every user rate-limited as the gateway).
+ * @param {{ isProduction: boolean, trustProxyHeaders: boolean, trustedProxyCidrs?: string, networkSubnet?: string, networkGateway?: string }} input
+ * @returns {string[]} errors
+ */
+export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedProxyCidrs, networkSubnet, networkGateway }) {
+  if (!isProduction || !trustProxyHeaders) return [];
+  const errors = [];
+  const entries = String(trustedProxyCidrs ?? '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (!entries.length) return ['TRUST_PROXY_HEADERS=true in production requires TRUSTED_PROXY_CIDRS (e.g. 172.31.80.1,127.0.0.1,::1 for the compose network).'];
+  const invalid = entries.filter((e) => e !== '::1' && !parseIpv4Range(e));
+  if (invalid.length) errors.push(`TRUSTED_PROXY_CIDRS has invalid entries ${JSON.stringify(invalid)}: use IPv4 addresses, IPv4 CIDRs or ::1.`);
+  if (entries.some((e) => parseIpv4Range(e)?.prefix === 0)) errors.push('TRUSTED_PROXY_CIDRS must not trust 0.0.0.0/0.');
+  const subnetText = String(networkSubnet ?? '').trim();
+  if (subnetText) {
+    const subnet = parseIpv4Range(subnetText);
+    if (!subnet || !subnetText.includes('/')) {
+      errors.push(`APP_NETWORK_SUBNET=${JSON.stringify(subnetText)} is not an IPv4 CIDR.`);
+    } else {
+      const outside = entries.filter((e) => parseIpv4Range(e) && !isLoopbackEntry(e) && !within(parseIpv4Range(e), subnet));
+      if (outside.length)
+        errors.push(
+          `TRUSTED_PROXY_CIDRS entries ${JSON.stringify(outside)} are outside APP_NETWORK_SUBNET ${subnetText} (only the pinned network or loopback may be trusted).`
+        );
+      const gatewayText = String(networkGateway ?? '').trim();
+      if (gatewayText) {
+        const gateway = parseIpv4Range(gatewayText);
+        if (!gateway || gateway.prefix !== 32 || !within(gateway, subnet))
+          errors.push(`APP_NETWORK_GATEWAY=${JSON.stringify(gatewayText)} is not an address inside APP_NETWORK_SUBNET ${subnetText}.`);
+        else if (!entries.some((e) => parseIpv4Range(e) && within(gateway, parseIpv4Range(e))))
+          errors.push(
+            `TRUSTED_PROXY_CIDRS does not include the network gateway ${gatewayText}: Caddy's requests arrive from it, so every user would be rate-limited as one address.`
+          );
+      }
+    }
+  }
+  return errors;
+}

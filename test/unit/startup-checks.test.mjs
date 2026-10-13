@@ -149,3 +149,25 @@ test('invite mode with no usable invite code warns at startup', async () => {
   assert.equal(inviteStartupWarning({ mode: 'open', invites: [], now }), '');
   assert.match(inviteStartupWarning({ mode: 'invite', invites: null, now }), /could not be read/);
 });
+
+test('TRUSTED_PROXY_CIDRS in production: required, valid, inside the pinned subnet, gateway trusted', async () => {
+  const { trustedProxyErrors } = await import('../../server/config/startup-checks.mjs');
+  const net = { isProduction: true, trustProxyHeaders: true, networkSubnet: '172.31.80.0/24', networkGateway: '172.31.80.1' };
+  const errs = (cidrs, extra = {}) => trustedProxyErrors({ ...net, trustedProxyCidrs: cidrs, ...extra });
+  assert.deepEqual(errs('172.31.80.1,127.0.0.1,::1'), []);
+  assert.deepEqual(errs('172.31.80.0/24,::1'), []);
+  assert.match(errs(undefined)[0], /requires TRUSTED_PROXY_CIDRS/);
+  assert.match(errs(' , ')[0], /requires TRUSTED_PROXY_CIDRS/);
+  assert.ok(errs('172.31.80.1,not-an-ip').some((e) => /invalid entries \["not-an-ip"\]/.test(e)));
+  assert.ok(errs('172.31.80.1,10.0.0.0/33').some((e) => /invalid/.test(e)));
+  assert.ok(errs('0.0.0.0/0').some((e) => /must not trust 0.0.0.0\/0/.test(e)));
+  assert.ok(errs('172.17.0.1,127.0.0.1').some((e) => /outside APP_NETWORK_SUBNET/.test(e)));
+  assert.ok(errs('172.31.80.5,127.0.0.1').some((e) => /does not include the network gateway 172.31.80.1/.test(e)));
+  assert.ok(errs('127.0.0.1', { networkSubnet: '172.31.80.0' }).some((e) => /not an IPv4 CIDR/.test(e)));
+  assert.ok(errs('172.31.80.1', { networkGateway: '10.0.0.1' }).some((e) => /APP_NETWORK_GATEWAY/.test(e)));
+  // No pinned network (npm start behind a local Caddy): loopback only is fine.
+  assert.deepEqual(trustedProxyErrors({ isProduction: true, trustProxyHeaders: true, trustedProxyCidrs: '127.0.0.1,::1' }), []);
+  // Not production, or not behind a proxy: not checked.
+  assert.deepEqual(trustedProxyErrors({ ...net, isProduction: false, trustedProxyCidrs: '' }), []);
+  assert.deepEqual(trustedProxyErrors({ ...net, trustProxyHeaders: false, trustedProxyCidrs: '' }), []);
+});

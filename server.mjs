@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { envFlag, envNumber } from './server/config/env.mjs';
-import { evaluateStartupSafety, inviteStartupWarning } from './server/config/startup-checks.mjs';
+import { evaluateStartupSafety, inviteStartupWarning, trustedProxyErrors } from './server/config/startup-checks.mjs';
 import {
   ADMIN_ENABLED,
   ALLOW_LOCAL_ADMIN_BYPASS,
@@ -88,6 +88,16 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     }
   });
   if (IS_PRODUCTION && !ENRICH_ENABLED) warnings.push('ENRICH_ENABLED=false：联网补全没开，所有门票和开放时间都会一直是「待确认」。内测配置应设为 true');
+  errors.push(
+    ...trustedProxyErrors({
+      isProduction: IS_PRODUCTION,
+      trustProxyHeaders: TRUST_PROXY_HEADERS,
+      // The raw value: an unset variable must not silently become the 127.0.0.1,::1 default here.
+      trustedProxyCidrs: process.env.TRUSTED_PROXY_CIDRS,
+      networkSubnet: process.env.APP_NETWORK_SUBNET,
+      networkGateway: process.env.APP_NETWORK_GATEWAY
+    })
+  );
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);
   if (errors.length) throw new Error(errors.join('\n'));
 }
