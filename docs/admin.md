@@ -135,6 +135,8 @@ npm run admin:create -- --username root --role admin --production
 
 **上线顺序（推荐）**：备份 → 先换新镜像（此时库还是 11，后台不可用，用户端正常）→ 观察没问题 → `npm run postgres:migrate` 到 12 → 后台可用。
 
+跑过 down SQL 之后（版本号回到 11，但默认**不删** `admin_*` 表）：新代码检测到后台表还在，后台照常可用（`/api/admin/me` 是 401 而不是 503）。只有表真的不存在时（没迁移过，或执行了 down 文件里注释掉的 DROP）后台才返回 503 `ADMIN_SCHEMA_MISSING`。两种情况用户端都正常。
+
 **回滚 = 只换镜像**，前提如下：
 - 从本版本往后（新版本之间）：新代码接受 N-1..N，换回上一版镜像即可，不用动库。
 - **本次例外**：当前线上的旧镜像只接受 `schema_version` 恰好等于 11。如果已经迁移到 12 再换回旧镜像，旧进程会拒绝启动，这时还要执行 `server/migrations/down/0012_admin_config.down.sql`（只改版本号，不删表不删数据）。按上面推荐顺序、迁移前就发现问题的话，只换镜像即可。

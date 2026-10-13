@@ -92,7 +92,14 @@ if (shareId) {
   });
 }
 
-for (const path of ['/.env', '/.git/config', '/.git/HEAD', '/assets/index.js.map', '/dist-sourcemaps/']) {
+// Source map of a REAL built asset (the hashed name from the homepage), not a made-up file name.
+const homeHtml = await get('/')
+  .then((response) => response.text())
+  .catch(() => '');
+const realAsset = /\/assets\/[\w.-]+\.js/.exec(homeHtml)?.[0];
+const mapPaths = realAsset ? [`${realAsset}.map`] : [];
+if (!realAsset) await check('real asset for the .map check', async () => expect(false, 'no /assets/*.js found in the homepage HTML'));
+for (const path of ['/.env', '/.git/config', '/.git/HEAD', ...mapPaths, '/dist-sourcemaps/']) {
   await check(`404 ${path}`, async () => {
     const response = await get(path);
     const text = await response.text();
