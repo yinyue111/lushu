@@ -819,9 +819,21 @@ export function useRoutebookActions({
       setPatchState({ busy: false, message: '已应用局部调整', proposal: null });
       setShareState('局部调整已写入路书');
     } catch (error) {
-      // Offline fallback: apply locally
+      const status = Number(error?.status) || 0;
+      // 只有断网 / 服务端故障才落本机；被拒（限流、没登录、无权限、版本冲突）直接说明，不偷偷改本机。
+      if (status && status < 500) {
+        undoStackRef.current.pop();
+        const why =
+          status === 429 ? '今天调整次数用完了或操作太快' : status === 401 ? '登录已过期，请重新登录' : status === 403 ? '没有这条路书的编辑权限' : status === 409 ? '路书在别处改过了，请刷新后再试' : error.message;
+        setPatchState((s) => ({ ...s, busy: false, message: `没有应用：${why}。路书没有改动。`, failed: true }));
+        setShareState(`局部调整没有应用：${why}`);
+        return;
+      }
       updateRoutebook(proposal.stops, { days: proposal.days, routeLegs: proposal.routeLegs, editReason: '局部调整(本机)' }, latestRoutebookRef.current, { recordUndo: false });
-      setPatchState({ busy: false, message: `云端应用失败，已写在本机：${error.message}`, proposal: null });
+      localEditsDirtyRef.current = true;
+      setSyncLabel('只存在本机 · 未保存到云端');
+      setPatchState({ busy: false, message: `云端没保存成功，改动只在这台设备上（${error.message}）。联网后点「保存」同步。`, proposal: null, failed: true });
+      setShareState('改动只在本机，未同步到云端，联网后请点保存');
     }
   }
 

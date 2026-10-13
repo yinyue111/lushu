@@ -28,6 +28,11 @@ export default function PatchProposalDialog({ patchState, onApply, onDismiss }) 
                   </li>
                 ))}
             </ol>
+            {patchState.failed && patchState.message && (
+              <p role="alert" className="mt-2 rounded-tile bg-lemon-soft px-3 py-2 text-meta font-bold text-ink">
+                {patchState.message}
+              </p>
+            )}
             <p className="mt-2 text-meta text-muted">
               <Sparkles className="mr-1 inline size-3.5" />
               用了之后也能撤销。已消耗 1 次 AI 重排次数。
