@@ -41,7 +41,10 @@ export default function EnrichmentPanel() {
               </div>
               <div>
                 <dt className="text-meta text-muted">今天花费</dt>
-                <dd className="num text-xl font-bold">${(today?.usd ?? 0).toFixed(2)}</dd>
+                <dd className="num text-xl font-bold">
+                  ${(today?.usd ?? 0).toFixed(2)}
+                  {data.dailyBudgetUsd ? <small className="ml-1 text-meta text-muted">/ ${data.dailyBudgetUsd} 预算</small> : null}
+                </dd>
               </div>
               <div>
                 <dt className="text-meta text-muted">今天搜索 / 抓页面 / 高德</dt>

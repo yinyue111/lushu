@@ -5,6 +5,7 @@ import {
   ENRICH_BASE_URL,
   ENRICH_CONCURRENCY,
   ENRICH_ENABLED,
+  ENRICH_DAILY_BUDGET_USD,
   ENRICH_LEASE_MS,
   ENRICH_MAX_ATTEMPTS,
   ENRICH_POLL_MS,
@@ -216,5 +217,5 @@ export function stopEnrichmentWorker() {
 }
 
 export async function enrichmentStats() {
-  return { ...(await enrichStore().stats()), ready: enrichmentReady(), running };
+  return { ...(await enrichStore().stats()), ready: enrichmentReady(), running, dailyBudgetUsd: ENRICH_DAILY_BUDGET_USD };
 }

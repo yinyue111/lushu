@@ -9,6 +9,7 @@
 import { raiseAlert } from '../ops/alerts.mjs';
 import {
   ENRICH_ASSUMED_USD_PER_SEARCH,
+  ENRICH_BUDGET_ALERT_RATIO,
   ENRICH_CACHE_DAYS,
   ENRICH_DAILY_BUDGET_USD,
   ENRICH_MAX_SEARCHES_PER_ROUTEBOOK,
@@ -221,6 +222,11 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
         counts.searches += 1;
         counts.usd += usd;
         await store.addSpend({ usd, searches: 1 }, now());
+        // 补全花费计入当日预算（每份路书实测约 $0.5）；到 80% 先提醒一次。
+        const spentToday = spend.usd + usd;
+        if (ENRICH_DAILY_BUDGET_USD > 0 && spentToday >= ENRICH_DAILY_BUDGET_USD * ENRICH_BUDGET_ALERT_RATIO) {
+          void raiseAlert('enrich-budget-high', `联网补全今日已花 $${spentToday.toFixed(2)}，预算 $${ENRICH_DAILY_BUDGET_USD}`);
+        }
         return result;
       }
       return null;

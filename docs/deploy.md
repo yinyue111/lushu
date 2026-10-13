@@ -207,4 +207,5 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
+| `ENRICH_BUDGET_ALERT_RATIO` | `0.8` | 联网补全当日花费到预算的这个比例时告警一次（每份路书实测约 $0.5） |
 | `ALERT_CLIENT_ERRORS_PER_HOUR` | `30` | 前端错误激增的阈值（每进程近 1 小时条数） |
