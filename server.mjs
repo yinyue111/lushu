@@ -95,7 +95,9 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
       // The raw value: an unset variable must not silently become the 127.0.0.1,::1 default here.
       trustedProxyCidrs: process.env.TRUSTED_PROXY_CIDRS,
       networkSubnet: process.env.APP_NETWORK_SUBNET,
-      networkGateway: process.env.APP_NETWORK_GATEWAY
+      networkGateway: process.env.APP_NETWORK_GATEWAY,
+      proxyMode: process.env.PROXY_MODE,
+      caddyIp: process.env.CADDY_IP
     })
   );
   for (const warning of warnings) console.warn(`[startup] WARNING: ${warning}`);

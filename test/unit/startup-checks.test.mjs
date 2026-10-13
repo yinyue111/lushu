@@ -171,3 +171,45 @@ test('TRUSTED_PROXY_CIDRS in production: required, valid, inside the pinned subn
   assert.deepEqual(trustedProxyErrors({ ...net, isProduction: false, trustedProxyCidrs: '' }), []);
   assert.deepEqual(trustedProxyErrors({ ...net, trustProxyHeaders: false, trustedProxyCidrs: '' }), []);
 });
+
+test('PROXY_MODE=host|container: which hop must (and must not) be trusted', async () => {
+  const { trustedProxyErrors } = await import('../../server/config/startup-checks.mjs');
+  const net = { isProduction: true, trustProxyHeaders: true, networkSubnet: '172.31.80.0/24', networkGateway: '172.31.80.1' };
+  const host = (cidrs, extra = {}) => trustedProxyErrors({ ...net, trustedProxyCidrs: cidrs, ...extra });
+  const ctr = (cidrs, caddyIp = '172.31.80.10', extra = {}) => trustedProxyErrors({ ...net, proxyMode: 'container', caddyIp, trustedProxyCidrs: cidrs, ...extra });
+  // host (default and explicit, case-insensitive): unchanged behaviour.
+  assert.deepEqual(host('172.31.80.1,127.0.0.1,::1'), []);
+  assert.deepEqual(host('172.31.80.1,127.0.0.1,::1', { proxyMode: 'host' }), []);
+  assert.deepEqual(host('172.31.80.1,127.0.0.1,::1', { proxyMode: ' HOST ' }), []);
+  assert.ok(host('127.0.0.1,::1', { proxyMode: 'host' }).some((e) => /does not include the network gateway/.test(e)));
+  // The P1 config (Caddy container .4 while only the gateway is trusted) cannot be expressed in host mode silently:
+  assert.ok(host('172.31.80.1,127.0.0.1', { caddyIp: '172.31.80.4' }).some((e) => /CADDY_IP is set .* but PROXY_MODE=host/.test(e)));
+  assert.match(host('172.31.80.1', { proxyMode: 'sidecar' })[0], /PROXY_MODE="sidecar" must be host or container/);
+  // container: good configs.
+  assert.deepEqual(ctr('172.31.80.10,127.0.0.1,::1'), []);
+  assert.deepEqual(ctr('172.31.80.10/32'), []);
+  assert.deepEqual(ctr('172.31.80.10', '172.31.80.10', { proxyMode: 'Container' }), []);
+  // container: CADDY_IP missing / invalid / outside subnet / a range / the gateway.
+  assert.ok(ctr('127.0.0.1', '').some((e) => /requires CADDY_IP/.test(e)));
+  assert.ok(ctr('127.0.0.1', 'caddy').some((e) => /requires CADDY_IP/.test(e)));
+  assert.ok(ctr('10.0.0.4', '10.0.0.4').some((e) => /requires CADDY_IP .* inside APP_NETWORK_SUBNET/.test(e)));
+  assert.ok(ctr('172.31.80.0/28', '172.31.80.0/28').some((e) => /single IPv4 address/.test(e)));
+  assert.ok(ctr('172.31.80.1', '172.31.80.1').some((e) => /must not be the network gateway/.test(e)));
+  // container: trust list misses Caddy, still trusts the gateway (the P1 config), or is broader than Caddy.
+  assert.ok(ctr('127.0.0.1,::1').some((e) => /does not include CADDY_IP 172.31.80.10/.test(e)));
+  const p1 = ctr('172.31.80.1,127.0.0.1,::1', '172.31.80.4');
+  assert.ok(p1.some((e) => /does not include CADDY_IP 172.31.80.4/.test(e)));
+  assert.ok(p1.some((e) => /must not include the network gateway 172.31.80.1/.test(e)));
+  assert.ok(ctr('172.31.80.10,172.31.80.1').some((e) => /must not include the network gateway/.test(e)));
+  const wide = ctr('172.31.80.0/24');
+  assert.ok(wide.some((e) => /must not include the network gateway/.test(e)));
+  assert.ok(wide.some((e) => /may only contain CADDY_IP .* not \["172.31.80.0\/24"\]/.test(e)));
+  assert.ok(ctr('172.31.80.10,172.31.80.20').some((e) => /may only contain CADDY_IP/.test(e)));
+  assert.ok(ctr('172.31.80.10,10.0.0.5').some((e) => /outside APP_NETWORK_SUBNET/.test(e)));
+  assert.ok(ctr('0.0.0.0/0').some((e) => /must not trust 0.0.0.0\/0/.test(e)));
+  // container needs the pinned subnet to check anything.
+  assert.ok(trustedProxyErrors({ isProduction: true, trustProxyHeaders: true, proxyMode: 'container', caddyIp: '172.31.80.10', trustedProxyCidrs: '172.31.80.10' }).some((e) => /requires APP_NETWORK_SUBNET/.test(e)));
+  // Not production / not behind a proxy: not checked, whatever the mode.
+  assert.deepEqual(ctr('', '', { isProduction: false }), []);
+  assert.deepEqual(ctr('', '', { trustProxyHeaders: false }), []);
+});
