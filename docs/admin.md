@@ -70,7 +70,15 @@ npm run admin:create -- --username root --role admin --production
 
 ### 可配置项
 
-模型（轻快/细品档：baseUrl、模型名、推理强度、超时）、模型兜底顺序、模型单价（美元/百万 token，**由管理员填写，不填就显示「未知」，不估算**）、注册方式与邀请码、开放城市、首页推荐城市（只能从开放城市里选；默认 杭州/上海/苏州，已去掉 成都/北京/广州）、各种额度、失败是否扣额度（默认不扣）、每日花费上限、联网核对的各项、后台安全参数。密钥（两档模型 key、核对 key）只写不读。
+模型（轻快/细品模式：服务商、接口地址、模型名、思考强度、超时，配置页是表单，原始 JSON 收在「高级」里）、备用模型顺序和「上游报错时改用备用模型」开关、模型单价（美元/百万 token，带来源和日期，**由管理员按账单填写；空着就是没有单价，不当 0、不估算**）、注册方式与邀请码、开放城市、首页推荐城市（只能从开放城市里选；默认 杭州/上海/苏州，已去掉 成都/北京/广州）、各种额度、失败是否扣额度（默认不扣）、每日花费上限、联网核对的各项、后台安全参数。密钥（两档模型 key、核对 key）只写不读。
+
+### 备用模型（上游报错 / 超时）
+
+- `model.fallbackOrder`（环境变量 `AI_MODEL_FALLBACK_ORDER`，如 `fast`）默认空 = 不切换，保持现状。
+- 配了之后两种情况会改用备用模式：所选模式**没配好**；或所选模式的上游**报错**（403、5xx、连不上、超时、长时间没输出）。只切一次，不会来回试。开关 `model.fallbackOnUpstreamError` 默认开。
+- 有备用时，整次生成的时限 = 所选模式的超时 + 备用模式的超时；所选模式自己仍只用自己的超时，备用那段时间不会被它吃掉。
+- 用备用模型生成的路书在 `provider.fellBackFrom` 记下原模式，用户打开路书顶部显示「本次由备用模型生成：所选的「细品」模型当时不可用」；ai-logs 里这次记在实际运行的模式下，另带 `fellBackFrom`。
+- 备用也失败：报所选模式原来的错误，失败页（细品）显示专门文案和「用轻快重试」按钮。上游失败默认不扣次数（`failuresConsumeQuota=false`）。
 
 ### 改模型的规则
 
@@ -105,7 +113,19 @@ npm run admin:create -- --username root --role admin --production
 
 1. **生成成功率**：`ok / (ok + error)`，只算 `generate-routebook`；取消、去重命中、后台试跑都不算。按北京时间的「今天」和近 7 天，分档位。
 2. **待确认占比**：按**站点**算。只看近 7 天内联网核对**已经跑完**的路书；一个站点只要有一个查过的字段（门票/开放时间）最后没补上，就算待确认。没查过的站点（如餐馆）不进分母。
-3. **今日花费**：生成 + 局部调整 + 后台试跑（模型单价 × token）+ 联网核对当日花费。没填单价的调用计数显示，不估算金额。注意：生成按北京时间的天算，核对花费沿用核对模块自己的 UTC 日。
+3. **今日花费**：生成 + 局部调整 + 后台试跑（模型单价 × token）+ 联网核对当日花费。**没有单价的调用不按 0 算**：只要有一次没有单价，首屏写「至少 $X」，下面写「另有 N 次没有单价」（成功和失败的调用都算，取消和去重不算）。注意：生成按北京时间的天算，核对花费沿用核对模块自己的 UTC 日。
+
+### 每日成本上限拦截
+
+`cost.dailyLimitUsd`（`COST_DAILY_LIMIT_USD`）设了上限后，由 `cost.capMode`（`COST_CAP_MODE`）决定是否拦截：
+
+| 模式 | 行为 |
+|---|---|
+| `auto`（默认） | 只有轻快、细品当前用的模型**都有单价**，且今天没有「没有单价」的调用时才拦截；否则不拦截，概览写明原因（如「未生效：grok-x 没有单价」）。现在单价全空，所以**默认等于不拦截**。 |
+| `on` | 按已知金额（下限）拦截，没有单价的调用不计。 |
+| `off` | 只在概览显示，不拦截。 |
+
+拦截时新的生成请求（轻快、细品都算）返回 429 `COST_CAP_REACHED`，已有路书不受影响。花费每 15 秒重新统计一次。概览「今日花费」卡片下面显示当前的拦截状态。
 
 ## 6. 迁移与回滚
 
@@ -118,6 +138,17 @@ npm run admin:create -- --username root --role admin --production
 JSONL 部署：后台数据在 `data/admin.jsonl`，无需迁移。
 
 ## 7. 部署建议（未改动，需运维确认）
+
+### 7.0 上线路径（建议，按这个顺序）
+
+1. **CI 构建镜像**：CI 跑 `npm ci && npm run verify`，再跑 `npm run test:e2e:admin`（Playwright + axe）。**Playwright 用例和 axe 必须全部通过（axe 违规 0）才能出镜像**；不通过不发布。
+2. **按 digest 部署**：CI 推镜像后记下 `sha256:` digest，`docker-compose.prod.yml` 里用 `image: …@sha256:…` 引用，不用会被覆盖的 tag；同时把 `APP_COMMIT`、`APP_BUILD_TIME`、`APP_IMAGE_DIGEST` 注入，系统信息页才不会显示「未注入」。
+3. **数据库**：备份 → `npm run postgres:migrate` → 换镜像（见第 6 节）。
+4. **/admin 放在 Caddy basic auth 后面**（加 IP 白名单，见 7.2），应用里 `ADMIN_ENABLED=true`；应用自己的账号 + 动态码是第三层。
+5. **冒烟**：`node scripts/smoke-prod.mjs …`（第 8 节），白名单机器上加 `--admin-reachable`。
+6. 回滚：把 digest 换回上一版（数据库回滚见第 6 节）。
+
+本分支**没有**改 Dockerfile、compose、CI 和 Caddy，以上需要运维照做并确认上线日期。
 
 ### 7.1 镜像
 
@@ -182,6 +213,11 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 
 - 删除用户端里的 `/ops`、`/logs` 页面和对应懒加载，原面板搬到后台「旧运维工具」。
 - 用户端不再在浏览器里存运营令牌。
+- 用词统一为「核对」：「核对中」「已核对」「已反馈待复核」「人工核实」「待确认」，后台和用户端一致（后台的状态词集中在 `admin/src/terms.js`）。
+- 来源说明按实际情况写：人工核实的值写「人工核实：运营人员按来源核对过」（可能只有 1 个来源）；自动核对按来源数写「N 个来源说法一致」或「只找到 1 个来源」，不再一律写「两个来源一致」。
+- 报错可以写备注（选填）；提交后原位显示回执号，那条值**继续显示**并标「已反馈待复核」，直到运营核实 / 改回待确认 / 驳回。重复报同一条返回同一个回执。共享缓存里的这条值会被清掉，新路书不会再用它。
+- 运营「设为核实值」按地点生效：同一地点（同一 cacheKey）的所有路书立刻改成人工核实值，同一地点其他未处理的报错一起标为已处理。
+- 细品因上游失败时，失败页显示专门文案和「用轻快重试」；备用模型生成的路书顶部显示「本次由备用模型生成」。
 - 路书页离线时顶部显示「离线查看，信息更新于<时间>」（取路书自己的最新时间戳，北京时间；没有时间戳就写「信息更新时间未知」，不编时间）。
 - 用户端主包约 408 KB（改前约 411 KB），后台代码不在其中。
 
@@ -189,12 +225,13 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 
 - 表名和主键：用 `admin_config_versions` / `admin_audit` / `admin_invite_codes` 和文本 id，没有用设计里的 `config_versions` / `admin_audit_log` / `invite_codes` 和 bigserial。
 - `registration.mode`：环境变量没设时保持现在的 `open`，没有按设计默认成 `invite`。
-- `model.fallbackOrder` 默认 `[]`（保持现状），设计写的是 `['fast']`。
+- `model.fallbackOrder` 默认 `[]`（保持现状），设计写的是 `['fast']`；配了之后对上游报错 / 超时也生效（第 4 节）。
 - `failuresConsumeQuota` 默认 `false`：**改变了现有行为**（以前失败也扣），这是按 PRD 来的。
 - 试跑限流用 PRD 的每小时 10 次；设计里的每分钟/每天上限和 `ADMIN_TEST_DAILY_COST_CAP` 没做。
 - 「N/N 个进程已生效」没做；各进程的版本号通过 `/api/health` 的 `configVersion` 看。
 - 用户列表没显示每个用户的路书数。
-- 旧接口 `/api/ops/users` 的 issue-recovery 仍把恢复码返回给脚本（已有测试依赖它）；后台里的「发恢复码」只发到已验证邮箱，运营看不到码。
+- 旧接口 `/api/ops/users` 的 issue-recovery **默认不再返回恢复码**（403 `OPS_RECOVERY_PLAINTEXT_DISABLED`），设 `OPS_RECOVERY_CODE_PLAINTEXT=true` 才恢复旧行为；旧运维工具里的按钮已去掉。后台里的「发恢复码」只发到已验证邮箱，运营看不到码。
+- 未设置注册方式时默认 `open`，概览顶部红框警告、系统信息写「开放（未设置，默认）」。
 - 邀请码在创建用户前一刻才扣次数。
 - `enrich.maxSearchesPerRun` 对应原来的 `ENRICH_MAX_SEARCHES_PER_ROUTEBOOK`；`maxStopsPerRun` 是新加的。
 - 刷新后台页面需要重新登录（CSRF 只在内存里）。
@@ -202,10 +239,11 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 
 ## 13. 待定事项（需要负责人拍板）
 
-1. Dockerfile 加 `COPY dist-admin`、Caddy 白名单/Basic Auth、`APP_*` 注入：本分支只写了建议，没有改。
+1. Dockerfile 加 `COPY dist-admin`、Caddy 白名单/Basic Auth、`APP_*` 注入、CI 出镜像按 digest 部署：本分支只写了建议（7.0），没有改；需要定上线日期。
 2. `playwright` / `axe-core` 是否加进 devDependencies（会改 lockfile），以及 E2E 是否进 CI。
-3. 旧 `/api/ops/users` issue-recovery 是否改成只发邮件（建议加环境变量开关，之后默认关）。
+3. 旧 issue-recovery：已加开关并默认关；是否彻底删掉这个分支。
 4. 未设置时注册方式默认 `open` 还是 `invite`。
-5. 模型单价由谁、按什么来源维护（目前全空，花费显示「未知」）。
+5. 模型单价由谁、按什么来源维护（目前全空：花费只显示下限，日上限 `auto` 模式不拦截）。
+8. 是否给 `model.fallbackOrder` 设默认值（如细品失败改用轻快）；现在默认空。
 6. 挂路径 `/admin` 还是子域名。
 7. 「旧运维工具」各面板并入新页面的顺序和时间。
