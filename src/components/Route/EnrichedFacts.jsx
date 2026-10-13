@@ -39,6 +39,7 @@ function EnrichedFact({ claim, onReport }) {
           </span>
         </summary>
         <div className="mt-1 ml-5 rounded-card bg-canvas p-2.5">
+          <ConditionQuotes conditions={claim.conditions} />
           <ul className="flex list-none flex-col gap-1 p-0">
             {claim.sources.map((source) => (
               <li key={source.url}>
@@ -76,6 +77,31 @@ function EnrichedFact({ claim, onReport }) {
           )}
         </div>
       </details>
+      <ConditionNotes conditions={claim.conditions} />
     </li>
+  );
+}
+
+
+/** 值下面一行短提示：只列来源原文里写明的条件；只有一个来源的单独标出。 */
+export function ConditionNotes({ conditions, className = '' }) {
+  if (!conditions?.length) return null;
+  return (
+    <p className={`ml-5 mt-0.5 text-meta font-semibold text-ink-2 ${className}`} data-testid="enrich-conditions">
+      {conditions.map((c) => `${c.label}${c.singleSource ? '（仅 1 个来源提到）' : ''}`).join(' · ')}
+    </p>
+  );
+}
+
+function ConditionQuotes({ conditions }) {
+  if (!conditions?.length) return null;
+  return (
+    <ul className="mb-1.5 flex list-none flex-col gap-1 p-0 text-ink-2">
+      {conditions.map((c) => (
+        <li key={c.kind}>
+          <b>{c.label}</b>：原文「{c.quote}」<span className="text-muted">（{c.sources.map((x) => x.domain).join('、')}）</span>
+        </li>
+      ))}
+    </ul>
   );
 }

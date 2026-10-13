@@ -10,6 +10,7 @@ import { CityBackdrop } from '../visual/CityBackdrop';
 import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
 import AigcChip from './AigcChip';
+import { ConditionNotes } from './EnrichedFacts';
 import { trackEvent } from '../../lib/betaTelemetry.js';
 import { UNVERIFIED_CITY_NOTE, isUnverifiedCity } from './RouteStats';
 
@@ -29,7 +30,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
     getShareRoutebook(publicId, ctrl.signal, friendKey)
       .then((data) => {
         const routebook = data.routebook?.visibility === 'unlisted' ? { ...data.routebook, shareKey: friendKey } : data.routebook;
-        if (!ctrl.signal.aborted) setState({ loading: false, error: '', routebook });
+        if (!ctrl.signal.aborted) setState({ loading: false, error: '', routebook, enrichedFacts: Array.isArray(data.enrichedFacts) ? data.enrichedFacts : [] });
       })
       .catch((error) => {
         if (!ctrl.signal.aborted) setState({ loading: false, error: error.message, routebook: null });
@@ -263,6 +264,14 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                             </span>
                           </div>
                           <p className="num mt-0.5 text-xs font-semibold text-muted">{[stop.time, stop.stay, stop.cost].filter(Boolean).join(' · ')}</p>
+                          {(state.enrichedFacts ?? [])
+                            .filter((fact) => fact.stopName === stop.name)
+                            .map((fact) => (
+                              <div key={fact.field} className="mt-1" data-testid="share-enriched-fact">
+                                <p className="text-meta font-semibold text-success-ink">已核对 · {fact.display}</p>
+                                <ConditionNotes conditions={fact.conditions} className="ml-0" />
+                              </div>
+                            ))}
                           {stop.verify && <p className="mt-1 text-meta text-ink-2">{stop.verify}</p>}
                         </div>
                       </li>

@@ -508,9 +508,18 @@ export const routebookRoutes = [
     // 记在分享者名下，漏斗最后一步才是「这个人分享的东西被打开了」。
     void recordFunnelEvent('share_open', { ref: id, profileId: routebook.profileId || '' });
     const publicRoutebook = { ...publicRoutebookView(routebook), visibility: unlisted ? 'unlisted' : 'public' };
+    // 分享页也显示核对过的门票/开放时间和附带条件（只含已填的值、来源域名和原文摘句）。
+    const enrichment = await enrichmentView(routebook).catch(() => null);
     return sendJson(res, 200, {
       ok: true,
       routebook: publicRoutebook,
+      enrichedFacts: (enrichment?.claims ?? []).map(({ stopName, field, display, conditions, sources }) => ({
+        stopName,
+        field,
+        display,
+        conditions,
+        domains: [...new Set((sources ?? []).map((x) => x.domain))]
+      })),
       share: {
         visibility: publicRoutebook.visibility,
         publicId: publicRoutebook.publicId,
