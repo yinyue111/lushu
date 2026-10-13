@@ -115,7 +115,7 @@ Caddy 容器只有在**流量经 iptables DNAT 直接进容器**时才看到真�
 - 正确配置下这个数恒为 0：Caddy 的地址是受信任的，客户端也碰不到应用端口。
 - 第一次出现时打一条日志 `[proxy] WARNING: request with forwarded headers from untrusted peer <对端地址> …`（只有对端地址，不记客户端 IP 和其他信息），之后每 10 分钟最多一条。
 - 滚动 10 分钟内达到 `PROXY_MISCONFIG_THRESHOLD`（默认 `20`）：后台「概览」顶部出现红框「代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE」（小字写对端地址和次数），`/api/admin/dashboard` 的 `proxyMisconfig.tripped=true`；配置了 `ALERT_WEBHOOK_URL` 时发告警 `proxy-misconfig`，情况持续时**每小时最多一次**。
-- **第二个信号：大家被识别成同一个地址。** 来自受信任代理、带 `X-Forwarded-For` 的请求里，解析出的客户端地址如果 **≥90% 都是 `APP_NETWORK_GATEWAY`**，且窗口内样本 **≥`PROXY_SHARED_MIN_SAMPLE`（默认 20）**，概览显示「疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE」，并发同一类告警 `proxy-misconfig`（和第一个信号共用每小时一次的去重）。只有客户端地址等于网关才算，所以流量小或真实用户多时不会误报；不带 XFF 的请求（如在宿主机上直接 curl）不计入样本。典型原因见「container 模式的前提」。
+- **第二个信号：大家被识别成同一个地址。** 来自受信任代理、带 `X-Forwarded-For` 的请求里，解析出的客户端地址如果 **≥90% 都是 `APP_NETWORK_GATEWAY`**，且窗口内样本 **≥`PROXY_SHARED_MIN_SAMPLE`（默认 20）**，概览显示「疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE」，并发告警 `proxy-shared-address`（和第一个信号的 `proxy-misconfig` 分开去重，各自每小时最多一次，互不压制）。只有客户端地址等于网关才算，所以流量小或真实用户多时不会误报；不带 XFF 的请求（如在宿主机上直接 curl）不计入样本。典型原因见「container 模式的前提」。
 - 窗口长度 `PROXY_MISCONFIG_WINDOW_MS`（默认 `600000`，最小 1 分钟）。
 - **只按进程计数，不跨进程汇总**：生产每个部署只跑一个 app 容器（一个 Node 进程），所以等于全站数。重启后清零；如果以后跑多个实例，每个实例各自判断（任何一个超阈值就会告警），概览只显示处理这次请求的那个实例的数字。
 - 看到这个提示：按上面「第一次切换前 SRE 必须确认」第 3 步查对端地址，把 Caddy 的真实地址配进去（容器 Caddy 用 `docker-compose.caddy.yml` + `PROXY_MODE=container`）。注意能直连应用端口、自己带 `X-Forwarded-For` 的进程也会触发它；正常部署里应用端口只对 Caddy 开放，所以这本身也说明端口暴露有问题。
@@ -305,7 +305,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增、代理配置疑似有误（`proxy-misconfig`，见「运行时检测」）时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
+| `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增、代理配置疑似有误（`proxy-misconfig` / `proxy-shared-address`，见「运行时检测」）时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
 | `ENRICH_BUDGET_ALERT_RATIO` | `0.8` | 联网补全当日花费到预算的这个比例时告警一次（每份路书实测约 $0.5） |
 | `ALERT_CLIENT_ERRORS_PER_HOUR` | `30` | 前端错误激增的阈值（每进程近 1 小时条数） |
 | `PROXY_MISCONFIG_THRESHOLD` / `PROXY_MISCONFIG_WINDOW_MS` | `20` / `600000` | 带转发头但对端不受信任的请求，滚动窗口内达到这个数就在概览标红并告警（每进程计数） |

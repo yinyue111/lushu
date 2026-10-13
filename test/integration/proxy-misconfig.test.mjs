@@ -101,7 +101,7 @@ test('shared address: forwarded requests from a trusted proxy that all resolve t
   assert.ok(Date.parse(bad.dash.proxyMisconfig.shared.lastSeenAt) > Date.now() - 60_000);
   assert.equal(flag.lastSeenAt, bad.dash.proxyMisconfig.shared.lastSeenAt);
   assert.equal(bad.posts.length, 1, JSON.stringify(bad.posts));
-  assert.equal(bad.posts[0].type, 'proxy-misconfig');
+  assert.equal(bad.posts[0].type, 'proxy-shared-address');
   // Same deployment, real client addresses: nothing.
   const good = await scenario(cidrs, env, (i) => `203.0.113.${i}`, 25);
   assert.equal(good.dash.proxyMisconfig.shared.tripped, false);

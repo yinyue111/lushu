@@ -16,6 +16,7 @@ import { isTrustedProxyAddress, requestClientKey } from '../auth/request-access.
 const MINUTE = 60_000;
 const FORWARDED_HEADERS = ['x-forwarded-for', 'x-forwarded-proto'];
 export const PROXY_MISCONFIG_ALERT_TYPE = 'proxy-misconfig';
+export const PROXY_SHARED_ADDRESS_ALERT_TYPE = 'proxy-shared-address';
 const plainAddress = (a) =>
   String(a ?? '')
     .trim()
@@ -49,7 +50,7 @@ export function createProxyMisconfigMonitor({
   let sharedLastSeenAt = 0;
   let lastLogAt = -Infinity;
   let logged = 0;
-  let lastAlertAt = -Infinity;
+  const lastAlertAt = new Map(); // alert type -> last sent (each signal has its own hourly dedup)
   const ALERT_EVERY_MS = 3_600_000;
 
   const prune = (t) => {
@@ -73,10 +74,10 @@ export function createProxyMisconfigMonitor({
     return b;
   };
   const sharedTripped = (x) => Boolean(gatewayAddr) && x.samples >= sharedMinSample && x.gateway / x.samples >= sharedRatio;
-  const maybeAlert = (t, message) => {
-    if (t - lastAlertAt < ALERT_EVERY_MS) return;
-    lastAlertAt = t;
-    Promise.resolve(alert(PROXY_MISCONFIG_ALERT_TYPE, message)).catch(() => {});
+  const maybeAlert = (type, t, message) => {
+    if (t - (lastAlertAt.get(type) ?? -Infinity) < ALERT_EVERY_MS) return;
+    lastAlertAt.set(type, t);
+    Promise.resolve(alert(type, message)).catch(() => {});
   };
 
   /** @param {{ headers: Record<string, any>, socket?: { remoteAddress?: string } }} req */
@@ -105,6 +106,7 @@ export function createProxyMisconfigMonitor({
       const x = sums(t);
       if (sharedTripped(x))
         maybeAlert(
+          PROXY_SHARED_ADDRESS_ALERT_TYPE,
           t,
           `疑似所有用户被识别成同一个地址：近 ${mins} 分钟 ${x.samples} 个经代理的请求里 ${x.gateway} 个的来源是网关 ${gatewayAddr}，可能共用限流额度。请检查 Caddy 看到的来源（docker-proxy / IPv6 / iptables）。`
         );
@@ -125,6 +127,7 @@ export function createProxyMisconfigMonitor({
     }
     if (count >= threshold)
       maybeAlert(
+        PROXY_MISCONFIG_ALERT_TYPE,
         t,
         `代理配置疑似有误：${count} 个请求带转发头但来自不受信任的地址 ${peer || 'unknown'}（近 ${mins} 分钟），所有用户可能共用限流额度。请检查 TRUSTED_PROXY_CIDRS / PROXY_MODE。`
       );

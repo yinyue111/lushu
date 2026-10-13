@@ -119,7 +119,7 @@ npm run admin:create -- --username root --role admin --production
 
 - 「注册当前对所有人开放…」：见 §12。
 - 「**代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE**」：近 10 分钟有不少请求（默认 ≥20，`PROXY_MISCONFIG_THRESHOLD`）是经过反向代理转来的，但代理的地址不在信任列表里。结果是所有用户被算成同一个来源，限流额度大家共用，正常用户可能被误拦。运营不用改任何后台设置，把提示下面的小字（代理地址、次数）发给 SRE 即可；SRE 的处理步骤见 `docs/deploy.md`「运行时检测」。同时会发一次告警 `proxy-misconfig`（配了 `ALERT_WEBHOOK_URL` 时，持续时每小时最多一次）。
-- 「**疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE**」：近 10 分钟经代理的请求里，九成以上被识别成同一个内部地址（网关），后果同上。处理同样是把小字发给 SRE（`docs/deploy.md`「container 模式的前提」）。两条提示共用告警 `proxy-misconfig`，每小时最多一次。
+- 「**疑似所有用户被识别成同一个地址，可能共用限流额度，请联系 SRE**」：近 10 分钟经代理的请求里，九成以上被识别成同一个内部地址（网关），后果同上。处理同样是把小字发给 SRE（`docs/deploy.md`「container 模式的前提」）。这条的告警类型是 `proxy-shared-address`；两条提示的告警分开去重，各自每小时最多一次，一条发过不会压住另一条。
 
 两条提示下面都有一行小字「最近一次出现：HH:mm」（台北时间，即北京时间；来自 `/api/admin/dashboard` 的 `proxyMisconfig.lastSeenAt` / `proxyMisconfig.shared.lastSeenAt`）和「仅当前进程统计，重启后清零」。两条提示的计数都在进程内存里，应用重启后清零，提示也随之消失，直到再次达到阈值。
 

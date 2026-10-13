@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProxyMisconfigMonitor, PROXY_MISCONFIG_ALERT_TYPE } from '../../server/ops/proxyMisconfig.mjs';
+import { createProxyMisconfigMonitor, PROXY_MISCONFIG_ALERT_TYPE, PROXY_SHARED_ADDRESS_ALERT_TYPE } from '../../server/ops/proxyMisconfig.mjs';
 import { dashboardWarnings } from '../../server/admin/dashboard.mjs';
 import { raiseAlert, resetAlertThrottleForTests } from '../../server/ops/alerts.mjs';
 
@@ -174,4 +174,49 @@ test('shared-address: host mode, on-server requests via Caddy (XFF 127.0.0.1 fro
   assert.equal(m.state().shared.tripped, false);
   assert.equal(m.state().count, 0);
   assert.deepEqual(alerts, []);
+});
+
+test('the two signals alert under separate types with separate hourly dedup (one never suppresses the other)', async () => {
+  const resolveClient = (r) => r.resolved;
+  const shared = (resolved) => /** @type {any} */ ({ ...req('172.31.80.10', { 'x-forwarded-for': resolved }), resolved });
+  const untrusted = () => req('172.31.80.4', { 'x-forwarded-for': '1.1.1.1' });
+  // Signal 1 first, then signal 2 within the same hour.
+  const a = setup({ gateway: '172.31.80.1', resolveClient });
+  for (let i = 0; i < 5; i++) a.m.observe(untrusted());
+  for (let i = 0; i < 20; i++) a.m.observe(shared('172.31.80.1'));
+  assert.deepEqual(
+    a.alerts.map((x) => x.type),
+    [PROXY_MISCONFIG_ALERT_TYPE, PROXY_SHARED_ADDRESS_ALERT_TYPE]
+  );
+  // Signal 2 first, then signal 1.
+  const b = setup({ gateway: '172.31.80.1', resolveClient });
+  for (let i = 0; i < 20; i++) b.m.observe(shared('172.31.80.1'));
+  for (let i = 0; i < 5; i++) b.m.observe(untrusted());
+  assert.deepEqual(
+    b.alerts.map((x) => x.type),
+    [PROXY_SHARED_ADDRESS_ALERT_TYPE, PROXY_MISCONFIG_ALERT_TYPE]
+  );
+  // Each still dedups itself within the hour.
+  for (let i = 0; i < 50; i++) (b.m.observe(untrusted()), b.m.observe(shared('172.31.80.1')));
+  assert.equal(b.alerts.length, 2);
+  // And through the real raiseAlert (per-type throttle) both webhooks go out.
+  resetAlertThrottleForTests();
+  const prev = process.env.ALERT_WEBHOOK_URL;
+  process.env.ALERT_WEBHOOK_URL = 'https://hooks.example/alert';
+  const posts = [];
+  const fetchImpl = /** @type {any} */ (async (_url, init) => (posts.push(JSON.parse(init.body).type), { ok: true, status: 200 }));
+  const origWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const c = setup({ gateway: '172.31.80.1', resolveClient, alert: (type, message) => raiseAlert(type, message, { fetchImpl }) });
+    for (let i = 0; i < 5; i++) c.m.observe(untrusted());
+    for (let i = 0; i < 20; i++) c.m.observe(shared('172.31.80.1'));
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(posts, ['proxy-misconfig', 'proxy-shared-address']);
+  } finally {
+    console.warn = origWarn;
+    if (prev === undefined) delete process.env.ALERT_WEBHOOK_URL;
+    else process.env.ALERT_WEBHOOK_URL = prev;
+    resetAlertThrottleForTests();
+  }
 });
