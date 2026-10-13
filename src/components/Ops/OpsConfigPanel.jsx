@@ -3,7 +3,7 @@ import { Database, Plus, RotateCcw, Save, Shield, Ticket, Trash2 } from 'lucide-
 import { getAdminToken, getCmsConfig, getProducts, saveCmsConfig, saveProducts, setAdminToken } from '../../lib/api';
 import { ResourceNotice, formatApiError, useOpsResource } from './OpsShared';
 
-const EMPTY_CMS = { defaultCity: '', heroTitle: '', featuredCities: [], announcements: [] };
+const EMPTY_CMS = { defaultCity: '', heroTitle: '', heroSubtitle: '', featuredCities: [], announcements: [] };
 
 /** @param {{ onTokenChanged?: Function }} props */
 export default function OpsConfigPanel({ onTokenChanged }) {
@@ -177,6 +177,15 @@ export default function OpsConfigPanel({ onTokenChanged }) {
                   className="input-field"
                   value={cmsConfig.heroTitle ?? ''}
                   onChange={(event) => changeCms((previous) => ({ ...previous, heroTitle: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span className="input-label">Hero 副标题（留空用默认）</span>
+                <input
+                  className="input-field"
+                  maxLength={140}
+                  value={cmsConfig.heroSubtitle ?? ''}
+                  onChange={(event) => changeCms((previous) => ({ ...previous, heroSubtitle: event.target.value }))}
                 />
               </label>
               <label>

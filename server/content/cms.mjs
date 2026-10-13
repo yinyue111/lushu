@@ -12,6 +12,7 @@ export async function readCmsConfig() {
     return {
       defaultCity: '杭州',
       heroTitle: '把分散攻略，变成能照着走的可信路书',
+      heroSubtitle: '',
       featuredCities: ['杭州', '上海', '苏州', '成都', '北京', '广州'],
       announcements: [],
       updatedAt: null
@@ -23,6 +24,7 @@ export async function readCmsConfig() {
     return {
       defaultCity: '杭州',
       heroTitle: '把分散攻略，变成能照着走的可信路书',
+      heroSubtitle: '',
       featuredCities: ['杭州', '上海', '苏州'],
       announcements: ['CMS 配置文件损坏，已回退默认配置'],
       updatedAt: null
@@ -34,6 +36,8 @@ export function normalizeCmsConfig(input) {
   return {
     defaultCity: normalizeCityName(input?.defaultCity ?? '杭州'),
     heroTitle: truncateString(input?.heroTitle, 80) || '把分散攻略，变成能照着走的可信路书',
+    // 留空 = 前端使用内置默认副标题。
+    heroSubtitle: truncateString(input?.heroSubtitle, 140) || '',
     featuredCities: Array.isArray(input?.featuredCities) ? input.featuredCities.map((city) => normalizeCityName(city)).slice(0, 18) : ['杭州', '上海', '苏州'],
     announcements: Array.isArray(input?.announcements)
       ? input.announcements
