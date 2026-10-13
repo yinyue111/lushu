@@ -160,7 +160,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 | --- | --- | --- |
 | `AUTH_MODE` | `access-code` | `access-code`：只有访问码；`both`：登录或访问码都能生成（过渡期）；`login`：导入、生成、保存草稿、行程同步、打卡、收藏、纠错都要登录，访问码不再管用。回滚就是改回 `access-code` 并重启 |
 | `REGISTRATION_MODE` | `open` | `open`（默认，内测不要邀请码）/ `invite`（注册要邀请码，可随时切回）/ `closed`（只能登录）。开放注册时防滥用靠人机校验、邮箱验证码、限流、生成配额和全站日预算 |
-| `REGISTRATION_INVITE_CODE` | 同 `ROUTEBOOK_API_TOKEN` | 邀请码；不设时沿用现在的访问码，内测用户不用换 |
+| `REGISTRATION_INVITE_CODE` | 留空 | 邀请码；不设时只认后台创建的邀请码。**不再**沿用 `ROUTEBOOK_API_TOKEN`（访问码传得太广，不能兼当邀请码） |
 | `AUTH_PHONE_HASH_SECRET` | 无 | **秘密**。手机号 HMAC 密钥，≥32 位随机串，`AUTH_MODE` 不是 `access-code` 时缺失会拒绝启动。**必须离线备份**：丢失或更换后，所有账号都按手机号找不到 |
 | `AUTH_EMAIL_HASH_SECRET` | 无 | **秘密**。邮箱 HMAC 密钥，≥32 位，必须离线备份；丢失后按邮箱找不到账号 |
 | `AUTH_EMAIL_ENC_KEY` | 无 | **秘密**。邮箱加密密钥（AES-256-GCM），≥32 位，必须离线备份；丢失后读不出邮箱、发不了信 |

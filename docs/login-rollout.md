@@ -7,7 +7,7 @@
 1. 生成并**离线备份** `AUTH_PHONE_HASH_SECRET`（≥32 位随机串，例如 `openssl rand -base64 48 | tr -d '/+=' | cut -c1-48`）。和 `PROFILE_ID_SECRET` 一样：上线后不能换；丢了所有账号都按手机号找不到。
 2. 同样生成并离线备份 `AUTH_EMAIL_HASH_SECRET` 和 `AUTH_EMAIL_ENC_KEY`（各一个独立随机串，命令同上）。上线后都不能换。
 3. 发信：优先用日本那台 AWS 机器上已有的邮件服务器（`MAIL_TRANSPORT=smtp`，见 2b），也可以用 Resend。不管哪种，都要给发件域名配 SPF、DKIM、DMARC；自己的服务器还要确认 AWS 已解除 25 端口出站限制、有反向解析（PTR），否则大概率进垃圾箱或被拒。没准备好也能先上线：`MAIL_TRANSPORT=disabled` + `EMAIL_VERIFICATION_REQUIRED=false`，注册时邮箱标「未验证」，之后用户在「我的 → 账号」补验证。
-4. 决定邀请码：不设 `REGISTRATION_INVITE_CODE` 时沿用现在的访问码 `ROUTEBOOK_API_TOKEN`。
+4. 决定邀请码：设 `REGISTRATION_INVITE_CODE`，或在后台创建邀请码。不设时**不再**沿用访问码 `ROUTEBOOK_API_TOKEN`。
 5. 备份：`pg_dump`（或 `npm run backup:data`）+ `appdata` 卷。
 
 ## 1. 发布新版本（行为不变）

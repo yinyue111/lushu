@@ -244,8 +244,8 @@ export const REGISTRATION_MODE = REGISTRATION_MODES.includes(String(process.env.
   ? String(process.env.REGISTRATION_MODE).trim()
   : // 2026-10：内测先取消邀请码；设 REGISTRATION_MODE=invite 可恢复。防滥用仍靠人机校验、邮箱验证、限流和配额。
     'open';
-// The invite code falls back to the old access code so testers keep using what they already have.
-export const REGISTRATION_INVITE_CODE = String(process.env.REGISTRATION_INVITE_CODE || API_TOKEN || '').trim();
+// No fallback to ROUTEBOOK_API_TOKEN: the access code is shared widely and must not double as an invite.
+export const REGISTRATION_INVITE_CODE = String(process.env.REGISTRATION_INVITE_CODE || '').trim();
 // HMAC key for phone lookups. Losing it makes every account unfindable: back it up.
 export const AUTH_PHONE_HASH_SECRET = String(process.env.AUTH_PHONE_HASH_SECRET ?? '').trim() || (IS_PRODUCTION ? '' : `dev-only:${PROFILE_ID_SECRET}:phone`);
 export const AUTH_PASSWORD_PEPPER = String(process.env.AUTH_PASSWORD_PEPPER ?? '');
