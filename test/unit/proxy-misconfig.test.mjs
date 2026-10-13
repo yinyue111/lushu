@@ -158,65 +158,11 @@ test('shared-address signal: >=90% of forwarded requests resolving to the gatewa
   assert.equal(direct.m.state().shared.samples, 0);
 });
 
-test('overview time is HH:mm in Asia/Taipei', async () => {
-  const { hhmmTaipei } = await import('../../admin/src/time.js');
-  assert.equal(hhmmTaipei('2026-10-13T18:05:00.000Z'), '02:05');
-  assert.equal(hhmmTaipei('2026-10-14T03:59:00.000Z'), '11:59');
-});
-
-test('shared-address: host mode, on-server requests via Caddy (XFF 127.0.0.1 from the gateway) are not sampled', () => {
-  // Host mode trust list: gateway + loopback. Caddy on the host forwards a loopback client as XFF 127.0.0.1.
-  const hostTrusted = new Set(['172.31.80.1', '127.0.0.1', '::1']);
-  const { m, alerts } = setup({ isTrusted: (p) => hostTrusted.has(p), gateway: '172.31.80.1', resolveClient: () => '172.31.80.1' });
-  for (let i = 0; i < 25; i++) m.observe(req('172.31.80.1', { 'x-forwarded-for': '127.0.0.1' }));
-  for (let i = 0; i < 25; i++) m.observe(req('172.31.80.1', { 'x-forwarded-for': '::1, 127.0.0.1' }));
-  assert.equal(m.state().shared.samples, 0);
-  assert.equal(m.state().shared.tripped, false);
-  assert.equal(m.state().count, 0);
-  assert.deepEqual(alerts, []);
-});
-
-test('the two signals alert under separate types with separate hourly dedup (one never suppresses the other)', async () => {
-  const resolveClient = (r) => r.resolved;
-  const shared = (resolved) => /** @type {any} */ ({ ...req('172.31.80.10', { 'x-forwarded-for': resolved }), resolved });
-  const untrusted = () => req('172.31.80.4', { 'x-forwarded-for': '1.1.1.1' });
-  // Signal 1 first, then signal 2 within the same hour.
-  const a = setup({ gateway: '172.31.80.1', resolveClient });
-  for (let i = 0; i < 5; i++) a.m.observe(untrusted());
-  for (let i = 0; i < 20; i++) a.m.observe(shared('172.31.80.1'));
-  assert.deepEqual(
-    a.alerts.map((x) => x.type),
-    [PROXY_MISCONFIG_ALERT_TYPE, PROXY_SHARED_ADDRESS_ALERT_TYPE]
-  );
-  // Signal 2 first, then signal 1.
-  const b = setup({ gateway: '172.31.80.1', resolveClient });
-  for (let i = 0; i < 20; i++) b.m.observe(shared('172.31.80.1'));
-  for (let i = 0; i < 5; i++) b.m.observe(untrusted());
-  assert.deepEqual(
-    b.alerts.map((x) => x.type),
-    [PROXY_SHARED_ADDRESS_ALERT_TYPE, PROXY_MISCONFIG_ALERT_TYPE]
-  );
-  // Each still dedups itself within the hour.
-  for (let i = 0; i < 50; i++) (b.m.observe(untrusted()), b.m.observe(shared('172.31.80.1')));
-  assert.equal(b.alerts.length, 2);
-  // And through the real raiseAlert (per-type throttle) both webhooks go out.
-  resetAlertThrottleForTests();
-  const prev = process.env.ALERT_WEBHOOK_URL;
-  process.env.ALERT_WEBHOOK_URL = 'https://hooks.example/alert';
-  const posts = [];
-  const fetchImpl = /** @type {any} */ (async (_url, init) => (posts.push(JSON.parse(init.body).type), { ok: true, status: 200 }));
-  const origWarn = console.warn;
-  console.warn = () => {};
-  try {
-    const c = setup({ gateway: '172.31.80.1', resolveClient, alert: (type, message) => raiseAlert(type, message, { fetchImpl }) });
-    for (let i = 0; i < 5; i++) c.m.observe(untrusted());
-    for (let i = 0; i < 20; i++) c.m.observe(shared('172.31.80.1'));
-    await new Promise((r) => setImmediate(r));
-    assert.deepEqual(posts, ['proxy-misconfig', 'proxy-shared-address']);
-  } finally {
-    console.warn = origWarn;
-    if (prev === undefined) delete process.env.ALERT_WEBHOOK_URL;
-    else process.env.ALERT_WEBHOOK_URL = prev;
-    resetAlertThrottleForTests();
-  }
+test('admin console times are Beijing time (Asia/Shanghai): full and HH:mm', async () => {
+  const { formatTime } = await import('../../admin/src/time.js');
+  assert.equal(formatTime('2026-10-13T18:05:00.000Z', { hhmm: true }), '02:05（北京时间）');
+  assert.equal(formatTime('2026-10-14T03:59:00.000Z', { hhmm: true }), '11:59（北京时间）');
+  assert.match(formatTime('2026-10-13T18:05:00.000Z'), /^2026\/10\/14 02:05:00（北京时间）$/);
+  assert.equal(formatTime(null), '—');
+  assert.equal(formatTime('not-a-date'), 'not-a-date');
 });

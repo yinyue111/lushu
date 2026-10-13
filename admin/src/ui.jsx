@@ -142,12 +142,7 @@ export function ReasonAction({ label, confirmLabel = '确认', variant = 'defaul
   );
 }
 
-export function formatTime(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return `${date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}（北京时间）`;
-}
+export { formatTime } from './time.js';
 
 export const percent = (value) => (value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`);
 export const usd = (value) => (value == null ? '未知' : `$${Number(value).toFixed(4)}`);

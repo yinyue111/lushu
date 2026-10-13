@@ -1,5 +1,4 @@
 import { adminGet } from '../api';
-import { hhmmTaipei } from '../time.js';
 import { Button, Card, Notice, Page, formatTime, percent, usd, useLoad } from '../ui';
 
 export default function DashboardPage() {
@@ -22,7 +21,7 @@ export default function DashboardPage() {
           {w.text}
           {(w.lastSeenAt || w.processLocal) && (
             <span className="mt-1 block text-xs">
-              {w.lastSeenAt && `最近一次出现：${hhmmTaipei(w.lastSeenAt)}`}
+              {w.lastSeenAt && `最近一次出现：${formatTime(w.lastSeenAt, { hhmm: true })}`}
               {w.lastSeenAt && w.processLocal && ' · '}
               {w.processLocal && '仅当前进程统计，重启后清零'}
             </span>
