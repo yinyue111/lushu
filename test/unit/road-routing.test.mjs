@@ -5,7 +5,7 @@ import { normalizeStoredRouteLegs, signRouteLeg } from '../../server/routing/pro
 import { requireVerifiedRoutingForPublicStatus } from '../../server/routebooks/mutations.mjs';
 import { normalizeRoutebookForStorage } from '../../server/routebooks/normalize.mjs';
 import { publicRoutebookView } from '../../server/routebooks/views.mjs';
-import { askUnpublishNote, submitRoutebookStatusWithRoutingGate, unpublishNeedsNote } from '../../src/components/Ops/routebookPublication.js';
+import { askUnpublishNote, submitRoutebookStatusWithRoutingGate, unpublishNeedsNote } from '../../admin/src/ops/routebookPublication.js';
 import { roadSummary } from '../../src/lib/routeRoads.js';
 
 function stops() {

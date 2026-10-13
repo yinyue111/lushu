@@ -30,8 +30,6 @@ const VIEWS = {
   route: 'route',
   trip: 'trip',
   review: 'review',
-  ops: 'ops',
-  logs: 'logs',
   my: 'my',
   share: 'share',
   creator: 'creator',
@@ -50,8 +48,6 @@ const PublicSharePage = React.lazy(() => import('./components/Route/PublicShareP
 const TripView = React.lazy(() => import('./components/Trip/TripView'));
 const ReviewPage = React.lazy(() => import('./components/Trip/ReviewPage'));
 const PublicReviewPage = React.lazy(() => import('./components/Trip/PublicReviewPage'));
-const OpsPage = React.lazy(() => import('./components/Ops/OpsPage'));
-const LogsPage = React.lazy(() => import('./components/Ops/LogsPage'));
 const MyPage = React.lazy(() => import('./components/My/MyPage'));
 const CreatorPage = React.lazy(() => import('./components/Creator/CreatorPage'));
 const PrivacyPage = React.lazy(() => import('./components/Legal/PrivacyPage'));
@@ -79,7 +75,7 @@ function initialRouteState() {
   const tripMatch = window.location.pathname.match(/^\/trip\/([^/]+)\/?$/);
   if (tripMatch) return { view: VIEWS.trip, publicId: decodePathParam(tripMatch[1]) };
   const directView = window.location.pathname.replace(/^\/+|\/+$/g, '');
-  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(directView)) {
+  if ([VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(directView)) {
     return { view: directView, publicId: '' };
   }
   return { view: VIEWS.home, publicId: '', city: '' };
@@ -677,7 +673,6 @@ export default function App() {
                 <ReviewPage routebook={routebook} onBack={() => navigate(VIEWS.route, { routeId: routebook.publicId || routebook.id })} />
               )}
               {view === VIEWS.review && !routebookMatchesLocation && <RouteLoadFallback state={routeLoadState} onBack={handleBack} onRetry={retryRouteLoad} />}
-              {view === VIEWS.ops && <OpsPage />}
               {view === VIEWS.my && (
                 <MyPage
                   onOpenBook={handleOpenBook}
@@ -695,7 +690,6 @@ export default function App() {
                   onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}
                 />
               )}
-              {view === VIEWS.logs && <LogsPage routebook={routebook} modelHealth={modelHealth} />}
               {view === VIEWS.privacy && <PrivacyPage onBack={() => navigate(VIEWS.home)} />}
             </Suspense>
           </ErrorBoundary>
@@ -871,7 +865,7 @@ function routebookVersion(book) {
 }
 
 function publicPathForView(view, options = {}) {
-  if ([VIEWS.ops, VIEWS.logs, VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(view)) return `/${view}`;
+  if ([VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(view)) return `/${view}`;
   if (view === VIEWS.destination) return `/destination/${encodeURIComponent(options.city || '杭州')}`;
   if (view === VIEWS.creator) return `/creator/${encodeURIComponent(options.creatorId || '')}`;
   if (view === VIEWS.route && options.routeId) return `/route/${encodeURIComponent(options.routeId)}`;

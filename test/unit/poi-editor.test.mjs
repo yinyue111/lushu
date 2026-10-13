@@ -6,7 +6,7 @@ import {
   createEmptyEvidence,
   createEmptyFact,
   validatePoiEditorForm
-} from '../../src/components/Ops/poiEditorModel.js';
+} from '../../admin/src/ops/poiEditorModel.js';
 
 const poi = {
   poiId: 'poi-editor-test',

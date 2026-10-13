@@ -1,9 +1,9 @@
-import { adminHeaders, checkinPhotoUrl, ownerHeaders } from './api.js';
+import { checkinPhotoUrl, ownerHeaders } from './api.js';
 
-/** @param {string} photoId @param {{profileId?: string, access?: 'owner'|'admin'|'public', signal?: AbortSignal}} options */
-export async function fetchCheckinPhoto(photoId, { profileId = '', access = 'public', signal } = {}) {
+/** @param {string} photoId @param {{profileId?: string, access?: 'owner'|'admin'|'public', headers?: Record<string, string>, signal?: AbortSignal}} options */
+export async function fetchCheckinPhoto(photoId, { profileId = '', access = 'public', headers: adminRequestHeaders = {}, signal } = {}) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(photoId ?? ''))) throw new Error('照片标识无效');
-  const headers = access === 'public' ? {} : access === 'admin' ? adminHeaders() : ownerHeaders(profileId);
+  const headers = access === 'public' ? {} : access === 'admin' ? adminRequestHeaders : ownerHeaders(profileId);
   const response = await fetch(checkinPhotoUrl(photoId), { headers, signal, cache: 'no-store' });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

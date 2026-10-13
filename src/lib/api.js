@@ -1,7 +1,6 @@
 import { getProfile, prepareProfileSyncPayload } from './profile.js';
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL ?? '/api';
-const ADMIN_TOKEN_KEY = 'trusted-routebook:admin-token';
 const PUBLIC_TOKEN_KEY = 'trusted-routebook:api-token';
 
 async function readApiResponse(response) {
@@ -56,7 +55,7 @@ export async function deleteJson(path, body, signal, extraHeaders = {}) {
 
 export async function checkHealth(signal) {
   // L5: production only returns provider/model details to operators.
-  return getJson('/health', signal, adminHeaders());
+  return getJson('/health', signal);
 }
 
 /** Synchronous generation (legacy; holds the request for the whole model call). */
@@ -178,10 +177,6 @@ export async function revokeFriendLink(publicId, payload = {}, signal) {
   return deleteJson(`/routebooks/${encodeURIComponent(publicId)}/friend-link`, payload, signal, ownerHeaders(payload?.profileId));
 }
 
-export async function getRoutebooks(limit = 100, signal, cursor = '') {
-  return getJson(`/routebooks?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal, adminHeaders());
-}
-
 /** Which of these routebook ids were deleted (so local copies can be dropped). */
 export async function checkDeletedRoutebooks(ids, signal) {
   return postJson('/routebooks/deleted', { ids }, signal);
@@ -203,10 +198,6 @@ export async function getMyRoutebooks(profileId, limit = 100, signal) {
 
 export async function getRoutebooksByCity(city, limit = 100, signal) {
   return getJson(`/routebooks?city=${encodeURIComponent(city)}&status=published,featured&limit=${limit}`, signal);
-}
-
-export async function updateRoutebookStatus(publicId, payload, signal) {
-  return postJson(`/routebooks/${encodeURIComponent(publicId)}/status`, payload, signal, adminHeaders());
 }
 
 export async function publishOwnRoutebook(publicId, payload = {}, signal) {
@@ -231,10 +222,6 @@ export async function getCreatorProfile(creatorId, signal) {
   return getJson(`/creators/${encodeURIComponent(creatorId)}`, signal);
 }
 
-export async function getDashboard(limit = 1000, signal) {
-  return getJson(`/dashboard?limit=${limit}`, signal, adminHeaders());
-}
-
 export async function getCities(query = '', signal) {
   return getJson(`/cities?q=${encodeURIComponent(query)}`, signal);
 }
@@ -243,50 +230,12 @@ export async function createPoiCorrection(correction, signal) {
   return postJson('/poi-corrections', correction, signal);
 }
 
-export async function getPoiCorrections(limit = 80, signal) {
-  return getJson(`/poi-corrections?limit=${limit}`, signal, adminHeaders());
-}
-
-export async function updatePoiCorrectionStatus(id, action, reviewerNote = '', signal) {
-  return postJson(`/poi-corrections/${encodeURIComponent(id)}/status`, { action, reviewerNote }, signal, adminHeaders());
-}
-
 export async function getPoiKnowledge({ city = '', stopName = '', limit = 20 } = {}, signal) {
   const params = new URLSearchParams();
   if (city) params.set('city', city);
   if (stopName) params.set('stopName', stopName);
   params.set('limit', String(limit));
   return getJson(`/poi-knowledge?${params.toString()}`, signal);
-}
-
-export async function getPoiCoverage(signal) {
-  return getJson('/poi-coverage', signal, adminHeaders());
-}
-
-export async function getPois({ city = '', reviewStatus = '', freshnessState = '', limit = 200 } = {}, signal) {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (city) params.set('city', city);
-  if (reviewStatus) params.set('reviewStatus', reviewStatus);
-  if (freshnessState) params.set('freshnessState', freshnessState);
-  return getJson(`/pois?${params.toString()}`, signal, adminHeaders());
-}
-
-export async function validatePois(content, signal) {
-  return postJson('/pois/validate', { content }, signal, adminHeaders());
-}
-
-/**
- * @param {{ content?: string, batchId?: string, commitToken?: string, rows?: any[] }} [input]
- * @param {AbortSignal} [signal]
- */
-export async function upsertPois({ content = '', batchId = '', commitToken = '', rows } = {}, signal) {
-  const body = { content, batchId, commitToken };
-  if (Array.isArray(rows)) body.rows = rows;
-  return postJson('/pois/upsert', body, signal, adminHeaders());
-}
-
-export async function getRoutebookVersions(publicId, signal) {
-  return getJson(`/routebooks/${encodeURIComponent(publicId)}/versions`, signal, adminHeaders());
 }
 
 export async function createFavorite(favorite, signal) {
@@ -303,10 +252,6 @@ export async function getMyFavorites(profileId, limit = 80, signal) {
   return getJson(`/favorites?${params.toString()}`, signal, ownerHeaders(profileId));
 }
 
-export async function getImports(limit = 50, signal) {
-  return getJson(`/imports?limit=${limit}`, signal, adminHeaders());
-}
-
 export async function createReviewShare(review, signal) {
   return postJson('/reviews', review, signal, ownerHeaders(review?.profileId));
 }
@@ -319,16 +264,8 @@ export async function getCmsConfig(signal) {
   return getJson('/cms', signal);
 }
 
-export async function saveCmsConfig(config, signal) {
-  return postJson('/cms', config, signal, adminHeaders());
-}
-
 export async function getProducts(signal) {
   return getJson('/products', signal);
-}
-
-export async function saveProducts(products, signal) {
-  return postJson('/products', { products }, signal, adminHeaders());
 }
 
 export async function saveProfile(profile, signal) {
@@ -386,14 +323,6 @@ function normalizeJourneyTravelDate(value) {
   return new Date(timestamp).toISOString().slice(0, 10) === text ? text : '';
 }
 
-export async function getLogs(limit = 50, signal) {
-  return getJson(`/logs?limit=${limit}`, signal, adminHeaders());
-}
-
-export async function getCheckins(limit = 50, signal) {
-  return getJson(`/checkins?limit=${limit}`, signal, adminHeaders());
-}
-
 export async function getMyCheckins(profileId, limit = 50, signal) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (profileId) params.set('profileId', profileId);
@@ -406,42 +335,19 @@ export async function getMyClicks(profileId, limit = 50, signal) {
   return getJson(`/clicks?${params.toString()}`, signal, ownerHeaders(profileId));
 }
 
-export async function getProductAnalytics(limit = 500, signal) {
-  return getJson(`/product-analytics?limit=${limit}`, signal, adminHeaders());
-}
-
-export function adminHeaders() {
-  const ADMIN_TOKEN = typeof sessionStorage === 'undefined' ? '' : (sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? '');
-  return ADMIN_TOKEN ? { 'x-routebook-admin-token': ADMIN_TOKEN } : {};
-}
-
 export function ownerHeaders(profileId) {
-  const admin = adminHeaders();
   try {
     const profile = getProfile();
     if (profile?.id === profileId && profile?.profileAccessToken) {
       return {
-        ...admin,
         'x-routebook-profile-id': profile.id,
         'x-routebook-profile-token': profile.profileAccessToken
       };
     }
   } catch {
-    // Fall back to admin/public headers when profile storage is unavailable.
+    // Fall back to public headers when profile storage is unavailable.
   }
-  return admin;
-}
-
-export function getAdminToken() {
-  return typeof sessionStorage === 'undefined' ? '' : (sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? '');
-}
-
-export function setAdminToken(token) {
-  if (typeof sessionStorage === 'undefined') return '';
-  const next = String(token ?? '').trim();
-  if (next) sessionStorage.setItem(ADMIN_TOKEN_KEY, next);
-  else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-  return next;
+  return {};
 }
 
 export function getApiToken() {

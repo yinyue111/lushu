@@ -6,10 +6,13 @@ import { cn } from '../ui/cn';
  * Authenticated image requests never put credentials into URLs. The in-memory
  * object URL is revoked on unmount or identity/photo change, and opens the same
  * authorised bytes when the user requests the full image.
- * @param {{photoId: string, profileId?: string, access?: 'owner'|'admin'|'public', alt: string, className?: string, imageClassName?: string}} props
+ * @param {{photoId: string, profileId?: string, access?: 'owner'|'admin'|'public', headers?: Record<string, string>, alt: string, className?: string, imageClassName?: string}} props
  */
-export function CheckinPhoto({ photoId, profileId = '', access = 'public', alt, className = '', imageClassName = '' }) {
+export function CheckinPhoto({ photoId, profileId = '', access = 'public', headers, alt, className = '', imageClassName = '' }) {
   const root = useRef(null);
+  // Admin request headers are passed per render; keep the latest in a ref so a new object does not refetch.
+  const headersRef = useRef(headers);
+  headersRef.current = headers;
   const [visible, setVisible] = useState(false);
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState({ key: '', url: '', error: '' });
@@ -38,7 +41,7 @@ export function CheckinPhoto({ photoId, profileId = '', access = 'public', alt, 
     const controller = new AbortController();
     let objectUrl = '';
     setState({ key, url: '', error: '' });
-    fetchCheckinPhoto(photoId, { profileId, access, signal: controller.signal })
+    fetchCheckinPhoto(photoId, { profileId, access, headers: headersRef.current, signal: controller.signal })
       .then((blob) => {
         if (controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(blob);
