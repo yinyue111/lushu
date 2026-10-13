@@ -1,3 +1,4 @@
 /* The admin console reuses the user app's tokens and legacy styles (the old ops panels depend on them). */
 @import '../../src/styles/tailwind.css';
+@import './ops/ops.css' layer(legacy);
 @source '../';

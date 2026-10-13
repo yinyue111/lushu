@@ -524,8 +524,3 @@ textarea.input-field {
     animation: none !important;
   }
 }
-
-.ops-routing-warning {
-  margin-top: 6px;
-  white-space: nowrap;
-}
