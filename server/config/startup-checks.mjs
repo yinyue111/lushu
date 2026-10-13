@@ -288,7 +288,10 @@ const isLoopbackEntry = (entry) => entry === '::1' || (parseIpv4Range(entry) && 
 export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedProxyCidrs, networkSubnet, networkGateway, proxyMode, caddyIp }) {
   if (!isProduction || !trustProxyHeaders) return [];
   const errors = [];
-  const mode = String(proxyMode ?? '').trim().toLowerCase() || 'host';
+  const mode =
+    String(proxyMode ?? '')
+      .trim()
+      .toLowerCase() || 'host';
   if (mode !== 'host' && mode !== 'container') return [`PROXY_MODE=${JSON.stringify(String(proxyMode))} must be host or container.`];
   const caddyText = String(caddyIp ?? '').trim();
   const entries = String(trustedProxyCidrs ?? '')
@@ -328,14 +331,18 @@ export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedPro
       } else {
         const caddy = parseIpv4Range(caddyText);
         if (!caddy || caddy.prefix !== 32 || !within(caddy, subnet)) {
-          errors.push(`PROXY_MODE=container requires CADDY_IP (got ${JSON.stringify(caddyText)}) to be a single IPv4 address inside APP_NETWORK_SUBNET ${subnetText}.`);
+          errors.push(
+            `PROXY_MODE=container requires CADDY_IP (got ${JSON.stringify(caddyText)}) to be a single IPv4 address inside APP_NETWORK_SUBNET ${subnetText}.`
+          );
         } else {
           if (gateway && caddy.base === gateway.base) errors.push(`CADDY_IP ${caddyText} must not be the network gateway.`);
           if (!covers(caddy))
             errors.push(
               `TRUSTED_PROXY_CIDRS does not include CADDY_IP ${caddyText}: the Caddy container's requests arrive from it, so every user would be rate-limited as one address.`
             );
-          const extra = entries.filter((e) => parseIpv4Range(e) && !isLoopbackEntry(e) && !(parseIpv4Range(e).prefix === 32 && parseIpv4Range(e).base === caddy.base));
+          const extra = entries.filter(
+            (e) => parseIpv4Range(e) && !isLoopbackEntry(e) && !(parseIpv4Range(e).prefix === 32 && parseIpv4Range(e).base === caddy.base)
+          );
           if (extra.length)
             errors.push(`PROXY_MODE=container: TRUSTED_PROXY_CIDRS may only contain CADDY_IP ${caddyText} and loopback, not ${JSON.stringify(extra)}.`);
         }
@@ -348,6 +355,7 @@ export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedPro
   } else if (mode === 'container') {
     errors.push('PROXY_MODE=container requires APP_NETWORK_SUBNET (and CADDY_IP inside it).');
   }
-  if (mode === 'host' && caddyText) errors.push(`CADDY_IP is set (${caddyText}) but PROXY_MODE=host: set PROXY_MODE=container for a containerized Caddy, or unset CADDY_IP.`);
+  if (mode === 'host' && caddyText)
+    errors.push(`CADDY_IP is set (${caddyText}) but PROXY_MODE=host: set PROXY_MODE=container for a containerized Caddy, or unset CADDY_IP.`);
   return errors;
 }

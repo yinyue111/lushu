@@ -176,7 +176,8 @@ test('PROXY_MODE=host|container: which hop must (and must not) be trusted', asyn
   const { trustedProxyErrors } = await import('../../server/config/startup-checks.mjs');
   const net = { isProduction: true, trustProxyHeaders: true, networkSubnet: '172.31.80.0/24', networkGateway: '172.31.80.1' };
   const host = (cidrs, extra = {}) => trustedProxyErrors({ ...net, trustedProxyCidrs: cidrs, ...extra });
-  const ctr = (cidrs, caddyIp = '172.31.80.10', extra = {}) => trustedProxyErrors({ ...net, proxyMode: 'container', caddyIp, trustedProxyCidrs: cidrs, ...extra });
+  const ctr = (cidrs, caddyIp = '172.31.80.10', extra = {}) =>
+    trustedProxyErrors({ ...net, proxyMode: 'container', caddyIp, trustedProxyCidrs: cidrs, ...extra });
   // host (default and explicit, case-insensitive): unchanged behaviour.
   assert.deepEqual(host('172.31.80.1,127.0.0.1,::1'), []);
   assert.deepEqual(host('172.31.80.1,127.0.0.1,::1', { proxyMode: 'host' }), []);
@@ -208,7 +209,15 @@ test('PROXY_MODE=host|container: which hop must (and must not) be trusted', asyn
   assert.ok(ctr('172.31.80.10,10.0.0.5').some((e) => /outside APP_NETWORK_SUBNET/.test(e)));
   assert.ok(ctr('0.0.0.0/0').some((e) => /must not trust 0.0.0.0\/0/.test(e)));
   // container needs the pinned subnet to check anything.
-  assert.ok(trustedProxyErrors({ isProduction: true, trustProxyHeaders: true, proxyMode: 'container', caddyIp: '172.31.80.10', trustedProxyCidrs: '172.31.80.10' }).some((e) => /requires APP_NETWORK_SUBNET/.test(e)));
+  assert.ok(
+    trustedProxyErrors({
+      isProduction: true,
+      trustProxyHeaders: true,
+      proxyMode: 'container',
+      caddyIp: '172.31.80.10',
+      trustedProxyCidrs: '172.31.80.10'
+    }).some((e) => /requires APP_NETWORK_SUBNET/.test(e))
+  );
   // Not production / not behind a proxy: not checked, whatever the mode.
   assert.deepEqual(ctr('', '', { isProduction: false }), []);
   assert.deepEqual(ctr('', '', { trustProxyHeaders: false }), []);
