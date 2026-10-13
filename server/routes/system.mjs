@@ -2,7 +2,14 @@
 import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
 import { planningAccessState, hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
 import { writeConfigDocument } from '../storage/config-documents.mjs';
-import { cities as supportedCities, getRegionForCity, isSupportedCity, regionCityGroups } from '../../src/lib/chinaCities.js';
+import { cities as allSupportedCities, getRegionForCity, isCityOpenForGeneration, regionCityGroups as allRegionCityGroups } from '../../src/lib/chinaCities.js';
+import { GENERATION_REGION } from '../config/index.mjs';
+
+const supportedCities = allSupportedCities.filter((city) => isCityOpenForGeneration(city, GENERATION_REGION));
+const regionCityGroups = allRegionCityGroups
+  .map((group) => ({ ...group, cities: group.cities.filter((city) => supportedCities.includes(city)) }))
+  .filter((group) => group.cities.length);
+const isSupportedCity = (city) => isCityOpenForGeneration(city, GENERATION_REGION);
 import { redactBaseUrl } from '../ai/runtime.mjs';
 import { normalizeCityName } from '../lib/util.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
@@ -104,7 +111,8 @@ export const systemRoutes = [
         regions: regionCityGroups,
         cities: matches,
         supported: isSupportedCity(query),
-        region: getRegionForCity(query)
+        region: getRegionForCity(query),
+        openRegion: GENERATION_REGION
       });
     },
     NO_POI_CATALOG

@@ -57,7 +57,7 @@ function StepTitle({ title, sub }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity, city, isTrustedCity }) {
+export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity, city, isTrustedCity, cityClosed = false }) {
   return (
     <section>
       <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州已有真人打卡；其他城市也能生成，出发前请多核对地点和营业信息。" />
@@ -125,7 +125,13 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
           );
         })}
       </div>
-      {!isTrustedCity && <Notice className="mt-5">{city} 是试验生成：地点、营业信息和导航都需要出发前人工核对。</Notice>}
+      {cityClosed ? (
+        <Notice className="mt-5" tone="warn" role="status">
+          内测期间先开放江浙沪的城市（上海、江苏、浙江），{cityQuery.trim()}暂时还不能生成。
+        </Notice>
+      ) : (
+        !isTrustedCity && <Notice className="mt-5">{city} 暂时只能生成 AI 草稿：这座城市还没有核对过的地点资料，地点、营业时间和导航出发前要自己确认。</Notice>
+      )}
     </section>
   );
 }

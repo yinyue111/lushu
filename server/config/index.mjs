@@ -414,3 +414,6 @@ export const ENRICH_BLOCKED_DOMAINS = String(
   .filter(Boolean);
 // Test hook only (never set in production): lets integration tests point the page fetcher at a local mock server.
 export const ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS = envFlag('ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS', false);
+
+// 生成开放的城市范围：jzh（默认，江浙沪）或 all（全国已支持城市）。
+export const GENERATION_REGION = String(process.env.GENERATION_REGION ?? '').trim() === 'all' ? 'all' : 'jzh';

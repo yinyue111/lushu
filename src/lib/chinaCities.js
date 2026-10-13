@@ -467,3 +467,12 @@ export function findCityMatches(query, limit = 24) {
   const source = normalized ? cities.filter((city) => city.includes(normalized) || normalized.includes(city)) : cities;
   return source.slice(0, limit);
 }
+
+// 内测开放范围：江浙沪（上海 + 江苏 13 市 + 浙江 11 市）。可信城市另见 content.js trustedCities（有已审核数据的才算）。
+export const JZH_CITIES = ['上海', '南京', '无锡', '徐州', '常州', '苏州', '南通', '连云港', '淮安', '盐城', '扬州', '镇江', '泰州', '宿迁', '杭州', '宁波', '温州', '嘉兴', '湖州', '绍兴', '金华', '衢州', '舟山', '台州', '丽水'];
+
+/** @param {string} city @param {'jzh' | 'all'} [region] */
+export function isCityOpenForGeneration(city, region = 'jzh') {
+  if (region === 'all') return isSupportedCity(city);
+  return JZH_CITIES.includes(normalizeCityLabel(city));
+}

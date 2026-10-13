@@ -513,7 +513,7 @@ function buildPoiTrustState(stop, city) {
       badgeClass: 'badge-orange',
       verified: false,
       value: '待复核',
-      label: '试验生成 · 待复核',
+      label: 'AI 草稿 · 未实地确认',
       detailLabel: '这座城市还没开放可信评分',
       detail: '地点、营业信息和导航还要人工复核，先不打分。',
       score: null

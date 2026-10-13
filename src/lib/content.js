@@ -335,10 +335,11 @@ export function getCityStory(city) {
   if (cityStories[city]) return cityStories[city];
   return {
     city,
-    kicker: '试验目的地 · AI 生成',
-    headline: `把${city}攻略，整理成一条可人工复核的试验路书`,
-    summary: `当前没有${city}的运营精选路线。AI 会基于你粘贴的攻略、收藏地点和出行偏好生成试验路书，所有地点与出行信息都需在出发前复核。`,
-    season: '试验生成，POI、营业信息和导航需人工复核',
+    // 没有核对过资料的城市：不编城市介绍，只说清楚是 AI 草稿。
+    kicker: `${city} · 按你的攻略排`,
+    headline: `把${city}攻略，排成按天走的路书`,
+    summary: `${city}还没有精选路线和核对过的地点资料。AI 只按你粘贴的攻略和偏好排路线，地点和营业时间出发前要自己确认。`,
+    season: 'AI 草稿：地点、营业时间和导航出发前要自己确认',
     image: defaultCityImage,
     palette: 'generic'
   };

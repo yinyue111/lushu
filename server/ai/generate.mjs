@@ -1,5 +1,7 @@
 // Model calls: routebook generation, OCR and prompt construction.
 import { normalizeGuideOrigins, routebookGuideOrigins } from '../../src/lib/importOrigins.js';
+import { isCityOpenForGeneration } from '../../src/lib/chinaCities.js';
+import { GENERATION_REGION } from '../config/index.mjs';
 import { repairEmptyDays } from '../../src/lib/dayRepair.js';
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
 import {
@@ -255,6 +257,9 @@ export function buildApprovedPoiPromptCandidates(city, pois = refreshMergedPoiCa
 export function sanitizePayload(payload) {
   const constraints = payload?.constraints ?? {};
   const city = normalizeCityName(payload?.city);
+  if (city && !isCityOpenForGeneration(city, GENERATION_REGION)) {
+    throw createHttpError(`内测期间先开放江浙沪的城市，${city}暂时还不能生成。`, 400, 'CITY_NOT_OPEN');
+  }
   const guide = truncateString(payload?.guide, MAX_GUIDE_CHARS);
   if (!guide) {
     throw createHttpError('请先输入攻略、链接或旅行需求', 400, 'GUIDE_REQUIRED');

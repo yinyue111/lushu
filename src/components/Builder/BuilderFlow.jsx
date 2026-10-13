@@ -201,7 +201,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     .join('\n');
 
   const hasGuideInput = hasActionableGuideInput({ guide, sources: importState.sources, candidates: candidatePlaces, ocrPlaces: ocrState.places });
-  const canProceed = step === 0 ? Boolean(cityQuery.trim()) : step === 1 ? hasGuideInput : step === 2;
+  const [cityClosed, setCityClosed] = useState(false);
+  const canProceed = step === 0 ? Boolean(cityQuery.trim()) && !cityClosed : step === 1 ? hasGuideInput : step === 2;
   const urlsPendingImport = useMemo(() => findUnimportedUrls(guide, importState.sources), [guide, importState.sources]);
   const failedImportUrls = useMemo(() => findFailedImportUrls(guide, importState.sources), [guide, importState.sources]);
 
@@ -213,6 +214,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         .then((data) => {
           if (!mountedRef.current || ctrl.signal.aborted) return;
           setCitySuggestions(Array.isArray(data.cities) ? data.cities.slice(0, 12) : []);
+          // 服务端按开放范围（默认江浙沪）回答这个城市能不能生成。
+          setCityClosed(Boolean(cityQuery.trim()) && data.supported === false && data.openRegion === 'jzh');
         })
         .catch(() => {
           // 联想接口失败时静默降级为无联想。
@@ -798,6 +801,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             commitCity={commitCity}
             city={city}
             isTrustedCity={isTrustedCity}
+            cityClosed={cityClosed}
           />
         )}
         {step === 1 && (
