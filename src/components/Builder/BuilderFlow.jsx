@@ -808,6 +808,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         )}
         {step === 1 && (
           <StepGuide
+            city={city}
             guide={guide}
             setGuide={handleGuideChange}
             handleScreenshotFiles={handleScreenshotFiles}

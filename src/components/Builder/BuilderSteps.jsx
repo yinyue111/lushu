@@ -1,6 +1,7 @@
 import { GENERATION_MODES } from '../../lib/generationModes';
 import { AlertCircle, CalendarDays, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Train, X } from 'lucide-react';
 import { trustedCities } from '../../lib/content';
+import { cities as allCities } from '../../lib/chinaCities.js';
 import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
@@ -136,9 +137,17 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
   );
 }
 
+/** 攻略里提到别的城市、却没提所选城市：提示一下，可能选错了城市。 */
+export function otherCityMentioned(guide, city) {
+  const text = String(guide ?? '');
+  if (!text.trim() || !city || text.includes(city)) return '';
+  return allCities.find((name) => name !== city && name.length >= 2 && text.includes(name)) || '';
+}
+
 /** @param {Record<string, any>} props */
 export function StepGuide(props) {
   const {
+    city,
     guide,
     setGuide,
     handleScreenshotFiles,
@@ -170,6 +179,12 @@ export function StepGuide(props) {
         value={guide}
         onChange={(e) => setGuide(e.target.value)}
       />
+      {otherCityMentioned(guide, city) && (
+        <p role="status" className="mt-2 flex items-start gap-1.5 text-meta font-semibold text-ink">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-lemon-ink" aria-hidden="true" />
+          攻略里写的是{otherCityMentioned(guide, city)}，你选的城市是{city}。不对的话回上一步改城市。
+        </p>
+      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label
