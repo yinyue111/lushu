@@ -35,6 +35,7 @@ test('admin console static files and headers when enabled', { skip: built ? fals
     }
     assert.equal((await fetch(`${server.baseUrl}/admin/assets/nope.js`)).status, 404);
     assert.equal((await fetch(`${server.baseUrl}/admin/assets/index.js.map`)).status, 404);
+    for (const path of ['/.env', '/.git/HEAD', '/dist-sourcemaps/']) assert.equal((await fetch(`${server.baseUrl}${path}`)).status, 404, path);
     // The user app never links the console.
     assert.doesNotMatch(await (await fetch(`${server.baseUrl}/`)).text(), /\/admin\//);
   } finally {

@@ -45,6 +45,7 @@
     "eval:generation": "node scripts/eval/run-generation-eval.mjs",
     "jev:labeling-kit": "node scripts/jev/build-labeling-kit.mjs",
     "jev:eval": "node scripts/jev/eval-labels.mjs",
+    "smoke:prod": "node scripts/smoke-prod.mjs",
     "admin:create": "node --env-file-if-exists=.env scripts/admin-create.mjs"
   },
   "dependencies": {
