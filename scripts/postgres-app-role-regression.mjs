@@ -94,9 +94,55 @@ try {
   await rejects(`delete from trusted_routebook.schema_migrations`, /permission denied/, 'migration bookkeeping');
   assert.equal((await owner.query('select count(*)::int as n from trusted_routebook.admin_audit')).rows[0].n, 3);
 
+  // 3a. Every table: UPDATE/DELETE for the app only where explicitly allowed. A new table (or a new
+  // append-only table) fails here until it is consciously added to one list or the other.
+  const MUTABLE = new Set([
+    'admin_config_versions',
+    'admin_corrections',
+    'admin_invite_codes',
+    'admin_quota_resets',
+    'admin_sessions',
+    'admin_users',
+    'admin_verified_facts',
+    'auth_email_codes',
+    'auth_profile_links',
+    'auth_sessions',
+    'auth_throttles',
+    'auth_users',
+    'config_documents',
+    'enrich_cache',
+    'enrich_jobs',
+    'enrich_reports',
+    'enrich_results',
+    'enrich_spend',
+    'event_rows',
+    'storage_state'
+  ]);
+  const APPEND_ONLY = new Set(['admin_audit']);
+  const OWNER_ONLY_WRITES = new Set(['schema_migrations']);
+  const tablePrivs = (
+    await owner.query(
+      `select c.relname as t, has_table_privilege($1, c.oid, 'update') as u, has_table_privilege($1, c.oid, 'delete') as d,
+              has_table_privilege($1, c.oid, 'truncate') as tr, has_table_privilege($1, c.oid, 'select') as s
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'trusted_routebook' and c.relkind in ('r', 'p') order by 1`,
+      [role]
+    )
+  ).rows;
+  assert.ok(tablePrivs.length >= 22, `scanned ${tablePrivs.length} tables`);
+  for (const row of tablePrivs) {
+    const known = MUTABLE.has(row.t) || APPEND_ONLY.has(row.t) || OWNER_ONLY_WRITES.has(row.t);
+    assert.ok(known, `table ${row.t} is not classified: add it to MUTABLE or APPEND_ONLY in this test`);
+    assert.equal(row.s, true, `${row.t}: app can read`);
+    assert.equal(row.tr, false, `${row.t}: app must not TRUNCATE`);
+    if (row.u || row.d) assert.ok(MUTABLE.has(row.t), `${row.t}: app has UPDATE/DELETE but the table is not in the allowlist`);
+    if (APPEND_ONLY.has(row.t) || OWNER_ONLY_WRITES.has(row.t)) assert.ok(!row.u && !row.d, `${row.t}: must not allow UPDATE/DELETE`);
+  }
+
   // 3b. A future migration: the owner creates a table (and sequence) after the role exists. Default
   // privileges grant it to the app immediately, with no re-run of ensureAppRole; the audit table stays
   // read + insert only.
+  // (Created after the scan above: it is a scratch table for the default-privileges check.)
   await owner.query('create table trusted_routebook.future_feature (id bigserial primary key, note text)');
   await app.query(`insert into trusted_routebook.future_feature (note) values ('ok')`);
   await app.query(`update trusted_routebook.future_feature set note = 'ok2'`);
