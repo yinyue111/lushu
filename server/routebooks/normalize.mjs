@@ -772,13 +772,16 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     throw createHttpError('路书至少需要 2 个站点才能保存', 400, 'ROUTEBOOK_TOO_SHORT');
   }
   const id = sanitizePublicId(existingId || input?.id || input?.publicId) || cryptoRandomId();
-  const days =
+  // 保存时只保留有站点的天（旧数据里可能有「第 N 天 0 站」），顺序以 input.days 为准。
+  const stopDays = [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
+  const inputDays =
     Array.isArray(input?.days) && input.days.length
       ? input.days
           .map((day) => truncateString(day, 24))
-          .filter(Boolean)
+          .filter((day) => day && stopDays.includes(day))
           .slice(0, 10)
-      : [...new Set(stops.map((stop) => stop.day || 'Day 1'))];
+      : [];
+  const days = [...inputDays, ...stopDays.filter((day) => !inputDays.includes(day))];
   const sourceSummary = normalizeSourceSummary(input?.sourceSummary, input?.importedSources);
   const routeLegs = normalizeStoredRouteLegs(input?.routeLegs, stops, input?.constraints?.transport);
   const validationContext = {
