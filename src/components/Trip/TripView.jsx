@@ -22,6 +22,7 @@ import { canSyncToCloud, getProfile, hasProfileCloudRegistrationConsent } from '
 import { useAccount } from '../Account/AccountProvider';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
 import { amapNameSearchUrl, isNavigableCoordinate } from '../../lib/coordinates';
+import { isGenericPending } from '../../lib/confirmChecklist';
 import { buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
 import { normalizeTripStops, readTripSession, saveTripSession, tripRoutebookId } from '../../lib/tripSession';
 import {
@@ -579,7 +580,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                   </Chip>
                 )}
               </div>
-              {current.risk && (
+              {current.risk && !isGenericPending(current.risk) && (
                 <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn-ink">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />
                   {current.risk}

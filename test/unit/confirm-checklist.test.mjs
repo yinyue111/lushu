@@ -60,3 +60,24 @@ test('a just-swapped store asks 是否要预约 and does not repeat the catch-al
   assert.equal(items.find((i) => i.kind === 'reservation').label, '是否要预约');
   assert.ok(items.every((i) => !/刚换的店/.test(i.detail)));
 });
+
+test('generic fallback notes (打卡验证 / 出发前复核 / 电话待确认) add no checklist item', async () => {
+  const { isGenericPending } = await import('../../src/lib/confirmChecklist.js');
+  const items = confirmItemsForStop(
+    {
+      id: 'b',
+      name: '老门东',
+      lat: 32.01,
+      lng: 118.79,
+      geoConfidence: 70,
+      cost: '10 元',
+      costInfo: { amount: 10, known: true, source: 'user', text: '10 元' },
+      verify: '需通过真实打卡继续验证；需出发前复核',
+      risk: '电话待确认'
+    },
+    { city: '南京' }
+  );
+  assert.deepEqual(items, []);
+  assert.equal(isGenericPending('电话待确认'), true);
+  assert.equal(isGenericPending('周一闭馆，节假日排队 1 小时'), false);
+});

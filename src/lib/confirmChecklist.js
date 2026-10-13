@@ -32,7 +32,7 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
     .map((t) => t.trim())
     .filter(Boolean);
   // 「营业时间、价格和是否要预约都待确认」这种一句话列一串的兜底句不当细节用，免得每条都重复同一句。
-  const said = (re) => (sentences.find((t) => re.test(t) && !/是否|都待确认|均待确认/.test(t)) || '').slice(0, 60);
+  const said = (re) => (sentences.find((t) => re.test(t) && !/是否|待确认/.test(t)) || '').slice(0, 60);
   const used = new Set();
   const take = (re) => {
     const t = said(re);
@@ -62,13 +62,20 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
     });
   }
   // 其余具体的提醒（排队、限流、天气相关的安排等）；「以现场为准」「出发前复核」这类兜底句不再单独占一条。
-  const GENERIC = /^(?:请)?(?:以(?:现场|当日公告|官方)(?:信息)?为准|出发前(?:再)?(?:复核|核对|确认)(?:一下)?|(?:价格|门票|地址|营业时间)?待确认|刚换的店.*)$/;
+  const GENERIC =
+    /^(?:请)?(?:以(?:现场|当日公告|官方)(?:信息)?为准|(?:需)?(?:出发前)?(?:再)?(?:复核|核对|确认)(?:一下)?|.{0,8}待确认|刚换的店.*|需通过真实打卡.*|.*继续验证)$/;
   const rest = sentences.filter((t) => !used.has(t.slice(0, 60)) && !GENERIC.test(t) && !/价格|门票|票价|预约|(开放|营业)时间/.test(t));
   if (rest.length) add('note', '出发前留意', rest.join('；').slice(0, 80), { label: '搜一下', url: webSearch(`${cityName}${name}`) });
   return items;
 }
 
 /** 按类别分组，供「今天出发前要确认的事」汇总。 */
+/** 只写了「X待确认」这类兜底的提醒，单独显示没有信息量（行中页的黄框也用它过滤）。 */
+export function isGenericPending(text) {
+  const t = String(text ?? '').trim();
+  return !t || /^[^，。；;]{0,8}待确认[。]?$/.test(t) || /^(?:请)?以(?:现场|当日公告|官方)(?:信息)?为准[。]?$/.test(t);
+}
+
 export function groupConfirmItems(entries) {
   return CONFIRM_GROUPS.map((group) => ({ ...group, items: entries.filter((entry) => entry.item.kind === group.kind) })).filter((g) => g.items.length);
 }
