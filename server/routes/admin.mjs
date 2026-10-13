@@ -18,13 +18,18 @@ import { generateInviteCode, inviteCodeHash } from '../admin/invites.mjs';
 import { cryptoRandomId } from '../auth/tokens.mjs';
 import { getConfig } from '../config/runtime.mjs';
 
-function assertEnabled() {
+let schemaCheckedAt = 0;
+/** 404 when the console is off; 503 ADMIN_SCHEMA_MISSING on a schema-v11 database (rolled-back / unmigrated). */
+async function assertEnabled() {
   if (!ADMIN_ENABLED) throw createHttpError('接口不存在', 404, 'API_NOT_FOUND');
+  if (Date.now() - schemaCheckedAt < 30000) return;
+  await adminStore().ping();
+  schemaCheckedAt = Date.now();
 }
 
 /** @param {any} req @param {import('../admin/permissions.mjs').PERMISSIONS extends Record<infer K, any> ? K : string} permission */
 async function guard(req, permission, { write = false } = {}) {
-  assertEnabled();
+  await assertEnabled();
   enforceRateLimit(req, 'ops-read');
   const { admin } = await requireAdminSession(req, { write });
   if (!can(admin.role, /** @type {any} */ (permission))) {
@@ -38,7 +43,7 @@ const r = (method, pattern, handler) => route(method, pattern, handler, NO_POI_C
 
 export const adminRoutes = [
   r('POST', '/api/admin/login', async ({ req, res }) => {
-    assertEnabled();
+    await assertEnabled();
     enforceRateLimit(req, 'ops-read');
     const result = await adminLogin(req, res, await readJsonBody(req));
     if (result.enroll) return sendJson(res, 200, { ok: true, enroll: result.enroll });
@@ -46,7 +51,7 @@ export const adminRoutes = [
     return sendJson(res, 200, { ok: true, admin: adminView(result.admin), csrfToken: result.session.csrfToken, idleMinutes: result.session.idleMinutes });
   }),
   r('POST', '/api/admin/enroll', async ({ req, res }) => {
-    assertEnabled();
+    await assertEnabled();
     enforceRateLimit(req, 'ops-read');
     const result = await adminEnroll(req, res, await readJsonBody(req));
     await adminAudit(req, { admin: result.admin, action: 'totp.bind' });
@@ -59,12 +64,12 @@ export const adminRoutes = [
     });
   }),
   r('POST', '/api/admin/logout', async ({ req, res }) => {
-    assertEnabled();
+    await assertEnabled();
     await adminLogout(req, res);
     return sendJson(res, 200, { ok: true });
   }),
   r('GET', '/api/admin/me', async ({ req, res }) => {
-    assertEnabled();
+    await assertEnabled();
     const { admin } = await requireAdminSession(req);
     return sendJson(res, 200, { ok: true, admin: adminView(admin), idleMinutes: getConfig('admin.sessionIdleMinutes') });
   }),

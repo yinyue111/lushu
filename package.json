@@ -27,6 +27,7 @@
     "test:postgres-schema": "node scripts/postgres-schema-regression.mjs",
     "test:postgres-storage": "node scripts/postgres-storage-regression.mjs && node scripts/accounts-store-regression.mjs",
     "test:postgres-runtime": "node scripts/postgres-runtime-regression.mjs",
+    "test:postgres-v11": "node scripts/postgres-v11-compat-regression.mjs",
     "test:backup": "node scripts/backup-restore-regression.mjs && node scripts/backup-coordination-regression.mjs",
     "test:storage-safety": "node scripts/postgres-snapshot-security-regression.mjs && node scripts/source-coordination-regression.mjs && node scripts/source-lease-recovery-regression.mjs && node scripts/runtime-writer-lease-regression.mjs",
     "test:profile-trip": "node scripts/profile-trip-regression.mjs",

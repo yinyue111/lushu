@@ -132,6 +132,14 @@ export async function refreshConfig() {
   try {
     latest = await storeProvider().latestConfig();
   } catch (error) {
+    if (error?.code === 'ADMIN_SCHEMA_MISSING') {
+      // Schema v11 (rolled back image or not yet migrated): there is no stored config, run on env.
+      if (snapshot.source !== 'env' || snapshot.error !== 'ADMIN_SCHEMA_MISSING') {
+        console.warn('[config] admin tables missing (schema v11); running on env values, admin console disabled');
+        snapshot = { ...buildSnapshot(null), error: 'ADMIN_SCHEMA_MISSING' };
+      }
+      return snapshot;
+    }
     const message = `配置库读取失败：${String(error?.message ?? error).slice(0, 160)}`;
     if (snapshot.source === 'db') {
       if (!snapshot.stale) void alertFn?.('admin-config-stale', `${message}；继续使用 v${snapshot.version}`);

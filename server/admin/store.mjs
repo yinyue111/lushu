@@ -219,12 +219,32 @@ function createJsonlStore(path = join(DATA_DIR, 'admin.jsonl')) {
       await load();
       return quotaResets.get(profileId)?.resetAt ?? null;
     },
-    async notifyConfigChanged() {}
+    async notifyConfigChanged() {},
+    async ping() {},
   };
 }
 
+// Rollback safety: this code also runs on schema v11 (before 0012). The admin tables and the new
+// enrich_reports columns are then missing; every admin-store query fails with one clear 503
+// ADMIN_SCHEMA_MISSING, the console reports itself unavailable, and the user app keeps working
+// (callers on user paths already treat admin-store failures as "no data").
+const MISSING_SCHEMA_CODES = new Set(['42P01', '42703']); // undefined_table, undefined_column
+export function adminSchemaMissingError() {
+  const error = /** @type {any} */ (new Error('管理后台需要数据库结构 v12（迁移 0012）；当前数据库还没有这些表，后台暂不可用，用户端不受影响。'));
+  error.statusCode = 503;
+  error.code = 'ADMIN_SCHEMA_MISSING';
+  return error;
+}
+
 function createPostgresStore(poolProvider) {
-  const q = (text, values) => poolProvider().query(text, values);
+  const q = async (text, values) => {
+    try {
+      return await poolProvider().query(text, values);
+    } catch (error) {
+      if (MISSING_SCHEMA_CODES.has(error?.code)) throw adminSchemaMissingError();
+      throw error;
+    }
+  };
   const configFromRow = (r) =>
     r && {
       version: r.version,
@@ -279,6 +299,9 @@ function createPostgresStore(poolProvider) {
     };
   return {
     kind: 'postgres',
+    async ping() {
+      await q(`select 1 from ${S}.admin_users limit 0`);
+    },
     async latestConfig() {
       return configFromRow((await q(`select * from ${S}.admin_config_versions order by version desc limit 1`)).rows[0]) ?? null;
     },

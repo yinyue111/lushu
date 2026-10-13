@@ -3,6 +3,7 @@ import {
   EVENT_STREAMS,
   POSTGRES_SCHEMA,
   POSTGRES_STORAGE_SCHEMA_VERSION,
+  isSupportedSchemaVersion,
   assertConfigDocumentName,
   assertEventStreamName,
   requirePostgresStorageBackend,
@@ -184,7 +185,7 @@ export class PostgresEventRowsAdapter {
       }
       const state = stateResult.rows[0];
       const schemaVersion = Number(state.schema_version);
-      if (schemaVersion !== POSTGRES_STORAGE_SCHEMA_VERSION) {
+      if (!isSupportedSchemaVersion(schemaVersion)) {
         return {
           ready: false,
           code: 'POSTGRES_SCHEMA_VERSION_MISMATCH',
@@ -1011,7 +1012,7 @@ async function assertRuntimeStorageReady(queryable, profileSecretFingerprint) {
   if (!state) {
     throw storageContractError('POSTGRES_STORAGE_STATE_MISSING', 'PostgreSQL storage_state row is missing');
   }
-  if (Number(state.schema_version) !== POSTGRES_STORAGE_SCHEMA_VERSION) {
+  if (!isSupportedSchemaVersion(state.schema_version)) {
     throw storageContractError(
       'POSTGRES_SCHEMA_VERSION_MISMATCH',
       `PostgreSQL schema version is ${state.schema_version}; expected ${POSTGRES_STORAGE_SCHEMA_VERSION}`

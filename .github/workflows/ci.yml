@@ -54,5 +54,7 @@ jobs:
         run: npm run test:postgres-storage
       - name: PostgreSQL multi-instance API regression
         run: npm run test:postgres-runtime
+      - name: New code still runs on schema v11 (rollback = swap image)
+        run: npm run test:postgres-v11
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high

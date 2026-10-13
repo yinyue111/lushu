@@ -2,6 +2,10 @@ import { basename } from 'node:path';
 
 export const POSTGRES_SCHEMA = 'trusted_routebook';
 export const POSTGRES_STORAGE_SCHEMA_VERSION = 12;
+// Oldest schema this code still runs on. v11 lacks only the additive 0012 admin tables/columns, so a
+// rollback is "swap the image" in both directions (docs/admin.md §6); admin features are off on v11.
+export const POSTGRES_STORAGE_MIN_SCHEMA_VERSION = 11;
+export const isSupportedSchemaVersion = (v) => Number.isInteger(Number(v)) && Number(v) >= POSTGRES_STORAGE_MIN_SCHEMA_VERSION && Number(v) <= POSTGRES_STORAGE_SCHEMA_VERSION;
 
 export const EVENT_STREAMS = Object.freeze([
   { name: 'ai-logs', fileName: 'ai-logs.jsonl' },

@@ -26,6 +26,13 @@ COPY --from=build --chown=root:root /app/src ./src
 COPY --from=build --chown=root:root /app/scripts ./scripts
 COPY --from=build --chown=root:root /app/public ./public
 COPY --from=build --chown=root:root /app/dist ./dist
+# Admin console build (served at /admin only when ADMIN_ENABLED=true). Source maps stay out of the image.
+COPY --from=build --chown=root:root /app/dist-admin ./dist-admin
+# Build info for /api/health and the admin system page (CI passes these; empty → shown as 「未注入」).
+ARG GIT_COMMIT=""
+ARG BUILD_TIME=""
+ENV APP_COMMIT=$GIT_COMMIT \
+    APP_BUILD_TIME=$BUILD_TIME
 # The app code is read-only for the runtime user; only /data is writable.
 RUN mkdir -p /data && chown node:node /data
 USER node
