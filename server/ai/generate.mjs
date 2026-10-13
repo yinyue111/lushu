@@ -548,13 +548,13 @@ function buildServerProcessLog(routebook, stages, { geocodingConfigured, modeLab
       : { stage: '地图定位', input: '站点名称', result: '未配置地图服务密钥，未执行；非已审核 POI 的坐标为近似值', status: '未执行', time: at },
     legs.length
       ? {
-          stage: '查实际路程',
+          stage: '查路线',
           input: '同日相邻站点',
-          result: `${verifiedLegs}/${legs.length} 段已按导航查过`,
+          result: `${verifiedLegs}/${legs.length} 段路线已查过`,
           status: verifiedLegs === legs.length ? '完成' : '需复核',
           time: at
         }
-      : { stage: '查实际路程', input: '同日相邻站点', result: '未执行（未配置道路服务或无同日转场）', status: '未执行', time: at },
+      : { stage: '查路线', input: '同日相邻站点', result: '未执行（未配置道路服务或无同日转场）', status: '未执行', time: at },
     { stage: '系统检查', input: '路线与约束', result: `${(routebook.validations ?? []).length} 项由系统重新计算`, status: '完成', time: at }
   ]);
 }

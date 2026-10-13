@@ -370,7 +370,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                     )}
                   </span>
                   <span className="text-xs text-muted">
-                    实线：已按导航查过
+                    实线：路线已查过
                     <br />
                     虚线：直线示意
                   </span>

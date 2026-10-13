@@ -308,9 +308,9 @@ export function buildEditedMetrics(stops, existingMetrics = []) {
     ? '待补充'
     : `约 ${budget.min === budget.max ? budget.min : `${budget.min}–${budget.max}`} 元${budget.unknownCount ? `（另有 ${budget.unknownCount} 处待补充）` : ''}`;
   const calculated = [
-    { label: '实际路程', value: '改动的路段还没重新查' },
-    { label: '道路距离', value: '还没按导航查' },
-    { label: '道路耗时', value: '还没按导航查' },
+    { label: '路线已查', value: '改动的路段还没重新查' },
+    { label: '道路距离', value: '路线还没查' },
+    { label: '道路耗时', value: '路线还没查' },
     { label: '资料核验分', value: evidence.score == null ? '—' : `${evidence.score}` },
     { label: '定位待复核', value: lowGeo ? `${lowGeo} 处` : '0 处' },
     { label: '预算估算', value: budgetText }
@@ -332,7 +332,7 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     {
       id: 'client-edit-density',
       label: '节奏密度',
-      state: dense ? '偏紧' : '路程还没查',
+      state: dense ? '偏紧' : '路线还没查',
       detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '站点密度正常；道路耗时已失效，需重新核验后判断可达性。'
     },
     {
@@ -344,7 +344,7 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     {
       id: 'client-edit-leg',
       label: '转场距离',
-      state: '路程还没查',
+      state: '路线还没查',
       detail: longestLeg ? `最长相邻直线约 ${(longestLeg / 1000).toFixed(1)} km，不代表真实道路距离或耗时。` : '站点距离信息不足，建议补充坐标。'
     },
     {

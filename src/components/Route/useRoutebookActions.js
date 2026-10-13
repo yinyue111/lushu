@@ -269,7 +269,7 @@ export function useRoutebookActions({
       return 'done';
     } catch (error) {
       if (error?.status === 409 && error?.code !== 'ROUTEBOOK_RECHECK_DRAFT_ONLY') {
-        setRecheckState({ busy: false, message: await refreshAfterVersionConflict(error, '路程没查成', current, operationSequence) });
+        setRecheckState({ busy: false, message: await refreshAfterVersionConflict(error, '路线没查成', current, operationSequence) });
       } else {
         setRecheckState({ busy: false, message: recheckSummaryText(null, error) });
       }

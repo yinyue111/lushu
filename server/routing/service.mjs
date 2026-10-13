@@ -60,7 +60,7 @@ export async function attachServerRouteLegs(routebook, signal, provider = routin
   return {
     ...routebook,
     routeLegs,
-    validations: buildRoutebookValidations(routebook.stops ?? [], routebook.validations, '查实际路程', { ...routebookValidationContext(routebook), routeLegs }),
+    validations: buildRoutebookValidations(routebook.stops ?? [], routebook.validations, '查路线', { ...routebookValidationContext(routebook), routeLegs }),
     metrics: buildRoutebookMetrics(routebook.stops ?? [], routebook.metrics, routeLegs)
   };
 }

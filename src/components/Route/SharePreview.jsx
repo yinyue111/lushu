@@ -144,7 +144,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           loading: false,
           message: options.claimOriginalAuthor
             ? '已提交原作者授权审核：运营核实授权和道路后才会公开，期间仍可用朋友链接分享。'
-            : '已提交运营审核，确认来源授权、查过路程后才能公开分享。',
+            : '已提交运营审核，确认来源授权、查过路线后才能公开分享。',
           url: ''
         });
         return;

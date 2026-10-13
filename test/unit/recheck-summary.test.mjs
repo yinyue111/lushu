@@ -5,7 +5,7 @@ import { recheckSummaryText } from '../../src/lib/recheck.js';
 test('re-check summary is plain Chinese', () => {
   assert.equal(
     recheckSummaryText({ geocoded: ['新换的面馆'], unresolved: [], geocodingConfigured: true, routing: { verifiedLegs: 2, expectedLegs: 2 } }),
-    '已重新定位 1 个站点（新换的面馆）；2/2 段路程已按导航查过。'
+    '已重新定位 1 个站点（新换的面馆）；2/2 段路线已查过。'
   );
   assert.match(
     recheckSummaryText({ geocoded: [], unresolved: ['某小店'], geocodingConfigured: true, routing: { verifiedLegs: 1, expectedLegs: 2 } }),
@@ -16,6 +16,6 @@ test('re-check summary is plain Chinese', () => {
 
 test('recheck summary explains when road verification is not configured', () => {
   const text = recheckSummaryText({ geocoded: [], unresolved: [], routingConfigured: false, routing: { expectedLegs: 6, verifiedLegs: 0 } });
-  assert.match(text, /导航查路程的功能还没开/);
+  assert.match(text, /查路线的功能还没开/);
   assert.doesNotMatch(text, /0\/6/);
 });
