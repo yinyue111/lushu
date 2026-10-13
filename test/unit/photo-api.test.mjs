@@ -40,8 +40,9 @@ test('photo requests send credentials only for the requested access mode, never 
   await fetchCheckinPhoto('photo_fixture', { profileId: 'p_photo_fixture', access: 'owner' });
   assert.equal(calls[1].options.headers['x-routebook-profile-id'], 'p_photo_fixture');
   assert.equal(calls[1].options.headers['x-routebook-profile-token'], 'pt_photo_owner_token_fixture');
-  await fetchCheckinPhoto('photo_fixture', { access: 'admin' });
-  assert.deepEqual(calls[2].options.headers, { 'x-routebook-admin-token': 'test-photo-admin' });
+  // Admin access only uses headers the admin console passes in; a token left in browser storage is ignored.
+  await fetchCheckinPhoto('photo_fixture', { access: 'admin', headers: { 'x-routebook-admin-token': 'test-photo-admin-in-memory' } });
+  assert.deepEqual(calls[2].options.headers, { 'x-routebook-admin-token': 'test-photo-admin-in-memory' });
   for (const call of calls) {
     assert.equal(call.url, '/api/checkin-photos/photo_fixture');
     assert.equal(call.options.cache, 'no-store');
