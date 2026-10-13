@@ -1,6 +1,7 @@
 // Sources for enrichment: AMap place search (structured) and a web search through the relay's
 // Responses API (grok web_search). Neither result is trusted on its own; see engine.mjs.
-import { AMAP_API_BASE_URL, AMAP_GEOCODE_KEY, ENRICH_API_KEY, ENRICH_BASE_URL, ENRICH_MODEL, ENRICH_SEARCH_TIMEOUT_MS } from '../config/index.mjs';
+import { AMAP_API_BASE_URL, AMAP_GEOCODE_KEY, ENRICH_SEARCH_TIMEOUT_MS } from '../config/index.mjs';
+import { getConfig, getSecret } from '../config/runtime.mjs';
 import { pacedAmapFetch } from '../geo/amap.mjs';
 import { gcj02ToWgs84 } from '../geo/coordinates.mjs';
 
@@ -71,7 +72,7 @@ export async function amapPlace({ name, city, lat, lng }, { fetchImpl = pacedAma
  */
 export async function webSearchPlace(
   { name, city, fields, variant = 0 },
-  { fetchImpl = fetch, baseUrl = ENRICH_BASE_URL, apiKey = ENRICH_API_KEY, model = ENRICH_MODEL } = {}
+  { fetchImpl = fetch, baseUrl = getConfig('enrich.baseUrl'), apiKey = getSecret('enrich.apiKey'), model = getConfig('enrich.model') } = {}
 ) {
   const asks = [fields.includes('price') ? '门票价格（免费就写“免费”）' : '', fields.includes('hours') ? '开放时间' : ''].filter(Boolean).join('和');
   const input = [

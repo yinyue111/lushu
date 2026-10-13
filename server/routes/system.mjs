@@ -2,14 +2,22 @@
 import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
 import { planningAccessState, hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
 import { writeConfigDocument } from '../storage/config-documents.mjs';
-import { cities as allSupportedCities, getRegionForCity, isCityOpenForGeneration, regionCityGroups as allRegionCityGroups } from '../../src/lib/chinaCities.js';
-import { GENERATION_REGION } from '../config/index.mjs';
+import { cities as allSupportedCities, getRegionForCity, JZH_CITIES, regionCityGroups as allRegionCityGroups } from '../../src/lib/chinaCities.js';
+import { getConfigVersion } from '../config/runtime.mjs';
+import { openCities, isCityOpen, homeCities } from '../config/runtimeViews.mjs';
+import { APP_COMMIT } from '../ops/systemInfo.mjs';
 
-const supportedCities = allSupportedCities.filter((city) => isCityOpenForGeneration(city, GENERATION_REGION));
-const regionCityGroups = allRegionCityGroups
-  .map((group) => ({ ...group, cities: group.cities.filter((city) => supportedCities.includes(city)) }))
-  .filter((group) => group.cities.length);
-const isSupportedCity = (city) => isCityOpenForGeneration(city, GENERATION_REGION);
+// Computed per request from the runtime config snapshot (admin can change the open cities at runtime).
+function cityView() {
+  const open = new Set(openCities());
+  const supportedCities = allSupportedCities.filter((city) => open.has(city));
+  const regionCityGroups = allRegionCityGroups
+    .map((group) => ({ ...group, cities: group.cities.filter((city) => open.has(city)) }))
+    .filter((group) => group.cities.length);
+  const openRegion = supportedCities.length === allSupportedCities.length ? 'all' : supportedCities.every((c) => JZH_CITIES.includes(c)) && supportedCities.length === JZH_CITIES.length ? 'jzh' : 'custom';
+  return { supportedCities, regionCityGroups, openRegion };
+}
+const isSupportedCity = (city) => isCityOpen(city);
 import { redactBaseUrl } from '../ai/runtime.mjs';
 import { normalizeCityName } from '../lib/util.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
@@ -78,7 +86,9 @@ export const systemRoutes = [
           ready,
           modelReady: runtime.ready,
           access,
-          reason: !runtime.ready ? '模型服务暂未就绪，请稍后再试或联系运营人员' : accessReason
+          reason: !runtime.ready ? '模型服务暂未就绪，请稍后再试或联系运营人员' : accessReason,
+          commit: APP_COMMIT.slice(0, 7),
+          configVersion: getConfigVersion()
         });
       }
       return sendJson(res, 200, {
@@ -92,7 +102,9 @@ export const systemRoutes = [
         modelReady: runtime.ready,
         access,
         reason: !runtime.ready ? runtime.readyReason : accessReason,
-        geocoder: AMAP_GEOCODE_KEY ? 'amap' : 'disabled'
+        geocoder: AMAP_GEOCODE_KEY ? 'amap' : 'disabled',
+        commit: APP_COMMIT.slice(0, 7),
+        configVersion: getConfigVersion()
       });
     },
     NO_POI_CATALOG
@@ -104,6 +116,7 @@ export const systemRoutes = [
       enforceRateLimit(req, 'public-config');
       const rawQuery = String(url.searchParams.get('q') ?? '').trim();
       const query = rawQuery ? normalizeCityName(rawQuery) : '';
+      const { supportedCities, regionCityGroups, openRegion } = cityView();
       const matches = !query ? supportedCities.slice(0, 80) : supportedCities.filter((city) => city.includes(query) || query.includes(city)).slice(0, 80);
       return sendJson(res, 200, {
         ok: true,
@@ -112,7 +125,8 @@ export const systemRoutes = [
         cities: matches,
         supported: isSupportedCity(query),
         region: getRegionForCity(query),
-        openRegion: GENERATION_REGION
+        openRegion,
+        recommended: homeCities()
       });
     },
     NO_POI_CATALOG

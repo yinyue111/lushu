@@ -1,7 +1,7 @@
 // Model calls: routebook generation, OCR and prompt construction.
 import { normalizeGuideOrigins, routebookGuideOrigins } from '../../src/lib/importOrigins.js';
-import { isCityOpenForGeneration } from '../../src/lib/chinaCities.js';
-import { GENERATION_REGION } from '../config/index.mjs';
+import { isCityOpen, generationModeConfig, pickRuntime } from '../config/runtimeViews.mjs';
+import { modelPricingFor } from '../admin/cost.mjs';
 import { repairEmptyDays } from '../../src/lib/dayRepair.js';
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
 import {
@@ -16,7 +16,6 @@ import {
   AI_CALL_TIMEOUT_MS,
   AI_STREAM,
   GENERATION_DEFAULT_MODE,
-  GENERATION_MODES,
   resolveGenerationMode,
   OCR_MAX_OUTPUT_TOKENS,
   AI_MAX_OUTPUT_TOKENS_RETRY
@@ -261,7 +260,7 @@ export function sanitizePayload(payload) {
   if (!city) {
     throw createHttpError('请先选目的地城市', 400, 'CITY_REQUIRED');
   }
-  if (!isCityOpenForGeneration(city, GENERATION_REGION)) {
+  if (!isCityOpen(city)) {
     throw createHttpError(`内测期间先开放江浙沪的城市，${city}暂时还不能生成。`, 400, 'CITY_NOT_OPEN');
   }
   const guide = truncateString(payload?.guide, MAX_GUIDE_CHARS);
@@ -1043,9 +1042,11 @@ export function generationFailureReason(error) {
  * @param {{ onStage?: GenerationStageListener, deadline?: number, mode?: string }} [options]
  */
 export async function generateRoutebook(payload, signal, { onStage = () => {}, deadline = 0, mode = GENERATION_DEFAULT_MODE } = {}) {
-  const modeConfig = GENERATION_MODES[resolveGenerationMode(mode)];
-  const baseRuntime = await loadCodexRuntime();
-  const runtime = baseRuntime.ready && modeConfig.model ? { ...baseRuntime, model: modeConfig.model } : baseRuntime;
+  // Runtime config (admin console): per-mode model / base URL / key / timeouts, and the fallback order
+  // when the requested mode is not configured. Read per call, so a saved change applies to the next generation.
+  const picked = pickRuntime(await loadCodexRuntime(), resolveGenerationMode(mode));
+  const modeConfig = generationModeConfig(picked.mode);
+  const runtime = picked.runtime;
   if (!runtime.ready) {
     throw createHttpError(runtime.readyReason || 'yinyue provider 或 OPENAI_API_KEY 未配置', 503, 'MODEL_NOT_READY');
   }
@@ -1076,7 +1077,7 @@ export async function generateRoutebook(payload, signal, { onStage = () => {}, d
     const modelUsage = summarizeModelUsage(attempts);
     return {
       modelUsage,
-      costEstimate: estimateModelCost({ modelUsage, model: runtime.model }),
+      costEstimate: estimateModelCost({ modelUsage, model: runtime.model, config: modelPricingFor(runtime.model) }),
       stages,
       modelCalls,
       factGuard: { ...summarizeGuardEvents(factGuardEvents), events: factGuardEvents.slice(0, 50) }

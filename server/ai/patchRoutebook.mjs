@@ -7,7 +7,8 @@ import { compactDays } from '../../src/lib/dayRepair.js';
 import { loadCodexRuntime, openAiEndpoint, extractTextFromResponse, parseJsonFromText } from './generate.mjs';
 import { guardRoutebookFacts } from './factGuard.mjs';
 import { appendJsonLine } from '../storage/jsonl.mjs';
-import { AI_LOG_PATH, GENERATION_MODES } from '../config/index.mjs';
+import { AI_LOG_PATH } from '../config/index.mjs';
+import { generationModeConfig, runtimeForMode } from '../config/runtimeViews.mjs';
 import { geocodePoiWithAmap } from '../geo/amap.mjs';
 import { AMAP_GEOCODE_KEY } from '../config/index.mjs';
 import { isValidCoordinate, mapWithConcurrency } from '../lib/util.mjs';
@@ -23,7 +24,7 @@ function makeStopId() {
  * @param {{ profileId?: string, signal?: AbortSignal, requestId?: string }} [opts]
  */
 export async function proposeDayPatch(routebook, scope, opts = {}) {
-  const runtime = await loadCodexRuntime();
+  const runtime = runtimeForMode(await loadCodexRuntime(), 'fast');
   if (!runtime.ready) throw createHttpError(runtime.readyReason || '模型未就绪', 503, 'MODEL_NOT_READY');
 
   const day = scope.day || routebook.days?.[0] || 'Day 1';
@@ -50,7 +51,7 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
   ].join('\n');
 
   const startedAt = Date.now();
-  const modeCfg = GENERATION_MODES.fast;
+  const modeCfg = generationModeConfig('fast');
   const model = modeCfg.model || runtime.model;
   const endpoint = openAiEndpoint(runtime.baseUrl, runtime.wireApi);
   const controller = new AbortController();

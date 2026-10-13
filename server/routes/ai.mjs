@@ -1,9 +1,9 @@
 // Generation, OCR and import API routes.
+import { generationModeConfig } from '../config/runtimeViews.mjs';
 import { deletedRoutebookIds } from '../routebooks/tombstones.mjs';
 import { clampNumber, createHttpError, safeDecodePathSegment, truncateString } from '../lib/util.mjs';
 import {
   AI_LOG_PATH,
-  GENERATION_MODES,
   GENERATION_DEDUP_TTL_MS,
   GENERATION_JOB_POLL_WAIT_MS,
   IMPORT_LOG_PATH,
@@ -87,7 +87,7 @@ export const aiRoutes = [
         await generateAndStoreRoutebook(payload, {
           signal: bindRequestAbortSignal(req),
           requestId,
-          deadline: Date.now() + GENERATION_MODES[payload.mode].timeoutMs
+          deadline: Date.now() + generationModeConfig(payload.mode).timeoutMs
         })
       );
     });
@@ -124,7 +124,7 @@ export const aiRoutes = [
       dedupKey,
       clientKey,
       profileId,
-      timeoutMs: GENERATION_MODES[payload.mode].timeoutMs,
+      timeoutMs: generationModeConfig(payload.mode).timeoutMs,
       mode: payload.mode,
       estimate: await recentGenerationEstimate(undefined, Date.now(), payload.mode),
       parseDetail: [`${payload.guide.length} 字攻略`, payload.importedSources?.length ? `${payload.importedSources.length} 个导入来源` : '']

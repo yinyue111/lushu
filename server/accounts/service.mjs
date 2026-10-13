@@ -1,13 +1,13 @@
 // Account flows: register, login, recovery, password change, logout, claim, export, delete.
 // Errors are enumeration-safe: unknown phone and wrong password take the same work and the same answer.
+import { getConfig } from '../config/runtime.mjs';
+import { inviteCodeHash, findLiveInvite, consumeInviteCode } from '../admin/invites.mjs';
 import { createHash } from 'node:crypto';
 import {
   EMAIL_VERIFICATION_REQUIRED,
   REGISTRATION_INVITE_CODE,
-  REGISTRATION_MODE,
   PROFILE_LOG_PATH,
   OPS_AUDIT_LOG_PATH,
-  GENERATION_QUOTA_PER_PROFILE
 } from '../config/index.mjs';
 import { createHttpError, sanitizePublicId, truncateString } from '../lib/util.mjs';
 import { cryptoRandomId, hashSecretToken, normalizeProfileId, safeTokenEqual, sanitizeEditToken } from '../auth/tokens.mjs';
@@ -163,12 +163,20 @@ async function createAccountProfile() {
 }
 
 export async function registerAccount(req, res, input = {}) {
-  if (REGISTRATION_MODE === 'closed') throw createHttpError('暂时不开放注册', 403, 'REGISTRATION_CLOSED');
+  // Registration mode is runtime config (admin console), read per request; env REGISTRATION_MODE is the fallback.
+  const registrationMode = getConfig('registration.mode');
+  if (registrationMode === 'closed') throw createHttpError('暂时不开放注册', 403, 'REGISTRATION_CLOSED');
   assertHumanCheck(input.humanCheck, 'register');
   await guardThrottles(req, [registerKey(req)]);
-  if (REGISTRATION_MODE === 'invite') {
+  /** @type {string} */
+  let inviteToConsume = '';
+  if (registrationMode === 'invite') {
     const code = String(input.inviteCode ?? '').trim();
-    if (!REGISTRATION_INVITE_CODE || !safeTokenEqual(code, REGISTRATION_INVITE_CODE)) {
+    // The legacy env code (REGISTRATION_INVITE_CODE) keeps working; admin-created codes have limits/expiry.
+    const envOk = Boolean(REGISTRATION_INVITE_CODE) && safeTokenEqual(code, REGISTRATION_INVITE_CODE);
+    const live = !envOk && code ? await findLiveInvite(code) : null;
+    if (live) inviteToConsume = inviteCodeHash(code);
+    if (!envOk && !live) {
       await recordFailure(registerKey(req));
       throw createHttpError(code ? '邀请码不对' : '现在是内测，注册需要邀请码', 403, code ? 'INVITE_CODE_INVALID' : 'INVITE_CODE_REQUIRED');
     }
@@ -191,6 +199,10 @@ export async function registerAccount(req, res, input = {}) {
   const deviceFree = device && !(await accountStore().findUserIdByProfile(device.id));
   const { codes, hashes } = issueRecoveryCodes();
   const now = new Date().toISOString();
+  // Take one use of an admin invite code only once everything else checked out.
+  if (inviteToConsume && !(await consumeInviteCode(inviteToConsume))) {
+    throw createHttpError('邀请码已用完或已失效', 403, 'INVITE_CODE_INVALID');
+  }
   const user = await withStorageEntityLock('account-email', eHash, () =>
     withStorageEntityLock('account-phone', pHash ?? `none:${eHash}`, async () => {
       if (await accountStore().findUserByEmailHash(eHash)) {
@@ -227,7 +239,7 @@ export async function registerAccount(req, res, input = {}) {
  * gets an "already registered" notice instead of a code.
  */
 export async function sendRegisterCode(req, _res, input = {}) {
-  if (REGISTRATION_MODE === 'closed') throw createHttpError('暂时不开放注册', 403, 'REGISTRATION_CLOSED');
+  if (getConfig('registration.mode') === 'closed') throw createHttpError('暂时不开放注册', 403, 'REGISTRATION_CLOSED');
   const email = requireEmail(input.email);
   const eHash = emailHash(email);
   assertHumanCheck(input.humanCheck, 'mail');
@@ -552,7 +564,7 @@ export async function opsUpdateUser(req, userId, input = {}, actor) {
 
 /** Generation quota for an account: per-user override, else the default per-profile quota. */
 export function quotaForUser(user) {
-  return Number.isInteger(user?.generationQuota) ? user.generationQuota : GENERATION_QUOTA_PER_PROFILE;
+  return Number.isInteger(user?.generationQuota) ? user.generationQuota : getConfig('generation.perUserQuota');
 }
 
 export const sha256 = (value) => createHash('sha256').update(String(value)).digest('hex');

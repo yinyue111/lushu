@@ -6,13 +6,12 @@
 //    literally appears near the place name. 全天开放 == 00:00-24:00;
 //  - conflicts, a single source, or nothing found → the stop keeps 待确认 (recorded with the reason);
 //  - per-routebook budget (searches, USD) and a global daily USD budget; results cached per city+place+field.
+import { getConfig } from '../config/runtime.mjs';
+import { verifiedFactClaim } from '../admin/verifiedFacts.mjs';
 import { raiseAlert } from '../ops/alerts.mjs';
 import {
   ENRICH_ASSUMED_USD_PER_SEARCH,
-  ENRICH_BUDGET_ALERT_RATIO,
   ENRICH_CACHE_DAYS,
-  ENRICH_DAILY_BUDGET_USD,
-  ENRICH_MAX_SEARCHES_PER_ROUTEBOOK,
   ENRICH_MAX_USD_PER_ROUTEBOOK
 } from '../config/index.mjs';
 import { amapPlace, webSearchPlace } from './sources.mjs';
@@ -159,6 +158,14 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
   const amap = deps.amapPlace ?? amapPlace;
   const search = deps.webSearchPlace ?? webSearchPlace;
   const fetchUncached = deps.fetchCitedPage ?? fetchCitedPage;
+  const lookupVerified = deps.verifiedFact ?? verifiedFactClaim;
+  // Runtime config (admin console), read once per run.
+  const ENRICH_MAX_SEARCHES_PER_ROUTEBOOK = getConfig('enrich.maxSearchesPerRun');
+  const ENRICH_DAILY_BUDGET_USD = getConfig('enrich.dailyBudgetUsd');
+  const ENRICH_BUDGET_ALERT_RATIO = getConfig('enrich.budgetAlertRatio');
+  const maxStops = getConfig('enrich.maxStopsPerRun');
+  const minSources = getConfig('enrich.requireTwoSources') ? 2 : 1;
+  let stopsLooked = 0;
   // One fetch per URL per routebook: the page that showed the price is reused for the hours.
   const pageCache = new Map();
   const fetchPage = (url) => {
@@ -208,7 +215,19 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       counts.kept += 1;
       claims.push({ ...base, field, status: 'kept', reason, ...extra });
     };
-    const fields = wantedFields(stop);
+    let fields = wantedFields(stop);
+
+    // Operator-verified values (admin console) win over the auto cache until they expire.
+    const unverified = [];
+    for (const field of fields) {
+      const key = cacheKeyFor(city, name, field);
+      const fact = await lookupVerified(key, now());
+      if (fact) {
+        counts.filled += 1;
+        claims.push({ ...base, field, ...fact, cacheKey: key });
+      } else unverified.push(field);
+    }
+    fields = unverified;
 
     // Cache first: popular places are looked up once per ENRICH_CACHE_DAYS.
     const pending = [];
@@ -226,6 +245,13 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       await step(name);
       continue;
     }
+    if (maxStops > 0 && stopsLooked >= maxStops) {
+      budget.stoppedBy ||= 'stops';
+      for (const field of pending) keep(field, 'stops-limit');
+      await step(name);
+      continue;
+    }
+    stopsLooked += 1;
 
     counts.amapCalls += 1;
     const place = await amap({ name, city, lat: Number(stop.lat), lng: Number(stop.lng) });
@@ -362,7 +388,7 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           display: `门票分淡旺季 · 来自${verified[0].title || verified[0].domain}等${verified.length}个来源 · 查询于${at.slice(0, 10)}`,
           sources: verified,
           retrievedAt: at,
-          method: 'pages',
+          method: verified.length < 2 ? 'single-page' : 'pages',
           conditions
         };
       }
@@ -383,8 +409,9 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           ...(conditions.length ? { conditions } : {})
         };
       }
-      if (verified.length >= 2) {
+      if (verified.length >= minSources) {
         return {
+          ...(verified.length < 2 ? { singleSource: true } : {}),
           status: 'filled',
           value,
           ...(field === 'price' ? { price: priceKey(canonical) } : {}),

@@ -5,7 +5,8 @@ import { route } from '../http/router.mjs';
 import { recordFunnelEvent } from '../analytics/funnelEvents.mjs';
 import { readJsonBody, sendJson } from '../http/response.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
-import { AUTH_ENABLED, AUTH_MODE, AUTH_POW_DIFFICULTY, EMAIL_VERIFICATION_REQUIRED, REGISTRATION_MODE } from '../config/index.mjs';
+import { AUTH_ENABLED, AUTH_MODE, AUTH_POW_DIFFICULTY, EMAIL_VERIFICATION_REQUIRED } from '../config/index.mjs';
+import { getConfig } from '../config/runtime.mjs';
 import { mailDelivers } from '../mail/transport.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { issueChallenge } from '../accounts/pow.mjs';
@@ -47,7 +48,7 @@ export const authRoutes = [
     return sendJson(res, 200, {
       ok: true,
       mode: AUTH_MODE,
-      registration: AUTH_ENABLED ? REGISTRATION_MODE : 'closed',
+      registration: AUTH_ENABLED ? getConfig('registration.mode') : 'closed',
       humanCheckDifficulty: AUTH_POW_DIFFICULTY,
       emailVerificationRequired: EMAIL_VERIFICATION_REQUIRED,
       emailDelivery: mailDelivers()

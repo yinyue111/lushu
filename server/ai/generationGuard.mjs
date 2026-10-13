@@ -10,17 +10,37 @@
 //   left to the per-IP 'ai' rate limit, otherwise one user could lock out everyone.
 import { createHash } from 'node:crypto';
 import { raiseAlert } from '../ops/alerts.mjs';
-import {
-  GENERATION_MODES,
-  resolveGenerationMode,
-  AI_LOG_PATH,
-  GENERATION_DEDUP_TTL_MS,
-  GENERATION_QUOTA_PER_PROFILE,
-  GENERATION_QUOTA_DEEP_PER_PROFILE,
-  GENERATION_QUOTA_PATCH_PER_PROFILE,
-  GENERATION_QUOTA_WINDOW_MS,
-  GENERATION_DAILY_LIMIT
-} from '../config/index.mjs';
+import { resolveGenerationMode, AI_LOG_PATH, GENERATION_DEDUP_TTL_MS, GENERATION_QUOTA_WINDOW_MS } from '../config/index.mjs';
+import { getConfig } from '../config/runtime.mjs';
+import { generationModeConfig } from '../config/runtimeViews.mjs';
+import { adminStore } from '../admin/store.mjs';
+
+// Quota/limit values come from the runtime config snapshot (admin console; env is the fallback), read per call.
+const cfgQuota = () => getConfig('generation.perUserQuota');
+const cfgDeepQuota = () => getConfig('generation.deepPerUserQuota');
+
+/**
+ * Whether a logged generation counts against quotas. Cancelled never counts; an upstream failure
+ * (model error / timeout / relay 5xx) counts only when generation.failuresConsumeQuota is on.
+ */
+export function rowConsumesQuota(row, failuresConsume = getConfig('generation.failuresConsumeQuota')) {
+  if (row?.deduplicated === true || row?.status === 'cancelled') return false;
+  if (row?.status === 'error' && !failuresConsume && isUpstreamFailure(row)) return false;
+  return true;
+}
+export function isUpstreamFailure(row) {
+  return Number(row?.upstreamStatus) >= 500 || /^(MODEL_|UPSTREAM|AI_TIMEOUT|GENERATION_TIMEOUT|.*_TIMEOUT$)/.test(String(row?.code ?? ''));
+}
+
+/** Window start for a profile, moved forward by an operator "reset quota". */
+async function windowStart(profileId, since) {
+  try {
+    const resetAt = Date.parse((await adminStore().quotaResetAt(profileId)) ?? '');
+    return Number.isFinite(resetAt) ? Math.max(since, resetAt) : since;
+  } catch {
+    return since;
+  }
+}
 import { createHttpError } from '../lib/util.mjs';
 import { readMatchingJsonLines } from '../storage/jsonl.mjs';
 
@@ -44,7 +64,7 @@ export function generationInputHash(payload) {
   // The mode and the model settings behind it are part of the key: 轻快 then 细品 on the same input must
   // be two separate generations, and an env change (model / reasoning effort) must not reuse old output.
   const mode = resolveGenerationMode(payload?.mode);
-  const settings = GENERATION_MODES[mode];
+  const settings = generationModeConfig(mode);
   const input = {
     mode,
     model: settings.model || String(process.env.OPENAI_MODEL ?? ''),
@@ -99,27 +119,27 @@ export function clearGenerationDedupCache() {
 export async function peekGenerationQuota(
   profileId,
   {
-    quota = GENERATION_QUOTA_PER_PROFILE,
+    quota = cfgQuota(),
     windowMs = GENERATION_QUOTA_WINDOW_MS,
     nowMs = Date.now(),
     mode = '',
-    deepQuota = GENERATION_QUOTA_DEEP_PER_PROFILE
+    deepQuota = cfgDeepQuota()
   } = {}
 ) {
   if (!profileId || profileId === 'anonymous') {
     return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, retryAfterSeconds: 0 };
   }
   const windowHours = Math.round(windowMs / 3600000) || 1;
+  const failuresConsume = getConfig('generation.failuresConsumeQuota');
   if (mode === 'deep' && deepQuota > 0) {
-    const since = nowMs - windowMs;
+    const since = await windowStart(profileId, nowMs - windowMs);
     const deepRows = await readMatchingJsonLines(
       AI_LOG_PATH,
       (row) =>
         row?.kind === 'generate-routebook' &&
         row?.profileId === profileId &&
         row?.mode === 'deep' &&
-        row?.deduplicated !== true &&
-        row?.status !== 'cancelled' &&
+        rowConsumesQuota(row, failuresConsume) &&
         Date.parse(row?.createdAt ?? '') >= since,
       deepQuota,
       50000
@@ -138,15 +158,14 @@ export async function peekGenerationQuota(
     }
   }
   if (!quota) return { limited: false, used: 0, quota: 0, remaining: null, windowHours, retryAfterSeconds: 0 };
-  const since = nowMs - windowMs;
+  const since = await windowStart(profileId, nowMs - windowMs);
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
     (row) =>
       row?.kind === 'generate-routebook' &&
       row?.profileId === profileId &&
-      row?.deduplicated !== true &&
-      // A generation the user cancelled gives its quota back.
-      row?.status !== 'cancelled' &&
+      // A generation the user cancelled (or an upstream failure, by default) gives its quota back.
+      rowConsumesQuota(row, failuresConsume) &&
       Date.parse(row?.createdAt ?? '') >= since,
     quota,
     50000
@@ -166,13 +185,15 @@ export async function peekGenerationQuota(
 }
 
 /** 全站每日上限：所有人的整本生成 + 局部调整合计。 */
-export async function peekDailyGenerationLimit({ limit = GENERATION_DAILY_LIMIT, nowMs = Date.now() } = {}) {
+export async function peekDailyGenerationLimit({ limit = getConfig('generation.dailyLimit'), nowMs = Date.now() } = {}) {
   if (!limit) return { limited: false, used: 0, limit: 0 };
   const since = nowMs - 86_400_000;
+  const patchCounts = getConfig('generation.patchCountsDaily');
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
     (row) =>
-      (row?.kind === 'generate-routebook' || row?.kind === 'patch-routebook') &&
+      (row?.kind === 'generate-routebook' || (patchCounts && row?.kind === 'patch-routebook')) &&
+      row?.purpose !== 'admin_test' &&
       row?.deduplicated !== true &&
       row?.status !== 'cancelled' &&
       Date.parse(row?.createdAt ?? '') >= since,
@@ -207,24 +228,21 @@ export async function enforceGenerationQuota(profileId, options = {}) {
 
 /** Patch (L2) quota: defaults to 2× full generation quota when GENERATION_QUOTA_PATCH_PER_PROFILE is 0. */
 export async function peekPatchQuota(profileId, { quota = undefined, windowMs = GENERATION_QUOTA_WINDOW_MS, nowMs = Date.now() } = {}) {
+  const patchQuota = getConfig('generation.patchQuota');
   const effective =
-    Number.isInteger(quota) && quota > 0
-      ? quota
-      : GENERATION_QUOTA_PATCH_PER_PROFILE > 0
-        ? GENERATION_QUOTA_PATCH_PER_PROFILE
-        : Math.max(1, (GENERATION_QUOTA_PER_PROFILE || 30) * 2);
-  if (!profileId || profileId === 'anonymous') {
+    Number.isInteger(quota) && quota > 0 ? quota : patchQuota > 0 ? patchQuota : Math.max(1, (cfgQuota() || 30) * 2);
+  if (!profileId || profileId === 'anonymous' || (quota === undefined && !getConfig('generation.patchQuotaEnabled'))) {
     return { limited: false, used: 0, quota: 0, remaining: null, windowHours: Math.round(windowMs / 3600000) || 1, kind: 'patch' };
   }
   const windowHours = Math.round(windowMs / 3600000) || 1;
-  const since = nowMs - windowMs;
+  const since = await windowStart(profileId, nowMs - windowMs);
+  const failuresConsume = getConfig('generation.failuresConsumeQuota');
   const rows = await readMatchingJsonLines(
     AI_LOG_PATH,
     (row) =>
       row?.kind === 'patch-routebook' &&
       row?.profileId === profileId &&
-      row?.deduplicated !== true &&
-      row?.status !== 'cancelled' &&
+      rowConsumesQuota(row, failuresConsume) &&
       Date.parse(row?.createdAt ?? '') >= since,
     effective,
     50000

@@ -1,11 +1,7 @@
 // Background enrichment: queue, worker, read model and "this is wrong" reports.
+import { getConfig, getSecret } from '../config/runtime.mjs';
 import {
   ENRICH_ALLOW_PRIVATE_FETCH_FOR_TESTS,
-  ENRICH_API_KEY,
-  ENRICH_BASE_URL,
-  ENRICH_CONCURRENCY,
-  ENRICH_ENABLED,
-  ENRICH_DAILY_BUDGET_USD,
   ENRICH_LEASE_MS,
   ENRICH_MAX_ATTEMPTS,
   ENRICH_POLL_MS,
@@ -16,9 +12,13 @@ import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
 import { enrichRoutebook, stopKeyOf } from './engine.mjs';
 import { enrichStore } from './store.mjs';
 
+/** Enrichment relay settings (runtime config > env). */
+export const enrichBaseUrl = () => getConfig('enrich.baseUrl') || '';
+export const enrichRelay = () => ({ baseUrl: enrichBaseUrl(), apiKey: getSecret('enrich.apiKey'), model: getConfig('enrich.model') });
+
 export function enrichmentReady() {
-  if (!ENRICH_ENABLED) return { ready: false, reason: 'ENRICH_ENABLED=false' };
-  if (!ENRICH_BASE_URL || !ENRICH_API_KEY) return { ready: false, reason: 'ENRICH_BASE_URL / ENRICH_API_KEY（或 OPENAI_*）未配置' };
+  if (!getConfig('enrich.enabled')) return { ready: false, reason: 'ENRICH_ENABLED=false' };
+  if (!enrichBaseUrl() || !getSecret('enrich.apiKey')) return { ready: false, reason: 'ENRICH_BASE_URL / ENRICH_API_KEY（或 OPENAI_*）未配置' };
   return { ready: true, reason: '' };
 }
 
@@ -179,7 +179,9 @@ export async function tickEnrichment() {
   if (ticking) return 0;
   ticking = true;
   try {
-    const free = ENRICH_CONCURRENCY - running;
+    // Switched off at runtime (admin console): queued jobs wait until it is switched back on.
+    if (!enrichmentReady().ready) return 0;
+    const free = getConfig('enrich.concurrency') - running;
     if (free <= 0) return 0;
     const jobs = await enrichStore().claimDue({ now: Date.now(), leaseMs: ENRICH_LEASE_MS, limit: free });
     for (const job of jobs) {
@@ -205,7 +207,7 @@ function kickWorker() {
 export function startEnrichmentWorker(deps = {}) {
   const readiness = enrichmentReady();
   if (!readiness.ready) {
-    if (ENRICH_ENABLED) console.warn(`[enrich] not started: ${readiness.reason}`);
+    if (getConfig('enrich.enabled')) console.warn(`[enrich] not started: ${readiness.reason}`);
     return false;
   }
   workerDeps = deps;
@@ -224,5 +226,5 @@ export function stopEnrichmentWorker() {
 }
 
 export async function enrichmentStats() {
-  return { ...(await enrichStore().stats()), ready: enrichmentReady(), running, dailyBudgetUsd: ENRICH_DAILY_BUDGET_USD };
+  return { ...(await enrichStore().stats()), ready: enrichmentReady(), running, dailyBudgetUsd: getConfig('enrich.dailyBudgetUsd') };
 }

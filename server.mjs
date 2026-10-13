@@ -38,7 +38,10 @@ import { assignRequestId } from './server/http/response.mjs';
 import { consumeRateLimit } from './server/http/rate-limit.mjs';
 import { matchShareLandingPath, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';
 import { handleApi } from './server/routes/index.mjs';
-import { initializeRuntimeStorage, closeRuntimeStorage } from './server/storage/runtime.mjs';
+import { initializeRuntimeStorage, closeRuntimeStorage, usesPostgresStorage, getPostgresStorage } from './server/storage/runtime.mjs';
+import { configureRuntimeConfig, onConfigChange, startConfigSync, stopConfigSync } from './server/config/runtime.mjs';
+import { adminStore, CONFIG_NOTIFY_CHANNEL } from './server/admin/store.mjs';
+import { raiseAlert } from './server/ops/alerts.mjs';
 import { startEnrichmentWorker, stopEnrichmentWorker } from './server/enrich/service.mjs';
 import { installProfileWriteGuard } from './server/auth/profile-lifecycle.mjs';
 import { refreshPoiCatalog } from './server/poi/catalog.mjs';
@@ -85,6 +88,11 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
 
 await initializeRuntimeStorage();
 installProfileWriteGuard();
+// Runtime config (admin console): DB > env. A DB failure here only warns; the site runs on env defaults.
+configureRuntimeConfig({ store: adminStore, alert: raiseAlert });
+await startConfigSync(usesPostgresStorage() ? { pool: getPostgresStorage().pool, channel: CONFIG_NOTIFY_CHANNEL } : {});
+// Enrichment can be switched on at runtime: (re)start the worker whenever a new config version lands.
+onConfigChange(() => startEnrichmentWorker());
 startEnrichmentWorker();
 let vite;
 try {
@@ -199,6 +207,7 @@ function installGracefulShutdown(server) {
     server.close(async () => {
       await vite?.close().catch(() => {});
       stopEnrichmentWorker();
+      await stopConfigSync().catch(() => {});
       await closeRuntimeStorage().catch((error) => console.error('[storage] shutdown failed', error.code ?? 'STORAGE_CLOSE_FAILED'));
       process.exit(0);
     });
