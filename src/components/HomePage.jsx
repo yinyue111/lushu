@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Bell, Clock3, Compass, Link2, MapPin, Plus, Route, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Bell, Clock3, Compass, Link2, MapPin, Route, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';
 import { cn } from './ui/cn';
@@ -170,9 +170,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   : '登录后路书会同步到账号，换设备也能看。'}
               </p>
             )}
-            <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={startFromImport} disabled={!guideSeed.trim()}>
-              <Link2 /> 用这篇攻略排路线
+            <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={guideSeed.trim() ? startFromImport : startFromHero}>
+              {guideSeed.trim() ? <Link2 /> : <Sparkles />} {guideSeed.trim() ? '用这篇攻略排路线' : '开始排路线'}
             </Button>
+            {!guideSeed.trim() && <p className="mt-1.5 text-center text-meta text-muted">没有攻略也行，按下面选的城市和玩法直接排。</p>}
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <label className="block min-w-0">
@@ -217,7 +218,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </div>
             {!isTrustedCity && (
               <p role="status" className="mt-2.5 rounded-tile bg-lemon-soft px-3 py-2 text-meta font-semibold text-lemon-ink">
-                {city}还在试运行：AI 能帮你排路线，但地点、营业时间和导航要自己再核对。
+                {city}暂时只能生成 AI 草稿：地点、营业时间和导航，出发前要自己确认一下。
               </p>
             )}
             <div className="mt-4">
@@ -236,9 +237,6 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 ))}
               </div>
             </div>
-            <Button variant="ghost" className="mt-3 w-full text-sky-ink" onClick={startFromHero}>
-              <Sparkles /> 没有攻略？直接帮我规划 <ArrowRight />
-            </Button>
           </div>
         </div>
       </section>
@@ -250,11 +248,6 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             id="home-curated-title"
             kicker={`${city} · 精选路线`}
             title="照着走就行的路线"
-            action={
-              <Button size="sm" onClick={startFromHero}>
-                <Plus /> 按我的喜好定制
-              </Button>
-            }
           />
           {cityRoutes.length ? (
             <div className={cn('grid grid-cols-1 gap-4', cityRoutes.length > 1 && 'sm:grid-cols-2', cityRoutes.length > 2 && 'lg:grid-cols-3')}>
@@ -363,11 +356,6 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             id="home-my-title"
             kicker="我的路书"
             title="接着改，或者直接出发"
-            action={
-              <Button size="sm" variant="primary" onClick={() => onNewBook({ city, duration, theme: [theme] })}>
-                <Plus /> 新建路书
-              </Button>
-            }
           />
           {books.length === 0 ? (
             <div className="flex flex-col items-start gap-3 rounded-panel bg-canvas p-6 sm:flex-row sm:items-center">
@@ -376,11 +364,8 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               </span>
               <div className="flex-1">
                 <h3 className="text-copy font-extrabold">还没有保存的路书</h3>
-                <p className="mt-0.5 text-meta leading-snug text-muted">复制一条精选路线，或粘贴攻略生成第一份路书。</p>
+                <p className="mt-0.5 text-meta leading-snug text-muted">在页面顶部粘贴攻略，或在精选路线上点「改成适合我的」。</p>
               </div>
-              <Button size="sm" variant="dark" onClick={startFromHero}>
-                粘贴攻略开始
-              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
