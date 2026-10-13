@@ -62,12 +62,16 @@ export const RUNTIME_SCHEMA = {
     group: 'model',
     role: 'admin',
     items: () => ['fast', 'deep'],
-    env: () =>
-      String(process.env.AI_MODEL_FALLBACK_ORDER ?? '')
+    // Default: 细品 fails → 轻快 (轻快 has nothing to fall back to). AI_MODEL_FALLBACK_ORDER=none turns it off.
+    env: () => {
+      const raw = String(process.env.AI_MODEL_FALLBACK_ORDER ?? '').trim();
+      if (!raw) return ['fast'];
+      return raw
         .split(',')
         .map((item) => item.trim())
-        .filter((item) => item === 'fast' || item === 'deep'),
-    default: []
+        .filter((item) => item === 'fast' || item === 'deep');
+    },
+    default: ['fast']
   },
   'model.fallbackOnUpstreamError': {
     type: 'bool',

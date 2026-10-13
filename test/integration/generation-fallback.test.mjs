@@ -6,7 +6,8 @@ import { rowConsumesQuota } from '../../server/ai/generationGuard.mjs';
 import { after, before, test } from 'node:test';
 import { API_TOKEN, fetchJson, jsonHeaders, startServer } from '../helpers/server.mjs';
 
-// 细品's upstream fails (403 / 503 / timeout) → the fallback order (AI_MODEL_FALLBACK_ORDER=fast) is used,
+// A fresh deployment with NOTHING configured for fallback (no AI_MODEL_FALLBACK_ORDER, no admin override):
+// 细品's upstream fails (403 / 503 / timeout) → the default order (细品 → 轻快) is used,
 // the routebook is marked 「本次由备用模型生成」 (provider.fellBackFrom), and a run whose fallback also
 // fails reports the original error, offers 「用轻快重试」, and does not consume quota.
 let server;
@@ -64,7 +65,6 @@ before(async () => {
       AI_STREAM: 'false',
       AI_TIMEOUT_MS_FAST: '15000',
       AI_TIMEOUT_MS_DEEP: '1500',
-      AI_MODEL_FALLBACK_ORDER: 'fast',
       GENERATION_DEDUP_TTL_MS: '0',
       GENERATION_QUOTA_PER_PROFILE: '1',
       GENERATION_JOB_POLL_WAIT_MS: '1000'
@@ -112,6 +112,21 @@ for (const [label, keyword] of [
     if (stored.status === 200) assert.equal((stored.data.routebook ?? stored.data).provider.fellBackFrom, 'deep');
   });
 }
+
+test('轻快 never falls back to 细品 by default (轻快 failing just fails)', async () => {
+  const headers = jsonHeaders({ 'x-routebook-token': API_TOKEN });
+  calls = [];
+  const { data } = await fetchJson(`${server.baseUrl}/api/generation-jobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ city: '杭州', guide: 'BOTHFAIL 轻快失败', mode: 'fast' })
+  });
+  let job = data.job;
+  for (let i = 0; i < 60 && job.status === 'running'; i += 1) job = (await fetchJson(`${server.baseUrl}/api/generation-jobs/${job.jobId}?after=${job.seq}`, { headers })).data.job;
+  assert.equal(job.status, 'failed');
+  assert.deepEqual(calls, ['fast-model-x']);
+  assert.equal(job.error.suggestFast, false);
+});
 
 test('fallback also fails → original error, 「用轻快重试」 offered, quota not consumed', async () => {
   const profileId = 'fallback-bothfail';
