@@ -1,6 +1,9 @@
 import { generationModeLabel } from './generationModes.js';
 
-/** Relative date for card lists (Asia/Taipei local calendar day). */
+/**
+ * Relative date for card lists, by the calendar day of the viewer's device time zone (Date local getters;
+ * no fixed zone). For users in mainland China that is Asia/Shanghai (UTC+8).
+ */
 export function formatRoutebookWhen(iso) {
   const ms = Date.parse(iso ?? '') || 0;
   if (!ms) return '';
