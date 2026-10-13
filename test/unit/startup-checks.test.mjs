@@ -137,3 +137,15 @@ test('REQUIRE_PINNED_IMAGE refuses a tag, accepts a digest', () => {
   assert.ok(!evaluateStartupSafety({ ...base, requirePinnedImage: true, imageRef: digest }).errors.some((e) => /pinned by digest/.test(e)));
   assert.ok(!evaluateStartupSafety({ ...base, imageRef: 'tag-only:1' }).errors.some((e) => /pinned by digest/.test(e)), 'off unless required');
 });
+
+test('invite mode with no usable invite code warns at startup', async () => {
+  const { inviteStartupWarning } = await import('../../server/config/startup-checks.mjs');
+  const now = Date.parse('2026-10-14T00:00:00Z');
+  assert.match(inviteStartupWarning({ mode: 'invite', invites: [], now }), /nobody can register/);
+  const dead = [{ revokedAt: '2026-10-01' }, { expiresAt: '2026-10-13T00:00:00Z' }, { used: 1, maxUses: 1 }];
+  assert.match(inviteStartupWarning({ mode: 'invite', invites: dead, now }), /3 admin invite code\(s\), none active/);
+  assert.equal(inviteStartupWarning({ mode: 'invite', invites: [...dead, { used: 0, maxUses: 5 }], now }), '');
+  assert.equal(inviteStartupWarning({ mode: 'invite', envCode: 'abc', invites: [], now }), '');
+  assert.equal(inviteStartupWarning({ mode: 'open', invites: [], now }), '');
+  assert.match(inviteStartupWarning({ mode: 'invite', invites: null, now }), /could not be read/);
+});

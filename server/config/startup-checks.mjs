@@ -225,3 +225,20 @@ export function evaluateStartupSafety(input) {
   }
   return { errors, warnings };
 }
+
+/**
+ * REGISTRATION_MODE=invite with no usable invite code means nobody can register; say so at startup
+ * instead of letting the first user find out. `invites` = admin-created codes, or null if unreadable.
+ * @param {{ mode: string, envCode?: string, invites: any[] | null, now?: number }} input
+ * @returns {string} warning text, '' when fine
+ */
+export function inviteStartupWarning({ mode, envCode, invites, now = Date.now() }) {
+  if (mode !== 'invite' || String(envCode ?? '').trim()) return '';
+  if (invites === null)
+    return 'REGISTRATION_MODE=invite, no REGISTRATION_INVITE_CODE, and admin invite codes could not be read: registration may be impossible.';
+  const usable = invites.filter(
+    (i) => !i.revokedAt && (!i.expiresAt || Date.parse(i.expiresAt) > now) && (i.maxUses == null || Number(i.used ?? 0) < Number(i.maxUses))
+  );
+  if (usable.length) return '';
+  return `REGISTRATION_MODE=invite but there is no usable invite code (no REGISTRATION_INVITE_CODE; ${invites.length} admin invite code(s), none active): nobody can register. Create one in the admin console or set REGISTRATION_INVITE_CODE.`;
+}

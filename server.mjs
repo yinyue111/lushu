@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { envFlag, envNumber } from './server/config/env.mjs';
-import { evaluateStartupSafety } from './server/config/startup-checks.mjs';
+import { evaluateStartupSafety, inviteStartupWarning } from './server/config/startup-checks.mjs';
 import {
   ADMIN_ENABLED,
   ALLOW_LOCAL_ADMIN_BYPASS,
@@ -40,7 +40,7 @@ import { consumeRateLimit } from './server/http/rate-limit.mjs';
 import { isAdminStaticPath, matchShareLandingPath, sendAdminStatic, sendStatic, serveShareLandingHtml } from './server/http/static.mjs';
 import { handleApi } from './server/routes/index.mjs';
 import { initializeRuntimeStorage, closeRuntimeStorage, usesPostgresStorage, getPostgresStorage } from './server/storage/runtime.mjs';
-import { configureRuntimeConfig, onConfigChange, startConfigSync, stopConfigSync } from './server/config/runtime.mjs';
+import { configureRuntimeConfig, getConfig, onConfigChange, startConfigSync, stopConfigSync } from './server/config/runtime.mjs';
 import { adminStore, CONFIG_NOTIFY_CHANNEL } from './server/admin/store.mjs';
 import { raiseAlert } from './server/ops/alerts.mjs';
 import { startEnrichmentWorker, stopEnrichmentWorker } from './server/enrich/service.mjs';
@@ -97,6 +97,17 @@ installProfileWriteGuard();
 // Runtime config (admin console): DB > env. A DB failure here only warns; the site runs on env defaults.
 configureRuntimeConfig({ store: adminStore, alert: raiseAlert });
 await startConfigSync(usesPostgresStorage() ? { pool: getPostgresStorage().pool, channel: CONFIG_NOTIFY_CHANNEL } : {});
+{
+  const mode = getConfig('registration.mode');
+  const invites =
+    mode === 'invite' && !REGISTRATION_INVITE_CODE
+      ? await adminStore()
+          .listInvites()
+          .catch(() => null)
+      : [];
+  const warning = inviteStartupWarning({ mode, envCode: REGISTRATION_INVITE_CODE, invites });
+  if (warning) console.warn(`[startup] WARNING: ${warning}`);
+}
 // Enrichment can be switched on at runtime: (re)start the worker whenever a new config version lands.
 onConfigChange(() => startEnrichmentWorker());
 startEnrichmentWorker();
