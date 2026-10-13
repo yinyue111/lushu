@@ -21,12 +21,12 @@ cp docs/deploy.env.example app.env && chmod 600 app.env     # 应用设置（见
 # 服务器上不构建镜像，也不用 latest。
 docker compose -f docker-compose.prod.yml pull app
 docker compose -f docker-compose.prod.yml up -d db
-docker compose -f docker-compose.prod.yml run --rm migrate   # owner：建表 → 空数据回填 → 标记就绪 → 建应用角色并授权
+docker compose -f docker-compose.prod.yml run --rm migrate   # owner：建表 → 建应用角色并授权 → 空数据回填 → 标记就绪
 docker compose -f docker-compose.prod.yml up -d app          # 应用用 APP_DB_USER 连库
 curl -fsS http://127.0.0.1:3080/api/ready                     # storage.ready=true 才算好
 ```
 
-`migrate` 依次执行 `postgres-migrate`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本：把 `.env` 里的 `APP_IMAGE` 换成新 digest（旧 digest 记进部署记录，用于回滚）→ `pull app` → **先** `up -d app`（新代码兼容上一版 schema）→ 观察 → `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）。回滚：`APP_IMAGE` 换回旧 digest → `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
+`migrate` 依次执行 `postgres-migrate`、`postgres-app-role`、`postgres-backfill --apply`、`postgres-parity --mark-ready`。全新空库时回填为 0 行，parity 一致后写入就绪标记；不做这一步，`/api/ready` 会一直是 503。升级版本：把 `.env` 里的 `APP_IMAGE` 换成新 digest（旧 digest 记进部署记录，用于回滚）→ `pull app` → **先** `up -d app`（新代码兼容上一版 schema）→ 观察 → `run --rm migrate`（迁移幂等；库已切换就绪时，回填和 parity 会打印 “already cut over; skipping” 并正常退出）。回滚：`APP_IMAGE` 换回旧 digest → `up -d app`。已有 JSONL 数据要迁入时，先把旧数据目录放进 `appdata` 卷，再跑 `migrate`（见 README「存储切换与备份」）。
 
 ## 数据库角色（owner 和应用分开）
 
@@ -38,7 +38,7 @@ curl -fsS http://127.0.0.1:3080/api/ready                     # storage.ready=tr
 | 应用（`APP_DB_USER`，默认 `lushu_app`） | `app` | `DATABASE_URL` | 只有行级 `select/insert/update/delete`；`admin_audit` 只有 `select/insert`；不拥有任何表，所以不能 `TRUNCATE`、不能 `ALTER TABLE … DISABLE TRIGGER`、不能设 `session_replication_role` |
 
 - **密码在哪生成、存在哪**：都在生产机部署目录里用 `openssl rand -hex 32` 生成，只写进部署目录下的 `.env`（`chmod 600`，属主为部署用户，不进仓库、不进 `app.env`、不贴工单）。`app.env` 里没有任何数据库密码，应用容器只拿到应用角色的连接串。密码另存一份到团队的密钥库（由运维决定用哪个）。
-- **角色怎么建**：`scripts/postgres-app-role.mjs`（以 owner 身份连库，读 `APP_DB_USER` / `APP_DB_PASSWORD`）。幂等：角色不存在就建，存在就重设密码和权限。`migrate` 最后一步会自动跑；只建角色不迁移用 `run --rm db-roles`。
+- **角色怎么建**：`scripts/postgres-app-role.mjs`（以 owner 身份连库，读 `APP_DB_USER` / `APP_DB_PASSWORD`）。幂等：角色不存在就建，存在就重设密码和权限。`migrate` 在迁移完成后、回填和校验之前立刻跑；脚本还会设 `ALTER DEFAULT PRIVILEGES`，以后 owner 新建的表和序列创建时就授权给应用角色（`admin_audit` 仍只有 select/insert），没有「新表已建、应用没权限」的窗口；只建角色不迁移用 `run --rm db-roles`。
 - **已有库（现在线上：v11/v12，表都归超级用户 owner）第一次切换**：
   1. 生成 `APP_DB_PASSWORD`，写进 `.env`；把旧 `.env` 里的应用设置挪到 `app.env`，从 `app.env` 删掉 `POSTGRES_PASSWORD`。
   2. `docker compose -f docker-compose.prod.yml run --rm db-roles`（用新镜像，以 owner 建 `lushu_app` 并授权；不动表结构）。

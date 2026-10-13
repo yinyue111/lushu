@@ -27,6 +27,14 @@ export async function ensureAppRole(pool, { role, password }) {
     await client.query(`revoke all on all tables in schema ${POSTGRES_SCHEMA} from ${role}`);
     await client.query(`grant select, insert, update, delete on all tables in schema ${POSTGRES_SCHEMA} to ${role}`);
     await client.query(`grant usage, select on all sequences in schema ${POSTGRES_SCHEMA} to ${role}`);
+    // Tables/sequences the owner creates in later migrations are granted to the app at creation time,
+    // so there is no window where a new table exists but the app gets 42501 on it.
+    await client.query(
+      `alter default privileges for role ${client.escapeIdentifier(owner)} in schema ${POSTGRES_SCHEMA} grant select, insert, update, delete on tables to ${role}`
+    );
+    await client.query(
+      `alter default privileges for role ${client.escapeIdentifier(owner)} in schema ${POSTGRES_SCHEMA} grant usage, select on sequences to ${role}`
+    );
     // Migration bookkeeping is the owner's business.
     await client.query(`revoke insert, update, delete on ${POSTGRES_SCHEMA}.schema_migrations from ${role}`);
     // The audit log is append-only for the app (the triggers also refuse UPDATE/DELETE/TRUNCATE).

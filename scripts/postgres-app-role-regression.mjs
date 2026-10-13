@@ -94,6 +94,26 @@ try {
   await rejects(`delete from trusted_routebook.schema_migrations`, /permission denied/, 'migration bookkeeping');
   assert.equal((await owner.query('select count(*)::int as n from trusted_routebook.admin_audit')).rows[0].n, 3);
 
+  // 3b. A future migration: the owner creates a table (and sequence) after the role exists. Default
+  // privileges grant it to the app immediately, with no re-run of ensureAppRole; the audit table stays
+  // read + insert only.
+  await owner.query('create table trusted_routebook.future_feature (id bigserial primary key, note text)');
+  await app.query(`insert into trusted_routebook.future_feature (note) values ('ok')`);
+  await app.query(`update trusted_routebook.future_feature set note = 'ok2'`);
+  assert.equal((await app.query('select note from trusted_routebook.future_feature')).rows[0].note, 'ok2');
+  await rejects('truncate trusted_routebook.future_feature', /permission denied/, 'no truncate on future tables either');
+  const auditPrivs = (
+    await owner.query(
+      `select ${['select', 'insert', 'update', 'delete', 'truncate'].map((p) => `has_table_privilege($1, 'trusted_routebook.admin_audit', '${p}') as ${p}`).join(', ')}`,
+      [role]
+    )
+  ).rows[0];
+  assert.deepEqual(auditPrivs, { select: true, insert: true, update: false, delete: false, truncate: false });
+  assert.ok(
+    (await owner.query(`select count(*)::int as n from pg_default_acl where defaclrole = (select oid from pg_roles where rolname = current_user)`)).rows[0].n >=
+      2
+  );
+
   // 4. The server runs as the app role (two connections: owner only for migrations).
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
@@ -146,6 +166,7 @@ try {
   await app?.end().catch(() => {});
   await owner?.end().catch(() => {});
   if (created) await admin.query(`drop database if exists ${database} with (force)`).catch((e) => console.error(e.message));
+  await admin.query(`drop owned by ${role}`).catch(() => {});
   await admin.query(`drop role if exists ${role}`).catch((e) => console.error(e.message));
   await admin.end().catch(() => {});
   await rm(dataDir, { recursive: true, force: true });

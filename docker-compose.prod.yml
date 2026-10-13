@@ -55,7 +55,7 @@ services:
     stop_grace_period: 30s
     networks: [backend]
 
-  # One-shot schema migration / first-time readiness, as the owner, then (re)apply the app role grants:
+  # One-shot schema migration as the owner, app role grants right after (before backfill/parity), then readiness:
   # `docker compose -f docker-compose.prod.yml run --rm migrate`
   migrate:
     image: ${APP_IMAGE:?set APP_IMAGE to the CI image pinned by digest (registry/lushu-app@sha256:...)}
@@ -78,9 +78,9 @@ services:
     command:
       - >-
         node scripts/postgres-migrate.mjs &&
+        node scripts/postgres-app-role.mjs &&
         node scripts/postgres-backfill.mjs --data-dir /data --apply &&
-        node scripts/postgres-parity.mjs --data-dir /data --mark-ready &&
-        node scripts/postgres-app-role.mjs
+        node scripts/postgres-parity.mjs --data-dir /data --mark-ready
     networks: [backend]
 
   # Create/update only the app role (no migration): needed once before the first image that uses it.
