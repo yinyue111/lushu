@@ -50,7 +50,9 @@ export function pageSupports(pageText, placeName, patterns) {
 
 const CONDITION_RULES = [
   { kind: 'reservation', label: '需提前预约', re: /(实名预约|提前预约|需预约|须预约|需要预约|预约入园|预约参观|预约游览|预约后)/ },
-  { kind: 'extra-charge', label: '部分区域另收费', re: /(另收费|另行收费|单独收费|另需购票|需另购|另购门票|单独购票|另行购票)/ },
+  { kind: 'extra-charge', label: '部分区域另收费', re: /(另收费|另行收费|单独收费|另需购票|需另购|另购门票|单独购票|另行购票|内[^，,。]{0,6}(场馆|景点)[^，,。]{0,2}收费)/ },
+  { kind: 'special-date', label: '特殊日期票价不同', re: /(特殊日期|节假日|法定假日|节日期间)[^。；]{0,8}\d+\s*元/ },
+  { kind: 'seasonal-hours', label: '冬夏开放时间不同', re: /(夏令时|冬令时|夏季开放|冬季开放)/ },
   { kind: 'seasonal', label: '票价分淡旺季', re: /(淡季|旺季)[^。；]{0,30}\d+\s*元/ }
 ];
 
@@ -58,23 +60,44 @@ const CONDITION_RULES = [
  * 附带条件：只从抓到的页面原文里摘，地点名附近的那一句原话；不推断、不改写。
  * @returns {{ kind: string, label: string, quote: string }[]}
  */
-export function extractConditions(pageText, placeName) {
-  const text = compact(pageText);
+export function extractConditions(pageText, placeName, { pageTitle = '' } = {}) {
   const name = compact(placeName);
   const found = new Map();
   if (!name) return [];
-  // 必须是同一句话里既有地点名又有条件词：窗口取近邻会把别的景点的「需预约」算进来（实测：南京博物院→鸡鸣寺）。
-  const sentences = text.split(/[。；！？!?\n|]/);
-  for (const sentence of sentences) {
-    const quote = sentence.trim();
-    if (!quote.includes(name) || quote.length > 120) continue;
-    // 「与夫子庙独立售票」说的是别的景点，不是这个地方本身的条件。
-    if (new RegExp(`[与和跟同][^，,]{0,2}${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(quote)) continue;
+  // 先按原文的句号、换行、成段空白（块级标签转成的空格、全角空格）切句，再逐句去空白。
+  const sentences = String(pageText ?? '')
+    .replace(/<\/?(p|br|li|div|h\d|tr|td)\b[^>]*>/gi, '\n')
+    .split(/[。；！？!?\n|]|[\s\u3000]{2,}/)
+    .map((x) => compact(x));
+  const comparesOther = new RegExp(`[与和跟同][^，,]{0,2}${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+  // 一般页面：同一句里要有地点名（近邻句常是别的景点）。
+  // 讲这个地方本身的页面（标题里有地点名，如官网、专题页）：地点名所在句之后 3 句以内也算。
+  const aboutThisPlace = compact(pageTitle).includes(name);
+  const allowed = new Set();
+  sentences.forEach((sentence, index) => {
+    if (!sentence.includes(name) || comparesOther.test(sentence)) return;
+    allowed.add(index);
+    if (aboutThisPlace) for (let k = 1; k <= 3 && index + k < sentences.length; k += 1) allowed.add(index + k);
+  });
+  for (const index of [...allowed].sort((x, y) => x - y)) {
+    const quote = sentences[index];
+    if (!quote || quote.length > 120 || comparesOther.test(quote)) continue;
     for (const rule of CONDITION_RULES) {
       if (!found.has(rule.kind) && rule.re.test(quote)) found.set(rule.kind, { kind: rule.kind, label: rule.label, quote });
     }
   }
   return [...found.values()];
+}
+
+/** 官方来源优先抓：政府域名，或标题里有地点名且写着官网 / 官方。 */
+export function isOfficialSource(url, title, placeName) {
+  try {
+    const host = new URL(url).hostname;
+    if (/\.gov\.cn$/.test(host)) return true;
+    return Boolean(placeName) && String(title).includes(placeName) && /官网|官方/.test(String(title));
+  } catch {
+    return false;
+  }
 }
 
 /** 合并各页条件：同一类在几个不同网站原文里出现。 */
@@ -273,7 +296,11 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
       for (const w of webs) {
         // Only URLs the search really returned; the ones the model named for this field first.
         const named = (w.answer?.[`${field}Sources`] ?? []).filter((u) => w.cited.has(u));
-        const urls = [...new Set([...named, ...w.cited.keys()])].filter((u) => {
+        const urls = [...new Set([...named, ...w.cited.keys()])]
+          .map((u, order) => ({ u, order, official: isOfficialSource(u, w.cited.get(u) || '', name) }))
+          .sort((x, y) => Number(y.official) - Number(x.official) || x.order - y.order)
+          .map(({ u }) => u)
+          .filter((u) => {
           try {
             return !isBlockedDomain(new URL(u).hostname);
           } catch {
@@ -289,7 +316,9 @@ export async function enrichRoutebook({ routebook, store, deps = {}, now = () =>
           if (page.ok && pageSupports(page.text, name, patterns)) {
             if (field === 'price' && pageHasSeasonalPrice(page.text, name)) seasonal = true;
             verified.push({ kind: 'web', url, title: page.title || w.cited.get(url) || '', domain });
-            const conditions = extractConditions(page.text, name).filter((c) => field === 'price' || c.kind === 'reservation');
+            const conditions = extractConditions(page.text, name, { pageTitle: page.title || w.cited.get(url) || '' }).filter((c) =>
+              field === 'price' ? c.kind !== 'seasonal-hours' : ['reservation', 'seasonal-hours'].includes(c.kind)
+            );
             if (conditions.length) pageConditions.push({ conditions, url, domain });
           }
         }
