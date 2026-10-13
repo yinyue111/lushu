@@ -392,7 +392,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       <RouteCard
                         key={bookKey}
                         routebook={book}
-                        meta={routebookCardMeta(book, { extra: [book.city || '城市待补充', publishStatusLabel(book.publishStatus), book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段道路待复核` : ''].filter(Boolean).join(' · ') })}
+                        meta={routebookCardMeta(book, { extra: [book.city || '城市待补充', publishStatusLabel(book.publishStatus), book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段路线还没查` : ''].filter(Boolean).join(' · ') })}
                         onOpen={() => onOpenBook(book)}
                         actions={
                           <>
@@ -440,7 +440,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
                       <p className="mt-0.5 text-xs text-muted">
                         {book.city || '城市待补充'} · {publishStatusLabel(book.publishStatus)} · {getRouteTrustBadgeState(book).compactText}
-                        {book.routingWarning?.unverifiedLegs ? ` · ${book.routingWarning.unverifiedLegs} 段道路待复核` : ''}
+                        {book.routingWarning?.unverifiedLegs ? ` · ${book.routingWarning.unverifiedLegs} 段路线还没查` : ''}
                       </p>
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                         <Copy className="size-3" aria-hidden="true" /> 被复制 {book.copyCount ?? 0} 次 ·{' '}

@@ -7,6 +7,7 @@ import { publishStatusLabel } from '../ui/labels';
 import { CITY_SCENE, cityCover, heroImageProps } from '../visual/theme';
 import { SceneBadge, SceneImage } from '../visual/SceneImage';
 import AigcChip from './AigcChip';
+import { aigcMetadata } from '../../lib/aigc.js';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -31,6 +32,9 @@ export default function RouteHero({
   const creatorName = routebook.creator?.name || (isOwner ? '我' : '路书作者');
   const updated = formatShortDate(routebook.updatedAt || routebook.createdAt);
   const version = Number(routebook.version);
+  // 合规：只保留一个显式 AI 标识。AI 生成的路书由 AigcChip 统一标注（覆盖文字与示意配图，
+  // 标签叠在配图上、紧邻标题）；非 AI 内容才单独给示意图打标。见 round2/AI标识合并说明.md。
+  const aiGenerated = aigcMetadata(routebook).generated;
   const TrustIcon = trustState.tone === 'trial' ? TriangleAlert : ShieldCheck;
 
   return (
@@ -50,7 +54,7 @@ export default function RouteHero({
             loading="eager"
             fetchPriority="high"
             className="absolute inset-0 size-full object-cover object-[center_40%]"
-            badge={<SceneBadge className="top-16 right-3 lg:top-auto lg:right-5 lg:bottom-5">城市示意图 · AI 生成</SceneBadge>}
+            badge={aiGenerated ? null : <SceneBadge className="top-16 right-3 lg:top-auto lg:right-5 lg:bottom-5">城市示意图 · AI 生成</SceneBadge>}
           />
           <span className="absolute right-[6%] bottom-6 text-watermark leading-none font-black tracking-tight text-white/10 select-none">{routebook.city}</span>
         </div>
@@ -91,15 +95,17 @@ export default function RouteHero({
             <Chip tone="glass">
               {dayCount} 天 · {stopCount} 站
             </Chip>
-            <Chip tone="glass">
-              <TrustIcon /> {trustState.shortLabel}
-            </Chip>
-            <AigcChip routebook={routebook} />
+            {!(aiGenerated && trustState.tone === 'trial') && (
+              <Chip tone="glass">
+                <TrustIcon /> {trustState.shortLabel}
+              </Chip>
+            )}
+            <AigcChip routebook={routebook} draft={trustState.tone === 'trial'} withImage={!cover} />
             {routebook.routingWarning?.unverifiedLegs > 0 && (
               // Only present on owner/ops reads: a re-check found unverified legs but the
               // routebook stays published (re-checks never unpublish).
               <Chip tone="lemon" title={routebook.routingWarning.message} data-testid="routing-warning-chip">
-                <TriangleAlert aria-hidden="true" /> {routebook.routingWarning.unverifiedLegs} 段道路待复核
+                <TriangleAlert aria-hidden="true" /> {routebook.routingWarning.unverifiedLegs} 段路线还没查
                 <span className="sr-only">：{routebook.routingWarning.message}</span>
               </Chip>
             )}
