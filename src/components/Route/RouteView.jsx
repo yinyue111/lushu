@@ -278,7 +278,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                     : `正在排队核对门票和开放时间（共 ${enrichment.progress.stopsTotal} 站）`
                   : '正在核对门票和开放时间…'}
               </span>
-              <span className="pl-4 text-sky-ink/80">大约几分钟；可以先离开，回来再看。</span>
+              <span className="pl-4 text-sky-ink">大约几分钟；可以先离开，回来再看。</span>
             </p>
           )}
           {dayStops.length ? (
