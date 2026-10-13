@@ -285,13 +285,14 @@ const isLoopbackEntry = (entry) => entry === '::1' || (parseIpv4Range(entry) && 
  * @returns {string[]} errors
  */
 export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedProxyCidrs, networkSubnet, networkGateway, proxyMode, caddyIp }) {
-  if (!isProduction || !trustProxyHeaders) return [];
-  const errors = [];
+  // An unknown PROXY_MODE is a typo whatever else is set (even TRUST_PROXY_HEADERS=false or outside production).
   const mode =
     String(proxyMode ?? '')
       .trim()
       .toLowerCase() || 'host';
   if (mode !== 'host' && mode !== 'container') return [`PROXY_MODE=${JSON.stringify(String(proxyMode))} must be host or container.`];
+  if (!isProduction || !trustProxyHeaders) return [];
+  const errors = [];
   const caddyText = String(caddyIp ?? '').trim();
   const entries = String(trustedProxyCidrs ?? '')
     .split(',')

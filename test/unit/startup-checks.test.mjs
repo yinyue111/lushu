@@ -218,6 +218,10 @@ test('PROXY_MODE=host|container: which hop must (and must not) be trusted', asyn
       trustedProxyCidrs: '172.31.80.10'
     }).some((e) => /requires APP_NETWORK_SUBNET/.test(e))
   );
+  // An unknown mode is refused even when proxy headers are off or outside production.
+  assert.match(trustedProxyErrors({ isProduction: true, trustProxyHeaders: false, proxyMode: 'bogus' })[0], /PROXY_MODE="bogus" must be host or container/);
+  assert.match(trustedProxyErrors({ isProduction: false, trustProxyHeaders: false, proxyMode: 'bogus' })[0], /must be host or container/);
+  assert.deepEqual(trustedProxyErrors({ isProduction: true, trustProxyHeaders: false, proxyMode: 'CONTAINER' }), []);
   // Not production / not behind a proxy: not checked, whatever the mode.
   assert.deepEqual(ctr('', '', { isProduction: false }), []);
   assert.deepEqual(ctr('', '', { trustProxyHeaders: false }), []);
