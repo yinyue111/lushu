@@ -71,16 +71,16 @@ export const poiRoutes = [
       if (!hits.length && canonical) {
         hits.push({ id: 'geo-1', name: q, address: city, lat: canonical.lat, lng: canonical.lng, rank: 0, source: 'geocode' });
       }
-      if (!hits.length) {
-        const base = city === '成都' ? { lat: 30.66, lng: 104.06 } : city === '杭州' ? { lat: 30.25, lng: 120.15 } : { lat: 31.23, lng: 121.47 };
-        hits.push(
-          { id: 'demo-1', name: q, address: `${city}·搜索候选`, lat: base.lat, lng: base.lng, rank: 0, source: 'demo' },
-          { id: 'demo-2', name: `${q}（备选）`, address: `${city}·附近`, lat: base.lat + 0.01, lng: base.lng + 0.01, rank: 1, source: 'demo' }
-        );
-      }
-      return sendJson(res, 200, { ok: true, city, q, pois: hits, provider: 'catalog' });
+      // 没搜到就如实返回空：不再编「搜索候选」和写死的城市中心坐标。
+      return sendJson(res, 200, { ok: true, city, q, pois: hits, provider: 'catalog', ...(hits.length ? {} : { reason: 'no-match' }) });
     }
-    let pois = await searchAmapPoiCandidates(city, q, {}).catch(() => []);
+    let amapFailed = false;
+    let pois = (
+      await searchAmapPoiCandidates(city, q, {}).catch(() => {
+        amapFailed = true;
+        return [];
+      })
+    ).map((poi) => ({ ...poi, source: 'amap' }));
     let provider = 'amap';
     if (!pois.length) {
       const catalog = await listMergedPois();
@@ -100,14 +100,6 @@ export const poiRoutes = [
       if (!pois.length && canonical) {
         pois.push({ id: 'geo-1', name: q, address: city, lat: canonical.lat, lng: canonical.lng, rank: 0, source: 'geocode' });
       }
-      if (!pois.length) {
-        // Deterministic offline demos so replace-stop UI works without live AMap.
-        const base = city === '成都' ? { lat: 30.66, lng: 104.06 } : city === '杭州' ? { lat: 30.25, lng: 120.15 } : { lat: 31.23, lng: 121.47 };
-        pois = [
-          { id: 'demo-1', name: q, address: `${city}·搜索候选`, lat: base.lat, lng: base.lng, rank: 0, source: 'demo' },
-          { id: 'demo-2', name: `${q}（备选）`, address: `${city}·附近`, lat: base.lat + 0.01, lng: base.lng + 0.01, rank: 1, source: 'demo' }
-        ];
-      }
       provider = 'catalog';
     }
     return sendJson(res, 200, {
@@ -115,7 +107,8 @@ export const poiRoutes = [
       city,
       q,
       pois: pois.map((poi) => ({ ...poi, source: poi.source || 'amap' })),
-      provider
+      provider,
+      ...(pois.length ? {} : { reason: amapFailed ? 'search-failed' : 'no-match' })
     });
   }),
   route('GET', '/api/pois/resolve', async ({ req, res, url }) => {

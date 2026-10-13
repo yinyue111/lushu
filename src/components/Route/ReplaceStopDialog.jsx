@@ -38,7 +38,11 @@ export default function ReplaceStopDialog({ stop, city, onSearch, onPick, onClos
               <LoaderCircle className="size-4 animate-spin" /> 搜索中…
             </p>
           )}
-          {!busy && !pois.length && <p className="text-meta text-muted">没搜到。换个词试试，或者关掉后用「编辑信息」手动填。</p>}
+          {!busy && !pois.length && (
+            <p className="text-meta text-muted">
+              {pois.searchFailed ? '地图搜索暂时不可用，' : `在${city}没搜到这个地方。`}换个词试试，或者关掉后用「编辑信息」手动填。
+            </p>
+          )}
           {pois.map((poi) => (
             <button
               key={poi.id || poi.name}
