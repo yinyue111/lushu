@@ -86,7 +86,7 @@ export function RoutePreflight({ routebook }) {
             {Array.isArray(source.platforms) && source.platforms.filter(Boolean).length ? ` 来自：${source.platforms.filter(Boolean).join('、')}。` : ''}
           </CheckTile>
         )}
-        {feedback && (
+        {feedback && (feedback.attestedCheckinCount || feedback.correctionCount || feedback.feedbackCount) > 0 && (
           <CheckTile icon={MessageSquareText} title="走过的人怎么说" chip={`${feedback.attestedCheckinCount || 0} 次打卡`} tone="ok">
             到达率 {feedback.completionRate || 0}% · 踩坑率 {feedback.pitfallRate || 0}% · 纠错 {feedback.correctionCount || 0} 条。
           </CheckTile>

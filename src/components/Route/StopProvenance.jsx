@@ -86,14 +86,14 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
       ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达验证` : trust.label }
       : trust.tone === 'trial'
         ? { tone: 'warn', text: '未实地确认' }
-        : { tone: 'info', text: '还没人打卡' },
+        : null, // 内测期大多是 0：没人打卡就不占一格，评分区已有统一说明。
     approximate && { tone: 'warn', text: '位置待确认' },
     {
-      tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' ? 'ok' : 'neutral',
+      tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' || origin === 'editorial' ? 'ok' : 'neutral',
       text: STOP_ORIGINS[origin].label,
       title: STOP_ORIGINS[origin].detail
     },
-    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '已审核 POI', title: '名称和平台已审核的地点对得上' }
+    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '地点已审核', title: '名称和平台已审核的地点对得上' }
   ].filter(Boolean);
   return (
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>
