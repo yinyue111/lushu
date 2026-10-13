@@ -275,15 +275,14 @@ const isLoopbackEntry = (entry) => entry === '::1' || (parseIpv4Range(entry) && 
  * CIDR or ::1, and — when the compose network is pinned (APP_NETWORK_SUBNET / APP_NETWORK_GATEWAY) —
  * every non-loopback entry inside that subnet and the gateway itself trusted. Otherwise X-Forwarded-For
  * is either trusted from strangers or ignored (every user rate-limited as the gateway).
- * @param {{ isProduction: boolean, trustProxyHeaders: boolean, trustedProxyCidrs?: string, networkSubnet?: string, networkGateway?: string }} input
- * @returns {string[]} errors
- */
-/**
+ *
  * PROXY_MODE says where Caddy runs relative to the app container:
  *   host      (default) Caddy on the host -> 127.0.0.1:3080 -> docker-proxy/NAT: the app sees the
  *             network gateway, so the gateway must be trusted.
  *   container Caddy is a container on the same network with a pinned CADDY_IP: the app sees that IP.
  *             The gateway must NOT be trusted (anything on the host could then forge X-Forwarded-For).
+ * @param {{ isProduction: boolean, trustProxyHeaders: boolean, trustedProxyCidrs?: string, networkSubnet?: string, networkGateway?: string, proxyMode?: string, caddyIp?: string }} input
+ * @returns {string[]} errors
  */
 export function trustedProxyErrors({ isProduction, trustProxyHeaders, trustedProxyCidrs, networkSubnet, networkGateway, proxyMode, caddyIp }) {
   if (!isProduction || !trustProxyHeaders) return [];
