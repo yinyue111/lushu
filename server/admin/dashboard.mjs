@@ -1,10 +1,11 @@
 // Phase-1 dashboard: exactly 3 numbers (PRD P1). Definitions are in docs/admin.md §5.
 import { AI_LOG_PATH } from '../config/index.mjs';
-import { getConfig } from '../config/runtime.mjs';
+import { currentSnapshot, getConfig } from '../config/runtime.mjs';
 import { readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { enrichStore } from '../enrich/store.mjs';
 import { getSavedRoutebook } from '../storage/records.mjs';
 import { stopKeyOf } from '../enrich/engine.mjs';
+import { costCapState } from './costCap.mjs';
 
 const DAY = 86400000;
 const TZ_OFFSET_MS = 8 * 3600000; // "today" = Asia/Shanghai calendar day (UTC+8), same as the team's day
@@ -80,7 +81,8 @@ export function generationCostToday(rows, now = Date.now()) {
     if (!(Date.parse(row.createdAt ?? '') >= today)) continue;
     const cost = rowCost(row);
     if (cost == null) {
-      if (row.status === 'ok' || row.kind === 'admin-test-run') out.unknownCostCount += 1;
+      // Every model call without a price is counted (successful or failed alike: both are billed by token).
+      if (row.status !== 'cancelled' && row.deduplicated !== true) out.unknownCostCount += 1;
       continue;
     }
     if (row.kind === 'admin-test-run') out.testRunUsd += cost;
@@ -101,6 +103,7 @@ export async function dashboard(now = Date.now()) {
   const total = gen.generationUsd + gen.testRunUsd + Number(enrichSpend.usd || 0);
   return {
     generatedAt: new Date(now).toISOString(),
+    warnings: dashboardWarnings(),
     successRate: successRate(rows, now),
     pendingRatio: await pendingRatio(now),
     cost: {
@@ -109,8 +112,28 @@ export async function dashboard(now = Date.now()) {
       enrichDay: enrichSpend.day ?? null,
       enrichBudgetUsd: getConfig('enrich.dailyBudgetUsd'),
       totalUsd: total,
+      // With unpriced calls the total is only a lower bound: 「至少 $X，另有 N 次没有单价」.
+      lowerBound: gen.unknownCostCount > 0,
       dailyLimitUsd: limit || null,
-      ratio: limit ? total / limit : null
+      ratio: limit ? total / limit : null,
+      cap: costCapState({ knownUsd: total, unknownCostCount: gen.unknownCostCount })
     }
   };
+}
+
+/** Things an operator should see first on the overview. */
+export function dashboardWarnings(snapshot = currentSnapshot(), env = process.env) {
+  const warnings = [];
+  const mode = snapshot.values['registration.mode'];
+  const explicitlySet = 'registration.mode' in (snapshot.overrides ?? {}) || String(env.REGISTRATION_MODE ?? '').trim() !== '';
+  if (mode === 'open') {
+    warnings.push({
+      key: 'registration-open',
+      tone: 'error',
+      text: explicitlySet
+        ? '注册当前对所有人开放：任何人都能注册并消耗模型额度。'
+        : '注册当前对所有人开放，这是没有设置时的默认值（REGISTRATION_MODE 未设，后台也没改过）。确认这是有意的；否则到「配置 → 注册」改成邀请制或关闭。'
+    });
+  }
+  return warnings;
 }

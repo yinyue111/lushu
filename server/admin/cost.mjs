@@ -8,3 +8,12 @@ export function modelPricingFor(model) {
   if (!price) return process.env;
   return { AI_COST_CURRENCY: 'USD', AI_INPUT_COST_PER_MILLION_TOKENS: String(price.input), AI_OUTPUT_COST_PER_MILLION_TOKENS: String(price.output) };
 }
+
+const envPriced = () =>
+  Boolean(process.env.AI_COST_CURRENCY) &&
+  [process.env.AI_INPUT_COST_PER_MILLION_TOKENS, process.env.AI_OUTPUT_COST_PER_MILLION_TOKENS].every((v) => v != null && v !== '' && Number.isFinite(Number(v)));
+
+/** True when calls to this model get a cost estimate (admin price or complete env price). */
+export function modelHasPrice(model) {
+  return Boolean(getConfig('model.pricing')?.[String(model ?? '')]) || envPriced();
+}

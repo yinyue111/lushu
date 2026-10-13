@@ -153,13 +153,22 @@ export const RUNTIME_SCHEMA = {
   },
   'cost.dailyLimitUsd': {
     type: 'number',
-    label: '每日成本上限（USD，看板对比用；0 = 未设）',
+    label: '每日成本上限（USD；0 = 未设）',
     group: 'quota',
     role: 'admin',
     min: 0,
     max: 100000,
     env: () => envNumber('COST_DAILY_LIMIT_USD', 0, { min: 0, integer: false }),
     default: 0
+  },
+  'cost.capMode': {
+    type: 'enum',
+    label: '成本上限拦截',
+    group: 'quota',
+    role: 'admin',
+    values: ['auto', 'on', 'off'],
+    env: () => (['auto', 'on', 'off'].includes(String(process.env.COST_CAP_MODE)) ? String(process.env.COST_CAP_MODE) : 'auto'),
+    default: 'auto'
   },
   'enrich.enabled': { type: 'bool', label: '联网补全开关', group: 'enrich', role: 'admin', env: () => ENRICH_ENABLED, default: false },
   'enrich.model': { type: 'string', label: '补全模型', group: 'enrich', role: 'admin', env: () => ENRICH_MODEL, default: 'grok-4.7' },

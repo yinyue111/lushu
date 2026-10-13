@@ -15,6 +15,12 @@ export default function DashboardPage() {
       }
     >
       {error && <Notice tone="error">{error}</Notice>}
+      {(d?.warnings ?? []).map((w) => (
+        <Notice key={w.key} tone={w.tone}>
+          <strong>注意：</strong>
+          {w.text}
+        </Notice>
+      ))}
       {d?.successRate && (
         <div className="grid gap-4 md:grid-cols-3">
           <Card title="生成成功率（今天）">
@@ -28,18 +34,19 @@ export default function DashboardPage() {
           <Card title="待确认占比（近 7 天）">
             <p className="text-3xl font-semibold">{percent(d.pendingRatio.ratio)}</p>
             <p className="mt-1 text-sm text-muted">
-              {d.pendingRatio.pending}/{d.pendingRatio.stops} 个站点 · {d.pendingRatio.routebooks} 本已补全完的路书
+              {d.pendingRatio.pending}/{d.pendingRatio.stops} 个站点 · {d.pendingRatio.routebooks} 本已核对完的路书
             </p>
           </Card>
           <Card title="今日花费（美元）">
-            <p className="text-3xl font-semibold">{usd(d.cost.totalUsd)}</p>
+            <p className="text-3xl font-semibold">{d.cost.lowerBound ? `至少 ${usd(d.cost.totalUsd)}` : usd(d.cost.totalUsd)}</p>
+            {d.cost.lowerBound && <p className="mt-1 text-sm font-semibold text-warn-ink">另有 {d.cost.unknownCostCount} 次没有单价（没算进上面的金额）</p>}
             <p className="mt-1 text-sm text-muted">
               生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网补全 {usd(d.cost.enrichUsd)}
             </p>
             <p className="mt-1 text-sm text-muted">
               {d.cost.dailyLimitUsd ? `日上限 ${usd(d.cost.dailyLimitUsd)}，已用 ${percent(d.cost.ratio)}` : '未设日上限'}
             </p>
-            {d.cost.unknownCostCount > 0 && <p className="mt-1 text-sm text-warn-ink">{d.cost.unknownCostCount} 次调用的模型没填单价，未计入</p>}
+            <p className="mt-1 text-sm text-muted">上限拦截：{d.cost.cap?.reason ?? '—'}</p>
           </Card>
         </div>
       )}

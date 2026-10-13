@@ -42,6 +42,7 @@ async function windowStart(profileId, since) {
   }
 }
 import { createHttpError } from '../lib/util.mjs';
+import { enforceCostCap } from '../admin/costCap.mjs';
 import { readMatchingJsonLines } from '../storage/jsonl.mjs';
 
 const MAX_CACHE_ENTRIES = 200;
@@ -209,6 +210,7 @@ export async function enforceDailyGenerationLimit(options = {}) {
 /** Throws 429 GENERATION_QUOTA_EXCEEDED when the profile used its window quota. */
 export async function enforceGenerationQuota(profileId, options = {}) {
   await enforceDailyGenerationLimit(options.daily);
+  await enforceCostCap();
   const peek = await peekGenerationQuota(profileId, options);
   if (!peek.limited) return peek;
   const message =
