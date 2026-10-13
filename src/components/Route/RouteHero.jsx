@@ -38,12 +38,12 @@ export default function RouteHero({
   const TrustIcon = trustState.tone === 'trial' ? TriangleAlert : ShieldCheck;
 
   return (
-    <section className="relative isolate overflow-hidden text-white">
+    <section className="relative isolate overflow-hidden bg-[#1c2230] text-white">
       {cover ? (
         <img
           {...heroImageProps(cover)}
           alt=""
-          className="absolute inset-0 -z-20 size-full scale-[1.04] object-cover object-[center_62%]"
+          className="absolute inset-0 -z-20 size-full scale-[1.04] bg-[#1c2230] object-cover object-[center_62%]"
           fetchPriority="high"
         />
       ) : (

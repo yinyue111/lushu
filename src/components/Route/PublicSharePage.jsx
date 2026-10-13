@@ -146,7 +146,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
 
   return (
     <div className="page-enter pb-44 lg:pb-16">
-      <section className="relative isolate overflow-hidden text-white">
+      <section className="relative isolate overflow-hidden bg-[#1c2230] text-white">
         <CityBackdrop city={routebook.city} />
         <div
           className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.35)_0%,rgba(10,12,16,.1)_40%,rgba(10,12,16,.82)_100%)]"
