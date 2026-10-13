@@ -88,6 +88,7 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
 
 | 变量 | 本次取值 | 作用 |
 | --- | --- | --- |
+| `REGISTRATION_MODE` | `open` | **生产显式写进 `app.env`**，不依赖代码默认值（模板已写）。本次内测决定开放注册；改 `invite` 前先建好邀请码，否则启动会打 WARNING |
 | `APP_IMAGE` | `ghcr.io/<owner>/lushu-app@sha256:…` | 必填。CI 镜像按 digest 固定；compose 不再 `build`，也不用 `latest`。同时作为 `APP_IMAGE_DIGEST` 传给应用 |
 | `POSTGRES_PASSWORD` | 随机（仅字母数字） | db 初始化密码；compose 用它拼 `DATABASE_URL` |
 | `PROFILE_ID_SECRET` | 随机 ≥32 位 | 用户身份与路书编辑凭证的 HMAC 密钥；生产缺失会拒绝启动；上线后不可更换 |
