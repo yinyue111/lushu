@@ -1,6 +1,7 @@
 // Pure startup safety evaluation so the policy can be unit tested without
 // booting the HTTP server.
 import { existsSync } from 'node:fs';
+import { parseFallbackOrder } from './fallbackOrder.mjs';
 
 /** RFC1918 IPv4 or IPv6 unique-local literal (hostnames never count: DNS could point anywhere). */
 export function isPrivateIpLiteral(host) {
@@ -66,6 +67,9 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   authPhoneHashSecret?: string,
  *   registrationMode?: string,
  *   registrationInviteCode?: string,
+ *   adminEnabled?: boolean,
+ *   configEncKey?: string,
+ *   aiModelFallbackOrder?: string,
  *   authEmailHashSecret?: string,
  *   authEmailEncKey?: string,
  *   emailVerificationRequired?: boolean,
@@ -192,8 +196,24 @@ export function evaluateStartupSafety(input) {
         warnings.push('MAIL_TRANSPORT=file in production writes mails to disk instead of sending them.');
     }
     if (input.isProduction && input.registrationMode === 'invite' && !input.registrationInviteCode) {
-      warnings.push('REGISTRATION_MODE=invite without REGISTRATION_INVITE_CODE or ROUTEBOOK_API_TOKEN: nobody can register.');
+      warnings.push('REGISTRATION_MODE=invite without REGISTRATION_INVITE_CODE: only invite codes created in the admin console work.');
     }
+  }
+  // The admin console stores 2FA secrets and API keys encrypted with CONFIG_ENC_KEY: without it nobody
+  // can create an admin or save a key, so refuse to start instead of failing at the first login.
+  if (input.isProduction && input.adminEnabled) {
+    const key = String(input.configEncKey ?? '').trim();
+    if (!key)
+      errors.push(
+        'ADMIN_ENABLED=true requires CONFIG_ENC_KEY (≥32 random characters; keep it stable, rotating it invalidates every admin 2FA secret and stored key).'
+      );
+    else if (key.length < 32) errors.push('CONFIG_ENC_KEY must be at least 32 characters.');
+  }
+  const fallback = parseFallbackOrder(input.aiModelFallbackOrder);
+  if (fallback.invalid.length) {
+    errors.push(
+      `AI_MODEL_FALLBACK_ORDER has unknown value(s) ${JSON.stringify(fallback.invalid)}: use fast, deep (comma separated), or none to turn fallback off.`
+    );
   }
   return { errors, warnings };
 }

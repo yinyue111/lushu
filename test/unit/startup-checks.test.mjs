@@ -91,3 +91,38 @@ test('production warns (does not refuse) when the model region or moderation pro
   const domestic = evaluateStartupSafety({ ...base, aiProviderRegion: 'domestic', moderationProvider: 'domestic' });
   assert.ok(!domestic.warnings.some((warning) => warning.includes('AI_PROVIDER_REGION') || warning.includes('MODERATION_PROVIDER')));
 });
+
+test('ADMIN_ENABLED in production refuses to start without CONFIG_ENC_KEY', () => {
+  const missing = evaluateStartupSafety({ ...base, adminEnabled: true });
+  assert.ok(missing.errors.some((e) => /ADMIN_ENABLED=true requires CONFIG_ENC_KEY/.test(e)));
+  assert.ok(evaluateStartupSafety({ ...base, adminEnabled: true, configEncKey: 'short' }).errors.some((e) => /at least 32/.test(e)));
+  const ok = evaluateStartupSafety({ ...base, adminEnabled: true, configEncKey: 'k'.repeat(32) });
+  assert.ok(!ok.errors.some((e) => /CONFIG_ENC_KEY/.test(e)));
+  assert.ok(!evaluateStartupSafety({ ...base, adminEnabled: false }).errors.some((e) => /CONFIG_ENC_KEY/.test(e)));
+});
+
+test('AI_MODEL_FALLBACK_ORDER: none is off, typos refuse to start', async () => {
+  const { parseFallbackOrder } = await import('../../server/config/fallbackOrder.mjs');
+  assert.deepEqual(parseFallbackOrder(undefined), { order: ['fast'], invalid: [] });
+  assert.deepEqual(parseFallbackOrder('none'), { order: [], invalid: [] });
+  assert.deepEqual(parseFallbackOrder('NONE'), { order: [], invalid: [] });
+  assert.deepEqual(parseFallbackOrder('fast, deep'), { order: ['fast', 'deep'], invalid: [] });
+  assert.deepEqual(parseFallbackOrder('fats'), { order: [], invalid: ['fats'] });
+  assert.ok(evaluateStartupSafety({ ...base, aiModelFallbackOrder: 'fats' }).errors.some((e) => /AI_MODEL_FALLBACK_ORDER/.test(e)));
+  assert.ok(evaluateStartupSafety({ ...base, isProduction: false, aiModelFallbackOrder: 'fast,x' }).errors.some((e) => /"x"/.test(e)));
+  for (const value of [undefined, '', 'none', 'fast'])
+    assert.ok(!evaluateStartupSafety({ ...base, aiModelFallbackOrder: value }).errors.some((e) => /AI_MODEL_FALLBACK_ORDER/.test(e)), String(value));
+});
+
+test('invite code never falls back to ROUTEBOOK_API_TOKEN', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const out = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', "import('./server/config/index.mjs').then((m) => process.stdout.write(JSON.stringify(m.REGISTRATION_INVITE_CODE)))"],
+    {
+      env: { ...process.env, ROUTEBOOK_API_TOKEN: 'shared-access-code-123', REGISTRATION_INVITE_CODE: '' },
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(out.stdout, '""', out.stderr);
+});

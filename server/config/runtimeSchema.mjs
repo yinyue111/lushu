@@ -1,3 +1,4 @@
+import { parseFallbackOrder } from './fallbackOrder.mjs';
 // Whitelist of runtime-configurable settings (docs/admin.md, build design §1.2).
 // Effective value = parse(DB override) ?? parse(env) ?? safe default. Env values come from
 // server/config/index.mjs, which already parsed/clamped them at startup, so env stays the fallback.
@@ -63,14 +64,8 @@ export const RUNTIME_SCHEMA = {
     role: 'admin',
     items: () => ['fast', 'deep'],
     // Default: 细品 fails → 轻快 (轻快 has nothing to fall back to). AI_MODEL_FALLBACK_ORDER=none turns it off.
-    env: () => {
-      const raw = String(process.env.AI_MODEL_FALLBACK_ORDER ?? '').trim();
-      if (!raw) return ['fast'];
-      return raw
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item === 'fast' || item === 'deep');
-    },
+    // Invalid values are refused at startup (startup-checks); here only the valid part is used.
+    env: () => parseFallbackOrder(process.env.AI_MODEL_FALLBACK_ORDER).order,
     default: ['fast']
   },
   'model.fallbackOnUpstreamError': {

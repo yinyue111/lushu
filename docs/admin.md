@@ -14,7 +14,7 @@
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `ADMIN_ENABLED` | 开发 `true`，生产 `false` | 关时 `/admin/*` 和 `/api/admin/*` 都返回 404。 |
-| `CONFIG_ENC_KEY` | 生产必须手动设置 | 加密后台里保存的密钥（AES-256-GCM）。不设时：可以改普通配置，**不能保存密钥**。换 key 后旧密钥无法解密，需要重新填。开发环境有一个只用于本地的派生值。 |
+| `CONFIG_ENC_KEY` | 生产必须手动设置 | 加密后台里保存的密钥和管理员动态码种子（AES-256-GCM）。生产里 `ADMIN_ENABLED=true` 而没设（或短于 32 位）时**拒绝启动**。生成：`openssl rand -hex 32`，放 `app.env`，另存密钥库。换 key 后旧密钥和所有管理员动态码都无法解密：要换只能计划停机、重新填密钥并让管理员重新绑定。开发环境有一个只用于本地的派生值。 |
 | `ADMIN_CONFIG_POLL_MS` | `5000` | 配置轮询间隔（PostgreSQL 还另有 LISTEN/NOTIFY 即时通知）。 |
 | `APP_COMMIT` / `APP_BUILD_TIME` / `APP_IMAGE_DIGEST` / `APP_DEPLOY_TIME` | `unknown` | 系统信息页、`/api/health`（commit 前 7 位）、配置导出里显示。没注入就显示 `unknown`，不猜。建议 CI 构建镜像时注入。 |
 | `ROUTEBOOK_ADMIN_TOKEN` | — | **只给脚本用**（X-Routebook-Admin-Token）。它打不开 `/api/admin/*`，也**不能改运行时配置**。浏览器里不再保存这个令牌：「旧运维工具」页手动输入，只存在当前页面内存里。 |
@@ -245,6 +245,6 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 2. `playwright` / `axe-core` 是否加进 devDependencies（会改 lockfile）；目前 CI 里单独安装固定版本。
 4. 未设置时注册方式默认 `open` 还是 `invite`。
 5. 模型单价由谁、按什么来源维护（目前全空：花费只显示下限，日上限 `auto` 模式不拦截）。
-8. `CONFIG_ENC_KEY` 的生成、保管和轮换方案（轮换会让现有管理员的动态码失效）；Node 版本是否固定。
+8. `CONFIG_ENC_KEY` 由谁保管（启动检查和生成方式已做，见第 1 节表格）。
 6. 挂路径 `/admin` 还是子域名。
 7. 「旧运维工具」各面板并入新页面的顺序和时间。

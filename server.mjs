@@ -3,6 +3,7 @@ import { createServer as createNetServer } from 'node:net';
 import { envFlag, envNumber } from './server/config/env.mjs';
 import { evaluateStartupSafety } from './server/config/startup-checks.mjs';
 import {
+  ADMIN_ENABLED,
   ALLOW_LOCAL_ADMIN_BYPASS,
   ALLOW_LOCAL_API_BYPASS,
   AUTH_ENABLED,
@@ -64,6 +65,9 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     authPhoneHashSecret: AUTH_PHONE_HASH_SECRET,
     registrationMode: REGISTRATION_MODE,
     registrationInviteCode: REGISTRATION_INVITE_CODE,
+    adminEnabled: ADMIN_ENABLED,
+    configEncKey: String(process.env.CONFIG_ENC_KEY ?? ''),
+    aiModelFallbackOrder: process.env.AI_MODEL_FALLBACK_ORDER,
     authEmailHashSecret: AUTH_EMAIL_HASH_SECRET,
     authEmailEncKey: AUTH_EMAIL_ENC_KEY,
     emailVerificationRequired: EMAIL_VERIFICATION_REQUIRED,
