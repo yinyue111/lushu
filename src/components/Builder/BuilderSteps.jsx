@@ -60,7 +60,7 @@ function StepTitle({ title, sub }) {
 export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity, city, isTrustedCity, cityClosed = false }) {
   return (
     <section>
-      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州已有真人打卡；其他城市也能生成，出发前请多核对地点和营业信息。" />
+      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州的地点资料核对过；其他江浙沪城市是 AI 草稿，出发前要自己确认。" />
       <Field label="目的地城市">
         <input
           id="builder-city"

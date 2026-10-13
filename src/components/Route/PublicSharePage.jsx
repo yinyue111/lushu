@@ -10,6 +10,7 @@ import { CityBackdrop } from '../visual/CityBackdrop';
 import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
 import AigcChip from './AigcChip';
+import { UNVERIFIED_CITY_NOTE, isUnverifiedCity } from './RouteStats';
 
 /** @param {Record<string, any>} props */
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
@@ -171,6 +172,11 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold backdrop-blur">
                 <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
               </span>
+              {isUnverifiedCity(routebook.city) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold backdrop-blur" data-testid="unverified-city" title={UNVERIFIED_CITY_NOTE}>
+                  暂无核实资料 · 地点可能不准
+                </span>
+              )}
             </div>
             <h1
               className={cn(

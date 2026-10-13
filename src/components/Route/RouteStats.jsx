@@ -1,6 +1,10 @@
 import { CircleCheckBig, PenLine, ShieldCheck, ThumbsUp } from 'lucide-react';
-import { PUBLIC_TRUST_SAMPLE_THRESHOLD, formatVerifiedDate } from '../../lib/trust';
+import { formatVerifiedDate } from '../../lib/trust';
 import { cn } from '../ui/cn';
+import { trustedCities } from '../../lib/content';
+
+export const UNVERIFIED_CITY_NOTE = '这座城市暂无核实资料，地点本身也可能不准。';
+export const isUnverifiedCity = (city) => Boolean(city) && !trustedCities.includes(String(city));
 
 /** Trust summary: verified routes get four tiles; trial routes get one calm strip (quieter cognitive load). */
 export default function RouteStats({ routebook, trust, trustState }) {
@@ -29,6 +33,11 @@ export default function RouteStats({ routebook, trust, trustState }) {
             ? '地点、营业时间和路线都还没人实地确认。出发前看一眼标黄的地方；去过的人打卡后，这里会显示评分。'
             : `${trust.sampleProgressText || '多几个人打卡后会显示评分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
         </p>
+        {isUnverifiedCity(routebook.city) && (
+          <p className="mt-1.5 text-meta font-bold text-ink" data-testid="unverified-city">
+            {UNVERIFIED_CITY_NOTE}
+          </p>
+        )}
       </div>
     );
   }

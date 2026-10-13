@@ -19,7 +19,6 @@ export default function EnrichedFacts({ claims, onReport }) {
 
 function EnrichedFact({ claim, onReport }) {
   const [state, setState] = useState('idle');
-  const label = claim.field === 'price' ? '门票' : '开放时间';
   return (
     <li className={claim.field === 'price' ? 'text-sm font-bold text-ink sm:text-copy' : 'text-meta text-ink-2 sm:text-sm'}>
       <details className="group">
