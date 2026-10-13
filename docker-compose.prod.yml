@@ -35,6 +35,8 @@ services:
     environment:
       NODE_ENV: production
       APP_IMAGE_DIGEST: ${APP_IMAGE}
+      # Refuse to start unless APP_IMAGE is pinned by digest (…@sha256:…), not a tag.
+      REQUIRE_PINNED_IMAGE: 'true'
       HOST: 0.0.0.0
       PORT: '3080'
       ROUTEBOOK_DATA_DIR: /data
@@ -68,6 +70,7 @@ services:
       # The migration scripts read DATABASE_URL; here it is the owner connection.
       DATABASE_URL: *owner-url
       APP_DB_USER: ${APP_DB_USER:-lushu_app}
+      APP_IMAGE_DIGEST: ${APP_IMAGE}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
     volumes:
       - appdata:/data
@@ -77,6 +80,7 @@ services:
     entrypoint: ['sh', '-c']
     command:
       - >-
+        case "$$APP_IMAGE_DIGEST" in *@sha256:*) ;; *) echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:...), got $$APP_IMAGE_DIGEST" >&2; exit 1;; esac &&
         node scripts/postgres-migrate.mjs &&
         node scripts/postgres-app-role.mjs &&
         node scripts/postgres-backfill.mjs --data-dir /data --apply &&
@@ -92,7 +96,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    entrypoint: ['node', 'scripts/postgres-app-role.mjs']
+    entrypoint: ['sh', '-c']
+    command:
+      - >-
+        case "$$APP_IMAGE_DIGEST" in *@sha256:*) ;; *) echo "APP_IMAGE must be pinned by digest (registry/lushu-app@sha256:...), got $$APP_IMAGE_DIGEST" >&2; exit 1;; esac &&
+        node scripts/postgres-app-role.mjs
     networks: [backend]
 
 networks:

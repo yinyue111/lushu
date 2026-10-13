@@ -68,6 +68,8 @@ import { refreshPoiCatalog } from './server/poi/catalog.mjs';
     adminEnabled: ADMIN_ENABLED,
     configEncKey: String(process.env.CONFIG_ENC_KEY ?? ''),
     aiModelFallbackOrder: process.env.AI_MODEL_FALLBACK_ORDER,
+    requirePinnedImage: envFlag('REQUIRE_PINNED_IMAGE', false),
+    imageRef: String(process.env.APP_IMAGE_DIGEST ?? '').trim(),
     authEmailHashSecret: AUTH_EMAIL_HASH_SECRET,
     authEmailEncKey: AUTH_EMAIL_ENC_KEY,
     emailVerificationRequired: EMAIL_VERIFICATION_REQUIRED,

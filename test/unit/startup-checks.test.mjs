@@ -126,3 +126,14 @@ test('invite code never falls back to ROUTEBOOK_API_TOKEN', async () => {
   );
   assert.equal(out.stdout, '""', out.stderr);
 });
+
+test('REQUIRE_PINNED_IMAGE refuses a tag, accepts a digest', () => {
+  const digest = `ghcr.io/o/lushu-app@sha256:${'a'.repeat(64)}`;
+  for (const ref of ['ghcr.io/o/lushu-app:05c904f', 'ghcr.io/o/lushu-app:latest', '', 'x@sha256:short'])
+    assert.ok(
+      evaluateStartupSafety({ ...base, requirePinnedImage: true, imageRef: ref }).errors.some((e) => /pinned by digest/.test(e)),
+      ref
+    );
+  assert.ok(!evaluateStartupSafety({ ...base, requirePinnedImage: true, imageRef: digest }).errors.some((e) => /pinned by digest/.test(e)));
+  assert.ok(!evaluateStartupSafety({ ...base, imageRef: 'tag-only:1' }).errors.some((e) => /pinned by digest/.test(e)), 'off unless required');
+});

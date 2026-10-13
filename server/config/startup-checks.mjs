@@ -70,6 +70,9 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   adminEnabled?: boolean,
  *   configEncKey?: string,
  *   aiModelFallbackOrder?: string,
+ *   requirePinnedImage?: boolean,
+ *   imageRef?: string,
+ *   inviteCodeCount?: number,
  *   authEmailHashSecret?: string,
  *   authEmailEncKey?: string,
  *   emailVerificationRequired?: boolean,
@@ -208,6 +211,11 @@ export function evaluateStartupSafety(input) {
         'ADMIN_ENABLED=true requires CONFIG_ENC_KEY (≥32 random characters; keep it stable, rotating it invalidates every admin 2FA secret and stored key).'
       );
     else if (key.length < 32) errors.push('CONFIG_ENC_KEY must be at least 32 characters.');
+  }
+  if (input.requirePinnedImage && !/@sha256:[0-9a-f]{64}$/.test(String(input.imageRef ?? ''))) {
+    errors.push(
+      `REQUIRE_PINNED_IMAGE=true but APP_IMAGE_DIGEST=${JSON.stringify(String(input.imageRef ?? ''))} is not pinned by digest: set APP_IMAGE=registry/lushu-app@sha256:<64 hex>.`
+    );
   }
   const fallback = parseFallbackOrder(input.aiModelFallbackOrder);
   if (fallback.invalid.length) {
