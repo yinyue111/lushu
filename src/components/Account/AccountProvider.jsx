@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getAuthConfig, getMe, logout as logoutRemote, logoutAll as logoutAllRemote } from '../../lib/accountApi';
 import { attachAccountToDevice, claimSummary, detachAccountFromDevice } from '../../lib/account';
 import { getProfile } from '../../lib/profile';
 import { Toast } from '../ui/toast';
-import LoginSheet from './LoginSheet';
+// 登录表单只在打开时才下载：首屏不带它和 drawer 依赖。
+const LoginSheet = lazy(() => import('./LoginSheet'));
 
 const AccountContext = createContext(/** @type {any} */ (null));
 
@@ -155,26 +156,28 @@ export function AccountProvider({ children, onProfileChanged }) {
     <AccountContext.Provider value={value}>
       {children}
       {sheet && (
-        <LoginSheet
-          // The sheet keeps its own view state; remount when it switches to the recovery codes.
-          key={sheet.view === 'codes' ? 'codes' : 'auth'}
-          initialView={sheet.view}
-          reason={sheet.reason}
-          codes={sheet.codes}
-          afterRegister={sheet.afterRegister}
-          registration={config.registration}
-          emailVerificationRequired={config.emailVerificationRequired}
-          onAuthenticated={handleAuthenticated}
-          onCodesConfirmed={finish}
-          onClose={() => {
-            // Closing the recovery codes after sign-up still continues what the user was doing.
-            if (sheet.view === 'codes' && sheet.afterRegister) finish();
-            else {
-              resumeRef.current = null;
-              setSheet(null);
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <LoginSheet
+            // The sheet keeps its own view state; remount when it switches to the recovery codes.
+            key={sheet.view === 'codes' ? 'codes' : 'auth'}
+            initialView={sheet.view}
+            reason={sheet.reason}
+            codes={sheet.codes}
+            afterRegister={sheet.afterRegister}
+            registration={config.registration}
+            emailVerificationRequired={config.emailVerificationRequired}
+            onAuthenticated={handleAuthenticated}
+            onCodesConfirmed={finish}
+            onClose={() => {
+              // Closing the recovery codes after sign-up still continues what the user was doing.
+              if (sheet.view === 'codes' && sheet.afterRegister) finish();
+              else {
+                resumeRef.current = null;
+                setSheet(null);
+              }
+            }}
+          />
+        </Suspense>
       )}
       <Toast message={toast} onDismiss={() => setToast('')} className="bottom-24 md:bottom-8" />
     </AccountContext.Provider>
