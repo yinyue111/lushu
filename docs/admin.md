@@ -200,7 +200,7 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 
 - 单元 / 集成：`npm run test:unit`（含 `admin-runtime-config`、`admin-console`、`admin-static`、`offline-banner`）。
 - PostgreSQL：`test:postgres-schema`、`test:postgres-storage`、`test:postgres-runtime`（新增两进程配置传播：NOTIFY 和仅轮询两条路径）。
-- E2E + 无障碍：`npm run build && npm run test:e2e:admin`。真服务器 + 真浏览器走完登录/绑定/备用码、纠错批量改回、用户、路书下架、配置预览/保存/城市列表 5 秒内生效、邀请码、试跑门槛、审计、系统信息、后台账号、运营只读，每页跑 axe（WCAG 2.1 AA）。需要 `playwright` 和 `axe-core`：目前**不是**仓库依赖，可以 `npm i -D playwright axe-core`，或设 `E2E_TOOLS_DIR` 指向已有的 node_modules。截图写到 `E2E_SCREENSHOT_DIR`（默认 `test-results/admin-e2e`）。
+- E2E + 无障碍：`npm run build && npm run test:e2e:admin`。真服务器 + 真浏览器走完登录/绑定/备用码、纠错批量改回、用户、路书下架、配置预览/保存/城市列表 5 秒内生效、邀请码、试跑门槛、审计、系统信息、后台账号、运营只读，每页跑 axe（WCAG 2.1 AA）。`playwright@1.64.0` 和 `axe-core@4.14.0` 已是 devDependencies（固定版本，lockfile 已更新）；第一次需要 `npx playwright install chromium` 下载浏览器（只在开发机 / CI，镜像里没有）。`E2E_TOOLS_DIR` 仍可指向别处的 node_modules。截图写到 `E2E_SCREENSHOT_DIR`（默认 `test-results/admin-e2e`）。
 - 用户端截图 + axe：`node e2e/user-v4-shots.e2e.mjs`（假上游全部 503）：细品失败页（含「用轻快重试」）和纠错回执，桌面 + 手机；`E2E_FALLBACK_ORDER=none` 时拍未自动切换的版本。
 - 兼容旧库：`npm run test:postgres-v11`（把库回退到 11 后启动新代码，用户端正常、后台 503）。
 - 开发：`npm run dev` 起服务后，`/admin/` 读的是构建好的 `dist-admin/`；要热更新用 `npx vite -c vite.admin.config.js`（端口 5175，代理 `/api`）。
@@ -242,7 +242,7 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 ## 13. 待定事项（需要负责人拍板）
 
 1. Caddy 白名单/Basic Auth、compose 按 digest 引用、`APP_IMAGE_DIGEST` 注入、GHCR 推送权限：需要运维改并定上线日期（Dockerfile 和 CI 工作流已在本地提交）。
-2. `playwright` / `axe-core` 是否加进 devDependencies（会改 lockfile）；目前 CI 里单独安装固定版本。
+2. （已做）`playwright` / `axe-core` 已加进 devDependencies，lockfile 已改；生产镜像用 `npm ci --omit=dev`，不含它们，也不下载浏览器。
 4. 未设置时注册方式默认 `open` 还是 `invite`。
 5. 模型单价由谁、按什么来源维护（目前全空：花费只显示下限，日上限 `auto` 模式不拦截）。
 8. `CONFIG_ENC_KEY` 由谁保管（启动检查和生成方式已做，见第 1 节表格）。
