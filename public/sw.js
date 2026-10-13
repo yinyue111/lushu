@@ -11,7 +11,11 @@ const STATIC_CACHE = `${CACHE_PREFIX}static-${CACHE_VERSION}`;
 // 跨版本保留的缓存，用 stale-while-revalidate 保持新鲜，并按条目数封顶。
 const IMAGE_CACHE = `${CACHE_PREFIX}images-v1`;
 const IMAGE_CACHE_MAX_ENTRIES = 60;
-const CURRENT_CACHES = new Set([SHELL_CACHE, STATIC_CACHE, IMAGE_CACHE]);
+// 生成好的路书数据（行程、地址）：联网时总是走网络并顺手存一份，离线时用存的那份，行中断网也能看。
+// 只存路书本身 / 分享页 / 补全结果三类 GET，其他 API 一律不经过缓存；退出登录时页面会清掉这个缓存。
+const DATA_CACHE = `${CACHE_PREFIX}routebook-data-v1`;
+const DATA_CACHE_MAX_ENTRIES = 40;
+const CURRENT_CACHES = new Set([SHELL_CACHE, STATIC_CACHE, IMAGE_CACHE, DATA_CACHE]);
 const SCOPE_URL = new URL(self.registration.scope);
 const SCOPE_PATH = SCOPE_URL.pathname.endsWith('/') ? SCOPE_URL.pathname : `${SCOPE_URL.pathname}/`;
 const APP_SHELL_URL = new URL('./', SCOPE_URL).href;
@@ -53,7 +57,12 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || isApiRequest(url)) return;
+  if (url.origin !== self.location.origin) return;
+  if (isRoutebookDataRequest(url)) {
+    event.respondWith(routebookDataResponse(request));
+    return;
+  }
+  if (isApiRequest(url)) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(navigationResponse(request));
@@ -77,6 +86,27 @@ async function navigationResponse(request) {
   } catch {
     return (await caches.match(APP_SHELL_URL)) || Response.error();
   }
+}
+
+async function routebookDataResponse(request) {
+  const cache = await caches.open(DATA_CACHE);
+  try {
+    const response = await fetch(request);
+    if (isCacheableResponse(response)) {
+      await cache.put(request, response.clone());
+      await trimCache(cache, DATA_CACHE_MAX_ENTRIES);
+    }
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+function isRoutebookDataRequest(url) {
+  const path = url.pathname.startsWith(SCOPE_PATH) ? `/${url.pathname.slice(SCOPE_PATH.length)}` : url.pathname;
+  return /^\/api\/routebooks\/[^/]+(?:\/enrichment)?$/.test(path) || /^\/api\/share\/[^/]+$/.test(path);
 }
 
 // 内容寻址的构建产物：URL 变了内容才会变，缓存优先永远安全。

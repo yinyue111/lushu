@@ -37,8 +37,9 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
 {
   let version = 1;
   const hashedChunk = assetNames.find((name) => name.endsWith('.js'));
+  let offline = false;
   const network = (url) => {
-    if (url.includes('/offline-image')) throw new TypeError('offline');
+    if (offline || url.includes('/offline-image')) throw new TypeError('offline');
     return new sandbox.MockResponse(`${url}#v${version}`);
   };
   const sandbox = createServiceWorkerSandbox(sw, { network: (url) => network(url) });
@@ -76,11 +77,53 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
   assert.ok(!imageKeys.some((key) => key.url.endsWith('/generated-0.webp')), 'least recently written image is evicted first');
 
   // Offline with no cached copy: network error, not a cached HTML page.
-  const offline = await sandbox.dispatchFetch('/assets/offline-image.webp');
-  assert.equal(offline.response.type, 'error');
+  const offlineImage = await sandbox.dispatchFetch('/assets/offline-image.webp');
+  assert.equal(offlineImage.response.type, 'error');
 
-  // API, cross-origin and non-GET requests are never intercepted.
-  assert.equal((await sandbox.dispatchFetch('/api/routebooks/x')).intercepted, false);
+  // index.html（导航）：联网时每次都走网络，新版本马上生效；只在离线时用上次的副本兜底。
+  version = 3;
+  const nav1 = await sandbox.dispatchFetch('/', { mode: 'navigate' });
+  assert.match(nav1.response.body, /#v3$/);
+  version = 4;
+  const nav2 = await sandbox.dispatchFetch('/', { mode: 'navigate' });
+  assert.match(nav2.response.body, /#v4$/, 'index.html must be network-first so a new release is picked up');
+  offline = true;
+  const navOffline = await sandbox.dispatchFetch('/trip/x', { mode: 'navigate' });
+  assert.match(navOffline.response.body, /#v4$/, 'offline navigation falls back to the last shell');
+  offline = false;
+
+  // 路书数据：网络优先并存一份；离线时返回存的那份（行程和地址离线可看）。
+  version = 5;
+  const book = await sandbox.dispatchFetch('/api/routebooks/rb1');
+  assert.ok(book.intercepted);
+  assert.match(book.response.body, /#v5$/);
+  version = 6;
+  assert.match((await sandbox.dispatchFetch('/api/routebooks/rb1')).response.body, /#v6$/, 'routebook data is network-first');
+  offline = true;
+  assert.match((await sandbox.dispatchFetch('/api/routebooks/rb1')).response.body, /#v6$/, 'offline routebook comes from the data cache');
+  assert.match(
+    (await sandbox.dispatchFetch('/api/share/s1').catch(() => ({ response: { body: 'miss' } }))).response.body,
+    /miss/,
+    'uncached share stays a network error offline'
+  );
+  offline = false;
+  const dataCacheName = [...sandbox.stores.keys()].find((name) => name.includes('routebook-data'));
+  assert.ok(dataCacheName, 'routebook data has its own cache');
+  const dataKeys = (await sandbox.stores.get(dataCacheName).keys()).map((key) => new URL(key.url).pathname);
+  assert.ok(
+    dataKeys.every((path) => /^\/api\/(routebooks\/[^/]+(\/enrichment)?|share\/[^/]+)$/.test(path)),
+    `data cache holds only routebook data: ${dataKeys}`
+  );
+  for (const name of sandbox.stores.keys()) {
+    const keys = (await sandbox.stores.get(name).keys()).map((key) => new URL(key.url).pathname);
+    if (!name.includes('shell')) assert.ok(!keys.includes('/') && !keys.includes('/index.html'), `index.html must not sit in ${name}`);
+  }
+
+  // Other API, cross-origin and non-GET requests are never intercepted.
+  for (const path of ['/api/auth/me', '/api/routebooks', '/api/routebooks/x/versions', '/api/ops/enrichment', '/api/routebooks/x/enrichment/report']) {
+    assert.equal((await sandbox.dispatchFetch(path)).intercepted, false, `${path} must not be cached`);
+  }
+  assert.equal((await sandbox.dispatchFetch('/api/routebooks/x', { method: 'POST' })).intercepted, false);
   assert.equal((await sandbox.dispatchFetch('https://tiles.example.com/1/2/3.png')).intercepted, false);
   assert.equal((await sandbox.dispatchFetch('/assets/scene-cat-temple.webp', { method: 'POST' })).intercepted, false);
 
@@ -91,4 +134,6 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
   assert.ok(sandbox.stores.has(imageCacheName), 'image cache survives activation');
 }
 
-console.log(`PWA 构建回归通过：已预缓存 ${assetNames.length} 个 hashed JS/CSS 产物；缓存策略行为（hash 产物缓存优先、public 图片 SWR+上限、API 不拦截）通过`);
+console.log(
+  `PWA 构建回归通过：已预缓存 ${assetNames.length} 个 hashed JS/CSS 产物；缓存策略行为（hash 产物缓存优先、public 图片 SWR+上限、路书数据网络优先+离线兜底、index.html 网络优先、其他 API 不拦截）通过`
+);

@@ -71,8 +71,24 @@ export async function resetPassword({ identifier, recoveryCode, password }, sign
 export const sendChangeEmailCode = (email, password, signal) => postJson('/auth/email/code', { email, password }, signal);
 export const confirmChangeEmail = (email, emailCode, signal) => postJson('/auth/email', { email, emailCode }, signal);
 
-export const logout = (signal) => postJson('/auth/logout', {}, signal);
-export const logoutAll = (signal) => postJson('/auth/logout-all', {}, signal);
+/** 退出登录时清掉离线缓存的路书数据，免得共用设备上的下一个人看到。 */
+export async function clearOfflineRoutebookData() {
+  try {
+    await globalThis.caches?.delete('trusted-routebook-pwa-routebook-data-v1');
+  } catch {
+    // caches unavailable (old browser / private mode)
+  }
+}
+export const logout = async (signal) => {
+  const result = await postJson('/auth/logout', {}, signal);
+  await clearOfflineRoutebookData();
+  return result;
+};
+export const logoutAll = async (signal) => {
+  const result = await postJson('/auth/logout-all', {}, signal);
+  await clearOfflineRoutebookData();
+  return result;
+};
 export const changePassword = (currentPassword, password, signal) => postJson('/auth/password', { currentPassword, password }, signal);
 export const regenerateRecoveryCodes = (password, signal) => postJson('/auth/recovery-codes', { password }, signal);
 export const claimDeviceData = (body, signal) => postJson('/auth/claim', body, signal);
