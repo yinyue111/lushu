@@ -99,7 +99,9 @@ export function replaceStopWithPoi(stops, stopId, poi, { city } = {}) {
     stay: prev.stay,
     ...(prev.transportMode ? { transportMode: prev.transportMode } : {}),
     name,
-    area: String(poi.address || city || '').trim(),
+    // 区域只取到区县（地址全文放进 address），日标题才不会变成「某某街 152 号」。
+    area: String(poi.address || '').match(/^[^\d]{1,6}?[区县市]/)?.[0] || String(city || '').trim(),
+    ...(poi.address ? { address: String(poi.address).trim() } : {}),
     lat: precise ? lat : Number.isFinite(Number(prev.lat)) ? Number(prev.lat) : 0,
     lng: precise ? lng : Number.isFinite(Number(prev.lng)) ? Number(prev.lng) : 0,
     geoConfidence: precise ? 70 : 20,
