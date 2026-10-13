@@ -90,6 +90,17 @@ Caddy 默认会追加 `X-Forwarded-For`。生成任务走异步长轮询（单�
    ```
    `Peer Address` 一列应该是：host 模式 = `APP_NETWORK_GATEWAY`，container 模式 = `CADDY_IP`。不一致就**回滚**并改配置，不要上线：否则按 IP 的限流会把所有用户算成一个人（或者信任了不该信的地址）。也可以用两台不同出口的客户端各打一次公开接口超过限流，确认互不影响。
 
+### 运行时检测（启动检查发现不了的情况）
+
+启动检查只能对照配置；「Caddy 其实在容器里、却按 host 模式部署（没用 override）」这种情况配置本身是自洽的，只有看真实请求才知道。所以应用在运行时还会数：**带 `X-Forwarded-For` 或 `X-Forwarded-Proto`、但 TCP 对端不在 `TRUSTED_PROXY_CIDRS` 里**的请求（只在 `TRUST_PROXY_HEADERS=true` 时数）。
+
+- 正确配置下这个数恒为 0：Caddy 的地址是受信任的，客户端也碰不到应用端口。
+- 第一次出现时打一条日志 `[proxy] WARNING: request with forwarded headers from untrusted peer <对端地址> …`（只有对端地址，不记客户端 IP 和其他信息），之后每 10 分钟最多一条。
+- 滚动 10 分钟内达到 `PROXY_MISCONFIG_THRESHOLD`（默认 `20`）：后台「概览」顶部出现红框「代理配置疑似有误，所有用户可能共用限流额度，请联系 SRE」（小字写对端地址和次数），`/api/admin/dashboard` 的 `proxyMisconfig.tripped=true`；配置了 `ALERT_WEBHOOK_URL` 时发告警 `proxy-misconfig`，情况持续时**每小时最多一次**。
+- 窗口长度 `PROXY_MISCONFIG_WINDOW_MS`（默认 `600000`，最小 1 分钟）。
+- **只按进程计数，不跨进程汇总**：生产每个部署只跑一个 app 容器（一个 Node 进程），所以等于全站数。重启后清零；如果以后跑多个实例，每个实例各自判断（任何一个超阈值就会告警），概览只显示处理这次请求的那个实例的数字。
+- 看到这个提示：按上面「第一次切换前 SRE 必须确认」第 3 步查对端地址，把 Caddy 的真实地址配进去（容器 Caddy 用 `docker-compose.caddy.yml` + `PROXY_MODE=container`）。注意能直连应用端口、自己带 `X-Forwarded-For` 的进程也会触发它；正常部署里应用端口只对 Caddy 开放，所以这本身也说明端口暴露有问题。
+
 ## 反代与 TRUST_PROXY
 
 **需要。** 不开时，所有请求的来源都是反代那一跳，按 IP 的限流会把全体用户算成同一个人。
@@ -275,6 +286,7 @@ compose 已在文件里固定：`NODE_ENV=production`、`HOST=0.0.0.0`（容器�
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
+| `ALERT_WEBHOOK_URL` | 空 | 配了就在全站日生成上限触发、联网补全日预算用完、前端错误激增、代理配置疑似有误（`proxy-misconfig`，见「运行时检测」）时 POST 一条 JSON（`{type,message,at,service}`），同类每小时最多一次；没配只写日志 |
 | `ENRICH_BUDGET_ALERT_RATIO` | `0.8` | 联网补全当日花费到预算的这个比例时告警一次（每份路书实测约 $0.5） |
 | `ALERT_CLIENT_ERRORS_PER_HOUR` | `30` | 前端错误激增的阈值（每进程近 1 小时条数） |
+| `PROXY_MISCONFIG_THRESHOLD` / `PROXY_MISCONFIG_WINDOW_MS` | `20` / `600000` | 带转发头但对端不受信任的请求，滚动窗口内达到这个数就在概览标红并告警（每进程计数） |
