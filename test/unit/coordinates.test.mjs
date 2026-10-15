@@ -69,6 +69,6 @@ test('distanceKm / navigability / labels', () => {
   assert.equal(coordinateReviewLabel(a), '可导航');
   assert.equal(coordinateReviewLabel({ lat: 30, lng: 120, geoConfidence: 10 }), '定位待复核');
   assert.equal(coordinateReviewLabel({}), '缺少坐标');
-  assert.match(routeLegLabel(a, b), /^直线估算：步行 \d+ 分钟 · \d+m$/);
+  assert.match(routeLegLabel(a, b), /^步行约 \d+ 分钟 · 约 [\d.]+ km（直线距离，未查实际路线）$/);
   assert.equal(routeLegLabel(a, {}), '转场待校验');
 });

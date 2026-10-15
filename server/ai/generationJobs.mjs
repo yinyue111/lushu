@@ -32,7 +32,7 @@ import { GENERATION_DEDUP_TTL_MS, GENERATION_JOB_RETENTION_MS, GENERATION_MAX_AC
 export const GENERATION_STAGES = Object.freeze([
   { key: 'parse', label: '解析攻略' },
   { key: 'match', label: '匹配地点' },
-  { key: 'model', label: '模型生成' },
+  { key: 'model', label: '排路线' },
   { key: 'geocode', label: '地点定位' },
   { key: 'route', label: '查路线' },
   { key: 'save', label: '保存路书' }
