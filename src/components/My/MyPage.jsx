@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Share2, Ticket, Trash2, UserRound } from 'lucide-react';
+import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
 import { LOCAL_ROUTEBOOKS_CHANGED_EVENT } from '../../lib/routebookTombstones';
 import { deleteFavorite, deleteRoutebookRemote, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
@@ -16,7 +16,6 @@ import { Button } from '../ui/button';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { RouteCard } from '../cards/RouteCard';
 import { routebookCardMeta } from '../../lib/routebookCardMeta';
-import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { MyAccountPanel } from './MyAccountPanel';
 
@@ -642,19 +641,6 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 }
 
 /** @param {Record<string, any>} props */
-function Stat({ icon: Icon, tone = 'bg-canvas text-ink-2', label, value, className }) {
-  return (
-    <div className={cn('flex items-center gap-3 rounded-card border border-line bg-white px-3 py-2.5 sm:p-4', className)}>
-      <span className={cn('grid size-10 shrink-0 place-items-center rounded-full max-sm:hidden', tone)}>
-        <Icon className="size-5" aria-hidden="true" />
-      </span>
-      <div>
-        <p className="text-meta font-semibold text-muted">{label}</p>
-        <p className="num text-title-sm leading-tight font-extrabold">{value}</p>
-      </div>
-    </div>
-  );
-}
 
 /** @param {Record<string, any>} props */
 function SidePanel({ title, count, children }) {

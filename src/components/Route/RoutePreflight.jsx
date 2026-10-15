@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
-import { cn } from '../ui/cn';
 import { predictionAverage, productLinkLabel } from './routebookModel';
 import { useVisibleOnce } from '../../lib/useVisibleOnce';
 import { useMediaQuery } from '../ui/useMediaQuery';

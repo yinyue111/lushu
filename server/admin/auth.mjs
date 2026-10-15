@@ -115,6 +115,14 @@ async function recordFailure(admin) {
       : { failedAttempts: attempts };
   await adminStore().updateAdmin(admin.id, patch);
 }
+async function remainingLoginAttempts(adminId) {
+  const fresh = await adminStore().getAdmin(adminId);
+  if (!fresh) return null;
+  if (fresh.lockedUntil && Date.parse(fresh.lockedUntil) > Date.now()) return 0;
+  const lockAt = getConfig('admin.lockoutAttempts');
+  return Math.max(0, lockAt - (fresh.failedAttempts ?? 0));
+}
+
 const LOGIN_FAILED = (remainingAttempts = null) => {
   const base = '用户名、密码或动态码不对';
   const message = Number.isFinite(remainingAttempts) ? `${base}。还能再试 ${remainingAttempts} 次。` : base;

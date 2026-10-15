@@ -37,7 +37,6 @@ export function GenerationProgress({
     const stage = job?.stages?.find((item) => item.key === key) ?? { key, status: 'pending' };
     return { ...stage, label: GENERATION_STAGE_LABELS[key] };
   });
-  const activeStage = stages.find((stage) => stage.status === 'running');
   const eta = generationEtaText(job, elapsedMs);
   const completedCount = stages.filter((stage) => stage.status === 'completed').length;
   const headingRef = useRef(null);
