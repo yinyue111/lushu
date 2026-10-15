@@ -16,8 +16,12 @@ export function getRouteTrustPresentation(routebook) {
     displayScore >= 0 &&
     displayScore <= 100;
   const metaLabel = typeof meta.label === 'string' && meta.label.trim() ? meta.label.trim() : '';
-  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '资料核验 · 待真实验证';
-  const sampleProgressText = verified ? '' : `已收集 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`;
+  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '资料核对';
+  const sampleProgressText = verified
+    ? ''
+    : sampleCount > 0
+      ? `已有 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`
+      : `还没人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`;
 
   return {
     verified,

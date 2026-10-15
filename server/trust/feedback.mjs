@@ -440,7 +440,9 @@ function trustProgressLabel(feedbackSummary) {
     return attested ? '真实打卡验证可信分' : '独立身份打卡验证可信分';
   }
   const samples = clampNumber(feedbackSummary.verifiedProfileCount, 0, 1000000, 0);
-  return samples ? `资料核验 · 已收集 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证` : '资料核验 · 待首份真实打卡';
+  return samples
+    ? `资料核对 · 已有 ${samples}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`
+    : `还没人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`;
 }
 
 function blendRouteTrustScore(evidenceScore, feedbackScore, sampleCount) {

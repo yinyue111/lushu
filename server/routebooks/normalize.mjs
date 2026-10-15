@@ -84,7 +84,7 @@ export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = [
   const budgetSummary = sumStopCosts(stops);
   const calculated = [
     ...routeExecutionMetricRows(summarizeRouteExecution(stops, routeLegs)),
-    { label: '资料核验分', value: stopCount ? `${evidence.score}` : '—' },
+    { label: '资料核对分', value: stopCount ? `${evidence.score}` : '—' },
     { label: '定位待复核', value: lowGeoCount ? `${lowGeoCount} 处` : '0 处' },
     { label: '预算估算', value: formatBudgetSummary(budgetSummary) },
     { label: '编辑校验', value: '已重算' }
@@ -100,7 +100,7 @@ const SYSTEM_METRIC_LABELS = new Set([
   '路线已查',
   '道路距离',
   '道路耗时',
-  '资料核验分',
+  '资料核对分',
   '定位待复核',
   '预算估算',
   '编辑校验',

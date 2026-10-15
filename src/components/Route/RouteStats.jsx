@@ -53,7 +53,7 @@ export default function RouteStats({ routebook, trust, trustState }) {
           <i className="block h-full bg-primary" style={{ width: `${feedbackWeight}%` }} />
         </div>
         <small className="mt-1 block text-meta text-muted">
-          资料核验 {aiWeight}% + 真实打卡 {feedbackWeight}%
+          资料核对 {aiWeight}% + 真实打卡 {feedbackWeight}%
         </small>
       </Tile>
       <Tile className="text-success-ink" icon={CircleCheckBig}>

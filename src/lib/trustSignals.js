@@ -21,8 +21,8 @@ export const VERIFIED_FACT_POINTS = Object.freeze({ one: 10, twoOrMore: 20 });
 export const STOP_EVIDENCE_MAX = 100;
 
 export const TRUST_SCORE_EXPLANATION =
-  '资料核验分按站点平均：站点来源最多 40 分（来自你的攻略 20、导入来源 15、手动添加 10、AI 补充 0，命中运营已审核 POI 再加 20），' +
-  '坐标核验最多 40 分（已审核 POI 或地图服务精确定位 40、近似坐标 10），有证据且在有效期内的已审核事实最多 20 分。' +
+  '资料核对分按站点平均：站点来源最多 40 分（来自你的攻略 20、导入来源 15、手动添加 10、AI 补充 0，命中运营已核对 POI 再加 20），' +
+  '坐标核对最多 40 分（已核对 POI 或地图服务精确定位 40、近似坐标 10），有证据且在有效期内的已核对事实最多 20 分。' +
   '模型对自己的打分不计入。有真实 GPS 到达打卡后，真实打卡的权重逐步提高（最多 75%）。';
 
 const VERIFIED_COORDINATE_SOURCES = new Set(['known-poi', 'amap-poi', 'amap-geocode', 'ops-poi']);

@@ -84,7 +84,7 @@ export function publicRoutebookView(routebook) {
     metrics: Array.isArray(routebook.metrics)
       ? routebook.metrics.slice(0, 10).map((item) => ({
           label: truncateString(item?.label, 60),
-          value: !routeTrustVisible && ['站点均分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
+          value: !routeTrustVisible && ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
         }))
       : [],
     feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
@@ -221,7 +221,7 @@ function publicRouteVariant(variant = {}) {
     metrics: Array.isArray(variant.metrics)
       ? variant.metrics.slice(0, 10).map((item) => ({
           label: truncateString(item?.label, 60),
-          value: ['站点均分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
+          value: ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
         }))
       : [],
     validations: Array.isArray(variant.validations)

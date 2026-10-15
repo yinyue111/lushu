@@ -26,8 +26,8 @@ export function StopProvenanceChips({ stop, size = 'sm', className }) {
         <Icon aria-hidden="true" /> {STOP_ORIGINS[origin].label}
       </Chip>
       {reviewed && (
-        <Chip size={size} tone="ok" className={className} title="名称和平台已审核的地点对得上">
-          <BadgeCheck aria-hidden="true" /> 已审核 POI
+        <Chip size={size} tone="ok" className={className} title="名称和平台已核对的地点对得上">
+          <BadgeCheck aria-hidden="true" /> 地点已核对
         </Chip>
       )}
     </>
@@ -45,12 +45,12 @@ export function StopProvenanceDetail({ stop }) {
   const matched = String(stop?.provenance?.matchedText ?? '');
   const rows = [
     ['来源', `${STOP_ORIGINS[origin].label}${matched && origin !== 'model' ? `（匹配到“${matched}”）` : ''}。${STOP_ORIGINS[origin].detail}`],
-    ['POI 目录', stop?.provenance?.reviewedPoi ? '和平台已审核的地点对得上。' : '平台已审核的地点里没有它。'],
+    ['POI 目录', stop?.provenance?.reviewedPoi ? '和平台已核对的地点对得上。' : '平台已核对的地点里没有它。'],
     [
       '坐标',
-      coordinate === 'verified' ? '位置来自平台审核或地图精确定位。' : coordinate === 'approximate' ? '位置是估的，还没用地图精确定位。' : '没有可用坐标。'
+      coordinate === 'verified' ? '位置来自平台核对或地图精确定位。' : coordinate === 'approximate' ? '位置是估的，还没用地图精确定位。' : '没有可用坐标。'
     ],
-    ['已核验事实', facts ? `${facts} 条有证据且在有效期内。` : '还没有带证据、仍在有效期内的信息。']
+    ['已核对事实', facts ? `${facts} 条有证据且在有效期内。` : '还没有带证据、仍在有效期内的信息。']
   ];
   return (
     <section aria-labelledby="stop-provenance-title" className="mt-4 rounded-tile bg-canvas p-4">
@@ -81,19 +81,21 @@ const DOT = { ok: 'bg-success', warn: 'bg-warn', info: 'bg-info', neutral: 'bg-l
  */
 export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = false, className }) {
   const origin = normalizeStopOrigin(stop?.provenance?.origin);
+  const placeOk = stop?.provenance?.reviewedPoi === true && !approximate;
   const items = [
     trust.tone === 'verified'
       ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达验证` : trust.label }
       : trust.tone === 'trial'
         ? { tone: 'warn', text: '未实地确认' }
         : null, // 内测期大多是 0：没人打卡就不占一格，评分区已有统一说明。
-    approximate && { tone: 'warn', text: '位置待确认' },
+    placeOk
+      ? { tone: 'ok', text: '地点已核对', title: '名称和平台已核对的地点对得上' }
+      : { tone: 'warn', text: '位置待确认', title: approximate ? '位置还没精确定位' : '还没和平台地点核对上' },
     {
       tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' || origin === 'editorial' ? 'ok' : 'neutral',
       text: STOP_ORIGINS[origin].label,
       title: STOP_ORIGINS[origin].detail
-    },
-    stop?.provenance?.reviewedPoi === true && { tone: 'ok', text: '地点已审核', title: '名称和平台已审核的地点对得上' }
+    }
   ].filter(Boolean);
   return (
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>

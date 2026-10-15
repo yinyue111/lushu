@@ -117,7 +117,7 @@ export function useRoutebookActions({
         predictionScore: calculateLocalTrustScore(normalizedStops),
         displayScore: null,
         source: 'prediction',
-        label: '资料核验 · 待真实验证',
+        label: '资料核对',
         sampleCount: base.trustMeta?.sampleCount ?? 0,
         aiWeight: 1,
         feedbackWeight: 0

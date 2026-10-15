@@ -90,9 +90,9 @@ test('model-written validations, metrics and logs are not kept', () => {
   assert.deepEqual(
     systemMetrics([
       { label: '站点均分', value: '88' },
-      { label: '资料核验分', value: '40' }
+      { label: '资料核对分', value: '40' }
     ]).map((item) => item.label),
-    ['资料核验分']
+    ['资料核对分']
   );
 
   const base = { city: '杭州', stops: [stop('法喜寺'), stop('茅家埠')] };
@@ -120,7 +120,7 @@ test('old routebooks still normalize; stops get provenance and structured cost',
   assert.ok(!('score' in legacy.stops[0]));
   assert.ok(!legacy.validations.some((item) => item.id === 'walk'));
   assert.ok(!legacy.metrics.some((item) => item.label === '站点均分'));
-  assert.ok(legacy.metrics.some((item) => item.label === '资料核验分'));
+  assert.ok(legacy.metrics.some((item) => item.label === '资料核对分'));
 });
 
 test('signed imported sources upgrade a stop on save', () => {

@@ -97,7 +97,7 @@ export function RoutePreflight({ routebook }) {
             <h3 id="ai-notes-title" className="flex items-center gap-2 text-base font-extrabold">
               <Sparkles className="size-[18px]" aria-hidden="true" /> AI 提示
               <Chip size="sm" tone="warn" className="h-6 text-meta">
-                未核验
+                未核对
               </Chip>
             </h3>
             <p className="mt-0.5 text-meta text-muted">生成路线时写下的提醒，系统没有核对过，仅供参考。</p>
@@ -261,7 +261,7 @@ export function RouteProducts({ products, onClick, onVisible = undefined }) {
   return (
     <section aria-labelledby="products-title">
       <h2 id="products-title" className="mt-7 mb-3 text-xl font-extrabold tracking-tight lg:mt-8 lg:text-2xl">
-        顺路搜索入口（未核验）
+        顺路搜索入口（未核对）
       </h2>
       <div className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:px-0">
         {products.map((item, index) => (

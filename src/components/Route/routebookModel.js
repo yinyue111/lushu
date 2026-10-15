@@ -243,7 +243,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
     tone: 'prediction',
     badgeClass: 'badge-blue',
     label: trust.label,
-    shortLabel: '资料核验',
+    shortLabel: '资料核对',
     value: '待验证',
     note: `已有 ${Math.min(trust.sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 个人有效打卡，够数后再打分。`
   };
@@ -311,7 +311,7 @@ export function buildEditedMetrics(stops, existingMetrics = []) {
     { label: '路线已查', value: '改动的路段还没重新查' },
     { label: '道路距离', value: '路线还没查' },
     { label: '道路耗时', value: '路线还没查' },
-    { label: '资料核验分', value: evidence.score == null ? '—' : `${evidence.score}` },
+    { label: '资料核对分', value: evidence.score == null ? '—' : `${evidence.score}` },
     { label: '定位待复核', value: lowGeo ? `${lowGeo} 处` : '0 处' },
     { label: '预算估算', value: budgetText }
   ];

@@ -44,10 +44,17 @@ test('route trust is verified only with verified-feedback, enough samples and a 
 });
 
 test('unverified routes show sample progress capped at the threshold', () => {
-  assert.equal(getRouteTrustPresentation({ trustMeta: { sampleCount: 1 } }).sampleProgressText, `已收集 1/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`);
+  assert.equal(
+    getRouteTrustPresentation({ trustMeta: { sampleCount: 0 } }).sampleProgressText,
+    `还没人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`
+  );
+  assert.equal(
+    getRouteTrustPresentation({ trustMeta: { sampleCount: 1 } }).sampleProgressText,
+    `已有 1/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`
+  );
   assert.equal(
     getRouteTrustPresentation({ trustMeta: { sampleCount: 99, source: 'x' } }).sampleProgressText,
-    `已收集 ${PUBLIC_TRUST_SAMPLE_THRESHOLD}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 份真实验证`
+    `已有 ${PUBLIC_TRUST_SAMPLE_THRESHOLD}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人打卡（满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人才评分）`
   );
   assert.equal(getRouteTrustPresentation({ feedbackSummary: { validArrivalCount: 2 } }).sampleCount, 2);
   assert.equal(getRouteTrustPresentation(null).sampleCount, 0);

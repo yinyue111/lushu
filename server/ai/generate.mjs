@@ -450,7 +450,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
     copyCount: 0,
     city: payload.city,
     title: String(routebook.title ?? `${payload.city ?? '杭州'} 可信路书`).slice(0, 42),
-    summary: String(routebook.summary ?? '已生成可执行路线，并标记需要真实打卡校准的风险。').slice(0, 140),
+    summary: String(routebook.summary ?? '路线排好了。标了「待确认」的，出发前看一眼。').slice(0, 140),
     trustScore: calculateRouteTrustScore(stops),
     days,
     stops,
@@ -1116,7 +1116,7 @@ async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, 
   onStage({
     stage: 'match',
     state: 'completed',
-    detail: poiCandidateCount ? `匹配到 ${poiCandidateCount} 个已审核地点` : `${payload.city || '该城市'}暂无已审核地点库，按攻略原文定位`
+    detail: poiCandidateCount ? `匹配到 ${poiCandidateCount} 个已核对地点` : `${payload.city || '该城市'}的地点还在整理，先按你的攻略定位`
   });
 
   const attempts = [];
