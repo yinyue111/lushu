@@ -313,9 +313,6 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             <p className="mt-3 text-copy text-white/85">{story.summary}</p>
             <ul className="mt-4 flex flex-col gap-2 text-sm text-white/90">
               <li className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-lemon" /> 真人打卡够了才显示可信分
-              </li>
-              <li className="flex items-center gap-2">
                 <Compass className="size-4 text-lemon" /> 首批可信城市：上海 · 杭州 · 苏州
               </li>
             </ul>
@@ -351,20 +348,10 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
           </div>
         </section>
 
-        {/* My routebooks */}
+        {/* My routebooks — hide empty state on home (U12) */}
+        {books.length > 0 && (
         <section className="mt-10 lg:mt-14" aria-labelledby="home-my-title">
           <SectionHeading id="home-my-title" kicker="我的路书" title="接着改，或者直接出发" />
-          {books.length === 0 ? (
-            <div className="flex flex-col items-start gap-3 rounded-panel bg-canvas p-6 sm:flex-row sm:items-center">
-              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white text-primary-strong shadow-card">
-                <Route className="size-6" />
-              </span>
-              <div className="flex-1">
-                <h3 className="text-copy font-extrabold">还没有保存的路书</h3>
-                <p className="mt-0.5 text-meta leading-snug text-muted">在页面顶部粘贴攻略，或在精选路线上点「改成适合我的」。</p>
-              </div>
-            </div>
-          ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book, idx) => (
                 <RouteCard
@@ -376,8 +363,8 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 />
               ))}
             </div>
-          )}
         </section>
+        )}
       </div>
     </div>
   );

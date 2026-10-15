@@ -429,7 +429,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
               <Empty
                 icon={Route}
                 art
-                text="还没有路书。粘贴一条攻略链接，先生成第一条吧。"
+                text="还没有路书。贴一段攻略，或者直接选个城市，先排第一本。"
                 action={
                   <Button variant="primary" size="sm" onClick={() => onNewBook({})}>
                     <Plus /> 新建路书

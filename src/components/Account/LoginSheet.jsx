@@ -9,7 +9,7 @@ import { login, register, resetPassword, resetPasswordWithEmail, sendRegisterCod
 import { deviceProfileProof } from '../../lib/account';
 import { authErrorCopy, isEmail, isMainlandMobile, PASSWORD_HINT } from '../../lib/accountCopy';
 
-const TITLES = { login: '登录', register: '注册账号', forgot: '重设密码', codes: '存好你的恢复码' };
+const TITLES = { login: '登录后就能生成', register: '注册账号', forgot: '重设密码', codes: '存好你的恢复码' };
 
 /**
  * Phone + password sign-in sheet: bottom sheet on phones, dialog from md up.
@@ -28,13 +28,16 @@ export default function LoginSheet({
 }) {
   const [view, setView] = useState(initialView);
   const [codesUnlocked, setCodesUnlocked] = useState(!afterRegister);
+  const gated = Boolean(reason);
+  const sheetTitle =
+    view === 'login' && gated ? '登录后就能生成' : view === 'login' ? '登录' : TITLES[view];
   const description =
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'
       : reason || (view === 'forgot' ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。' : '随便逛不用登录。导入攻略、生成路书时需要账号。');
   const lockCodes = view === 'codes' && afterRegister && !codesUnlocked;
   return (
-    <Sheet title={TITLES[view]} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>
+    <Sheet title={sheetTitle} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>
       <div className="px-1 pb-2">
         {view !== 'codes' && view !== 'forgot' && (
           <div role="tablist" aria-label="登录或注册" className="mb-4 grid grid-cols-2 rounded-full bg-canvas p-1">
@@ -57,7 +60,12 @@ export default function LoginSheet({
         )}
         {view === 'login' && <LoginForm onAuthenticated={onAuthenticated} onForgot={() => setView('forgot')} />}
         {view === 'register' && (
-          <RegisterForm registration={registration} emailVerificationRequired={emailVerificationRequired} onAuthenticated={onAuthenticated} />
+          <RegisterForm
+            registration={registration}
+            emailVerificationRequired={emailVerificationRequired}
+            onAuthenticated={onAuthenticated}
+            submitLabel={gated ? '注册并继续' : '注册并登录'}
+          />
         )}
         {view === 'forgot' && <ForgotForm onAuthenticated={onAuthenticated} onBack={() => setView('login')} />}
         {view === 'codes' && (
@@ -338,7 +346,7 @@ function LoginForm({ onAuthenticated, onForgot }) {
   );
 }
 
-function RegisterForm({ registration, emailVerificationRequired, onAuthenticated }) {
+function RegisterForm({ registration, emailVerificationRequired, onAuthenticated, submitLabel = '注册并登录' }) {
   const [email, setEmail] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [sentTo, setSentTo] = useState('');
@@ -406,7 +414,7 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
       </label>
       <FormError text={state.error} />
       <SubmitButton busy={state.busy} busyLabel="正在注册">
-        注册并登录
+        {submitLabel}
       </SubmitButton>
     </form>
   );

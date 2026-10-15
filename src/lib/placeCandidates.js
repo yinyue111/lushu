@@ -6,9 +6,9 @@
 
 /** Rule → confidence and the reason shown to the user. */
 export const CANDIDATE_RULES = Object.freeze({
-  dictionary: { confidence: 85, reason: '和已收录地点同名' },
-  suffix: { confidence: 60, reason: '名称像地点（以寺、湖、路等结尾）' },
-  listed: { confidence: 40, reason: '列表里的短词，可能是地点，请确认' }
+  dictionary: { confidence: 85, reason: '来自你的攻略' },
+  suffix: { confidence: 60, reason: '不太确定，确认一下？' },
+  listed: { confidence: 40, reason: '不太确定，确认一下？' }
 });
 
 const PLACE_SUFFIX =
