@@ -444,15 +444,29 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               {mapMode ? '列表' : '地图'}
             </Button>
             {canEdit ? (
-              <Button size="icon" className="size-[50px]" onClick={actions.saveCurrentRoutebook} disabled={actions.saving} aria-label="保存到云端">
-                <CloudUpload />
+              <Button
+                className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs"
+                onClick={actions.saveCurrentRoutebook}
+                disabled={actions.saving}
+                aria-label="保存到我的路书"
+              >
+                <CloudUpload size={18} />
+                保存
               </Button>
             ) : (
-              <Button size="icon" className="size-[50px]" onClick={customize} aria-label="复制一份改成我的">
-                <Copy />
+              <Button className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs" onClick={customize} aria-label="复制一份改成我的">
+                <Copy size={18} />
+                复制
               </Button>
             )}
-            <MoreMenu actions={actions} onShare={openShare} onCustomize={customize} canEdit={canEdit} triggerClassName="size-[50px] bg-canvas shadow-none" />
+            <MoreMenu
+              actions={actions}
+              onShare={openShare}
+              onCustomize={customize}
+              canEdit={canEdit}
+              triggerClassName="h-[50px] w-auto flex-col gap-0 bg-canvas px-3 text-xs shadow-none [&_svg]:size-[18px]"
+              triggerLabel="更多"
+            />
             <Button
               variant="primary"
               size="lg"

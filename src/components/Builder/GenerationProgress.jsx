@@ -45,7 +45,7 @@ export function GenerationProgress({
   useEffect(() => {
     // Move focus to the result heading when the job ends, so screen-reader and
     // keyboard users land on the outcome instead of a vanished cancel button.
-    if (outcome === 'failed' || outcome === 'cancelled' || outcome === 'succeeded') headingRef.current?.focus();
+    if (outcome === 'failed' || outcome === 'cancelled' || outcome === 'succeeded') headingRef.current?.focus({ preventScroll: true });
   }, [outcome]);
 
   const title =

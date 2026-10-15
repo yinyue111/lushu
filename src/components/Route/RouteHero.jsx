@@ -8,6 +8,8 @@ import { CITY_SCENE, cityCover, heroImageProps } from '../visual/theme';
 import { SceneBadge, SceneImage } from '../visual/SceneImage';
 import AigcChip from './AigcChip';
 import { aigcMetadata } from '../../lib/aigc.js';
+import { useAccount } from '../Account/AccountProvider';
+import { accountLabel } from '../../lib/accountCopy';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -28,10 +30,13 @@ export default function RouteHero({
   onCustomize,
   onShare
 }) {
+  const { account } = useAccount();
   const cover = cityCover(routebook.city);
-  const creatorName = routebook.creator?.name || (isOwner ? '我' : '路书作者');
+  const creatorName =
+    routebook.creator?.name ||
+    (isOwner && account ? accountLabel(account) || '我' : null) ||
+    (isOwner ? '我' : '路书作者');
   const updated = formatShortDate(routebook.updatedAt || routebook.createdAt);
-  const version = Number(routebook.version);
   // 合规：只保留一个显式 AI 标识。AI 生成的路书由 AigcChip 统一标注（覆盖文字与示意配图，
   // 标签叠在配图上、紧邻标题）；非 AI 内容才单独给示意图打标。见 round2/AI标识合并说明.md。
   const aiGenerated = aigcMetadata(routebook).generated;
@@ -131,7 +136,6 @@ export default function RouteHero({
             <span className="min-w-0 truncate">
               <b className="text-white">{creatorName}</b>
               {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
-              {Number.isInteger(version) && version > 0 && <span className="hidden sm:inline"> · v{version}</span>}
               {updated && <span className="hidden sm:inline"> · {updated} 更新</span>}
             </span>
           </div>
@@ -145,7 +149,7 @@ export default function RouteHero({
             {canEdit ? (
               <>
                 <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving}>
-                  <Check /> {saving ? '保存中…' : '保存到云端'}
+                  <Check /> {saving ? '保存中…' : '保存到我的路书'}
                 </Button>
               </>
             ) : (
@@ -171,12 +175,13 @@ export default function RouteHero({
 }
 
 /** @param {Record<string, any>} props */
-export function MoreMenu({ actions, onShare, onCustomize, canEdit, triggerClassName }) {
+export function MoreMenu({ actions, onShare, onCustomize, canEdit, triggerClassName, triggerLabel = '' }) {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <Button variant="light" size="icon" aria-label="更多操作" className={triggerClassName}>
+        <Button variant="light" size={triggerLabel ? 'md' : 'icon'} aria-label="更多操作" className={triggerClassName}>
           <MoreHorizontal />
+          {triggerLabel ? <span>{triggerLabel}</span> : null}
         </Button>
       </MenuTrigger>
       <MenuContent>

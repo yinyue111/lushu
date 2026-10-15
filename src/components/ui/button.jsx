@@ -19,11 +19,11 @@ export const buttonVariants = cva(
         danger: 'bg-white text-danger border border-danger/30 hover:bg-primary-soft'
       },
       size: {
-        sm: "relative h-9 rounded-chip px-3.5 text-sm after:absolute after:-inset-1 after:content-[''] [&_svg]:size-4",
+        sm: "relative h-9 rounded-chip px-3.5 text-sm after:absolute after:-inset-1 after:content-[''] [@media(pointer:coarse)]:min-h-11 [&_svg]:size-4",
         md: 'h-11 rounded-chip px-5 text-copy [&_svg]:size-[18px]',
         lg: 'h-14 rounded-chip px-6 text-lg [&_svg]:size-[22px]',
         icon: 'size-11 rounded-full [&_svg]:size-5',
-        'icon-sm': "relative size-9 rounded-full after:absolute after:-inset-1 after:content-[''] [&_svg]:size-4"
+        'icon-sm': "relative size-9 rounded-full after:absolute after:-inset-1 after:content-[''] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4"
       }
     },
     defaultVariants: { variant: 'soft', size: 'md' }

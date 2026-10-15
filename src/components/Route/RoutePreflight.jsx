@@ -25,6 +25,7 @@ import { Chip } from '../ui/chip';
 import { cn } from '../ui/cn';
 import { predictionAverage, productLinkLabel } from './routebookModel';
 import { useVisibleOnce } from '../../lib/useVisibleOnce';
+import { useMediaQuery } from '../ui/useMediaQuery';
 
 const OK_STATES = /通过|已查过|可执行|已更新|已应用|充足|正常|低/;
 const WARN_STATES = /复核|还没查|偏紧|缓冲|无数据|偏远|待|超|风险|高|未|冲突|不满足/;
@@ -164,21 +165,24 @@ export function EditToolbar({
   onTransportPref,
   activeDay
 }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const variants = (routebook.variants ?? []).slice(0, 4);
   const hasModel = (routebook.stops ?? []).some((s) => s?.provenance?.origin === 'model');
   const dirty = /未保存/.test(syncLabel || '');
-  return (
-    <section aria-labelledby="edit-toolbar-title" className="mt-6 rounded-card border border-line bg-white p-3.5 shadow-card lg:mt-7">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id="edit-toolbar-title" className="text-copy font-extrabold text-ink">
-          改路线
-        </h2>
+  const body = (
+    <>
+      <div className={isDesktop ? 'flex flex-wrap items-center gap-2' : 'mt-2 flex flex-wrap items-center gap-2'}>
+        {isDesktop && (
+          <h2 id="edit-toolbar-title" className="text-copy font-extrabold text-ink">
+            改路线
+          </h2>
+        )}
         {syncLabel && (
-          <span role="status" className={cn('rounded-full px-2 py-0.5 text-meta', dirty ? 'bg-lemon-soft text-lemon-ink' : 'bg-canvas text-muted')}>
+          <span role="status" className={`rounded-full px-2 py-0.5 text-meta ${dirty ? 'bg-lemon-soft text-lemon-ink' : 'bg-canvas text-muted'}`}>
             {syncLabel}
           </span>
         )}
-        <div className="ml-auto flex gap-1">
+        <div className={isDesktop ? 'ml-auto flex gap-1' : 'flex gap-1'}>
           <Button size="sm" variant="ghost" disabled={!canUndo || saving} onClick={onUndo}>
             <Undo2 /> 撤销
           </Button>
@@ -195,7 +199,6 @@ export function EditToolbar({
           <Plus /> 加一站
         </Button>
       </div>
-      <p className="mt-2 text-meta text-muted">换店、删站：点每一站右边的「⋮」。</p>
       <details className="group mt-2 rounded-tile bg-canvas px-3 py-2">
         <summary className="cursor-pointer list-none text-meta font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
           更多改法 <span className="font-normal text-muted">· 一键重排、地铁优先、AI 重排</span>
@@ -238,19 +241,39 @@ export function EditToolbar({
                 type="button"
                 key={variant.id}
                 onClick={() => onApplyVariant(variant)}
-                className={cn(
-                  'w-52 shrink-0 rounded-tile border border-line bg-canvas p-3 text-left',
-                  routebook.activeVariantId === variant.id && 'border-transparent bg-primary-soft shadow-[0_0_0_2px_var(--color-primary)]'
-                )}
+                className={`w-52 shrink-0 rounded-tile border border-line bg-canvas p-3 text-left ${
+                  routebook.activeVariantId === variant.id ? 'border-transparent bg-primary-soft shadow-[0_0_0_2px_var(--color-primary)]' : ''
+                }`}
               >
-                <b className="block text-copy">{variant.label}</b>
-                <span className="line-clamp-2 block text-meta text-muted">{variant.summary}</span>
-                <small className="mt-1 block text-xs text-muted">{variant.stops?.length ?? 0} 站</small>
+                <b className="block truncate text-sm font-extrabold">{variant.label || '重排版本'}</b>
+                <span className="mt-0.5 block text-meta text-muted">{variant.summary || ''}</span>
               </button>
             ))}
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (isDesktop) {
+    return (
+      <section aria-labelledby="edit-toolbar-title" className="mt-6 rounded-card border border-line bg-white p-3.5 shadow-card lg:mt-7">
+        {body}
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby="edit-toolbar-title" className="mt-6 rounded-card border border-line bg-white p-3.5 shadow-card">
+      <details>
+        <summary
+          id="edit-toolbar-title"
+          className="cursor-pointer list-none text-copy font-extrabold text-ink [&::-webkit-details-marker]:hidden"
+        >
+          改路线 ›（撤销 / 一句话改 / 加一站 / 重排）
+        </summary>
+        {body}
+      </details>
     </section>
   );
 }
