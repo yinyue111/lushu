@@ -99,8 +99,28 @@ function RoadbookCard({ rb, onDone }) {
           <dd className="inline">{formatTime(rb.updatedAt)}</dd>
         </div>
         <div>
-          <dt className="inline text-muted">用户：</dt>
-          <dd className="inline font-mono">{rb.profileId || '—'}</dd>
+          <dt className="inline text-muted">账号：</dt>
+          <dd className="inline font-mono">
+            {rb.accountId ? (
+              <a
+                href={`/admin/users?q=${encodeURIComponent(rb.accountId)}`}
+                className="text-sky-ink underline"
+                onClick={(event) => {
+                  event.preventDefault();
+                  window.history.pushState({}, '', `/admin/users?q=${encodeURIComponent(rb.accountId)}`);
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+              >
+                {rb.accountId}
+              </a>
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="inline text-muted">详情：</dt>
+          <dd className="inline font-mono text-muted">{rb.profileId || '—'}</dd>
         </div>
       </dl>
       <div className="mt-3 flex flex-wrap items-start gap-2">

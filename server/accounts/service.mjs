@@ -509,10 +509,16 @@ const opsView = (user, extra = {}) => ({
 
 export async function opsListUsers({ query = '', limit = 50 } = {}) {
   const text = String(query ?? '').trim();
+  const byId = /^u_[a-z0-9]+$/i.test(text) ? sanitizePublicId(text) : '';
+  if (byId) {
+    const user = await accountStore().getUser(byId);
+    if (!user || user.status === 'deleted') return [];
+    return [opsView(user, { activeSessions: await accountStore().countActiveSessions(user.id) })];
+  }
   const email = looksLikeEmail(text) ? normalizeEmail(text) : '';
   const phone = email ? '' : normalizePhone(text);
   const last4 = !phone && !email && /^\d{4}$/.test(text) ? text : '';
-  if (text && !phone && !last4 && !email) throw createHttpError('按完整邮箱、完整手机号或手机号后 4 位搜索', 400, 'OPS_USER_QUERY_INVALID');
+  if (text && !phone && !last4 && !email) throw createHttpError('按完整邮箱、完整手机号、账号 ID 或手机号后 4 位搜索', 400, 'OPS_USER_QUERY_INVALID');
   const users = await accountStore().listUsers({
     phoneHash: phone ? phoneHash(phone) : '',
     emailHash: email ? emailHash(email) : '',

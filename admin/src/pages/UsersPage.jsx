@@ -5,8 +5,9 @@ import { Button, Card, Field, Notice, Page, ReasonAction, formatTime, inputClass
 const STATUS = { active: '正常', disabled: '已封禁' };
 
 export default function UsersPage({ admin }) {
-  const [draft, setDraft] = useState('');
-  const [q, setQ] = useState('');
+  const initialQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('q') || '' : '';
+  const [draft, setDraft] = useState(initialQ);
+  const [q, setQ] = useState(initialQ);
   const { data, error, loading, reload } = useLoad(() => adminGet(`/users${query({ q })}`), [q]);
   return (
     <Page title="用户" description="按完整邮箱、完整手机号或手机号后 4 位查找。联系方式只显示打码后的。">
@@ -20,7 +21,7 @@ export default function UsersPage({ admin }) {
         >
           <div className="min-w-64 flex-1">
             <Field label="查找用户">
-              {(id) => <input id={id} className={inputClass} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="邮箱 / 手机号 / 后 4 位" />}
+              {(id) => <input id={id} className={inputClass} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="邮箱 / 手机号 / 账号 ID / 后 4 位" />}
             </Field>
           </div>
           <Button type="submit" variant="primary" disabled={loading}>
