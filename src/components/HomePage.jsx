@@ -350,8 +350,8 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
         {/* My routebooks — hide empty state on home (U12) */}
         {books.length > 0 && (
-        <section className="mt-10 lg:mt-14" aria-labelledby="home-my-title">
-          <SectionHeading id="home-my-title" kicker="我的路书" title="接着改，或者直接出发" />
+          <section className="mt-10 lg:mt-14" aria-labelledby="home-my-title">
+            <SectionHeading id="home-my-title" kicker="我的路书" title="接着改，或者直接出发" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book, idx) => (
                 <RouteCard
@@ -363,7 +363,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 />
               ))}
             </div>
-        </section>
+          </section>
         )}
       </div>
     </div>

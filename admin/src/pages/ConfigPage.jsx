@@ -28,7 +28,11 @@ function envValueHint(setting) {
   if (setting.type === 'modelTier' && value && typeof value === 'object') {
     return `服务商 ${value.provider || '—'} · 模型 ${value.model || '—'} · 地址 ${value.baseUrl || '—'}`;
   }
-  if (typeof value === 'object') return Object.entries(value).map(([k, v]) => `${k}=${v}`).join(' · ').slice(0, 80);
+  if (typeof value === 'object')
+    return Object.entries(value)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(' · ')
+      .slice(0, 80);
   return show(value, 80);
 }
 

@@ -29,8 +29,7 @@ export default function LoginSheet({
   const [view, setView] = useState(initialView);
   const [codesUnlocked, setCodesUnlocked] = useState(!afterRegister);
   const gated = Boolean(reason);
-  const sheetTitle =
-    view === 'login' && gated ? '登录后就能生成' : view === 'login' ? '登录' : TITLES[view];
+  const sheetTitle = view === 'login' && gated ? '登录后就能生成' : view === 'login' ? '登录' : TITLES[view];
   const description =
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'

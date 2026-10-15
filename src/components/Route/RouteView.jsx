@@ -84,9 +84,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           label: dayLabel(dayStops, routebook.city, index),
           distanceKm: km,
           summary:
-            dayStops.length === 0
-              ? '还没安排站点'
-              : `${dayStops.length} 站${road.complete ? ` · 约 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : ''}`
+            dayStops.length === 0 ? '还没安排站点' : `${dayStops.length} 站${road.complete ? ` · 约 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : ''}`
         };
       }),
     [days, stops, routebook.city, routebook.routeLegs]
@@ -264,12 +262,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <RecheckBar routebook={routebook} recheckState={actions.recheckState} onRecheck={() => actions.recheckRoute()} />
           )}
 
-          <DayStrip
-            city={routebook.city}
-            dayEntries={dayEntries}
-            activeDay={activeEntry?.day}
-            onSelectDay={selectDay}
-          />
+          <DayStrip city={routebook.city} dayEntries={dayEntries} activeDay={activeEntry?.day} onSelectDay={selectDay} />
 
           <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 lg:mt-7">
             <h2 className="text-xl font-extrabold tracking-tight lg:text-2xl">
@@ -280,9 +273,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               {canEdit && days.length > 1 && (
                 <DayActionsMenu
                   dayNumber={activeEntry?.number || 1}
-                  onMerge={() =>
-                    setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })
-                  }
+                  onMerge={() => setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })}
                   onDelete={() => setDayAction({ type: 'delete', day: activeDay })}
                 />
               )}

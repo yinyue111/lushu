@@ -146,7 +146,9 @@ export async function roadbookView(publicId) {
     createdAt: routebook.createdAt ?? null,
     updatedAt: routebook.updatedAt ?? null,
     profileId: routebook.profileId ?? routebook.creator?.profileId ?? '',
-    accountId: await accountStore().findUserIdByProfile(routebook.profileId ?? routebook.creator?.profileId ?? '').catch(() => null),
+    accountId: await accountStore()
+      .findUserIdByProfile(routebook.profileId ?? routebook.creator?.profileId ?? '')
+      .catch(() => null),
     generation: await generationFor(routebook.publicId),
     enrichment: job
       ? {

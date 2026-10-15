@@ -53,17 +53,13 @@ export default function DashboardPage() {
           </Card>
           <Card title="今日花费（美元）">
             <p className="text-3xl font-semibold">{formatCostHeadline(d.cost)}</p>
-            {formatCostUnknownNote(d.cost) ? (
-              <p className="mt-1 text-xs text-muted">{formatCostUnknownNote(d.cost)}</p>
-            ) : null}
+            {formatCostUnknownNote(d.cost) ? <p className="mt-1 text-xs text-muted">{formatCostUnknownNote(d.cost)}</p> : null}
             <p className="mt-1 text-xs text-muted">{COST_ESTIMATE_BIAS_HINT}</p>
             <p className="mt-1 text-sm text-muted">
               生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网核对 {usd(d.cost.enrichUsd)}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {d.cost.dailyLimitUsd
-                ? `日上限：${usd(d.cost.dailyLimitUsd)}（已用 ${percent(d.cost.ratio)}）`
-                : '日上限：未设'}
+              {d.cost.dailyLimitUsd ? `日上限：${usd(d.cost.dailyLimitUsd)}（已用 ${percent(d.cost.ratio)}）` : '日上限：未设'}
             </p>
           </Card>
         </div>

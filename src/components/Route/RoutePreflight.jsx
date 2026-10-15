@@ -265,10 +265,7 @@ export function EditToolbar({
   return (
     <section aria-labelledby="edit-toolbar-title" className="mt-6 rounded-card border border-line bg-white p-3.5 shadow-card">
       <details>
-        <summary
-          id="edit-toolbar-title"
-          className="cursor-pointer list-none text-copy font-extrabold text-ink [&::-webkit-details-marker]:hidden"
-        >
+        <summary id="edit-toolbar-title" className="cursor-pointer list-none text-copy font-extrabold text-ink [&::-webkit-details-marker]:hidden">
           改路线 ›（撤销 / 一句话改 / 加一站 / 重排）
         </summary>
         {body}

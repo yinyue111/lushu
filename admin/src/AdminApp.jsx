@@ -95,16 +95,14 @@ export default function AdminApp() {
                     go(item.path);
                   }}
                   className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm ${
-                    item.path === active.path
-                      ? 'bg-ink text-white'
-                      : item.phase2
-                        ? 'text-[#6b7280] hover:bg-canvas'
-                        : 'text-ink-2 hover:bg-canvas'
+                    item.path === active.path ? 'bg-ink text-white' : item.phase2 ? 'text-[#6b7280] hover:bg-canvas' : 'text-ink-2 hover:bg-canvas'
                   }`}
                 >
                   <span>{item.label.replace('（二期）', '')}</span>
                   {item.phase2 ? (
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.path === active.path ? 'bg-white/20 text-white' : 'bg-canvas text-[#6b7280]'}`}>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.path === active.path ? 'bg-white/20 text-white' : 'bg-canvas text-[#6b7280]'}`}
+                    >
                       二期
                     </span>
                   ) : null}
@@ -154,11 +152,7 @@ function LoginScreen({ ready, onSignedIn }) {
       }
     } catch (err) {
       const remaining = err?.remainingAttempts ?? err?.data?.remainingAttempts;
-      setError(
-        Number.isFinite(remaining)
-          ? `用户名、密码或动态码不对。还能再试 ${remaining} 次。`
-          : String(err.message || '').replace('验证码', '动态码')
-      );
+      setError(Number.isFinite(remaining) ? `用户名、密码或动态码不对。还能再试 ${remaining} 次。` : String(err.message || '').replace('验证码', '动态码'));
     } finally {
       setBusy(false);
     }

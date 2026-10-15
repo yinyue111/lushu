@@ -639,7 +639,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           confidence: place.confidence ?? existing?.confidence ?? null,
           reason: place.reason || existing?.reason || '',
           note: place.note || existing?.note || '',
-          included: keepDecision ? existing.included : (place.included ?? existing?.included ?? (Number(place.confidence) >= 70)),
+          included: keepDecision ? existing.included : (place.included ?? existing?.included ?? Number(place.confidence) >= 70),
           decided: keepDecision || place.decided === true,
           mustGo: keepDecision ? existing.mustGo : (place.mustGo ?? existing?.mustGo ?? false)
         });
@@ -914,10 +914,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 </>
               ) : step === 2 ? (
                 <>
-                  <Sparkles />{' '}
-                  {quotaExhausted
-                    ? '次数已用完'
-                    : `生成路书（${generationModeLabel(generationMode) || '轻快'}）`}
+                  <Sparkles /> {quotaExhausted ? '次数已用完' : `生成路书（${generationModeLabel(generationMode) || '轻快'}）`}
                 </>
               ) : (
                 <>

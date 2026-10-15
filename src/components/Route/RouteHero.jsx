@@ -32,10 +32,7 @@ export default function RouteHero({
 }) {
   const { account } = useAccount();
   const cover = cityCover(routebook.city);
-  const creatorName =
-    routebook.creator?.name ||
-    (isOwner && account ? accountLabel(account) || '我' : null) ||
-    (isOwner ? '我' : '路书作者');
+  const creatorName = routebook.creator?.name || (isOwner && account ? accountLabel(account) || '我' : null) || (isOwner ? '我' : '路书作者');
   const updated = formatShortDate(routebook.updatedAt || routebook.createdAt);
   // 合规：只保留一个显式 AI 标识。AI 生成的路书由 AigcChip 统一标注（覆盖文字与示意配图，
   // 标签叠在配图上、紧邻标题）；非 AI 内容才单独给示意图打标。见 round2/AI标识合并说明.md。

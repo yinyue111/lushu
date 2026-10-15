@@ -62,10 +62,7 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
               className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex"
               title={modelHealth?.reason || undefined}
             >
-              <span
-                className={cn('size-2 rounded-full', modelStatus.tone === 'warn' ? 'bg-lemon' : 'bg-line-strong')}
-                aria-hidden="true"
-              />
+              <span className={cn('size-2 rounded-full', modelStatus.tone === 'warn' ? 'bg-lemon' : 'bg-line-strong')} aria-hidden="true" />
               {modelStatus.label}
             </span>
           )}

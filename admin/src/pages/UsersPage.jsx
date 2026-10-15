@@ -21,7 +21,15 @@ export default function UsersPage({ admin }) {
         >
           <div className="min-w-64 flex-1">
             <Field label="查找用户">
-              {(id) => <input id={id} className={inputClass} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="邮箱 / 手机号 / 账号 ID / 后 4 位" />}
+              {(id) => (
+                <input
+                  id={id}
+                  className={inputClass}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="邮箱 / 手机号 / 账号 ID / 后 4 位"
+                />
+              )}
             </Field>
           </div>
           <Button type="submit" variant="primary" disabled={loading}>

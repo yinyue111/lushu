@@ -48,13 +48,7 @@ export function GenerationProgress({
   }, [outcome]);
 
   const title =
-    outcome === 'succeeded'
-      ? '路书生成完成'
-      : outcome === 'cancelled'
-        ? '已取消生成'
-        : outcome === 'failed'
-          ? failure?.title || '这次没排出来'
-          : '正在排路线';
+    outcome === 'succeeded' ? '路书生成完成' : outcome === 'cancelled' ? '已取消生成' : outcome === 'failed' ? failure?.title || '这次没排出来' : '正在排路线';
   const announcement =
     outcome === 'succeeded'
       ? '路书生成完成，正在打开'
@@ -176,9 +170,7 @@ export function GenerationProgress({
           <p className="flex items-start gap-2 text-sm font-semibold text-primary-strong">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> {failure?.detail}
           </p>
-          {failure?.suggestDeep && mode === 'fast' && (
-            <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>
-          )}
+          {failure?.suggestDeep && mode === 'fast' && <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>}
           {!failure?.suggestDeep && !failure?.suggestFast && (
             <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>
           )}

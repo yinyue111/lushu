@@ -20,9 +20,7 @@ export default function LegacyOpsPage() {
     return (
       <Page title="旧运维工具" description="过渡期的旧面板，需要先填脚本令牌。">
         <Card title="脚本令牌">
-          <p className="mb-3 text-sm text-muted">
-            这些是过渡期的旧面板，需要先填脚本令牌（X-Routebook-Admin-Token）。令牌只存在这一页，刷新就清空。
-          </p>
+          <p className="mb-3 text-sm text-muted">这些是过渡期的旧面板，需要先填脚本令牌（X-Routebook-Admin-Token）。令牌只存在这一页，刷新就清空。</p>
           <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={applyToken}>
             <Field label="脚本令牌">
               {(id) => (

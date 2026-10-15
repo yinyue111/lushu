@@ -309,9 +309,7 @@ export function StepGuide(props) {
                   />
                   <span className="min-w-0">
                     <strong className="block truncate text-copy font-bold">{place.name}</strong>
-                    <span className="block truncate text-xs text-muted">
-                      {candidatePlaceHint(place)}
-                    </span>
+                    <span className="block truncate text-xs text-muted">{candidatePlaceHint(place)}</span>
                   </span>
                 </label>
                 <button
@@ -522,7 +520,6 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
 }
 
 /** @param {Record<string, any>} props */
-
 
 /** User-facing candidate hint: only two calm labels (U11). */
 function candidatePlaceHint(place) {
