@@ -78,15 +78,22 @@ export function ResourceNotice({ resource, label, loadingLabel = '正在读取�
     );
   }
   if (resource.status !== 'error') return null;
+  const requestId = resource.error?.requestId;
   return (
     <div className="ops-resource-state is-error" role="alert">
       <AlertCircle size={16} />
       <span>
-        {label}读取失败：{formatApiError(resource.error)}
+        {label}读取失败：{resource.error?.message || '请求失败'}
       </span>
       <button className="btn btn-secondary btn-sm" type="button" onClick={resource.retry}>
         <RefreshCw size={13} /> 重试
       </button>
+      {requestId ? (
+        <details className="w-full text-xs text-muted">
+          <summary>详情</summary>
+          <p className="mt-1">请求 {requestId}</p>
+        </details>
+      ) : null}
     </div>
   );
 }
