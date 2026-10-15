@@ -337,7 +337,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           {displayName.slice(0, 1)}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">{displayName}的路书、打卡和分享</h1>
+          <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">我的</h1>
           <p className="mt-1 max-w-[36em] text-meta leading-relaxed text-muted max-sm:hidden">本机和云端的记录合在一起显示。换设备时用恢复码接着用。</p>
         </div>
         <Button variant="primary" className="max-sm:w-full" onClick={() => onNewBook({})}>
@@ -350,15 +350,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         </p>
       )}
 
-      <div className={cn('mt-6 grid grid-cols-3 gap-2 sm:gap-3', clicks.length > 0 && 'lg:grid-cols-4')}>
-        <Stat icon={Route} tone="bg-primary-soft text-primary-strong" label="我的路书" value={books.length} />
-        <Stat icon={Camera} label="我的打卡" value={checkins.length} />
-        <Stat icon={Share2} label="我的分享" value={sharedBooks.length} />
-        {/* Only meaningful once something was clicked; an always-zero tile was noise. */}
-        {clicks.length > 0 && <Stat icon={Ticket} label="商品点击" value={clicks.length} className="max-lg:hidden" />}
-      </div>
-
-      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mt-8">
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mt-6">
         <Tabs.List aria-label="我的资产分类" className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
           {tabs.map(({ id, icon: Icon, label, count }) => (
             <Tabs.Trigger
@@ -464,7 +456,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                 expanded={expandedSections.has('creatorBooks')}
                 onToggle={() => toggleExpanded('creatorBooks')}
               />
-              {creatorBooks.length ? null : <p className="text-sm text-muted">保存的路书会自动带上你的达人身份，发布后出现在这里。</p>}
+              {creatorBooks.length ? null : <p className="text-sm text-muted">你公开分享的路线会出现在这里。</p>}
             </SidePanel>
             <SidePanel title="我的分享" count={sharedBooks.length}>
               {sharedBooks.length ? (

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Check, ExternalLink } from 'lucide-react';
 import { groupConfirmItems, readAcks, writeAcks } from '../../lib/confirmChecklist';
+
+const KIND_SHORT = { reservation: '预约', price: '门票', hours: '开放时间', position: '位置', note: '其他' };
 import { trackEvent } from '../../lib/betaTelemetry.js';
 import { cn } from '../ui/cn';
 
@@ -78,7 +80,9 @@ export function StopConfirmFold({ items, acks, onToggle }) {
       onToggle={(event) => event.currentTarget.open && trackEvent('confirm_open')}
     >
       <summary className="cursor-pointer list-none font-semibold text-muted [&::-webkit-details-marker]:hidden">
-        出发前要确认的事 · {open ? `${open} 件` : '都知道了'}
+        {open
+          ? `出发前确认 ${open} 件${open === 1 && KIND_SHORT[items[0]?.kind] ? `（${KIND_SHORT[items[0].kind]}）` : ''}`
+          : '出发前要确认的事 · 都知道了'}
       </summary>
       <ul className="m-0 list-none divide-y divide-line p-0">
         {items.map((item) => (
@@ -100,8 +104,8 @@ export function DayConfirmSummary({ entries, acks, onToggle }) {
       onToggle={(event) => event.currentTarget.open && trackEvent('confirm_open')}
     >
       <summary className="cursor-pointer list-none text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-        今天出发前要确认 {entries.length} 件事
-        <span className="ml-2 font-normal text-muted">{open ? `还有 ${open} 件没看` : '都标了「我知道了」'}</span>
+        今天出发前确认 {entries.length} 件
+        <span className="ml-2 font-normal text-muted">{open ? '' : '都标了「我知道了」'}</span>
       </summary>
       <p className="mt-1 text-meta text-muted">点「去查」打开高德或官方页面；「我知道了」只是提醒自己，不代表信息已核实。</p>
       {groupConfirmItems(entries).map((group) => (

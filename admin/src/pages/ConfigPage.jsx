@@ -20,6 +20,18 @@ const EFFORT_LABEL = { '': '默认（不传）', low: '低', medium: '中', high
 const PROVIDER_LABEL = { 'openai-compatible': 'OpenAI 兼容接口' };
 const valueLabel = (v) => VALUE_LABEL[v] ?? v;
 const SECRET_STATE = { db: '已设置（后台）', env: '已设置（环境变量）', unset: '未设置' };
+
+function envValueHint(setting) {
+  const value = setting?.envValue;
+  if (value == null || value === '') return '（未设）';
+  if (setting.type === 'enum') return valueLabel(value);
+  if (setting.type === 'modelTier' && value && typeof value === 'object') {
+    return `服务商 ${value.provider || '—'} · 模型 ${value.model || '—'} · 地址 ${value.baseUrl || '—'}`;
+  }
+  if (typeof value === 'object') return Object.entries(value).map(([k, v]) => `${k}=${v}`).join(' · ').slice(0, 80);
+  return show(value, 80);
+}
+
 const show = (value, max = 0) => {
   const text = value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return max && text.length > max ? `${text.slice(0, max)}…` : text;
@@ -34,7 +46,7 @@ export default function ConfigPage({ admin }) {
     versions.reload();
   };
   return (
-    <Page title="配置" description="后台设置优先，没设的回落到环境变量；数据库连不上时沿用最后一次的配置。改动几秒内生效，每次保存生成一个版本，可一键恢复。">
+    <Page title="配置" description="这里改的会覆盖服务器默认值，几秒内生效，每次保存都能一键恢复。">
       {config.error && <Notice tone="error">{config.error}</Notice>}
       {config.data && (
         <>
@@ -341,7 +353,7 @@ function ConfigEditor({ data, canWrite, admin, onSaved }) {
               <div key={s.key} className={`space-y-1 ${s.type === 'modelTier' || s.type === 'pricing' ? 'md:col-span-2' : ''}`} title={`设置项：${s.key}`}>
                 <Field
                   label={s.label}
-                  hint={`来源：${SOURCE[s.source]} · 环境变量值：${show(s.type === 'enum' ? valueLabel(s.envValue) : s.envValue, 80)}${s.items ? ` · 可选：${s.items.length > 12 ? `${s.items.slice(0, 12).join('、')} 等 ${s.items.length} 项` : s.items.join('、')}` : ''}`}
+                  hint={`来源：${SOURCE[s.source]} · 环境变量：${envValueHint(s)}${s.items ? ` · 可选：${s.items.length > 12 ? `${s.items.slice(0, 12).join('、')} 等 ${s.items.length} 项` : s.items.join('、')}` : ''}`}
                 >
                   {SettingInput({ setting: s, value: valueOf(s), disabled: !canWrite, onChange: (v) => setDraft((d) => ({ ...d, [s.key]: v })) })}
                 </Field>

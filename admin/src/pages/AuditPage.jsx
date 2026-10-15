@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { adminGet, query } from '../api';
 import { Button, Card, Field, Notice, Page, Table, formatTime, inputClass, useLoad } from '../ui';
+import { actionLabel } from '../terms';
 
 const short = (value) => (value == null ? '' : JSON.stringify(value).slice(0, 160));
 
@@ -37,9 +38,18 @@ export default function AuditPage() {
           caption="审计记录"
           rows={data?.items ?? []}
           columns={[
-            { key: 'createdAt', label: '时间', render: (e) => formatTime(e.createdAt) },
+            { key: 'createdAt', label: '时间（北京时间）', render: (e) => formatTime(e.createdAt, { zoneLabel: false }) },
             { key: 'actor', label: '操作人', render: (e) => `${e.actor}（${e.role}）` },
-            { key: 'action', label: '动作' },
+            {
+              key: 'action',
+              label: '动作',
+              render: (e) => (
+                <span title={e.action}>
+                  {actionLabel(e.action)}
+                  {actionLabel(e.action) !== e.action ? <span className="ml-1 text-xs text-muted">{e.action}</span> : null}
+                </span>
+              )
+            },
             { key: 'target', label: '对象', render: (e) => <span className="break-all">{e.target}</span> },
             {
               key: 'detail',
