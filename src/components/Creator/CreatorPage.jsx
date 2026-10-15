@@ -8,9 +8,10 @@ import { RouteCard } from '../cards/RouteCard';
 import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { SectionHeading } from '../ui/section-heading';
+import { creatorPageTitle, publicCreatorName } from '../../lib/creatorName.js';
 
 /** @param {Record<string, any>} props */
-export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize }) {
+export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, onOpenBook, onCustomize }) {
   const [state, setState] = useState({ loading: true, error: '', data: null });
 
   useEffect(() => {
@@ -25,6 +26,17 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
       });
     return () => ctrl.abort();
   }, [creatorId]);
+
+  const loadedName = state.data?.creator?.name;
+  const loaded = Boolean(state.data);
+  useEffect(() => {
+    if (!loaded) return undefined;
+    const previous = document.title;
+    document.title = `${creatorPageTitle(loadedName)}｜AI 可信路书`;
+    return () => {
+      document.title = previous;
+    };
+  }, [loaded, loadedName]);
 
   if (state.loading) {
     return (
@@ -55,6 +67,9 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
   }
 
   const { creator, stats, routebooks } = state.data;
+  const displayName = publicCreatorName(creator?.name);
+  const pageTitle = creatorPageTitle(creator?.name);
+  const isSelf = Boolean(viewerProfileId) && viewerProfileId === creatorId;
   const visibleRoutebooks = (routebooks ?? []).filter((book) => book.publishStatus !== 'archived');
   const verifiedScores = visibleRoutebooks
     .map((book) => getRouteTrustBadgeState(book))
@@ -75,13 +90,22 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
               className="grid size-20 shrink-0 place-items-center rounded-full border-4 border-white/70 bg-white text-3xl font-black text-primary-strong shadow-pop"
               aria-hidden="true"
             >
-              {creator.name?.slice(0, 1) || '路'}
+              {displayName?.slice(0, 1) || '路'}
             </span>
             <div className="min-w-0">
               <span className="inline-flex rounded-full bg-black/20 px-2.5 py-0.5 text-xs font-bold backdrop-blur">
                 {sourceAuthorizationLabel(creator.sourceAuthorization)}
               </span>
-              <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{creator.name || creator.id}</h1>
+              <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{displayName || pageTitle}</h1>
+              {isSelf && !displayName && (
+                <a
+                  href="/my#account"
+                  className="mt-1 inline-block text-meta text-white/90 underline underline-offset-2 hover:text-white"
+                  data-testid="nickname-hint"
+                >
+                  设个昵称，分享时会显示
+                </a>
+              )}
               <p className="mt-1 max-w-xl text-copy text-white/90">{creator.bio || 'TA 公开的路线都在这里，附带别人保存、复制和打卡的次数。'}</p>
             </div>
           </div>
@@ -97,7 +121,7 @@ export default function CreatorPage({ creatorId, onBack, onOpenBook, onCustomize
       <div className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-10">
         <SectionHeading
           kicker="路线合集"
-          title={`${creator.name || '达人'} 的路线`}
+          title={pageTitle}
           action={
             <span
               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${verifiedAverage === null ? 'bg-sky-soft text-sky-ink' : 'bg-success-soft text-success-ink'}`}

@@ -3,12 +3,14 @@ import { readFile, stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
 import { extname, join, resolve, sep } from 'node:path';
-import { ADMIN_DIST_DIR, ADMIN_ENABLED, DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT } from '../config/index.mjs';
+import { ADMIN_DIST_DIR, ADMIN_ENABLED, DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { STATIC_SECURITY_HEADERS, sendJson, securityHeaders } from './response.mjs';
 import { sanitizePublicId, clampNumber, normalizeCityName, truncateString } from '../lib/util.mjs';
 import { cityStories, defaultCityImage } from '../../src/lib/content.js';
 import { getSavedReview } from '../storage/records.mjs';
-import { getResolvableRoutebook } from '../routebooks/normalize.mjs';
+import { getResolvableRoutebook, normalizeCreator } from '../routebooks/normalize.mjs';
+import { listSavedRoutebooks } from '../routebooks/list.mjs';
+import { creatorPageTitle } from '../../src/lib/creatorName.js';
 import { hasFriendLinkAccess, isPublicRoutebook } from '../routebooks/views.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
 import { refreshModerationState } from '../moderation/index.mjs';
@@ -236,7 +238,7 @@ export function matchShareLandingPath(req) {
   } catch {
     return null;
   }
-  const match = /^\/(share|review)\/([^/]+)\/?$/.exec(pathname);
+  const match = /^\/(share|review|creator)\/([^/]+)\/?$/.exec(pathname);
   if (!match) return null;
   let decoded = '';
   try {
@@ -262,6 +264,28 @@ function escapeHtmlText(value) {
 async function buildShareLandingMeta(target) {
   try {
     await refreshModerationState();
+    if (target.kind === 'creator') {
+      // Author homepage: never emit the creator id (no og:url / canonical, id never in title/description).
+      const owned = await listSavedRoutebooks(
+        500,
+        (routebook) => normalizeCreator(routebook.creator).id === target.id && PUBLIC_ROUTE_STATUSES.has(routebook.publishStatus || 'draft')
+      );
+      if (!owned.length) return null;
+      const title = creatorPageTitle(normalizeCreator(owned[0].creator).name);
+      return {
+        title: `${title}｜AI 可信路书`,
+        description: `公开路线 ${owned.length} 条，附带保存、复制和真实打卡次数。`,
+        image: defaultCityImage,
+        path: '',
+        prerender: {
+          heading: title,
+          lines: owned
+            .slice(0, 20)
+            .map((routebook) => truncateString(routebook.title, 80))
+            .filter(Boolean)
+        }
+      };
+    }
     if (target.kind === 'share') {
       const routebook = await getResolvableRoutebook(target.id);
       const listed = Boolean(routebook) && isPublicRoutebook(routebook);

@@ -685,6 +685,7 @@ export default function App() {
               {view === VIEWS.creator && creatorId && (
                 <CreatorPage
                   creatorId={creatorId}
+                  viewerProfileId={profile.id}
                   onBack={handleBack}
                   onOpenBook={handleOpenBook}
                   onCustomize={(book) => handleCustomize(book, { surface: 'creator-profile' })}

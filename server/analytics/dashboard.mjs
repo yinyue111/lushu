@@ -386,7 +386,7 @@ export async function buildCreatorProfile(creatorId) {
     readJsonLines(EXPOSURE_LOG_PATH, 50000)
   ]);
   const owned = routebooks; // filtered to this creator's public routebooks during the scan
-  const creator = owned[0]?.creator ? normalizeCreator(owned[0].creator) : normalizeCreator({ id, name: id });
+  const creator = owned[0]?.creator ? normalizeCreator(owned[0].creator) : normalizeCreator({ id });
   const stats = aggregateCreators(owned, checkins, favorites, clicks, exposures)[0] ?? {
     creator,
     routebookCount: owned.length,
