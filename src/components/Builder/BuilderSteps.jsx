@@ -309,14 +309,8 @@ export function StepGuide(props) {
                   />
                   <span className="min-w-0">
                     <strong className="block truncate text-copy font-bold">{place.name}</strong>
-                    <span
-                      className="block truncate text-xs text-muted"
-                      // The raw 0–100 number read like a grade; the reason already says how sure we are.
-                      title={place.confidence != null ? `识别把握 ${place.confidence}/100` : undefined}
-                    >
-                      {place.source || '候选来源'}
-                      {place.reason ? ` · ${place.reason}` : ''}
-                      {place.note ? ` · ${place.note}` : ''}
+                    <span className="block truncate text-xs text-muted">
+                      {candidatePlaceHint(place)}
                     </span>
                   </span>
                 </label>
@@ -410,14 +404,16 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
   return (
     <section>
       <StepTitle title="你想怎么玩？" sub="先勾偏好，AI 按你的选择排路线；生成后还能改。" />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="出行日期" hint="可不填。日期可能显示成英文格式。">
+      <GenerationModePicker mode={mode} setMode={setMode} generation={generation} />
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Field label="出行日期" hint="可不填">
           <span className="relative">
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
               id="builder-date"
               className={cn(inputClass, 'pl-9')}
               type="date"
+              lang="zh-CN"
               value={constraints.date}
               onChange={(e) => setConstraints((p) => ({ ...p, date: e.target.value }))}
             />
@@ -472,7 +468,6 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
           />
         </Field>
       </div>
-      <GenerationModePicker mode={mode} setMode={setMode} generation={generation} />
     </section>
   );
 }
@@ -481,7 +476,7 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
   const remaining = generation && typeof generation.remaining === 'number' ? generation.remaining : null;
   const windowHours = generation?.windowHours || 24;
   return (
-    <fieldset className="mt-6">
+    <fieldset className="mt-2">
       <legend className="text-copy font-extrabold text-ink">生成方式</legend>
       {generation && remaining != null && (
         <p className={cn('mt-1.5 text-meta leading-snug', generation.limited ? 'font-semibold text-danger' : 'text-muted')} role="status">
@@ -527,3 +522,14 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
 }
 
 /** @param {Record<string, any>} props */
+
+
+/** User-facing candidate hint: only two calm labels (U11). */
+function candidatePlaceHint(place) {
+  const reason = String(place?.reason || '').trim();
+  if (reason === '来自你的攻略' || reason === '不太确定，确认一下？') return reason;
+  if (place?.origin === 'guide-text' || place?.source === '攻略原文') return '来自你的攻略';
+  if (place?.origin === 'manual' || place?.source === '手动补充') return '来自你的攻略';
+  if (Number(place?.confidence) >= 70) return '来自你的攻略';
+  return '不太确定，确认一下？';
+}

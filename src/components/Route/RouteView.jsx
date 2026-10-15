@@ -86,7 +86,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           summary:
             dayStops.length === 0
               ? '还没安排站点'
-              : `${dayStops.length} 站${road.complete ? ` · 道路 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : dayStops.length > 1 ? ` · 路线已查 ${road.verifiedLegs}/${road.expectedLegs} 段` : ''}`
+              : `${dayStops.length} 站${road.complete ? ` · 约 ${km.toFixed(1)} km · ${road.durationMinutes} 分钟` : ''}`
         };
       }),
     [days, stops, routebook.city, routebook.routeLegs]

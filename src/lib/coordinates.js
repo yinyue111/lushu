@@ -172,7 +172,8 @@ export function routeLegLabel(from, to) {
   if (!Number.isFinite(km)) return '转场待校验';
   const mode = km <= 1.2 ? '步行' : '打车';
   const minutes = mode === '步行' ? Math.max(6, Math.round((km / 4.5) * 60)) : Math.max(12, Math.round((km / 22) * 60 + 8));
-  return `直线估算：${mode} ${minutes} 分钟 · ${km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`}`;
+  const distLabel = km < 1 ? `约 ${Math.max(0.1, Math.round(km * 10) / 10)} km` : `约 ${km.toFixed(1)} km`;
+  return `${mode}约 ${minutes} 分钟 · ${distLabel}（直线距离，未查实际路线）`;
 }
 
 export function isNavigableCoordinate(stop) {

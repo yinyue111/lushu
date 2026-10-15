@@ -243,7 +243,7 @@ function StopRow({
 /** @param {Record<string, any>} props */
 function LegRow({ from, to, roadLeg }) {
   const precise = isNavigableCoordinate(from) && isNavigableCoordinate(to);
-  const label = routeLegLabel(from, to).replace(/^直线估算：/, '');
+  const label = routeLegLabel(from, to);
   const walking = label.startsWith('步行');
   const Icon = !precise ? TriangleAlert : walking ? Footprints : CarTaxiFront;
   return (
@@ -254,7 +254,7 @@ function LegRow({ from, to, roadLeg }) {
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-      {roadLeg ? roadLegLabel(roadLeg) : precise ? `${label}（直线估算）` : '路线还没查'}
+      {roadLeg ? roadLegLabel(roadLeg) : precise ? label : '路线还没查'}
     </li>
   );
 }

@@ -19,7 +19,7 @@ import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
 import { GenerationProgress } from './GenerationProgress';
-import { readGenerationMode, rememberGenerationMode } from '../../lib/generationModes';
+import { generationModeLabel, readGenerationMode, rememberGenerationMode } from '../../lib/generationModes';
 import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
 import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
 import { knownPoiCoordinates } from '../../lib/coordinates';
@@ -471,7 +471,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     const mode = typeof modeOverride === 'string' ? modeOverride : '';
     // Switching to 细品 after a failed 轻快 run is the user's choice; it is remembered for next time.
     if (mode) setGenerationMode(mode);
-    if (!guardLogin('生成路书要用到 AI。登录后会接着生成。', () => handleGenerate(mode))) return;
+    if (!guardLogin('你填的内容都在。没有账号？用邮箱注册就行，不用邀请码。', () => handleGenerate(mode))) return;
     handleGenerate(mode);
   }
 
@@ -489,7 +489,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   async function next() {
-    if (step >= 1 && !guardLogin('这一步要用 AI，需要先登录。你填的内容都在，登录后接着往下走。', () => nextRef.current())) return;
+    if (step >= 1 && !guardLogin('你填的内容都在。没有账号？用邮箱注册就行，不用邀请码。', () => nextRef.current())) return;
     if (step === 0) {
       // 城市为空或被清空时留在本步，属预期校验拦截。
       if (!commitCity()) return;
@@ -639,7 +639,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           confidence: place.confidence ?? existing?.confidence ?? null,
           reason: place.reason || existing?.reason || '',
           note: place.note || existing?.note || '',
-          included: keepDecision ? existing.included : (place.included ?? existing?.included ?? false),
+          included: keepDecision ? existing.included : (place.included ?? existing?.included ?? (Number(place.confidence) >= 70)),
           decided: keepDecision || place.decided === true,
           mustGo: keepDecision ? existing.mustGo : (place.mustGo ?? existing?.mustGo ?? false)
         });
@@ -914,7 +914,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
                 </>
               ) : step === 2 ? (
                 <>
-                  <Sparkles /> {quotaExhausted ? '次数已用完' : '生成路书'}
+                  <Sparkles />{' '}
+                  {quotaExhausted
+                    ? '次数已用完'
+                    : `生成路书（${generationModeLabel(generationMode) || '轻快'}）`}
                 </>
               ) : (
                 <>
