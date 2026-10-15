@@ -1,3 +1,4 @@
+import { NETWORK_ERROR_TEXT } from '../../lib/networkCopy.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
@@ -173,7 +174,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       try {
         await deleteRoutebookRemote(remoteId, { profileId: profile.id, editToken: book.editToken || '' });
       } catch (error) {
-        setDeleteTarget({ ...target, error: error?.message || '网络不太稳，稍后再试' });
+        setDeleteTarget({ ...target, error: error?.message || NETWORK_ERROR_TEXT });
         return;
       }
       setServerData((current) => ({ ...current, routebooks: current.routebooks.filter((item) => item.publicId !== remoteId) }));

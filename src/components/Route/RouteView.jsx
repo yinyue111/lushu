@@ -116,6 +116,30 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   });
   const { shareState, setShareState } = actions;
   const dismissToast = useCallback(() => setShareState(''), [setShareState]);
+  // V-U27: the model placed the stops in another city; ask, never change the city on our own.
+  const [cityPromptDismissed, setCityPromptDismissed] = useState(false);
+  const cityPrompt = !cityPromptDismissed && routebook?.suggestedCity && routebook.suggestedCity !== routebook.city ? routebook.suggestedCity : '';
+  const dismissCityPrompt = useCallback(() => setCityPromptDismissed(true), []);
+  // V-U13: deleting a stop is instant; an 8s toast offers 「撤销」 (the undo in 改路线 stays too).
+  const [deletedStop, setDeletedStop] = useState(null);
+  const dismissDeleted = useCallback(() => setDeletedStop(null), []);
+  const removeStopWithUndo = (stopId) => {
+    const stop = stops.find((item) => stopKey(item.id) === stopKey(stopId));
+    actions.removeStop(stopId);
+    // removeStop refuses to go below 2 stops; only offer undo when something was actually removed.
+    if (stop && stops.length - 1 >= 2) setDeletedStop({ id: stop.id, name: stop.name || '这一站' });
+  };
+  const undoDeletedStop = () => {
+    const target = deletedStop;
+    setDeletedStop(null);
+    actions.undoEdit();
+    // Return focus to where the deleted stop was: its restored card's first control.
+    window.setTimeout(() => {
+      const card = target && document.querySelector(`[data-stop-card="${CSS.escape(String(target.id))}"]`);
+      const focusable = /** @type {HTMLElement|null} */ (card?.querySelector('button, a[href]') ?? null);
+      (focusable || /** @type {HTMLElement|null} */ (card))?.focus?.();
+    }, 60);
+  };
 
   const openedRouteId = routebook?.publicId || routebook?.id || '';
   useEffect(() => trackRouteOpen(openedRouteId), [openedRouteId]);
@@ -199,7 +223,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     edit: (stop) => setEditingStop({ stop, isNew: false }),
     replace: (stop) => setReplacingStop(stop),
     moveStop: actions.moveStop,
-    removeStop: actions.removeStop,
+    removeStop: removeStopWithUndo,
     moveStopBefore: actions.moveStopBefore,
     moveStopToDayEnd: actions.moveStopToDayEnd,
     setDraggedStopId,
@@ -217,6 +241,23 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         <p role="note" className="bg-sky-soft px-4 py-2 text-center text-sm text-sky-ink">
           本次由备用模型生成：所选的「{routebook.provider.fellBackFrom === 'deep' ? '细品' : '轻快'}」模型当时不可用。
         </p>
+      )}
+      {canEdit && cityPrompt && (
+        <div
+          role="note"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-lemon-soft px-4 py-2 text-center text-sm text-ink"
+          data-testid="city-suggestion"
+        >
+          <span>这些地点好像在「{cityPrompt}」，城市要改成它吗？</span>
+          <span className="flex gap-2">
+            <Button size="sm" variant="dark" onClick={() => actions.setCity(cityPrompt)}>
+              改成{cityPrompt}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={dismissCityPrompt}>
+              不用
+            </Button>
+          </span>
+        </div>
       )}
       <RouteHero
         routebook={routebook}
@@ -523,6 +564,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         }}
       />
       <Toast message={shareState} onDismiss={dismissToast} className="bottom-[calc(150px+env(safe-area-inset-bottom))] lg:bottom-8" />
+      <Toast
+        message={deletedStop ? `已删掉「${deletedStop.name}」` : ''}
+        onDismiss={dismissDeleted}
+        duration={8000}
+        action={{ label: '撤销', onClick: undoDeletedStop }}
+        className="bottom-[calc(88px+env(safe-area-inset-bottom))] lg:bottom-24"
+      />
 
       <Suspense fallback={null}>
         {showShare && (

@@ -1,3 +1,4 @@
+import { NETWORK_ERROR_KEPT_TEXT } from './networkCopy.js';
 // Client side of async routebook generation (server: server/ai/generationJobs.mjs).
 // Keeps the running job id in localStorage so a reload or leaving the builder
 // resumes the same job instead of starting (and paying for) a new one.
@@ -188,7 +189,7 @@ export function generationFailureCopy(error) {
     case 'MODEL_BAD_OUTPUT':
     case 'MODEL_OUTPUT_TRUNCATED':
     case 'MODEL_OUTPUT_INCOMPLETE':
-      return { title: 'AI 返回的路书不完整', detail: '这次输出格式有问题，没有保存。重新生成通常就能恢复。' };
+      return { title: '这次没排出来', detail: '这次排出来的路线缺了内容，没有保存，你填的都还在。再试一次通常就好。' };
     case 'MODEL_NOT_READY':
     case 'MODEL_FETCH_FAILED':
       return { title: '这次没排出来', detail: 'AI 这次没响应，路书没生成，你填的都还在。' };
@@ -202,6 +203,8 @@ export function generationFailureCopy(error) {
       return { title: '需要访问码', detail: '请在右上角「高级设置」里填写访问码后再生成。你填的攻略和偏好都还在。' };
     case 'ACCESS_CODE_INVALID':
       return { title: '访问码不对', detail: '请在右上角「高级设置」里检查访问码后重试。你填的攻略和偏好都还在。' };
+    case 'NETWORK_OFFLINE':
+      return { title: '没连上网络', detail: NETWORK_ERROR_KEPT_TEXT };
     case 'LOCAL_ONLY':
       return { title: '这个站点暂未开放在线生成', detail: '可以先看看现成的路书。' };
     case 'RATE_LIMITED':
@@ -214,4 +217,9 @@ export function generationFailureCopy(error) {
 /** True for the 403 codes that mean "fill in / fix the access code". */
 export function isAccessCodeError(error) {
   return ['ACCESS_CODE_REQUIRED', 'ACCESS_CODE_INVALID'].includes(error?.code);
+}
+
+/** One hint line under the failure detail; mentions 细品 only when switching is actually offered. */
+export function retryHintText(failure, mode) {
+  return failure?.suggestDeep && mode === 'fast' ? '可以马上再试一次，或者换「细品」慢慢排（大约 2–3 分钟）。' : '可以马上再试一次。';
 }

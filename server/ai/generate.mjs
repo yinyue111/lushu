@@ -49,6 +49,7 @@ import { scheduleShadowJudgment } from '../shadow/index.mjs';
 import { GENERATION_DEADLINE_REASON } from './generationJobs.mjs';
 import { readModelStream } from './modelStream.mjs';
 import { guardRoutebookFacts, summarizeGuardEvents } from './factGuard.mjs';
+import { suggestedCityFor } from './citySuggestion.mjs';
 
 export const loadCodexRuntime = createModelRuntimeLoader({
   readCodex: AI_RUNTIME_FROM_CODEX,
@@ -449,6 +450,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
     sourceAuthorization: 'user-generated',
     copyCount: 0,
     city: payload.city,
+    ...(suggestedCityFor(payload.city, routebook.city) ? { suggestedCity: suggestedCityFor(payload.city, routebook.city) } : {}),
     title: String(routebook.title ?? `${payload.city ?? '杭州'} 可信路书`).slice(0, 42),
     summary: String(routebook.summary ?? '路线排好了。标了「待确认」的，出发前看一眼。').slice(0, 140),
     trustScore: calculateRouteTrustScore(stops),

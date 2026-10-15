@@ -101,6 +101,7 @@ function StopRow({
   return (
     <>
       <li
+        data-stop-card={stop.id}
         className={cn(
           'group grid cursor-pointer grid-cols-[88px_minmax(0,1fr)] gap-3 rounded-card border border-line bg-white p-2.5 shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:shadow-pop motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4 sm:p-3',
           selected && 'border-transparent shadow-[0_0_0_2px_var(--color-primary),var(--shadow-pop)]',

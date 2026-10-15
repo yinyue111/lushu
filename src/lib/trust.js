@@ -123,3 +123,8 @@ export function formatVerifiedDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '待验证' : date.toLocaleDateString('zh-CN');
 }
+
+/** Metrics that describe how the roadbook performs for us (conversion, edit rate), not for a traveller. */
+export function isOperatorMetric(metric) {
+  return /转化|平均修改|修改率/.test(String(metric?.label ?? ''));
+}

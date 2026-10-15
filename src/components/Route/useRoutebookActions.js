@@ -148,6 +148,14 @@ export function useRoutebookActions({
     updateRoutebook(nextStops);
   }
 
+  /** V-U27: user-confirmed city change from the 「地点好像在 X」 prompt. Undoable like any edit. */
+  function setCity(city) {
+    const nextCity = String(city ?? '').trim();
+    if (!nextCity) return;
+    updateRoutebook(stops, { city: nextCity, suggestedCity: null, editReason: '改城市' });
+    setShareState(`城市已改成「${nextCity}」`);
+  }
+
   function moveStop(stopId, direction) {
     const dayIndexes = stops.reduce((indexes, stop, index) => (stop.day === activeDay ? [...indexes, index] : indexes), []);
     const dayPosition = dayIndexes.findIndex((index) => stopKey(stops[index].id) === stopKey(stopId));
@@ -881,6 +889,7 @@ export function useRoutebookActions({
     undoEpoch,
     patchState,
     removeStop,
+    setCity,
     moveStop,
     moveStopBefore,
     moveStopToDayEnd,

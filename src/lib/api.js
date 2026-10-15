@@ -1,4 +1,14 @@
 import { getProfile, prepareProfileSyncPayload } from './profile.js';
+import { networkError } from './networkCopy.js';
+
+/** fetch() that turns "no response at all" (offline, DNS, reset) into a NETWORK_OFFLINE error. */
+async function send(url, init) {
+  try {
+    return await fetch(url, init);
+  } catch (cause) {
+    throw networkError(cause);
+  }
+}
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL ?? '/api';
 const PUBLIC_TOKEN_KEY = 'trusted-routebook:api-token';
@@ -29,7 +39,7 @@ async function readApiResponse(response) {
 }
 
 export async function postJson(path, body, signal, extraHeaders = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await send(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...publicHeaders(), ...extraHeaders },
     body: JSON.stringify(body),
@@ -39,12 +49,12 @@ export async function postJson(path, body, signal, extraHeaders = {}) {
 }
 
 export async function getJson(path, signal, extraHeaders = {}) {
-  const response = await fetch(`${API_BASE}${path}`, { signal, headers: { ...publicHeaders(), ...extraHeaders } });
+  const response = await send(`${API_BASE}${path}`, { signal, headers: { ...publicHeaders(), ...extraHeaders } });
   return readApiResponse(response);
 }
 
 export async function deleteJson(path, body, signal, extraHeaders = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await send(`${API_BASE}${path}`, {
     method: 'DELETE',
     headers: { 'content-type': 'application/json', ...publicHeaders(), ...extraHeaders },
     body: JSON.stringify(body),

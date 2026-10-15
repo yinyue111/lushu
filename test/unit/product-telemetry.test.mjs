@@ -32,7 +32,7 @@ test('client waits for render-time exposure and never manufactures impressions o
   assert.equal(calls.length, 3);
   assert.ok(calls[2].url.endsWith('/clicks'));
   const failed = { ...payload, productId: 'failed-render' };
-  await assert.rejects(recordProductExposure(failed), /offline/);
+  await assert.rejects(recordProductExposure(failed), (/** @type {any} */ error) => error.code === 'NETWORK_OFFLINE' && error.cause?.message === 'offline');
   const fallback = await recordProductClick(failed);
   assert.equal(fallback.click.exposureId, '');
   assert.equal(calls.length, 5, 'failed impression must not be retried or fabricated by click path');

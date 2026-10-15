@@ -340,6 +340,11 @@ export function StepGuide(props) {
         ) : (
           <p className="mt-3 text-sm text-muted">输入攻略、导入链接、上传截图或手动添加后，识别出的地点会列在这里；默认都不勾选，勾选的才会排进路线。</p>
         )}
+        {(includedCount === 1 || (includedCount === 0 && candidatePlaces.length === 1)) && (
+          <p className="mt-2 text-meta text-ink-2" data-testid="single-place-hint">
+            只有 1 个地点，加一两个会排得更顺。
+          </p>
+        )}
       </div>
 
       {(ocrState.loading || ocrState.places.length > 0 || ocrState.warnings.length > 0) && (

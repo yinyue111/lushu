@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
-import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
+import { routeMetaText } from '../../lib/routeMeta.js';
+import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics, isOperatorMetric } from '../../lib/trust';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { TrustChip } from '../cards/TrustChip';
@@ -93,9 +94,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   const stops = routebook.stops ?? [];
   const days = routebook.days ?? ['Day 1'];
   const trustState = getRouteTrustBadgeState(routebook);
-  const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 6);
+  // V-U16: operator metrics (复制转化, 平均修改…) mean nothing to a stranger; the share page shows traveller signals only.
+  const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 6).filter((metric) => !isOperatorMetric(metric));
   // Metrics without data yet collapse into one quiet line instead of a grid of "待验证" tiles.
-  const isPendingMetric = (metric) => /^(待验证|待复核|暂无|—|-|)$/.test(String(metric.value ?? '').trim());
+  const isPendingMetric = (metric) => /^(待验证|待核对|待复核|暂无|—|-|)$/.test(String(metric.value ?? '').trim());
   const filledMetrics = visibleMetrics.filter((metric) => !isPendingMetric(metric));
   const pendingMetrics = visibleMetrics.filter(isPendingMetric);
 
@@ -179,7 +181,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                 </span>
               )}
               <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold backdrop-blur">
-                <MapPin className="size-3.5" aria-hidden="true" /> {routebook.city} · {days.length} 天 · {stops.length} 站
+                <MapPin className="size-3.5" aria-hidden="true" /> {routeMetaText(routebook.city, days, stops)}
               </span>
               {isUnverifiedCity(routebook.city) && (
                 <span
@@ -324,7 +326,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               {pendingMetrics.length > 0 && (
                 <p className="mt-2.5 text-meta leading-relaxed text-muted">
                   <span className="mr-1.5 inline-block size-1.5 rounded-full bg-warn align-middle" aria-hidden="true" />
-                  待验证：{pendingMetrics.map((metric) => metric.label).join('、')}（有人走过并打卡后显示）
+                  {filledMetrics.length ? '其余数据要等有人走过并打卡后显示。' : '还没人照着走过。走过的人打卡后，这里会显示真实评分。'}
                 </p>
               )}
             </section>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Ban, Check, Clock, Loader2, Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
-import { GENERATION_STAGE_LABELS, formatDuration, generationEtaText, lastAttemptText } from '../../lib/generationJob';
+import { GENERATION_STAGE_LABELS, formatDuration, generationEtaText, lastAttemptText, retryHintText } from '../../lib/generationJob';
 import { generationModeLabel } from '../../lib/generationModes';
 
 const STAGE_ORDER = Object.keys(GENERATION_STAGE_LABELS);
@@ -55,7 +55,7 @@ export function GenerationProgress({
       : outcome === 'cancelled'
         ? '已取消生成'
         : outcome === 'failed'
-          ? failure?.title || '这次没排出来'
+          ? '' // the role=alert box below already announces the failure; avoid reading the title twice
           : '正在排路线';
 
   return (
@@ -170,10 +170,7 @@ export function GenerationProgress({
           <p className="flex items-start gap-2 text-sm font-semibold text-primary-strong">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> {failure?.detail}
           </p>
-          {failure?.suggestDeep && mode === 'fast' && <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>}
-          {!failure?.suggestDeep && !failure?.suggestFast && (
-            <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>
-          )}
+          {!failure?.suggestFast && <p className="mt-2 text-sm text-ink">{retryHintText(failure, mode)}</p>}
           {failure?.failedAt && lastAttemptText(failure.failedAt) && (
             <p className="mt-1 text-xs text-ink-2">
               <time dateTime={failure.failedAt}>{lastAttemptText(failure.failedAt)}</time>
@@ -221,16 +218,17 @@ export function GenerationProgress({
 }
 
 function ResultActions({ onRetry, onBackToPrefs, retryLabel = '再试一次', onRetryDeep = null }) {
+  // V-U5: no automatic fallback happened, so trying again right away is the honest first step.
   return (
     <div className="mt-3 flex flex-wrap gap-2">
+      <Button variant="primary" size="sm" onClick={onRetry}>
+        <Sparkles /> {retryLabel}
+      </Button>
       {onRetryDeep && (
-        <Button variant="primary" size="sm" onClick={onRetryDeep}>
-          <Sparkles /> 换「细品」再试
+        <Button variant="outline" size="sm" onClick={onRetryDeep}>
+          换「细品」再试
         </Button>
       )}
-      <Button variant={onRetryDeep ? 'outline' : 'primary'} size="sm" onClick={onRetry}>
-        {!onRetryDeep && <Sparkles />} {onRetryDeep ? '用「轻快」再试' : retryLabel}
-      </Button>
       <Button variant="outline" size="sm" onClick={onBackToPrefs}>
         <ArrowLeft /> 改改偏好
       </Button>

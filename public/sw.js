@@ -86,8 +86,16 @@ async function navigationResponse(request) {
     }
     return response;
   } catch {
-    return (await caches.match(APP_SHELL_URL)) || Response.error();
+    return (await caches.match(APP_SHELL_URL)) || offlineFallbackResponse();
   }
+}
+
+// Cold start with no cached shell: a tiny same-origin page instead of the browser's error screen.
+// The sentence must equal NETWORK_ERROR_TEXT in src/lib/networkCopy.js (enforced by a unit test).
+const OFFLINE_FALLBACK_TEXT = '网络不太稳，没连上。检查网络后再试。';
+function offlineFallbackResponse() {
+  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>可信路书</title></head><body style="margin:0;font:16px/1.6 system-ui,sans-serif;color:#1f1d1a;background:#faf7f2;display:grid;place-items:center;min-height:100vh"><main style="max-width:22rem;padding:1.5rem;text-align:center"><h1 style="font-size:1.25rem;margin:0 0 .5rem">没连上网络</h1><p style="margin:0 0 1rem">${OFFLINE_FALLBACK_TEXT}</p><button type="button" onclick="location.reload()" style="min-height:44px;padding:0 1.25rem;border:0;border-radius:999px;background:#bd3f2a;color:#fff;font:inherit;font-weight:700">再试一次</button></main></body></html>`;
+  return new Response(html, { status: 503, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
 async function routebookDataResponse(request) {

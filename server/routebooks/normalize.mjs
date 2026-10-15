@@ -35,6 +35,7 @@ import { normalizeStopProvenance } from '../trust/provenance.mjs';
 import { coordinateVerificationLevel, normalizePlaceText, placeNameVariants, routeEvidenceScore } from '../../src/lib/trustSignals.js';
 import { formatCostInfo, stopCostInfo, sumStopCosts } from '../../src/lib/cost.js';
 import { publicCreatorName } from '../../src/lib/creatorName.js';
+import { suggestedCityFor } from '../ai/citySuggestion.mjs';
 
 export { LEGACY_PLACEHOLDER_CREATOR_NAMES } from '../../src/lib/creatorName.js';
 
@@ -832,6 +833,8 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     sourceAuthorization: truncateString(input?.sourceAuthorization || input?.creator?.sourceAuthorization, 40) || 'self-owned',
     copyCount: clampNumber(input?.copyCount, 0, 1000000, 0),
     city,
+    // V-U27: kept only while it still differs from the chosen city (accepting it clears it).
+    ...(suggestedCityFor(city, input?.suggestedCity) ? { suggestedCity: suggestedCityFor(city, input?.suggestedCity) } : {}),
     title: truncateString(input?.title, 80) || `${city} 可信路书`,
     summary: truncateString(input?.summary, 220) || '已保存为可分享、可编辑的可信路书。',
     trustScore,
