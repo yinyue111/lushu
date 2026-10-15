@@ -1,11 +1,13 @@
 import { CLAIM, METHOD, term } from '../terms';
 import { useState } from 'react';
+import { CircleCheck, CircleDot, CircleX } from 'lucide-react';
 import { can } from '../../../server/admin/permissions.mjs';
 import { adminGet, adminPost, query } from '../api';
 import { Button, Card, Field, Notice, Page, ReasonAction, formatTime, inputClass, useLoad } from '../ui';
 
 const STATUS = { open: '待处理', resolved: '已处理', rejected: '已驳回', '': '全部' };
 const FIELD = { price: '门票', hours: '开放时间' };
+const STATUS_ICON = { open: CircleDot, resolved: CircleCheck, rejected: CircleX };
 const today = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 
 export default function CorrectionsPage({ admin }) {
@@ -47,6 +49,12 @@ export default function CorrectionsPage({ admin }) {
       </Card>
       {error && <Notice tone="error">{error}</Notice>}
       {!loading && !error && items.length === 0 && <Notice>队列是空的。</Notice>}
+      {/* V-A2: count on top so the size of the queue is visible before scrolling. */}
+      {!error && items.length > 0 && (
+        <p className="text-sm font-semibold text-ink-2" aria-live="polite">
+          {STATUS[filters.status] || '全部'} {items.length} 条
+        </p>
+      )}
       <ul className="space-y-3" aria-label="纠错条目">
         {items.map((item) => (
           <li key={item.id}>
@@ -78,42 +86,44 @@ function CorrectionItem({ item, admin, onDone }) {
     };
   return (
     <Card title={`${item.city || '城市未记录'} · ${item.stopName || item.stopKey} · ${FIELD[item.field] ?? item.field}`}>
-      <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="inline text-muted">当前值：</dt>
-          <dd className="inline">{item.value || '（空）'}</dd>
-        </div>
-        <div className="sm:col-span-2">
-          <dt className="inline text-muted">状态：</dt>
-          <dd className="inline">
-            {STATUS[item.status] ?? item.status} · 用户看到：{term(CLAIM, item.claimStatus)}
-          </dd>
-        </div>
-        <div className="sm:col-span-2">
-          <dt className="inline text-muted">来源：</dt>
-          <dd className="inline">
-            {item.source === 'user' ? '用户报错' : item.source}
-            {item.method ? ` · ${term(METHOD, item.method)}` : ''}
-            {Array.isArray(item.sources) && item.sources.length ? `（${item.sources.length} 个）` : ''}
-          </dd>
-        </div>
-        <div>
-          <dt className="inline text-muted">提交时间：</dt>
-          <dd className="inline">{formatTime(item.createdAt)}</dd>
-        </div>
+      {/* V-A2: the difference first — what users see now vs. what the report says. */}
+      <p className="text-base">
+        <span className="text-muted">当前：</span>
+        <strong className="font-semibold">{item.value || '（空）'}</strong>
         {item.note && (
-          <div className="sm:col-span-2">
-            <dt className="inline text-muted">用户说明：</dt>
-            <dd className="inline">{item.note}</dd>
-          </div>
+          <>
+            <span className="mx-2 text-muted" aria-hidden="true">
+              →
+            </span>
+            <span className="text-muted">用户说：</span>
+            <strong className="font-semibold">{item.note}</strong>
+          </>
         )}
-        <div className="sm:col-span-2">
-          <dt className="inline text-muted">同一地点影响：</dt>
-          <dd className="inline">
-            {item.cacheKey ? `${item.affectedRoutebooks} 本路书` : '没有地点标识'} · 路书 {item.routebookId}
-          </dd>
-        </div>
-      </dl>
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <StatusBadge status={item.status} />
+        <span className="text-muted">用户看到：{term(CLAIM, item.claimStatus)}</span>
+        <span className="text-muted">
+          · 来源：{item.source === 'user' ? '用户报错' : item.source}
+          {item.method ? ` · ${term(METHOD, item.method)}` : ''}
+          {Array.isArray(item.sources) && item.sources.length ? `（${item.sources.length} 个）` : ''}
+        </span>
+      </p>
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer text-muted">提交时间和影响范围</summary>
+        <dl className="mt-1 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+          <div>
+            <dt className="inline text-muted">提交时间：</dt>
+            <dd className="inline">{formatTime(item.createdAt)}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="inline text-muted">同一地点影响：</dt>
+            <dd className="inline">
+              {item.cacheKey ? `${item.affectedRoutebooks} 本路书` : '没有地点标识'} · 路书 {item.routebookId}
+            </dd>
+          </div>
+        </dl>
+      </details>
       <h3 className="mt-3 text-sm font-semibold">依据（链接 · 原文摘录 · 查询日期）</h3>
       {item.sources.length === 0 ? (
         <p className="text-sm text-muted">没有来源。</p>
@@ -131,7 +141,7 @@ function CorrectionItem({ item, admin, onDone }) {
         </ul>
       )}
       {item.status === 'open' && (
-        <div className="mt-3 flex flex-wrap items-start gap-2">
+        <div className="mt-3 flex flex-wrap items-start justify-end gap-2">
           <ReasonAction
             label="设为人工核实"
             variant="primary"
@@ -152,7 +162,10 @@ function CorrectionItem({ item, admin, onDone }) {
             }
           />
           <ReasonAction label="改回待确认" onSubmit={act('reset')} />
-          <ReasonAction label="驳回报错" onSubmit={act('reject')} />
+          {/* V-A2: spaced away from 设为人工核实 so it is not hit by accident. */}
+          <span className="sm:ml-4">
+            <ReasonAction label="驳回报错" onSubmit={act('reject')} />
+          </span>
           <details className="w-full rounded-md border border-line bg-canvas p-2 text-sm">
             <summary className="cursor-pointer font-medium text-ink-2">更多</summary>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -170,5 +183,15 @@ function CorrectionItem({ item, admin, onDone }) {
         </p>
       )}
     </Card>
+  );
+}
+
+function StatusBadge({ status }) {
+  const Icon = STATUS_ICON[status] ?? CircleDot;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-2">
+      <Icon className="size-3.5" aria-hidden="true" />
+      {STATUS[status] ?? status}
+    </span>
   );
 }
