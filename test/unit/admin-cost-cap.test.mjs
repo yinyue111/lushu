@@ -131,9 +131,11 @@ test('with shipped prices, estimateModelCost yields a real USD amount (dashboard
 });
 
 test('cost headline copy: 估算 $X / 估算 $X，另有 N 次没有单价; never 至少', async () => {
-  const { formatCostHeadline, COST_ESTIMATE_BIAS_HINT } = await import('../../admin/src/costDisplay.js');
-  assert.equal(formatCostHeadline({ totalUsd: 1.23456, lowerBound: false }), '估算 $1.2346');
-  assert.equal(formatCostHeadline({ totalUsd: 0.5, lowerBound: true, unknownCostCount: 3 }), '估算 $0.5000，另有 3 次没有单价');
+  const { formatCostHeadline, formatCostUnknownNote, COST_ESTIMATE_BIAS_HINT } = await import('../../admin/src/costDisplay.js');
+  assert.equal(formatCostHeadline({ totalUsd: 1.23456, lowerBound: false }), '估算 $1.23');
+  assert.equal(formatCostHeadline({ totalUsd: 0.5, lowerBound: true, unknownCostCount: 3 }), '估算 $0.50');
+  assert.equal(formatCostUnknownNote({ lowerBound: true, unknownCostCount: 3 }), '另有 3 次没有单价');
+  assert.equal(formatCostHeadline({ totalUsd: 0.001 }), '估算 < $0.01');
   assert.equal(COST_ESTIMATE_BIAS_HINT, '按官方标价估算；命中缓存时偏高，超长上下文时偏低');
   assert.doesNotMatch(formatCostHeadline({ totalUsd: 1, lowerBound: true, unknownCostCount: 1 }), /至少/);
 });

@@ -76,6 +76,7 @@ function sendApiError(req, res, error) {
     code: error.code ?? 'SERVER_ERROR',
     ...(error.currentVersion != null ? { currentVersion: error.currentVersion } : {}),
     ...(error.details && typeof error.details === 'object' && error.statusCode ? { details: error.details } : {}),
-    ...(Number.isFinite(error.retryAfterSeconds) ? { retryAfterSeconds: error.retryAfterSeconds } : {})
+    ...(Number.isFinite(error.retryAfterSeconds) ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+    ...(Number.isFinite(error.remainingAttempts) ? { remainingAttempts: error.remainingAttempts } : {})
   });
 }

@@ -5,13 +5,12 @@ import { Card, Page } from '../ui';
 // enrichment engine prefers a live verified fact over a fresh search. Browsing / editing that library is phase 2.
 export default function VerifiedPlacesPage() {
   return (
-    <Page title="已核实地点（二期）" description="这一期还不能在这里浏览或编辑。">
+    <Page title="地点核对库（二期）" description="下一期开放。">
       <Card>
         <p className="text-sm text-ink-2">
-          第一期在纠错队列里「设为核实值」时，会把结果按地点（cacheKey）存下来，有效期默认 90
-          天（可在配置里改）。有效期内，同一地点的联网核对直接用人工核实的值，并显示「人工核实 · 日期」。
+          下一期开放。现在在「纠错队列」里设为人工核实的值，会自动存下来，90 天内有效。
         </p>
-        <p className="mt-2 text-sm text-ink-2">第二期计划：按城市浏览已核实地点、到期提醒、批量复核、导入官方来源。范围待产品确认。</p>
+        <p className="mt-2 text-sm text-ink-2">第二期计划：按城市浏览已核对地点、到期提醒、批量复核、导入官方来源。范围待产品确认。</p>
       </Card>
     </Page>
   );

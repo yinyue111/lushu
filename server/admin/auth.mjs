@@ -115,7 +115,13 @@ async function recordFailure(admin) {
       : { failedAttempts: attempts };
   await adminStore().updateAdmin(admin.id, patch);
 }
-const LOGIN_FAILED = () => createHttpError('用户名、密码或验证码不对', 401, 'ADMIN_LOGIN_FAILED');
+const LOGIN_FAILED = (remainingAttempts = null) => {
+  const base = '用户名、密码或动态码不对';
+  const message = Number.isFinite(remainingAttempts) ? `${base}。还能再试 ${remainingAttempts} 次。` : base;
+  const error = createHttpError(message, 401, 'ADMIN_LOGIN_FAILED');
+  if (Number.isFinite(remainingAttempts)) error.remainingAttempts = remainingAttempts;
+  return error;
+};
 
 /**
  * Step 1+2 in one call. Without a confirmed TOTP the answer is an enrollment challenge (no session).
@@ -137,7 +143,7 @@ export async function adminLogin(req, res, input = {}) {
   }
   if (!(await verifyPassword(String(input.password ?? ''), admin.passwordHash).catch(() => false))) {
     await recordFailure(admin);
-    throw LOGIN_FAILED();
+    throw LOGIN_FAILED(await remainingLoginAttempts(admin.id));
   }
   const secret = decryptSecret(admin.totpSecretEnc);
   if (!admin.totpConfirmed) {
@@ -159,7 +165,7 @@ export async function adminLogin(req, res, input = {}) {
   }
   if (!ok) {
     await recordFailure(admin);
-    throw LOGIN_FAILED();
+    throw LOGIN_FAILED(await remainingLoginAttempts(admin.id));
   }
   await adminStore().updateAdmin(admin.id, { failedAttempts: 0, lockedUntil: null });
   return { admin, session: await startAdminSession(res, admin) };
@@ -171,7 +177,7 @@ export async function adminEnroll(req, res, input = {}) {
   if (!admin || admin.totpConfirmed) throw createHttpError('绑定已过期，请重新登录', 401, 'ADMIN_ENROLL_EXPIRED');
   const step = verifyTotp(decryptSecret(admin.totpSecretEnc), input.totp);
   if (!step || !(await adminStore().consumeTotpStep(admin.id, step)))
-    throw createHttpError('验证码不对，请看验证器 App 上的 6 位数', 400, 'ADMIN_TOTP_INVALID');
+    throw createHttpError('动态码不对，请看验证器 App 上的 6 位数', 400, 'ADMIN_TOTP_INVALID');
   const codes = Array.from({ length: BACKUP_CODE_COUNT }, generateRecoveryCode);
   const fresh = await adminStore().updateAdmin(admin.id, {
     totpConfirmed: true,

@@ -1,5 +1,5 @@
 import { adminGet } from '../api';
-import { COST_ESTIMATE_BIAS_HINT, formatCostHeadline } from '../costDisplay.js';
+import { COST_ESTIMATE_BIAS_HINT, formatCostHeadline, formatCostUnknownNote } from '../costDisplay.js';
 import { Button, Card, Notice, Page, formatTime, percent, usd, useLoad } from '../ui';
 
 export default function DashboardPage() {
@@ -8,7 +8,7 @@ export default function DashboardPage() {
   return (
     <Page
       title="概览"
-      description="三个数：生成成功率、待确认占比、今日花费。口径见 docs/admin.md。"
+      description="今天的成功率、待确认占比和花费。"
       actions={
         <Button onClick={reload} disabled={loading}>
           刷新
@@ -28,6 +28,11 @@ export default function DashboardPage() {
             </span>
           )}
           {w.detail && <span className="mt-1 block text-xs opacity-80">{w.detail}</span>}
+          {(w.key === 'open-registration' || /注册当前对所有人开放/.test(String(w.text || ''))) && (
+            <a href="/admin/config" className="mt-1 block text-sm font-semibold text-sky-ink underline">
+              去设置注册方式或日上限 →
+            </a>
+          )}
         </Notice>
       ))}
       {d?.successRate && (
@@ -48,14 +53,18 @@ export default function DashboardPage() {
           </Card>
           <Card title="今日花费（美元）">
             <p className="text-3xl font-semibold">{formatCostHeadline(d.cost)}</p>
+            {formatCostUnknownNote(d.cost) ? (
+              <p className="mt-1 text-xs text-muted">{formatCostUnknownNote(d.cost)}</p>
+            ) : null}
             <p className="mt-1 text-xs text-muted">{COST_ESTIMATE_BIAS_HINT}</p>
             <p className="mt-1 text-sm text-muted">
               生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网核对 {usd(d.cost.enrichUsd)}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {d.cost.dailyLimitUsd ? `日上限 ${usd(d.cost.dailyLimitUsd)}，已用 ${percent(d.cost.ratio)}` : '未设日上限'}
+              {d.cost.dailyLimitUsd
+                ? `日上限：${usd(d.cost.dailyLimitUsd)}（已用 ${percent(d.cost.ratio)}）`
+                : '日上限：未设'}
             </p>
-            <p className="mt-1 text-sm text-muted">上限拦截：{d.cost.cap?.reason ?? '—'}</p>
           </Card>
         </div>
       )}

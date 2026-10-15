@@ -23,7 +23,7 @@ const NAV = [
   { path: 'audit', label: '审计', permission: 'audit.read.own', Component: AuditPage },
   { path: 'admins', label: '后台账号', permission: 'admins.manage', Component: AdminsPage },
   { path: 'system', label: '系统信息', permission: 'system.read', Component: SystemPage },
-  { path: 'verified-places', label: '已核实地点（二期）', permission: 'corrections.read', Component: VerifiedPlacesPage },
+  { path: 'verified-places', label: '地点核对库（二期）', permission: 'corrections.read', Component: VerifiedPlacesPage, phase2: true },
   { path: 'legacy-ops', label: '旧运维工具', permission: 'admins.manage', Component: LegacyOpsPage }
 ];
 
@@ -89,13 +89,25 @@ export default function AdminApp() {
                 <a
                   href={`/admin/${item.path}`}
                   aria-current={item.path === active.path ? 'page' : undefined}
+                  aria-disabled={item.phase2 ? 'true' : undefined}
                   onClick={(event) => {
                     event.preventDefault();
                     go(item.path);
                   }}
-                  className={`block rounded-md px-3 py-2 text-sm ${item.path === active.path ? 'bg-ink text-white' : 'text-ink-2 hover:bg-canvas'}`}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm ${
+                    item.path === active.path
+                      ? 'bg-ink text-white'
+                      : item.phase2
+                        ? 'text-[#6b7280] hover:bg-canvas'
+                        : 'text-ink-2 hover:bg-canvas'
+                  }`}
                 >
-                  {item.label}
+                  <span>{item.label.replace('（二期）', '')}</span>
+                  {item.phase2 ? (
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.path === active.path ? 'bg-white/20 text-white' : 'bg-canvas text-[#6b7280]'}`}>
+                      二期
+                    </span>
+                  ) : null}
                 </a>
               </li>
             ))}
@@ -141,7 +153,12 @@ function LoginScreen({ ready, onSignedIn }) {
         } else onSignedIn(finish(data));
       }
     } catch (err) {
-      setError(err.message);
+      const remaining = err?.remainingAttempts ?? err?.data?.remainingAttempts;
+      setError(
+        Number.isFinite(remaining)
+          ? `用户名、密码或动态码不对。还能再试 ${remaining} 次。`
+          : String(err.message || '').replace('验证码', '动态码')
+      );
     } finally {
       setBusy(false);
     }
@@ -221,12 +238,12 @@ function LoginScreen({ ready, onSignedIn }) {
                 </Field>
               )}
               {error && <Notice tone="error">{error}</Notice>}
-              <div className="flex flex-wrap items-center gap-3">
-                <Button type="submit" variant="primary" disabled={busy}>
+              <div className="flex flex-col gap-3">
+                <Button type="submit" variant="primary" className="min-h-11 w-full justify-center" disabled={busy}>
                   {busy ? '请稍候…' : enroll ? '绑定并登录' : '登录'}
                 </Button>
                 {!enroll && (
-                  <button type="button" className="text-sm text-sky-ink underline" onClick={() => setUseBackup((v) => !v)}>
+                  <button type="button" className="self-start text-sm text-sky-ink underline" onClick={() => setUseBackup((v) => !v)}>
                     {useBackup ? '改用动态码' : '手机不在身边？用备用码'}
                   </button>
                 )}

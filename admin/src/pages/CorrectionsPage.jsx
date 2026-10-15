@@ -14,7 +14,7 @@ export default function CorrectionsPage({ admin }) {
   const set = (key) => (event) => setFilters((f) => ({ ...f, [key]: event.target.value }));
   const items = data?.items ?? [];
   return (
-    <Page title="纠错队列" description="用户报错和联网核对结果。设为核实值必须附来源链接和查询日期；不确定就改回「待确认」。">
+    <Page title="纠错队列" description="用户报错和联网核对结果。设为人工核实必须附来源链接和查询日期；不确定就改回「待确认」。">
       <Card title="筛选">
         <div className="grid gap-3 sm:grid-cols-4">
           <Field label="状态">
@@ -83,16 +83,19 @@ function CorrectionItem({ item, admin, onDone }) {
           <dt className="inline text-muted">当前值：</dt>
           <dd className="inline">{item.value || '（空）'}</dd>
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <dt className="inline text-muted">状态：</dt>
           <dd className="inline">
-            {STATUS[item.status] ?? item.status} · 核对结果：{term(CLAIM, item.claimStatus)}
-            {item.method ? ` · ${term(METHOD, item.method)}` : ''}
+            {STATUS[item.status] ?? item.status} · 用户看到：{term(CLAIM, item.claimStatus)}
           </dd>
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <dt className="inline text-muted">来源：</dt>
-          <dd className="inline">{item.source === 'user' ? '用户报错' : item.source}</dd>
+          <dd className="inline">
+            {item.source === 'user' ? '用户报错' : item.source}
+            {item.method ? ` · ${term(METHOD, item.method)}` : ''}
+            {Array.isArray(item.sources) && item.sources.length ? `（${item.sources.length} 个）` : ''}
+          </dd>
         </div>
         <div>
           <dt className="inline text-muted">提交时间：</dt>
@@ -129,12 +132,9 @@ function CorrectionItem({ item, admin, onDone }) {
       )}
       {item.status === 'open' && (
         <div className="mt-3 flex flex-wrap items-start gap-2">
-          <ReasonAction label="改回待确认" onSubmit={act('reset')} />
-          {can(admin.role, 'corrections.batch') && item.cacheKey && (
-            <ReasonAction label={`按地点批量改回（${item.affectedRoutebooks} 本）`} variant="danger" onSubmit={act('reset', { batch: true })} />
-          )}
           <ReasonAction
-            label="设为核实值"
+            label="设为人工核实"
+            variant="primary"
             onSubmit={act('verify', { value: verify.value, sources: [{ url: verify.url, title: verify.title, retrievedAt: verify.retrievedAt }] })}
             extra={
               <div className="grid gap-2 sm:grid-cols-2">
@@ -151,8 +151,17 @@ function CorrectionItem({ item, admin, onDone }) {
               </div>
             }
           />
+          <ReasonAction label="改回待确认" onSubmit={act('reset')} />
           <ReasonAction label="驳回报错" onSubmit={act('reject')} />
-          <ReasonAction label="重跑联网核对" onSubmit={act('rerun')} />
+          <details className="w-full rounded-md border border-line bg-canvas p-2 text-sm">
+            <summary className="cursor-pointer font-medium text-ink-2">更多</summary>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {can(admin.role, 'corrections.batch') && item.cacheKey && (
+                <ReasonAction label={`按地点批量改回（${item.affectedRoutebooks} 本）`} variant="danger" onSubmit={act('reset', { batch: true })} />
+              )}
+              <ReasonAction label="重跑联网核对" onSubmit={act('rerun')} />
+            </div>
+          </details>
         </div>
       )}
       {item.resolvedBy && (
