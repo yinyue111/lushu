@@ -115,7 +115,7 @@ export async function dashboard(now = Date.now()) {
       enrichDay: enrichSpend.day ?? null,
       enrichBudgetUsd: getConfig('enrich.dailyBudgetUsd'),
       totalUsd: total,
-      // With unpriced calls the total is only a lower bound: 「至少 $X，另有 N 次没有单价」.
+      // Ops estimate: 「估算 $X」 or 「估算 $X，另有 N 次没有单价」 (not invoice reconciliation).
       lowerBound: gen.unknownCostCount > 0,
       dailyLimitUsd: limit || null,
       ratio: limit ? total / limit : null,

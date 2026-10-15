@@ -1,5 +1,5 @@
-// Daily cost cap (product v4 review): the dashboard number is a LOWER BOUND when some calls have no unit
-// price ("至少 $X，另有 N 次没有单价"), so enforcing a cap on it would silently under-count. Mode:
+// Daily cost cap (product v4 review): the dashboard shows an OPS ESTIMATE ("估算 $X" / "估算 $X，另有 N 次没有单价").
+// When some calls have no unit price, enforcing a cap on the known part would silently under-count. Mode:
 //   auto (default) — enforce only while every generation model has a price and today has no unpriced calls
 //   on             — enforce on the known lower bound anyway
 //   off            — never block, dashboard only

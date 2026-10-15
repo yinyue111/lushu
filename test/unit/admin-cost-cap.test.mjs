@@ -69,7 +69,7 @@ test('shipped model.pricing defaults: official USD/1M for grok-4.7 and gemini-3.
   assert.ok(shipped['gemini-3.8-flash-high']);
 });
 
-test('with shipped prices, estimateModelCost yields a real USD amount (dashboard can show $X / 至少 $X)', async () => {
+test('with shipped prices, estimateModelCost yields a real USD amount (dashboard can show 估算 $X)', async () => {
   const { estimateModelCost } = await import('../../server/analytics/aiObservability.mjs');
   const { modelPricingFor, modelHasPrice } = await import('../../server/admin/cost.mjs');
   const { DEFAULT_MODEL_PRICING } = await import('../../server/config/modelPricingDefaults.mjs');
@@ -105,7 +105,7 @@ test('with shipped prices, estimateModelCost yields a real USD amount (dashboard
   });
   assert.equal(gemini.status, 'estimated');
   assert.equal(gemini.amount, 0.75 + 3.75);
-  // Mixed day: one estimated + one unavailable → lower-bound 「至少 $X」
+  // Mixed day: one estimated + one unavailable → 「估算 $X，另有 N 次没有单价」
   const out = generationCostToday(
     [
       {
@@ -128,4 +128,12 @@ test('with shipped prices, estimateModelCost yields a real USD amount (dashboard
   );
   assert.equal(out.generationUsd, 4.5);
   assert.equal(out.unknownCostCount, 1);
+});
+
+test('cost headline copy: 估算 $X / 估算 $X，另有 N 次没有单价; never 至少', async () => {
+  const { formatCostHeadline, COST_ESTIMATE_BIAS_HINT } = await import('../../admin/src/costDisplay.js');
+  assert.equal(formatCostHeadline({ totalUsd: 1.23456, lowerBound: false }), '估算 $1.2346');
+  assert.equal(formatCostHeadline({ totalUsd: 0.5, lowerBound: true, unknownCostCount: 3 }), '估算 $0.5000，另有 3 次没有单价');
+  assert.equal(COST_ESTIMATE_BIAS_HINT, '按官方标价估算；命中缓存时偏高，超长上下文时偏低');
+  assert.doesNotMatch(formatCostHeadline({ totalUsd: 1, lowerBound: true, unknownCostCount: 1 }), /至少/);
 });

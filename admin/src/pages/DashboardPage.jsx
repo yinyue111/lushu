@@ -1,4 +1,5 @@
 import { adminGet } from '../api';
+import { COST_ESTIMATE_BIAS_HINT, formatCostHeadline } from '../costDisplay.js';
 import { Button, Card, Notice, Page, formatTime, percent, usd, useLoad } from '../ui';
 
 export default function DashboardPage() {
@@ -46,8 +47,8 @@ export default function DashboardPage() {
             </p>
           </Card>
           <Card title="今日花费（美元）">
-            <p className="text-3xl font-semibold">{d.cost.lowerBound ? `至少 ${usd(d.cost.totalUsd)}` : usd(d.cost.totalUsd)}</p>
-            {d.cost.lowerBound && <p className="mt-1 text-sm font-semibold text-warn-ink">另有 {d.cost.unknownCostCount} 次没有单价（没算进上面的金额）</p>}
+            <p className="text-3xl font-semibold">{formatCostHeadline(d.cost)}</p>
+            <p className="mt-1 text-xs text-muted">{COST_ESTIMATE_BIAS_HINT}</p>
             <p className="mt-1 text-sm text-muted">
               生成 {usd(d.cost.generationUsd)} · 试跑 {usd(d.cost.testRunUsd)} · 联网核对 {usd(d.cost.enrichUsd)}
             </p>
