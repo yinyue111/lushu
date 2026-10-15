@@ -98,14 +98,17 @@ export default function AdminApp() {
                     item.path === active.path ? 'bg-ink text-white' : item.phase2 ? 'text-[#6b7280] hover:bg-canvas' : 'text-ink-2 hover:bg-canvas'
                   }`}
                 >
-                  <span>{item.label.replace('（二期）', '')}</span>
-                  {item.phase2 ? (
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.path === active.path ? 'bg-white/20 text-white' : 'bg-canvas text-[#6b7280]'}`}
-                    >
-                      二期
-                    </span>
-                  ) : null}
+                  <span className="sr-only">{item.label}</span>
+                  <span aria-hidden="true" className="flex items-center gap-1.5">
+                    <span>{item.label.replace('（二期）', '')}</span>
+                    {item.phase2 ? (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.path === active.path ? 'bg-white/20 text-white' : 'bg-canvas text-[#6b7280]'}`}
+                      >
+                        二期
+                      </span>
+                    ) : null}
+                  </span>
                 </a>
               </li>
             ))}
