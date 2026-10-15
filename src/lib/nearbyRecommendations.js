@@ -38,7 +38,7 @@ export function normalizeFacilityType(value) {
 export function formatNearbyDistance(value) {
   const distance = Number(value);
   if (!Number.isFinite(distance) || distance < 0) return '距离待核对';
-  return distance < 1 ? `约 ${Math.max(1, Math.round(distance * 1000))}m` : `约 ${distance.toFixed(1)}km`;
+  return distance < 1 ? `约 ${Math.max(1, Math.round(distance * 1000))} m` : `约 ${distance.toFixed(1)} km`;
 }
 export function hasNearbyCoordinate(stop) {
   return stop?.lat != null && stop?.lng != null && String(stop.lat).trim() !== '' && String(stop.lng).trim() !== '' && isNavigableCoordinate(stop);

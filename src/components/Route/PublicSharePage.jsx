@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
 import { getProfile } from '../../lib/profile';
-import { routeMetaText } from '../../lib/routeMeta.js';
+import { formatStayText, routeMetaText } from '../../lib/routeMeta.js';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics, isOperatorMetric } from '../../lib/trust';
 import { Button } from '../ui/button';
+import { roadbookDocumentTitle, useDocumentTitle } from '../../lib/useDocumentTitle.js';
 import { cn } from '../ui/cn';
 import { TrustChip } from '../cards/TrustChip';
 import { CityBackdrop } from '../visual/CityBackdrop';
@@ -17,6 +18,14 @@ import { ConditionNotes } from './EnrichedFacts';
 import { trackEvent } from '../../lib/betaTelemetry.js';
 import { UNVERIFIED_CITY_NOTE, isUnverifiedCity } from './RouteStats';
 
+// V-U10: say what probably happened and offer a next step instead of a dead end.
+const SHARE_GONE_TEXT = '可能是对方停用了链接。可以让 TA 重新发一次，或者自己排一条。';
+function shareLoadErrorText(error) {
+  const status = Number(error?.status) || 0;
+  if (!status || status === 404 || status === 410) return error?.code === 'NETWORK_OFFLINE' ? error.message : SHARE_GONE_TEXT;
+  return error?.message || SHARE_GONE_TEXT;
+}
+
 /** @param {Record<string, any>} props */
 export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCustomize, onOpenCreator }) {
   const [state, setState] = useState(
@@ -25,6 +34,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
   const [actionState, setActionState] = useState({ pending: '', message: '', isError: false, savedDraft: null, synced: false });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const exposureRef = useRef('');
+  useDocumentTitle(roadbookDocumentTitle(state.routebook?.title));
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -39,7 +49,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           setState({ loading: false, error: '', routebook, enrichedFacts: Array.isArray(data.enrichedFacts) ? data.enrichedFacts : [] });
       })
       .catch((error) => {
-        if (!ctrl.signal.aborted) setState({ loading: false, error: error.message, routebook: null });
+        if (!ctrl.signal.aborted) setState({ loading: false, error: shareLoadErrorText(error), routebook: null });
       });
     return () => ctrl.abort();
   }, [publicId]);
@@ -80,10 +90,10 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
           <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
             <AlertCircle className="size-6" aria-hidden="true" />
           </span>
-          <h1 className="mt-3 text-xl font-extrabold">这条分享暂时打不开</h1>
-          <p className="mt-1 text-sm text-muted">{state.error || '链接不存在或已失效'}</p>
-          <Button variant="outline" className="mt-4" onClick={onBack}>
-            <ArrowLeft /> 返回首页
+          <h1 className="mt-3 text-xl font-extrabold">这条分享打不开了</h1>
+          <p className="mt-1 text-sm text-muted">{state.error || SHARE_GONE_TEXT}</p>
+          <Button variant="primary" className="mt-4" onClick={onBack}>
+            自己排一条
           </Button>
         </div>
       </div>
@@ -126,7 +136,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
         ? result.attributionSynced === false
           ? '已保存到我的路书（来源记录稍后同步）。'
           : '已保存到我的路书。'
-        : `已存在这台设备上，云端暂未同步：${result.syncError || '网络不可用'}`;
+        : '已存在这台设备上，云端这次没同步上。';
       setActionState({
         pending: '',
         message: syncNote,
@@ -166,7 +176,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
         />
         <div className="mx-auto flex min-h-[340px] max-w-[1200px] flex-col justify-between gap-6 px-4 pt-5 pb-8 lg:min-h-[400px] lg:px-8 lg:pb-10">
           <Button variant="glass" size="sm" className="self-start" onClick={onBack}>
-            <ArrowLeft /> 返回平台
+            <ArrowLeft /> 看看更多路线
           </Button>
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
@@ -275,7 +285,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                             </span>
                           </div>
                           <p className="num mt-0.5 text-xs font-semibold text-muted">
-                            {[stop.time, stop.stay, costDisplay(stop).text].filter(Boolean).join(' · ')}
+                            {[stop.time, formatStayText(stop.stay), costDisplay(stop).pending ? '' : costDisplay(stop).text].filter(Boolean).join(' · ')}
                           </p>
                           {(state.enrichedFacts ?? [])
                             .filter((fact) => fact.stopName === stop.name)
@@ -369,7 +379,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
 
 /** @param {Record<string, any>} props */
 function ShareActions({ actionState, busy, onUse, onSave, onCustomize, onCopy, compact = false }) {
-  const useLabel = actionState.pending === 'use' ? '正在保存副本...' : actionState.savedDraft ? '用已保存的副本出发' : '保存副本并出发';
+  const useLabel = actionState.pending === 'use' ? '正在保存副本…' : actionState.savedDraft ? '用已保存的副本出发' : '保存副本并出发';
   return (
     <div className="grid gap-2">
       <Button variant="primary" size={compact ? 'md' : 'lg'} className="w-full" disabled={busy} onClick={onUse}>
@@ -377,13 +387,13 @@ function ShareActions({ actionState, busy, onUse, onSave, onCustomize, onCopy, c
       </Button>
       <div className={cn('grid gap-2', compact ? 'grid-cols-3' : 'grid-cols-1')}>
         <Button variant="outline" size="sm" disabled={Boolean(busy || actionState.savedDraft)} onClick={onSave}>
-          <BookmarkPlus /> {actionState.savedDraft ? '已保存' : actionState.pending === 'save' ? '保存中...' : compact ? '只保存' : '只保存一份副本'}
+          <BookmarkPlus /> {actionState.savedDraft ? '已保存' : actionState.pending === 'save' ? '保存中…' : compact ? '存一份' : '只保存一份副本'}
         </Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={onCustomize}>
-          <RefreshCw /> {compact ? '定制' : '按我的喜好定制'}
+          <RefreshCw /> 改成我的
         </Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={onCopy}>
-          <Copy /> {compact ? '复制' : '复制文字摘要'}
+          <Copy /> {compact ? '复制文字' : '复制文字摘要'}
         </Button>
       </div>
       <p

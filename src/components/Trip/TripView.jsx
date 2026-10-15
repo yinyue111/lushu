@@ -66,6 +66,7 @@ import {
   summarizeProgress,
   syncStatusLabel
 } from './tripModel';
+import { formatStayText } from '../../lib/routeMeta.js';
 
 export default function TripView({ routebook, onBack, onAdoptTrip = undefined, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
@@ -223,7 +224,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
 
   useEffect(() => {
     const handleOnline = () => {
-      setModeNote('网络已恢复，正在补传本地反馈...');
+      setModeNote('网络已恢复，正在补传本地反馈…');
       void syncQueuedCheckins();
     };
     window.addEventListener('online', handleOnline);
@@ -568,7 +569,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                     <Clock /> {current.time}
                   </Chip>
                 )}
-                {current.stay && <Chip size="sm">停留 {String(current.stay).replace(/^停留\s*/, '')}</Chip>}
+                {current.stay && <Chip size="sm">停留 {formatStayText(String(current.stay).replace(/^停留\s*/, ''))}</Chip>}
                 {current.area && (
                   <Chip size="sm">
                     <MapPin /> {current.area}
@@ -661,7 +662,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                 <p className="mt-0.5 text-meta text-muted">{publicTrustEvidenceLabel(statusCheckin, statusEvidence)}</p>
                 {guestLocalOnly && statusEvidence.syncStatus !== 'synced' && (
                   <p className="mt-0.5 text-meta text-ink-2">
-                    打卡先存在这台手机上。
+                    打卡先存在这台设备上。
                     <button
                       type="button"
                       className="font-bold underline underline-offset-2"

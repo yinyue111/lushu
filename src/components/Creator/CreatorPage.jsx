@@ -44,7 +44,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
       <div className="grid min-h-[60vh] place-items-center px-4" role="status">
         <div className="flex flex-col items-center gap-3 text-muted">
           <Route className="size-7 animate-pulse text-primary" aria-hidden="true" />
-          <p className="text-sm font-semibold">正在读取达人的路线合集...</p>
+          <p className="text-sm font-semibold">正在打开…</p>
         </div>
       </div>
     );
@@ -57,8 +57,8 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
           <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary-strong">
             <Route className="size-6" aria-hidden="true" />
           </span>
-          <h1 className="mt-3 text-xl font-extrabold">达人主页暂时打不开</h1>
-          <p className="mt-1 text-sm text-muted">{state.error || '达人不存在或还没发布路线'}</p>
+          <h1 className="mt-3 text-xl font-extrabold">作者主页暂时打不开</h1>
+          <p className="mt-1 text-sm text-muted">{state.error || '作者不存在，或者还没发布路线'}</p>
           <Button variant="outline" className="mt-4" onClick={onBack}>
             <ArrowLeft /> 返回
           </Button>
@@ -84,7 +84,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
         <Route className="absolute -right-10 -bottom-14 -z-10 size-72 text-white/10" strokeWidth={1} aria-hidden="true" />
         <div className="mx-auto max-w-[1200px] px-4 pt-5 pb-8 lg:px-8 lg:pb-10">
           <Button variant="glass" size="sm" onClick={onBack}>
-            <ArrowLeft /> 返回平台
+            <ArrowLeft /> 看看更多路线
           </Button>
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <span
@@ -97,10 +97,10 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
               <span className="inline-flex rounded-full bg-black/20 px-2.5 py-0.5 text-xs font-bold backdrop-blur">
                 {sourceAuthorizationLabel(creator.sourceAuthorization)}
               </span>
-              <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{displayName || pageTitle}</h1>
+              <h1 className="mt-1.5 text-3xl font-black tracking-tight lg:text-4xl">{displayName || (isSelf ? '我的路线' : pageTitle)}</h1>
               {isSelf && !displayName && (
                 <a
-                  href="/my#account"
+                  href="/my#nickname"
                   className={`${TAP_TARGET} mt-1 inline-block text-meta text-white/90 underline underline-offset-2 hover:text-white`}
                   data-testid="nickname-hint"
                 >
@@ -155,7 +155,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
         ) : (
           <div className="rounded-panel border border-dashed border-line-strong bg-white p-6 text-center">
             <EmptyArt />
-            <p className="mt-2 text-sm text-muted">这位达人还没有公开路线。</p>
+            <p className="mt-2 text-sm text-muted">这位作者还没有公开路线。</p>
           </div>
         )}
       </div>

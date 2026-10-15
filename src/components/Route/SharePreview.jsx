@@ -6,6 +6,7 @@ import { IMPORTED_PUBLIC_EXPLANATION, isImportedRoutebook, routebookGuideOrigins
 import ShareVisibility from './ShareVisibility';
 import { curatedRoutes } from '../../lib/content';
 import { getProfile, profileRoutebookFields } from '../../lib/profile';
+import { formatStayText } from '../../lib/routeMeta.js';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { Sheet } from '../ui/sheet';
@@ -42,6 +43,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const publication = routebook.publication ?? localPublication(routebook);
   const [friendState, setFriendState] = useState({ loading: false, url: '' });
   const friendUrl = friendState.url || (routebook.friendShareUrl ? new URL(routebook.friendShareUrl, window.location.origin).toString() : '');
+  const pendingPriceCount = (routebook.stops ?? []).filter((stop) => costDisplay(stop).pending).length;
   const publicBlocked = publication.publicAllowed === false && !shareUrl;
 
   async function copyText(text, okMessage, fallbackMessage) {
@@ -86,6 +88,8 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   }
 
   async function handleRevokeFriendLink() {
+    // V-U15: say what happens to links already sent before stopping them.
+    if (!window.confirm('停用后，已经发出去的链接都打不开了；之后可以再生成一个新的。停用？')) return;
     setFriendState((prev) => ({ ...prev, loading: true }));
     try {
       const profile = getProfile();
@@ -299,7 +303,10 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
                         <span className="num w-11 shrink-0 text-xs font-bold text-muted">{stop.time}</span>
                         <span className="min-w-0 flex-1">
                           <strong className="block truncate text-sm font-bold">{stop.name}</strong>
-                          <span className="text-xs text-muted">{[stop.stay, costDisplay(stop).text].filter(Boolean).join(' · ')}</span>
+                          <span className="text-xs text-muted">
+                            {/* U20: pending prices live in 「出发前确认」 below, not on the row. */}
+                            {[formatStayText(stop.stay), costDisplay(stop).pending ? '' : costDisplay(stop).text].filter(Boolean).join(' · ')}
+                          </span>
                         </span>
                         <span
                           className={cn(
@@ -320,6 +327,11 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
               </section>
             );
           })}
+          {pendingPriceCount > 0 && (
+            <p className="text-meta text-ink-2" data-testid="preview-pending-price">
+              出发前确认：{pendingPriceCount} 站的价格
+            </p>
+          )}
 
           {routebook.validations?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
@@ -347,19 +359,24 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
 
       <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
         <div className="flex flex-wrap gap-2">
-          {publicBlocked ? (
-            <Button variant="primary" onClick={handleCreateFriendLink} disabled={friendState.loading}>
-              <Link2 /> {friendState.loading ? '生成中...' : friendUrl ? '复制朋友链接' : '生成朋友链接'}
+          {/* V-U19: most people just want to send it to a friend; 申请公开 is the secondary path. */}
+          {shareUrl ? (
+            <Button variant="primary" onClick={() => createShareLink()} disabled={shareState.loading}>
+              <Link2 /> 复制分享链接
             </Button>
           ) : (
+            <Button variant="primary" onClick={handleCreateFriendLink} disabled={friendState.loading}>
+              <Link2 /> {friendState.loading ? '生成中…' : friendUrl ? '复制朋友链接' : '生成朋友链接'}
+            </Button>
+          )}
+          {!publicBlocked && !shareUrl && (
             <Button
-              variant="primary"
+              variant="outline"
               onClick={() => createShareLink()}
-              disabled={shareState.loading || routebook.publishStatus === 'pending_review' || (isCuratedRoute && !shareUrl)}
-              title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
+              disabled={shareState.loading || routebook.publishStatus === 'pending_review' || isCuratedRoute}
+              title={isCuratedRoute ? curatedHint : undefined}
             >
-              <Link2 />{' '}
-              {shareState.loading ? '提交中...' : shareUrl ? '复制分享链接' : routebook.publishStatus === 'pending_review' ? '已申请公开' : '申请公开'}
+              {shareState.loading ? '提交中…' : routebook.publishStatus === 'pending_review' ? '已申请公开' : '申请公开'}
             </Button>
           )}
           <Button variant="outline" onClick={copyShareText}>
@@ -367,6 +384,8 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           </Button>
           <Button
             variant="outline"
+            className="max-md:w-11 max-md:px-0"
+            aria-label="系统分享"
             disabled={!shareUrl && !friendUrl}
             title={shareUrl || friendUrl ? undefined : '发布或生成朋友链接后才能系统分享，不会分享私有链接'}
             onClick={() => {
@@ -379,7 +398,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
               }
             }}
           >
-            <Share2 /> 系统分享
+            <Share2 /> <span className="max-md:sr-only">系统分享</span>
           </Button>
           {shareUrl && (
             <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>

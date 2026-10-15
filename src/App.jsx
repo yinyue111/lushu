@@ -299,9 +299,7 @@ export default function App() {
           // 当前页面继续显示本机编辑；原路书不写回远端响应，两个副本在「我的」可恢复。
           setRoutebook(latestLocal);
           replaceSavedBook(latestLocal);
-          setRoutebookRefreshNotice(
-            '检测到云端版本与本机未同步编辑分叉，当前仍保留本机编辑；本机副本和云端快照已保存到「我的路书」，请选择要继续的版本后再保存。'
-          );
+          setRoutebookRefreshNotice('两个版本都存进了「我的」，现在看到的是这台设备上的版本；挑一个继续改再保存就行。');
           setRouteLoadState({ loading: false, error: '' });
           return;
         }
@@ -358,7 +356,7 @@ export default function App() {
     (book) => {
       setRoutebook(book);
       const saved = persistRoutebook(book, { claimOwnership: true });
-      setStorageNotice(saved ? '' : '本地存储已满：这份路书暂未写入本机存档，已尝试清理最旧路书仍失败，请删除不需要的路书后重新保存。');
+      setStorageNotice(saved ? '' : '这台设备存不下更多路书了，这份还没存进本机。去「我的」删掉几份不需要的，再保存一次。');
       setSavedBooks(getStoredRoutebooks(profile.id));
       navigate(VIEWS.route, { routeId: book.publicId || book.id });
     },
@@ -575,8 +573,14 @@ export default function App() {
   return (
     <AccountProvider onProfileChanged={handleAccountProfileChanged}>
       <div className={`app-root view-${view}`}>
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[2000] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2.5 focus:text-white"
+        >
+          跳到正文
+        </a>
         <TopNav view={view} onNavigate={navigate} modelHealth={modelHealth} hidden={navHidden} />
-        <main className={`app-main ${showTabBar ? 'max-md:pb-[calc(56px+env(safe-area-inset-bottom))]' : ''}`}>
+        <main id="main" tabIndex={-1} className={`app-main outline-none ${showTabBar ? 'max-md:pb-[calc(56px+env(safe-area-inset-bottom))]' : ''}`}>
           {dueReminder && !PUBLIC_VIEWS.has(view) && (
             <TripReminderBanner
               reminder={dueReminder}
@@ -601,12 +605,12 @@ export default function App() {
           {storageNotice && !PUBLIC_VIEWS.has(view) && (
             <StorageNoticeBanner
               text={storageNotice}
-              title={/已经从账号里删除了/.test(storageNotice) ? '路书已删除' : undefined}
+              title={/已经从账号里删除了/.test(storageNotice) ? '路书已删除' : /冲突/.test(storageNotice) ? '有路书和云端不一致' : undefined}
               onDismiss={() => setStorageNotice('')}
             />
           )}
           {routebookRefreshNotice && !PUBLIC_VIEWS.has(view) && (
-            <StorageNoticeBanner text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
+            <StorageNoticeBanner title="这台设备上的改动和云端不一致" text={routebookRefreshNotice} onDismiss={() => setRoutebookRefreshNotice('')} />
           )}
           <ErrorBoundary onReset={() => navigate(VIEWS.home)}>
             <Suspense fallback={<PageLoadingFallback />}>
@@ -877,7 +881,7 @@ function publicPathForView(view, options = {}) {
 
 function routeLoadErrorMessage(error) {
   const status = Number(error?.status) || 0;
-  if (status === 404) return '路书不存在或已被删除，请确认链接是否正确。';
+  if (status === 404) return '链接可能不完整，或者路书已经删了。';
   if (status === 410 || error?.code === 'ROUTEBOOK_DELETED') return '这份路书已经删除了，打不开，也不能再保存。';
   if (status === 403) return '没有权限查看这份路书，可能作者尚未公开。';
   if (status) return `路书加载失败（HTTP ${status}）：${error?.message || '云端暂时连不上'}`;

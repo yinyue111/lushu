@@ -58,7 +58,7 @@ export default function PublicReviewPage({ publicId, onBack }) {
   return (
     <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-16 lg:pt-8">
       <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2">
-        <ArrowLeft /> 返回平台
+        <ArrowLeft /> 看看更多路线
       </Button>
       <section className="relative isolate mt-3 overflow-hidden rounded-panel p-5 text-white shadow-pop lg:p-7">
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(135deg,#157a51_0%,#1e9e6a_45%,#1666c1_100%)]" aria-hidden="true" />

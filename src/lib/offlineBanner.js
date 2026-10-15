@@ -22,5 +22,6 @@ export function formatBeijingTime(date) {
 
 export function offlineBannerText(routebook) {
   const at = routebookUpdatedAt(routebook);
-  return at ? `离线查看，信息更新于${formatBeijingTime(at)}` : '离线查看，信息更新时间未知';
+  // V-U8: no promise of an automatic refresh — the page does not refetch on reconnect.
+  return at ? `现在没网，看的是 ${formatBeijingTime(at)} 存下的版本。` : '现在没网，看的是之前存下的版本。';
 }

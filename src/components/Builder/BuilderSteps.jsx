@@ -234,7 +234,7 @@ export function StepGuide(props) {
           disabled={importState.loading}
         >
           {importState.loading ? <Loader2 className="animate-spin" /> : <Link />}
-          {importState.loading ? '导入中...' : failedImportUrls.length > 0 ? '重试失败的链接' : '分析新加的链接'}
+          {importState.loading ? '导入中…' : failedImportUrls.length > 0 ? '重试失败的链接' : '分析新加的链接'}
         </Button>
       )}
       {importState.error && (
@@ -351,7 +351,7 @@ export function StepGuide(props) {
         <div className="mt-4 rounded-card border border-line bg-white p-4" role="status" aria-live="polite" aria-atomic="true">
           <p className="flex items-center gap-2 text-sm font-bold">
             {ocrState.loading && <Loader2 className="size-4 animate-spin text-sky-ink" aria-hidden="true" />}
-            {ocrState.loading ? '正在识别截图里的地点、时间和价格...' : `截图识别完成：${ocrState.places.length} 个候选地点`}
+            {ocrState.loading ? '正在识别截图里的地点、时间和价格…' : `截图识别完成：${ocrState.places.length} 个候选地点`}
           </p>
           <ul className="mt-2 grid gap-1.5">
             {ocrState.places.slice(0, 6).map((place, i) => (
@@ -421,7 +421,7 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
               className={cn(inputClass, 'pl-9')}
               value={constraints.base}
               onChange={(e) => setConstraints((p) => ({ ...p, base: e.target.value }))}
-              placeholder="湖滨银泰、杭州东站..."
+              placeholder="湖滨银泰、杭州东站…"
             />
           </span>
         </Field>

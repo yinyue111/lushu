@@ -8,8 +8,6 @@ import { CITY_SCENE, cityCover, heroImageProps } from '../visual/theme';
 import { SceneBadge, SceneImage } from '../visual/SceneImage';
 import AigcChip from './AigcChip';
 import { aigcMetadata } from '../../lib/aigc.js';
-import { useAccount } from '../Account/AccountProvider';
-import { accountLabel } from '../../lib/accountCopy';
 import { publicCreatorName } from '../../lib/creatorName.js';
 import { TAP_TARGET } from '../ui/tap-target.js';
 
@@ -32,11 +30,11 @@ export default function RouteHero({
   onCustomize,
   onShare
 }) {
-  const { account } = useAccount();
   const cover = cityCover(routebook.city);
   // U18: public views show a byline only for a real nickname; never a placeholder, never the masked account.
   const nickname = publicCreatorName(routebook.creator?.name);
-  const ownLabel = isOwner ? nickname || (account ? accountLabel(account) : '') || '我' : null;
+  // V-U24: the masked account only appears on /my; the author's own view says 「我」 until a nickname is set.
+  const ownLabel = isOwner ? nickname || '我' : null;
   const creatorName = isOwner ? ownLabel : nickname;
   const showNicknameHint = isOwner && !nickname;
   const updated = formatShortDate(routebook.updatedAt || routebook.createdAt);
@@ -122,7 +120,7 @@ export default function RouteHero({
             className={cn(
               'max-w-[860px] leading-tight font-extrabold tracking-tight [overflow-wrap:anywhere] [text-shadow:0_2px_18px_rgba(0,0,0,.25)] [word-break:keep-all] lg:leading-[1.18]',
               // Long (user/model written) titles step down a size so they don't fill the photo.
-              String(routebook.title ?? '').length > 26 ? 'text-title lg:text-display' : 'text-display-sm lg:text-display-lg'
+              String(routebook.title ?? '').length > 26 ? 'line-clamp-3 text-title lg:text-display' : 'text-display-sm lg:text-display-lg'
             )}
           >
             {routebook.title}
@@ -146,7 +144,7 @@ export default function RouteHero({
           )}
           {showNicknameHint && (
             <a
-              href="/my#account"
+              href="/my#nickname"
               className={`${TAP_TARGET} mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white`}
               data-testid="nickname-hint"
             >
@@ -168,7 +166,7 @@ export default function RouteHero({
               </>
             ) : (
               <Button variant="light" className="flex-1" onClick={onCustomize}>
-                <Copy /> 复制一份改成我的
+                <Copy /> 改成我的
               </Button>
             )}
             <Button

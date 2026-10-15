@@ -1,4 +1,4 @@
-import { BadgeCheck, NotebookPen, Link2, PenLine, Sparkles, CircleHelp } from 'lucide-react';
+import { BadgeCheck, NotebookPen, Link2, PenLine, Sparkles, CircleHelp, CheckCircle2 } from 'lucide-react';
 import { STOP_ORIGINS, coordinateVerificationLevel, normalizeStopOrigin } from '../../lib/trustSignals';
 import { Chip } from '../ui/chip';
 import { cn } from '../ui/cn';
@@ -101,7 +101,14 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>
       {items.map((item) => (
         <span key={item.text} className="inline-flex items-center gap-1.5" title={item.title}>
-          <i className={cn('size-1.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
+          {/* V-U25: shape, not only colour — ✓ for checked, ? for still-to-confirm. */}
+          {item.tone === 'ok' ? (
+            <CheckCircle2 className="size-3 shrink-0 text-success" aria-hidden="true" />
+          ) : item.tone === 'warn' ? (
+            <CircleHelp className="size-3 shrink-0 text-warn" aria-hidden="true" />
+          ) : (
+            <i className={cn('size-1.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
+          )}
           {item.text}
         </span>
       ))}

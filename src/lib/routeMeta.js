@@ -9,3 +9,8 @@ export function routeMetaText(city, days, stops) {
   const dayCount = declared || fromStops;
   return [city, dayCount > 0 ? `${dayCount} 天` : '', `${list.length} 站`].filter(Boolean).join(' · ');
 }
+
+/** §2.3: 「1小时」→「1 小时」, 「30分钟」→「30 分钟」 (spacing only; numbers untouched). */
+export function formatStayText(text) {
+  return String(text ?? '').replace(/(\d)\s*(小时|分钟|天|晚|站)/g, '$1 $2');
+}

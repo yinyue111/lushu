@@ -238,7 +238,7 @@ export function matchShareLandingPath(req) {
   } catch {
     return null;
   }
-  const match = /^\/(share|review|creator)\/([^/]+)\/?$/.exec(pathname);
+  const match = /^\/(share|review|creator|route)\/([^/]+)\/?$/.exec(pathname);
   if (!match) return null;
   let decoded = '';
   try {
@@ -286,20 +286,21 @@ async function buildShareLandingMeta(target) {
         }
       };
     }
-    if (target.kind === 'share') {
+    if (target.kind === 'share' || target.kind === 'route') {
       const routebook = await getResolvableRoutebook(target.id);
       const listed = Boolean(routebook) && isPublicRoutebook(routebook);
-      const unlisted = !listed && hasFriendLinkAccess(routebook, target.key);
+      // V-U21: /route/:id only gets a real title for public roadbooks; private ones keep the site default.
+      const unlisted = target.kind === 'share' && !listed && hasFriendLinkAccess(routebook, target.key);
       if (!routebook || (!listed && !unlisted)) return null;
       const title = truncateString(routebook.title, 80) || 'AI 可信路书';
       const city = routebook.city ? normalizeCityName(routebook.city) : '';
       const stops = Array.isArray(routebook.stops) ? routebook.stops : [];
       return {
         title: `${title}｜AI 可信路书`,
-        description: truncateString(routebook.summary, 160) || `${city ? `${city}的` : ''}可执行、可验证的分日路书。`,
+        description: truncateString(routebook.summary, 160) || `${city ? `${city}的` : ''}可执行、可核对的分日路书。`,
         image: cityStories[city]?.image ?? defaultCityImage,
         // Friend links are unlisted: no canonical/og:url (the key stays out of crawlers) and noindex.
-        path: unlisted ? '' : `/share/${encodeURIComponent(target.id)}`,
+        path: unlisted ? '' : `/${target.kind}/${encodeURIComponent(target.id)}`,
         unlisted,
         aigc: aigcMetadata(routebook),
         // Pre-rendered text for crawlers without JS (inside <noscript>, so users never see a flash).
@@ -317,7 +318,7 @@ async function buildShareLandingMeta(target) {
     return {
       title: `${routeTitle}｜旅行回顾`,
       description: truncateString(
-        `真实打卡 ${clampNumber(stats.checkinCount, 0, 100000, 0)} 次，主线完成率 ${clampNumber(stats.completionRate, 0, 100, 0)}%，来自 AI 可信路书的可验证行程回顾。`,
+        `真实打卡 ${clampNumber(stats.checkinCount, 0, 100000, 0)} 次，主线完成率 ${clampNumber(stats.completionRate, 0, 100, 0)}%，来自 AI 可信路书的可核对行程回顾。`,
         200
       ),
       image: cityStories[reviewCity]?.image ?? defaultCityImage,

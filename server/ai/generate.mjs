@@ -1118,7 +1118,7 @@ async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, 
   onStage({
     stage: 'match',
     state: 'completed',
-    detail: poiCandidateCount ? `匹配到 ${poiCandidateCount} 个已核对地点` : `${payload.city || '该城市'}的地点还在整理，先按你的攻略定位`
+    detail: poiCandidateCount ? `匹配到 ${poiCandidateCount} 个已核对地点` : '先按你的攻略找位置，到了路书里还能改'
   });
 
   const attempts = [];

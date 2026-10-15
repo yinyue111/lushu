@@ -317,7 +317,7 @@ export const productCards = [
 
 export const defaultCityImage = localImage('/assets/city-aerial.webp');
 
-export const DEFAULT_SEASON_NOTE = '标出要提前确认的开放时间和预约';
+export const DEFAULT_SEASON_NOTE = '开放时间、预约，出发前帮你标好';
 
 /**
  * F21: seasonal copy is month-scoped; outside its months we fall back to a

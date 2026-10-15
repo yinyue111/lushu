@@ -338,7 +338,7 @@ export function stopCategory(stop) {
 export function alternativeReason(candidate, currentCategory, activeStops) {
   const details = [];
   if (Number.isFinite(candidate.distance)) {
-    details.push(candidate.distance < 1 ? `距当前约 ${Math.round(candidate.distance * 1000)}m` : `距当前约 ${candidate.distance.toFixed(1)}km`);
+    details.push(candidate.distance < 1 ? `距当前约 ${Math.round(candidate.distance * 1000)} m` : `距当前约 ${candidate.distance.toFixed(1)} km`);
   } else if (candidate.sameArea) {
     details.push(`同在${candidate.stop.area}`);
   } else {

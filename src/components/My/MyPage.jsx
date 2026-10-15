@@ -29,7 +29,19 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [recoveryCode, setRecoveryCode] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState(() => (typeof window !== 'undefined' && window.location.hash === '#account' ? 'account' : 'routebooks'));
+  const [activeTab, setActiveTab] = useState(() =>
+    typeof window !== 'undefined' && ['#account', '#nickname'].includes(window.location.hash) ? 'account' : 'routebooks'
+  );
+  // V-U23: 「设个昵称」 links land on the nickname field itself, scrolled into view and focused.
+  useEffect(() => {
+    if (activeTab !== 'account' || window.location.hash !== '#nickname') return undefined;
+    const timer = window.setTimeout(() => {
+      const field = document.getElementById('nickname');
+      field?.scrollIntoView({ block: 'center' });
+      field?.focus({ preventScroll: true });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [activeTab]);
   const [localDataVersion, setLocalDataVersion] = useState(0);
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');
@@ -193,7 +205,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       onProfileChanged?.(next);
       return;
     }
-    setProfileMessage('保存中...');
+    setProfileMessage('保存中…');
     try {
       const data = await saveProfile(next);
       const adoption = adoptServerProfile(data.profile, next);
@@ -208,7 +220,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
   async function prepareSyncCode({ copy = false } = {}) {
     setSyncBusy(true);
-    setProfileMessage('正在准备跨设备恢复码...');
+    setProfileMessage('正在准备跨设备恢复码…');
     try {
       let activeProfile = profile;
       if (!activeProfile.profileAccessToken) {
@@ -292,7 +304,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   async function endAccount(action) {
     const deleting = action === 'delete';
     if (deleting && window.prompt('将永久删除云端账号、路书、打卡、照片及本机副本。建议先导出。请输入 DELETE 确认：') !== 'DELETE') return;
-    if (!deleting && !window.confirm('将撤销云端访问凭据并清除本机资料。再次访问需要重新登录，确认退出？')) return;
+    if (!deleting && !window.confirm('退出后，这台设备上的资料会清掉，云端登录凭据也会作废；要再看云端的路书，需要重新登录。确定退出？')) return;
     setSyncBusy(true);
     let resumeQueue;
     try {
@@ -310,7 +322,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       setLocalDataVersion((value) => value + 1);
       onProfileChanged?.(fresh);
       onLocalBooksChanged?.();
-      setProfileMessage(deleting ? '账号及本机资料已删除；备份副本按运营保留策略处理' : '已退出，云端访问凭据已撤销');
+      setProfileMessage(deleting ? '账号已注销。运营备份中的副本按备份周期清除。' : '已退出。');
     } catch (err) {
       setProfileMessage(`${deleting ? '注销' : '退出'}未完成：${err.message}`);
     } finally {
@@ -421,10 +433,10 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
               <Empty
                 icon={Route}
                 art
-                text="还没有路书。贴一段攻略，或者直接选个城市，先排第一本。"
+                text="还没有路书。贴一段攻略，或者直接选个城市，先排一条路线。"
                 action={
                   <Button variant="primary" size="sm" onClick={() => onNewBook({})}>
-                    <Plus /> 新建路书
+                    <Plus /> 排一条路线
                   </Button>
                 }
               />
@@ -432,66 +444,71 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           </section>
 
           <div className="grid content-start gap-4">
-            <SidePanel title="我的公开路线" count={creatorBooks.length}>
-              {creatorBooks.length ? (
-                <ul className="divide-y divide-line">
-                  {visibleRows('creatorBooks', creatorBooks, 8).map((book) => (
-                    <li key={`creator-${book.publicId || book.title}`} className="py-2.5">
-                      <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {book.city || '城市待补充'} · {publishStatusLabel(book.publishStatus)} · {getRouteTrustBadgeState(book).compactText}
-                        {book.routingWarning?.unverifiedLegs ? ` · ${book.routingWarning.unverifiedLegs} 段路线还没查` : ''}
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
-                        <Copy className="size-3" aria-hidden="true" /> 被复制 {book.copyCount ?? 0} 次 ·{' '}
-                        {sourceAuthorizationLabel(book.creator?.sourceAuthorization || book.sourceAuthorization)}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <ShowAllToggle
-                total={creatorBooks.length}
-                collapsedCount={8}
-                expanded={expandedSections.has('creatorBooks')}
-                onToggle={() => toggleExpanded('creatorBooks')}
-              />
-              {creatorBooks.length ? null : <p className="text-sm text-muted">你公开分享的路线会出现在这里。</p>}
-            </SidePanel>
-            <SidePanel title="我的分享" count={sharedBooks.length}>
-              {sharedBooks.length ? (
-                <ul className="divide-y divide-line">
-                  {visibleRows('sharedBooks', sharedBooks, 8).map((book) => {
-                    const url = book.shareUrl || `/share/${book.publicId}`;
-                    return (
-                      <li key={`${book.publicId}-${book.title}`} className="flex items-center justify-between gap-2 py-2.5">
-                        <span className="min-w-0">
-                          <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
-                          <span className="text-xs text-muted">
-                            {book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}
-                          </span>
-                        </span>
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-sky-ink hover:bg-sky-soft"
-                        >
-                          <ExternalLink className="size-3.5" aria-hidden="true" /> 打开
-                        </a>
+            {(books.length > 0 || creatorBooks.length > 0) && (
+              <SidePanel title="我的公开路线" count={creatorBooks.length}>
+                {creatorBooks.length ? (
+                  <ul className="divide-y divide-line">
+                    {visibleRows('creatorBooks', creatorBooks, 8).map((book) => (
+                      <li key={`creator-${book.publicId || book.title}`} className="py-2.5">
+                        <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
+                        <p className="mt-0.5 text-xs text-muted">
+                          {book.city || '城市待补充'} · {publishStatusLabel(book.publishStatus)} · {getRouteTrustBadgeState(book).compactText}
+                          {book.routingWarning?.unverifiedLegs ? ` · ${book.routingWarning.unverifiedLegs} 段路线还没查` : ''}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                          <Copy className="size-3" aria-hidden="true" /> 被复制 {book.copyCount ?? 0} 次 ·{' '}
+                          {sourceAuthorizationLabel(book.creator?.sourceAuthorization || book.sourceAuthorization)}
+                        </p>
                       </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-              <ShowAllToggle
-                total={sharedBooks.length}
-                collapsedCount={8}
-                expanded={expandedSections.has('sharedBooks')}
-                onToggle={() => toggleExpanded('sharedBooks')}
-              />
-              {sharedBooks.length ? null : <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>}
-            </SidePanel>
+                    ))}
+                  </ul>
+                ) : null}
+                <ShowAllToggle
+                  total={creatorBooks.length}
+                  collapsedCount={8}
+                  expanded={expandedSections.has('creatorBooks')}
+                  onToggle={() => toggleExpanded('creatorBooks')}
+                />
+                {creatorBooks.length ? null : <p className="text-sm text-muted">你公开分享的路线会出现在这里。</p>}
+              </SidePanel>
+            )}
+            {/* V-U29: with no routebooks yet, one empty state is enough — 0-count panels fold away. */}
+            {(books.length > 0 || sharedBooks.length > 0) && (
+              <SidePanel title="我的分享" count={sharedBooks.length}>
+                {sharedBooks.length ? (
+                  <ul className="divide-y divide-line">
+                    {visibleRows('sharedBooks', sharedBooks, 8).map((book) => {
+                      const url = book.shareUrl || `/share/${book.publicId}`;
+                      return (
+                        <li key={`${book.publicId}-${book.title}`} className="flex items-center justify-between gap-2 py-2.5">
+                          <span className="min-w-0">
+                            <strong className="line-clamp-1 text-sm font-bold">{book.title || '未命名路书'}</strong>
+                            <span className="text-xs text-muted">
+                              {book.city || '城市待补充'} · {getRouteTrustBadgeState(book).compactText}
+                            </span>
+                          </span>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-sky-ink hover:bg-sky-soft"
+                          >
+                            <ExternalLink className="size-3.5" aria-hidden="true" /> 打开
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                <ShowAllToggle
+                  total={sharedBooks.length}
+                  collapsedCount={8}
+                  expanded={expandedSections.has('sharedBooks')}
+                  onToggle={() => toggleExpanded('sharedBooks')}
+                />
+                {sharedBooks.length ? null : <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>}
+              </SidePanel>
+            )}
           </div>
         </Tabs.Content>
 

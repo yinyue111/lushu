@@ -14,6 +14,7 @@ import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, se
 import { getCmsConfig } from '../lib/api';
 import { getProfile } from '../lib/profile';
 import { useAccount } from './Account/AccountProvider';
+import { useMediaQuery } from './ui/useMediaQuery';
 
 const themes = ['Citywalk', '美食拍照', '寺院茶山', '亲子慢游', '雨天备选'];
 const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
@@ -21,6 +22,8 @@ const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
 const HOME_CITY_STORAGE_KEY = 'trusted-routebook:home-city';
 
 export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestination, onRefresh }) {
+  // V-U34: on desktop the gallery is a static grid, so it needs no tab stop (it made focus jump back up).
+  const galleryIsGrid = useMediaQuery('(min-width: 1024px)');
   useEffect(() => trackFunnel('home_view'), []);
   const { required: loginRequired, account } = useAccount();
   const [profile] = useState(() => getProfile());
@@ -130,7 +133,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </p>
             <div className="mt-5 flex flex-wrap gap-2" aria-label={`${city} 路线数据`}>
               <Chip tone="glass" wrap>
-                <ShieldCheck /> 去过的人打卡后才给评分
+                <ShieldCheck /> 评分只来自真去过的人
               </Chip>
               <Chip tone="glass" wrap>
                 <Clock3 /> {seasonNoteFor(story)}
@@ -171,7 +174,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               </p>
             )}
             <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={guideSeed.trim() ? startFromImport : startFromHero}>
-              {guideSeed.trim() ? <Link2 /> : <Sparkles />} {guideSeed.trim() ? '用这篇攻略排路线' : '开始排路线'}
+              {guideSeed.trim() ? <Link2 /> : <Sparkles />} {guideSeed.trim() ? '用这篇攻略排路线' : '排一条路线'}
             </Button>
             {!guideSeed.trim() && <p className="mt-1.5 text-center text-meta text-muted">没有攻略也行，按下面选的城市和玩法直接排。</p>}
 
@@ -246,7 +249,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
 
       <div className="mx-auto max-w-[1376px] px-4 lg:px-8">
         {/* Curated routes */}
-        <section className="mt-10 lg:mt-14" aria-labelledby="home-curated-title">
+        <section className="mt-10" aria-labelledby="home-curated-title">
           <SectionHeading id="home-curated-title" kicker={`${city} · 精选路线`} title="照着走就行的路线" />
           {cityRoutes.length ? (
             <div className={cn('grid grid-cols-1 gap-4', cityRoutes.length > 1 && 'sm:grid-cols-2', cityRoutes.length > 2 && 'lg:grid-cols-3')}>
@@ -273,7 +276,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                           className="text-sky-ink"
                           onClick={() => onNewBook({ city: route.city, duration, theme: route.tags, guide: route.summary })}
                         >
-                          改成适合我的 <ArrowRight />
+                          改成我的 <ArrowRight />
                         </Button>
                       </>
                     }
@@ -321,7 +324,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             </Button>
           </div>
           <div
-            tabIndex={0}
+            tabIndex={galleryIsGrid ? undefined : 0}
             role="region"
             className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 lg:mx-0 lg:grid lg:grid-cols-2 lg:px-0"
             aria-label={`${city} 美图灵感`}

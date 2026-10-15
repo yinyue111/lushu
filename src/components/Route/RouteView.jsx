@@ -12,6 +12,7 @@ import { productsForRoutebook, useProductCards } from '../../lib/products';
 import { getRouteTrustPresentation } from '../../lib/trust';
 import { trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
+import { roadbookDocumentTitle, useDocumentTitle } from '../../lib/useDocumentTitle.js';
 import { cn } from '../ui/cn';
 import { Toast } from '../ui/toast';
 import { useMediaQuery } from '../ui/useMediaQuery';
@@ -115,6 +116,8 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     setDraggedStopId
   });
   const { shareState, setShareState } = actions;
+  // V-U21: tab title = roadbook title (same as the server-rendered title for public roadbooks).
+  useDocumentTitle(roadbookDocumentTitle(routebook?.title));
   const dismissToast = useCallback(() => setShareState(''), [setShareState]);
   // V-U27: the model placed the stops in another city; ask, never change the city on our own.
   const [cityPromptDismissed, setCityPromptDismissed] = useState(false);
@@ -306,9 +309,10 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <DayStrip city={routebook.city} dayEntries={dayEntries} activeDay={activeEntry?.day} onSelectDay={selectDay} />
 
           <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 lg:mt-7">
-            <h2 className="text-xl font-extrabold tracking-tight lg:text-2xl">
-              Day {activeEntry?.number} · {activeEntry?.label}
-            </h2>
+            {/* V-U30: one level under 「每天怎么玩」. */}
+            <h3 className="text-lg font-extrabold tracking-tight lg:text-xl">
+              第 {activeEntry?.number} 天 · {activeEntry?.label}
+            </h3>
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
               {canEdit && days.length > 1 && (
@@ -444,7 +448,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
           <span className="mx-auto mb-2.5 block h-[5px] w-[42px] rounded-full bg-line-strong" aria-hidden="true" />
           <div className="flex items-baseline justify-between px-4 pb-2.5">
             <b className="text-lg font-extrabold">
-              Day {activeEntry.number} · {activeEntry.label}
+              第 {activeEntry.number} 天 · {activeEntry.label}
             </b>
             <span className="text-meta text-muted">{activeEntry.summary}</span>
           </div>
@@ -486,9 +490,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                 保存
               </Button>
             ) : (
-              <Button className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs" onClick={customize} aria-label="复制一份改成我的">
+              <Button className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs" onClick={customize} aria-label="改成我的">
                 <Copy size={18} />
-                复制
+                改成我的
               </Button>
             )}
             <MoreMenu

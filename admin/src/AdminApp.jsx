@@ -90,6 +90,7 @@ export default function AdminApp() {
                 <a
                   href={`/admin/${item.path}`}
                   aria-current={item.path === active.path ? 'page' : undefined}
+                  aria-label={item.phase2 ? `${item.label.replace('（二期）', '')} 二期` : item.label}
                   onClick={(event) => {
                     event.preventDefault();
                     go(item.path);
@@ -98,7 +99,6 @@ export default function AdminApp() {
                     item.path === active.path ? 'bg-ink text-white' : item.phase2 ? 'text-[#6b7280] hover:bg-canvas' : 'text-ink-2 hover:bg-canvas'
                   }`}
                 >
-                  <span className="sr-only">{item.label}</span>
                   <span aria-hidden="true" className="flex items-center gap-1.5">
                     <span>{item.label.replace('（二期）', '')}</span>
                     {item.phase2 ? (

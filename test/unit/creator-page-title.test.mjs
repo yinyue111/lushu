@@ -13,7 +13,7 @@ test('CreatorPage source never renders creator.id and offers the self nickname h
   assert.doesNotMatch(src, /creator\.id|creator\?\.id/);
   assert.match(src, /document\.title = `\$\{creatorPageTitle\(loadedName\)\}｜AI 可信路书`/);
   assert.match(src, /isSelf && !displayName/);
-  assert.match(src, /href="\/my#account"/);
+  assert.match(src, /href="\/my#nickname"/);
   assert.match(src, /设个昵称，分享时会显示/);
   assert.match(src, /title="全部路线"/);
   assert.doesNotMatch(src, /kicker="路线合集"/);

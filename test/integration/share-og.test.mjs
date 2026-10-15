@@ -54,3 +54,17 @@ test(
     assert.doesNotMatch(html, /<script>alert/);
   }
 );
+
+test('V-U21: /route/:id gets the roadbook title only when public; private stays generic', { skip: !HAS_DIST && 'requires npm run build' }, async (t) => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'routebook-og-route-'));
+  await writeJsonl(dataDir, 'routebooks.jsonl', [
+    { id: 'pub-r', publicId: 'pub-r', title: '西湖一日', city: '杭州', publishStatus: 'published', version: 1, stops: [] },
+    { id: 'priv-r', title: '私密路线标题', city: '杭州', publishStatus: 'draft', version: 1, stops: [] }
+  ]);
+  const server = await startServer({ dataDir });
+  t.after(server.stop);
+  const pub = await fetch(`${server.baseUrl}/route/pub-r`).then((response) => response.text());
+  assert.match(pub, /<title>西湖一日/);
+  const priv = await fetch(`${server.baseUrl}/route/priv-r`).then((response) => response.text());
+  assert.doesNotMatch(priv, /私密路线标题/);
+});

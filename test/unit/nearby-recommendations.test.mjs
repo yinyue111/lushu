@@ -47,5 +47,6 @@ test('facility category is structured, reviewed and city scoped', () => {
 test('formatNearbyDistance uses 核对 wording when unknown', () => {
   assert.equal(formatNearbyDistance(-1), '距离待核对');
   assert.equal(formatNearbyDistance(Number.NaN), '距离待核对');
-  assert.match(formatNearbyDistance(0.05), /约 \d+m/);
+  assert.equal(formatNearbyDistance(0.05), '约 50 m');
+  assert.equal(formatNearbyDistance(1.24), '约 1.2 km');
 });

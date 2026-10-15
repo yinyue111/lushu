@@ -155,7 +155,7 @@ export function GenerationProgress({
             {cancelling ? <Loader2 className="motion-safe:animate-spin" /> : <X />} {cancelling ? '正在取消…' : '取消生成'}
           </Button>
           <p id="generation-cancel-hint" className="text-center text-xs text-muted">
-            取消会马上停止，不算一次生成。也可以先离开，生成会在后台继续，回到「创建路书」就能看到。
+            取消会马上停止，不算一次生成。也可以先离开，生成会在后台继续；30 分钟内在这台设备上回到「创建路书」就能看到。
           </p>
           {cancelError && (
             <p role="alert" className="text-center text-sm font-semibold text-primary-strong">

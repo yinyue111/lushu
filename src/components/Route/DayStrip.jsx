@@ -55,7 +55,7 @@ export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
               )}
               <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0)_25%,rgba(0,0,0,.7))]" aria-hidden="true" />
               <span className="num absolute top-3 left-3 inline-flex h-7 items-center rounded-full px-3 text-sm" style={{ background: entry.theme.ink }}>
-                DAY {entry.number}
+                第 {entry.number} 天
               </span>
               <b className="line-clamp-1 text-lead leading-tight font-extrabold sm:text-xl">{entry.label}</b>
               <span className="text-meta text-white/92 sm:text-sm">{entry.summary}</span>

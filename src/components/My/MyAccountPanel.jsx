@@ -40,9 +40,6 @@ export function MyAccountPanel({
             <h2 className="text-lg font-extrabold">旅行偏好</h2>
             <p className="mt-0.5 text-sm text-muted">下次生成路书会默认套用。</p>
           </div>
-          <span className="num max-w-[45%] truncate rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold text-muted" title={profile.id}>
-            {profile.id}
-          </span>
         </div>
         <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
           <Field label="常住 / 出发城市">
@@ -63,8 +60,8 @@ export function MyAccountPanel({
           <Field label="节奏">
             <input className={inputClass} value={profile.tempo ?? ''} onChange={set('tempo')} />
           </Field>
-          <Field label="作者名" hint="发布路线时显示的名字">
-            <input className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="比如：周末去哪儿小王" />
+          <Field label="昵称" hint="分享时别人看到的名字">
+            <input id="nickname" className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="比如：周末去哪儿小王" />
           </Field>
           <Field label="作者简介（选填）" className="sm:col-span-2">
             <textarea

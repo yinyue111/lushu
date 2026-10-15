@@ -228,7 +228,7 @@ export default function ReviewPage({ routebook, onBack }) {
         <h2 className="text-lg font-extrabold">把这次旅程分享出去</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted">{isPublic ? '朋友能看到可信分、GPS 有效到达率和你的真实反馈。' : notPublicText}</p>
         <Button variant="primary" size="lg" className="mt-4" onClick={createShare} disabled={shareState.loading || !isPublic}>
-          <Share2 /> {shareState.loading ? '生成中...' : '生成回顾分享页'}
+          <Share2 /> {shareState.loading ? '生成中…' : '生成回顾分享页'}
         </Button>
         {shareState.url && <p className="mx-auto mt-3 max-w-md rounded-tile bg-canvas px-3 py-2 font-mono text-xs break-all text-ink-2">{shareState.url}</p>}
         <p role="status" aria-live="polite" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-3">

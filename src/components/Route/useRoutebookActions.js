@@ -358,7 +358,7 @@ export function useRoutebookActions({
   }
 
   async function createVariantByMode(mode, presetStops = null) {
-    setVariantState('正在保存变体...');
+    setVariantState('正在保存变体…');
     // 本地有未同步编辑时先提交当前 stops，避免服务端在旧内容上叠加变体。
     // 直接检查保存的结构化返回：非 'saved' 一律中止云端变体（本地重排已生效）。
     if (localEditsDirtyRef.current) {

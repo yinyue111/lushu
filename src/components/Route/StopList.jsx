@@ -1,5 +1,18 @@
 import { trackEvent } from '../../lib/betaTelemetry.js';
-import { ArrowDown, ArrowUp, CarTaxiFront, CircleCheckBig, Clock, Footprints, Info, MoreVertical, Pencil, Replace, Trash2, TriangleAlert } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  CarTaxiFront,
+  CircleCheckBig,
+  Clock,
+  Footprints,
+  Info,
+  MoreHorizontal,
+  Pencil,
+  Replace,
+  Trash2,
+  TriangleAlert
+} from 'lucide-react';
 import { isNavigableCoordinate, routeLegLabel } from '../../lib/coordinates';
 import { roadLegForStops, roadLegLabel } from '../../lib/routeRoads';
 import { formatVerifiedDate, getStopTrustBadge } from '../../lib/trust';
@@ -16,6 +29,7 @@ import { withoutCheckedPending } from '../../lib/enrichmentText';
 import { costDisplay } from '../../lib/cost';
 import { confirmItemsForStop } from '../../lib/confirmChecklist';
 import { StopConfirmFold } from './ConfirmChecklist';
+import { formatStayText } from '../../lib/routeMeta.js';
 
 export default function StopList({
   stops,
@@ -120,7 +134,14 @@ function StopRow({
               instead of pushing them onto a row of their own. */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
             <div className="min-w-0">
-              <h3 className="inline text-lead leading-snug font-extrabold [overflow-wrap:anywhere] sm:text-xl">
+              {/* V-U26: very long names clamp to 2 lines (full name in title + 详情). */}
+              <h3
+                className={cn(
+                  'text-lead leading-snug font-extrabold [overflow-wrap:anywhere] sm:text-xl',
+                  String(stop.name ?? '').length > 18 ? 'line-clamp-2' : 'inline'
+                )}
+                title={String(stop.name ?? '').length > 18 ? stop.name : undefined}
+              >
                 <button
                   type="button"
                   className="text-left"
@@ -148,7 +169,7 @@ function StopRow({
                 <Menu>
                   <MenuTrigger asChild>
                     <Button variant="ghost" size="icon-sm" aria-label={`编辑${stop.name}`}>
-                      <MoreVertical />
+                      <MoreHorizontal />
                     </Button>
                   </MenuTrigger>
                   <MenuContent>
@@ -174,7 +195,7 @@ function StopRow({
             </div>
           </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-ink-2 sm:text-sm">
-            {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`, costText].filter(Boolean).map((part, i) => (
+            {[stop.time, stop.stay && `停留 ${formatStayText(String(stop.stay).replace(/^停留\s*/, ''))}`, costText].filter(Boolean).map((part, i) => (
               <span key={part} className="inline-flex items-center gap-2">
                 {i > 0 && (
                   <span className="text-line-strong" aria-hidden="true">
@@ -278,7 +299,7 @@ export function MiniStopCard({ stop, index, theme, selected, routeTrustTone, onS
       <span className="min-w-0">
         <b className="block truncate text-base leading-snug font-extrabold">{stop.name}</b>
         <small className="block truncate text-meta text-muted">
-          {[stop.time, stop.stay && `停留 ${String(stop.stay).replace(/^停留\s*/, '')}`].filter(Boolean).join(' · ')}
+          {[stop.time, stop.stay && `停留 ${formatStayText(String(stop.stay).replace(/^停留\s*/, ''))}`].filter(Boolean).join(' · ')}
         </small>
         {approximate ? (
           <Chip size="sm" tone="warn" className="mt-1">

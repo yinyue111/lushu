@@ -76,7 +76,7 @@ export function RouteLoadFallback({ state, onBack, onRetry }) {
         </Button>
       )}
       <Button variant={state.retryable === false ? 'primary' : 'outline'} onClick={onBack}>
-        返回首页
+        回首页
       </Button>
     </CenteredMessage>
   );
@@ -169,7 +169,7 @@ export function TripReminderBanner({ reminder, onOpen, onDismiss }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StorageNoticeBanner({ text, title = '本地存储已满', onDismiss }) {
+export function StorageNoticeBanner({ text, title = '这台设备存不下了', onDismiss }) {
   return (
     <Banner icon={HardDrive} role="alert" tone="border-lemon/50 bg-lemon-soft text-lemon-ink" title={title} text={text}>
       <Button size="sm" variant="ghost" onClick={onDismiss}>

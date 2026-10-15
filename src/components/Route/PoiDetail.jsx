@@ -16,6 +16,7 @@ import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
 import { buildPoiRealFeedback } from './poiFeedbackModel';
+import { formatStayText } from '../../lib/routeMeta.js';
 
 /** @param {Record<string, any>} props */
 export default function PoiDetail({ stop, routebook, onClose }) {
@@ -134,7 +135,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
 
   async function submitCorrection(event) {
     event.preventDefault();
-    setMessage('提交中...');
+    setMessage('提交中…');
     try {
       await createPoiCorrection({
         routeTitle: routebook?.title,
@@ -164,7 +165,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <InfoTile icon={Clock} iconClass="text-sky-ink bg-sky-soft" label="建议停留" value={stop.stay || '—'} />
+        <InfoTile icon={Clock} iconClass="text-sky-ink bg-sky-soft" label="建议停留" value={formatStayText(stop.stay) || '—'} />
         {stop.verifiedPrice?.text ? (
           <InfoTile
             icon={Wallet}
@@ -363,7 +364,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               className={cn(inputClass, 'min-h-20')}
               value={correction.suggestedValue}
               onChange={(event) => setCorrection((prev) => ({ ...prev, suggestedValue: event.target.value }))}
-              placeholder="例如：门票已涨到 15 元，周一闭馆..."
+              placeholder="例如：门票已涨到 15 元，周一闭馆…"
             />
           </Field>
           <Field label="依据">
@@ -371,7 +372,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               className={inputClass}
               value={correction.reason}
               onChange={(event) => setCorrection((prev) => ({ ...prev, reason: event.target.value }))}
-              placeholder="现场打卡、官方公告、地图信息..."
+              placeholder="现场打卡、官方公告、地图信息…"
             />
           </Field>
           <Button type="submit" variant="primary" size="sm" className="justify-self-start">
