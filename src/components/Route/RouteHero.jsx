@@ -10,6 +10,7 @@ import AigcChip from './AigcChip';
 import { aigcMetadata } from '../../lib/aigc.js';
 import { useAccount } from '../Account/AccountProvider';
 import { accountLabel } from '../../lib/accountCopy';
+import { publicCreatorName } from '../../lib/creatorName.js';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -32,14 +33,11 @@ export default function RouteHero({
 }) {
   const { account } = useAccount();
   const cover = cityCover(routebook.city);
-  const storedName = String(routebook.creator?.name ?? '').trim();
-  const anonymousPlaceholder = !storedName || storedName === '匿名旅行者';
-  const creatorName =
-    (!anonymousPlaceholder ? storedName : null) ||
-    (isOwner && account ? accountLabel(account) || '我' : null) ||
-    (isOwner ? '我' : null) ||
-    storedName ||
-    '路书作者';
+  // U18: public views show a byline only for a real nickname; never a placeholder, never the masked account.
+  const nickname = publicCreatorName(routebook.creator?.name);
+  const ownLabel = isOwner ? nickname || (account ? accountLabel(account) : '') || '我' : null;
+  const creatorName = isOwner ? ownLabel : nickname;
+  const showNicknameHint = isOwner && !nickname;
   const updated = formatShortDate(routebook.updatedAt || routebook.createdAt);
   // 合规：只保留一个显式 AI 标识。AI 生成的路书由 AigcChip 统一标注（覆盖文字与示意配图，
   // 标签叠在配图上、紧邻标题）；非 AI 内容才单独给示意图打标。见 round2/AI标识合并说明.md。
@@ -133,16 +131,27 @@ export default function RouteHero({
               {routebook.summary}
             </p>
           )}
-          <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
-              {String(creatorName).slice(0, 1)}
-            </span>
-            <span className="min-w-0 truncate">
-              <b className="text-white">{creatorName}</b>
-              {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
-              {updated && <span className="hidden sm:inline"> · {updated} 更新</span>}
-            </span>
-          </div>
+          {creatorName && (
+            <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy" data-testid="route-byline">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
+                {String(creatorName).slice(0, 1)}
+              </span>
+              <span className="min-w-0 truncate">
+                <b className="text-white">{creatorName}</b>
+                {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
+                {updated && <span className="hidden sm:inline"> · {updated} 更新</span>}
+              </span>
+            </div>
+          )}
+          {showNicknameHint && (
+            <a
+              href="/my#account"
+              className="mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white"
+              data-testid="nickname-hint"
+            >
+              设个昵称，分享时会显示
+            </a>
+          )}
         </div>
 
         <div className="hidden w-[300px] shrink-0 flex-col gap-2.5 lg:flex">

@@ -8,7 +8,7 @@ import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
 import { cityCover, smallImage } from '../visual/theme';
 import { averageSourcePrediction, budgetHint, budgetValueForLabel, importStatusLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
-import { dayOptionsForMonth, parseYmd, resolveTripDate } from '../../lib/tripDate.js';
+import { dayOptionsForMonth, isPastTripDate, parseYmd, resolveTripDate } from '../../lib/tripDate.js';
 
 const TONES = {
   sky: 'bg-sky-soft text-sky-ink',
@@ -473,6 +473,7 @@ export function TripDateFields({ value = '', onChange, now = undefined }) {
   }, [value]);
 
   const days = draft.month ? dayOptionsForMonth(Number(draft.month), clock) : [];
+  const past = isPastTripDate(value, clock);
 
   function commit(month, day) {
     setDraft({ month, day });
@@ -532,6 +533,14 @@ export function TripDateFields({ value = '', onChange, now = undefined }) {
           </select>
         </label>
       </div>
+      {past && (
+        <p className="flex flex-wrap items-center gap-2 text-meta text-lemon-ink" role="status">
+          这个日期已经过了，重新选一下
+          <button type="button" className="font-semibold underline underline-offset-2" onClick={() => commit('', '')}>
+            清空
+          </button>
+        </p>
+      )}
     </fieldset>
   );
 }

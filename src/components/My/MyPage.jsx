@@ -28,7 +28,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [recoveryCode, setRecoveryCode] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('routebooks');
+  const [activeTab, setActiveTab] = useState(() => (typeof window !== 'undefined' && window.location.hash === '#account' ? 'account' : 'routebooks'));
   const [localDataVersion, setLocalDataVersion] = useState(0);
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');

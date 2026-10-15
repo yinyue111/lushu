@@ -98,3 +98,14 @@ export function formatYmd({ year, month, day }) {
 export function clampDay(year, month, day) {
   return Math.min(Math.max(1, day), daysInMonth(year, month));
 }
+
+/**
+ * True when a stored YYYY-MM-DD is before today's local date. Never rewrites the value.
+ * @param {string | undefined | null} value
+ * @param {Date} [now]
+ */
+export function isPastTripDate(value, now = new Date()) {
+  const parsed = parseYmd(value);
+  if (!parsed) return false;
+  return formatYmd(parsed) < formatYmd(localYmd(now));
+}

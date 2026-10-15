@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dayOptionsForMonth, daysInMonth, localYmd, parseYmd, resolveTripDate, yearForUpcomingMonth } from '../../src/lib/tripDate.js';
+import {
+  dayOptionsForMonth,
+  daysInMonth,
+  formatYmd,
+  isPastTripDate,
+  localYmd,
+  parseYmd,
+  resolveTripDate,
+  yearForUpcomingMonth
+} from '../../src/lib/tripDate.js';
 
 /** Local calendar noon so DST edges do not shift the calendar day. */
 function localDate(year, month, day) {
@@ -74,3 +83,38 @@ for (const tz of TIMEZONES) {
     });
   });
 }
+
+for (const [tz, label] of [
+  ['Asia/Shanghai', '00:30 local is still previous day in UTC'],
+  ['America/Los_Angeles', '23:30 local is already next day in UTC']
+]) {
+  test(`local-midnight edges under ${tz}: ${label}`, async (t) => {
+    const prev = process.env.TZ;
+    process.env.TZ = tz;
+    t.after(() => {
+      if (prev === undefined) delete process.env.TZ;
+      else process.env.TZ = prev;
+    });
+    const now = tz === 'Asia/Shanghai' ? new Date(2026, 9, 17, 0, 30) : new Date(2026, 9, 16, 23, 30);
+    const local = tz === 'Asia/Shanghai' ? { year: 2026, month: 10, day: 17 } : { year: 2026, month: 10, day: 16 };
+    assert.notEqual(now.toISOString().slice(0, 10), formatYmd(local), 'fixture must straddle UTC date');
+    assert.deepEqual(localYmd(now), local);
+    // today picked = local today, not UTC today
+    assert.equal(resolveTripDate(local.month, local.day, now), formatYmd(local));
+    // local yesterday rolls to next year; not past by UTC
+    const y = local.day - 1;
+    assert.equal(resolveTripDate(10, y, now), `2027-10-${String(y).padStart(2, '0')}`);
+    assert.equal(isPastTripDate(formatYmd(local), now), false);
+    assert.equal(isPastTripDate(`2026-10-${String(y).padStart(2, '0')}`, now), true);
+  });
+}
+
+test('past stored dates are flagged, not rewritten', () => {
+  const now = new Date(2026, 9, 16, 12);
+  assert.equal(isPastTripDate('2025-03-01', now), true);
+  assert.equal(isPastTripDate('2026-10-16', now), false);
+  assert.equal(isPastTripDate('2027-01-01', now), false);
+  assert.equal(isPastTripDate('', now), false);
+  // re-pick uses next-occurrence rule
+  assert.equal(resolveTripDate(3, 1, now), '2027-03-01');
+});

@@ -34,11 +34,19 @@ import { checkVisitWindow } from '../../src/lib/openingHours.js';
 import { normalizeStopProvenance } from '../trust/provenance.mjs';
 import { coordinateVerificationLevel, normalizePlaceText, placeNameVariants, routeEvidenceScore } from '../../src/lib/trustSignals.js';
 import { formatCostInfo, stopCostInfo, sumStopCosts } from '../../src/lib/cost.js';
+import { publicCreatorName } from '../../src/lib/creatorName.js';
+
+export { LEGACY_PLACEHOLDER_CREATOR_NAMES } from '../../src/lib/creatorName.js';
+
+/** @returns {string | null} */
+export function normalizeCreatorName(value) {
+  return publicCreatorName(truncateString(value, 60));
+}
 
 export function normalizeCreator(input = {}) {
   return {
     id: sanitizePublicId(input?.id || input?.creatorId) || 'official-curation',
-    name: truncateString(input?.name || input?.creatorName, 60) || '可信路书编辑部',
+    name: normalizeCreatorName(input?.name || input?.creatorName),
     avatar: truncateString(input?.avatar || input?.creatorAvatar, 500),
     bio: truncateString(input?.bio || input?.creatorBio, 140),
     sourceAuthorization: truncateString(input?.sourceAuthorization || input?.authorization, 40) || 'self-owned'
@@ -973,7 +981,6 @@ export function getCuratedRoutebook(publicId) {
       sourceAuthorization: 'self-owned',
       creator: {
         id: 'official-curation',
-        name: '可信路书编辑部',
         bio: '首批可信城市路线由编辑样板和真实打卡持续校准。',
         sourceAuthorization: 'self-owned'
       },

@@ -327,7 +327,7 @@ export function normalizeUserRouteCreator(input = {}, profileId = '') {
   return {
     ...creator,
     id,
-    name: creator.name === '可信路书编辑部' ? '匿名旅行者' : creator.name,
+    name: creator.name,
     sourceAuthorization: 'user-generated'
   };
 }

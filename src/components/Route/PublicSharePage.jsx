@@ -1,4 +1,5 @@
 import { costDisplay } from '../../lib/cost';
+import { publicCreatorName } from '../../lib/creatorName.js';
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookmarkPlus, Copy, MapPin, Play, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { getShareRoutebook, recordExposure } from '../../lib/api';
@@ -218,7 +219,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                 )}
               </>
             )}
-            {routebook.creator?.id && (
+            {routebook.creator?.id && publicCreatorName(routebook.creator?.name) && (
               <button
                 type="button"
                 className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 py-1 pr-3 pl-1 text-sm font-semibold backdrop-blur hover:bg-white/25"
@@ -227,7 +228,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
                 <span className="grid size-7 place-items-center rounded-full bg-lemon text-ink">
                   <UserRound className="size-4" aria-hidden="true" />
                 </span>
-                {routebook.creator.name}
+                {publicCreatorName(routebook.creator.name)}
                 <span className="text-white/80">· {routebook.copyCount ?? 0} 次复制</span>
               </button>
             )}
