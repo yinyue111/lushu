@@ -10,7 +10,7 @@ const ACTIVE_JOB_MAX_AGE_MS = 30 * 60 * 1000;
 export const GENERATION_STAGE_LABELS = Object.freeze({
   parse: '解析攻略',
   match: '匹配地点',
-  model: '模型生成',
+  model: '排路线',
   geocode: '地点定位',
   route: '查路线',
   save: '保存路书'
@@ -180,7 +180,7 @@ export function generationFailureCopy(error) {
   }
   switch (code) {
     case 'MODEL_ERROR':
-      return { title: '模型服务调用失败', detail: '模型服务这次返回了错误，没有保存任何内容。你的攻略和偏好都已保留，稍后再试即可。' };
+      return { title: '这次没排出来', detail: 'AI 这次没响应，路书没生成，你填的都还在。' };
     case 'MODEL_STALLED':
       return { title: '模型卡住了', detail: '模型很久没有输出，已自动停止。可以稍后再试。' };
     case 'MODEL_TIMEOUT':
@@ -191,7 +191,7 @@ export function generationFailureCopy(error) {
       return { title: 'AI 返回的路书不完整', detail: '这次输出格式有问题，没有保存。重新生成通常就能恢复。' };
     case 'MODEL_NOT_READY':
     case 'MODEL_FETCH_FAILED':
-      return { title: '模型服务暂时不可用', detail: '你的攻略和偏好都已保留，稍后再试即可。' };
+      return { title: '这次没排出来', detail: 'AI 这次没响应，路书没生成，你填的都还在。' };
     case 'GENERATION_QUOTA_EXCEEDED':
       return { title: '今天的生成次数用完了', detail: error?.message || '请稍后再试。' };
     case 'GENERATION_JOBS_BUSY':

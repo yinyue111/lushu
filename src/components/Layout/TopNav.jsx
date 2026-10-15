@@ -57,16 +57,18 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span
-            className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex"
-            title={modelHealth?.ready ? undefined : modelHealth?.reason || undefined}
-          >
+          {!modelStatus.hide && modelStatus.label && (
             <span
-              className={cn('size-2 rounded-full', modelStatus.tone === 'ok' ? 'bg-success' : modelStatus.tone === 'warn' ? 'bg-lemon' : 'bg-line-strong')}
-              aria-hidden="true"
-            />
-            {modelStatus.label}
-          </span>
+              className="hidden items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-meta font-semibold text-ink-2 sm:inline-flex"
+              title={modelHealth?.reason || undefined}
+            >
+              <span
+                className={cn('size-2 rounded-full', modelStatus.tone === 'warn' ? 'bg-lemon' : 'bg-line-strong')}
+                aria-hidden="true"
+              />
+              {modelStatus.label}
+            </span>
+          )}
           {accountsEnabled && accountReady && !account && (
             <Button variant="dark" size="sm" onClick={() => openLogin('login')}>
               登录

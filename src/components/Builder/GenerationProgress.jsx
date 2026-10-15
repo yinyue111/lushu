@@ -54,18 +54,16 @@ export function GenerationProgress({
       : outcome === 'cancelled'
         ? '已取消生成'
         : outcome === 'failed'
-          ? failure?.title || '这次没能生成路书'
-          : '正在生成路书';
+          ? failure?.title || '这次没排出来'
+          : '正在排路线';
   const announcement =
     outcome === 'succeeded'
       ? '路书生成完成，正在打开'
       : outcome === 'cancelled'
         ? '已取消生成'
         : outcome === 'failed'
-          ? `生成失败：${failure?.title ?? ''}`
-          : activeStage
-            ? `正在${activeStage.label}`
-            : '正在准备生成';
+          ? failure?.title || '这次没排出来'
+          : '正在排路线';
 
   return (
     <section className="mx-auto max-w-lg pt-4" aria-labelledby="generation-title">
@@ -179,9 +177,11 @@ export function GenerationProgress({
           <p className="flex items-start gap-2 text-sm font-semibold text-primary-strong">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> {failure?.detail}
           </p>
-          <p className="mt-1 text-xs text-ink-2">你的攻略、候选地点和偏好都已保留。</p>
           {failure?.suggestDeep && mode === 'fast' && (
-            <p className="mt-2 text-sm text-ink">「轻快」这次没跑通。可以换「细品」再试：想得更细，大约要 2–3 分钟。</p>
+            <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>
+          )}
+          {!failure?.suggestDeep && !failure?.suggestFast && (
+            <p className="mt-2 text-sm text-ink">可以换「细品」再试（大约 2–3 分钟），或稍后用「轻快」再试。</p>
           )}
           {failure?.failedAt && lastAttemptText(failure.failedAt) && (
             <p className="mt-1 text-xs text-ink-2">
@@ -267,9 +267,14 @@ function StageIcon({ status }) {
 }
 
 function stageDetail(stage) {
-  if (stage.status === 'running' && stage.key === 'model') return stage.detail ? `${stage.detail} 正在编排路线，这一步最久` : '正在编排路线，这一步最久';
+  // Never surface provider/model IDs from stage.detail on the progress page (U2).
+  if (stage.status === 'running' && stage.key === 'model') return 'AI 正在排路线，这一步最久';
   if (stage.status === 'running' && stage.progress?.total) return `${stage.progress.done}/${stage.progress.total} 个站点`;
   if (stage.status === 'cancelled') return '已停止';
+  if (stage.status === 'completed' && stage.key === 'model') {
+    const detail = String(stage.detail || '');
+    return /返回\s*\d+\s*个站点/.test(detail) ? detail : '';
+  }
   return stage.status === 'completed' ? stage.detail : '';
 }
 
