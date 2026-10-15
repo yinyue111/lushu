@@ -1,11 +1,11 @@
 import { useRef } from 'react';
-import { ChevronLeft, ChevronRight, Route as RouteIcon, Trash2, GitMerge } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Route as RouteIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { dayCover, smallImage } from '../visual/theme';
 
 /** "每天怎么玩" — horizontally scrolling day cards acting as day tabs. */
-export default function DayStrip({ city, dayEntries, activeDay, onSelectDay, canEdit = false, onDeleteDay, onMergeDay }) {
+export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
   const scrollerRef = useRef(null);
   const scrollBy = (direction) => scrollerRef.current?.scrollBy({ left: direction * scrollerRef.current.clientWidth * 0.8, behavior: 'smooth' });
 
@@ -57,30 +57,6 @@ export default function DayStrip({ city, dayEntries, activeDay, onSelectDay, can
               <span className="num absolute top-3 left-3 inline-flex h-7 items-center rounded-full px-3 text-sm" style={{ background: entry.theme.ink }}>
                 DAY {entry.number}
               </span>
-              {canEdit && dayEntries.length > 1 && selected && (
-                <span className="absolute top-2 right-2 z-10 flex gap-1" aria-hidden="true">
-                  <span
-                    className="grid size-8 place-items-center rounded-full bg-white/90 text-ink pointer-events-auto"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onMergeDay?.(entry.day);
-                    }}
-                  >
-                    <GitMerge className="size-3.5" />
-                  </span>
-                  <span
-                    className="grid size-8 place-items-center rounded-full bg-white/90 text-danger pointer-events-auto"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onDeleteDay?.(entry.day);
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </span>
-                </span>
-              )}
               <b className="line-clamp-1 text-lead leading-tight font-extrabold sm:text-xl">{entry.label}</b>
               <span className="text-meta text-white/92 sm:text-sm">{entry.summary}</span>
             </button>

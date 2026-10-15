@@ -33,6 +33,7 @@ import ReplaceStopDialog from './ReplaceStopDialog';
 import AdjustChatSheet from './AdjustChatSheet';
 import PatchProposalDialog from './PatchProposalDialog';
 import { ConfirmDialog } from '../ui/confirm-dialog';
+import { DayActionsMenu } from './DayActionsMenu';
 
 // Overlays only load on demand so they stay off the route page's critical path.
 const SharePreview = lazy(() => import('./SharePreview'));
@@ -268,12 +269,6 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             dayEntries={dayEntries}
             activeDay={activeEntry?.day}
             onSelectDay={selectDay}
-            canEdit={canEdit}
-            onDeleteDay={(day) => setDayAction({ type: 'delete', day })}
-            onMergeDay={(fromDay) => {
-              const target = days.find((d) => d !== fromDay) || days[0];
-              setDayAction({ type: 'merge', fromDay, toDay: target });
-            }}
           />
 
           <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 lg:mt-7">
@@ -283,18 +278,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
               {canEdit && days.length > 1 && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })}
-                  >
-                    合并到另一天
-                  </Button>
-                  <Button size="sm" variant="outline" className="text-danger" onClick={() => setDayAction({ type: 'delete', day: activeDay })}>
-                    删除这一天
-                  </Button>
-                </>
+                <DayActionsMenu
+                  dayNumber={activeEntry?.number || 1}
+                  onMerge={() =>
+                    setDayAction({ type: 'merge', fromDay: activeDay, toDay: days.find((d) => d !== activeDay) || days[0] })
+                  }
+                  onDelete={() => setDayAction({ type: 'delete', day: activeDay })}
+                />
               )}
             </span>
           </div>
@@ -516,7 +506,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         description={
           dayAction?.type === 'merge'
             ? `把 ${dayAction.fromDay} 的站点并进 ${dayAction.toDay}，并重排时间。`
-            : `删除 ${dayAction?.day} 的全部站点。路书至少保留 2 站。`
+            : deleteDayConfirmCopy(dayAction, dayEntries, stops)
         }
         confirmLabel={dayAction?.type === 'merge' ? '合并' : '删除'}
         danger={dayAction?.type === 'delete'}
@@ -557,4 +547,12 @@ function dayLabel(stops, city, index) {
   if (areas.length) return areas.slice(0, 2).join(' · ');
   if (stops[0]?.name) return stops.length > 1 ? `${stops[0].name} 出发` : stops[0].name;
   return `第 ${index + 1} 天`;
+}
+
+function deleteDayConfirmCopy(dayAction, dayEntries, stops) {
+  if (!dayAction?.day) return '';
+  const entry = dayEntries?.find((item) => item.day === dayAction.day);
+  const number = entry?.number || Number(String(dayAction.day).replace(/\D/g, '')) || 1;
+  const count = (stops || []).filter((stop) => stop.day === dayAction.day).length;
+  return `删掉第 ${number} 天的 ${count} 站？可以撤销。`;
 }
