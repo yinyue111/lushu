@@ -15,4 +15,16 @@ test('CreatorPage source never renders creator.id and offers the self nickname h
   assert.match(src, /isSelf && !displayName/);
   assert.match(src, /href="\/my#account"/);
   assert.match(src, /设个昵称，分享时会显示/);
+  assert.match(src, /title="全部路线"/);
+  assert.doesNotMatch(src, /kicker="路线合集"/);
+});
+
+test('small inline tap targets use the U16 coarse-pointer ::after enlargement', async () => {
+  const { TAP_TARGET } = await import('../../src/components/ui/tap-target.js');
+  assert.match(TAP_TARGET, /pointer:coarse\)\]:after:h-11/);
+  assert.match(TAP_TARGET, /pointer:coarse\)\]:after:min-w-11/);
+  for (const f of ['Creator/CreatorPage.jsx', 'Route/RouteHero.jsx', 'Builder/BuilderSteps.jsx']) {
+    const s = readFileSync(new URL(`../../src/components/${f}`, import.meta.url), 'utf8');
+    assert.match(s, /\$\{TAP_TARGET\}/, f);
+  }
 });

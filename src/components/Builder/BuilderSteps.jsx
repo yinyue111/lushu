@@ -9,6 +9,7 @@ import { cn } from '../ui/cn';
 import { cityCover, smallImage } from '../visual/theme';
 import { averageSourcePrediction, budgetHint, budgetValueForLabel, importStatusLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
 import { dayOptionsForMonth, isPastTripDate, parseYmd, resolveTripDate } from '../../lib/tripDate.js';
+import { TAP_TARGET } from '../ui/tap-target.js';
 
 const TONES = {
   sky: 'bg-sky-soft text-sky-ink',
@@ -534,9 +535,14 @@ export function TripDateFields({ value = '', onChange, now = undefined }) {
         </label>
       </div>
       {past && (
-        <p className="flex flex-wrap items-center gap-2 text-meta text-lemon-ink" role="status">
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-meta text-lemon-ink" role="status">
           这个日期已经过了，重新选一下
-          <button type="button" className="font-semibold underline underline-offset-2" onClick={() => commit('', '')}>
+          <button
+            type="button"
+            className={`${TAP_TARGET} font-semibold underline underline-offset-2`}
+            data-testid="past-date-clear"
+            onClick={() => commit('', '')}
+          >
             清空
           </button>
         </p>

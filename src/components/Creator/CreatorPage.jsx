@@ -9,6 +9,7 @@ import { cn } from '../ui/cn';
 import { EmptyArt } from '../visual/EmptyArt';
 import { SectionHeading } from '../ui/section-heading';
 import { creatorPageTitle, publicCreatorName } from '../../lib/creatorName.js';
+import { TAP_TARGET } from '../ui/tap-target.js';
 
 /** @param {Record<string, any>} props */
 export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, onOpenBook, onCustomize }) {
@@ -100,7 +101,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
               {isSelf && !displayName && (
                 <a
                   href="/my#account"
-                  className="mt-1 inline-block text-meta text-white/90 underline underline-offset-2 hover:text-white"
+                  className={`${TAP_TARGET} mt-1 inline-block text-meta text-white/90 underline underline-offset-2 hover:text-white`}
                   data-testid="nickname-hint"
                 >
                   设个昵称，分享时会显示
@@ -120,8 +121,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
 
       <div className="mx-auto max-w-[1200px] px-4 pt-8 lg:px-8 lg:pt-10">
         <SectionHeading
-          kicker="路线合集"
-          title={pageTitle}
+          title="全部路线"
           action={
             <span
               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${verifiedAverage === null ? 'bg-sky-soft text-sky-ink' : 'bg-success-soft text-success-ink'}`}

@@ -11,6 +11,7 @@ import { aigcMetadata } from '../../lib/aigc.js';
 import { useAccount } from '../Account/AccountProvider';
 import { accountLabel } from '../../lib/accountCopy';
 import { publicCreatorName } from '../../lib/creatorName.js';
+import { TAP_TARGET } from '../ui/tap-target.js';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
@@ -146,7 +147,7 @@ export default function RouteHero({
           {showNicknameHint && (
             <a
               href="/my#account"
-              className="mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white"
+              className={`${TAP_TARGET} mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white`}
               data-testid="nickname-hint"
             >
               设个昵称，分享时会显示

@@ -1,5 +1,5 @@
 /** Section title with optional quiet kicker; keeps 城市漫游·明快 without shouty tracking. */
-export function SectionHeading({ id = undefined, kicker, title, action = undefined }) {
+export function SectionHeading({ id = undefined, kicker = undefined, title, action = undefined }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
