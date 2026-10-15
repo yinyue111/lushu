@@ -47,6 +47,11 @@ before(async () => {
   server = await startServer({
     env: {
       OPENAI_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+      // Use a model id outside shipped official defaults so this suite still exercises the
+      // AI_*_COST_PER_MILLION_TOKENS env snapshot path (not model.pricing USD defaults).
+      OPENAI_MODEL: 'test-fake-model',
+      AI_MODEL_FAST: 'test-fake-model',
+      AI_MODEL_DEEP: 'test-fake-model',
       AI_INPUT_COST_PER_MILLION_TOKENS: '2',
       AI_OUTPUT_COST_PER_MILLION_TOKENS: '8',
       AI_COST_CURRENCY: 'CNY'

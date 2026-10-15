@@ -1,6 +1,7 @@
-// Per-model pricing from the runtime config (admin enters prices from the provider's bill; nothing is
-// assumed). Returns the env-shaped pricing object estimateModelCost() understands, or the env pricing
-// (AI_INPUT/OUTPUT_COST_PER_MILLION_TOKENS) when the model has no admin price. No price → cost "unavailable".
+// Per-model pricing from the runtime config (shipped defaults = official API list prices in
+// modelPricingDefaults.mjs; admin may override from the relay bill). Returns the env-shaped pricing
+// object estimateModelCost() understands, or the env pricing (AI_INPUT/OUTPUT_COST_PER_MILLION_TOKENS)
+// when the model has no admin/default price. No price → cost "unavailable" (never valued at 0).
 import { getConfig } from '../config/runtime.mjs';
 
 export function modelPricingFor(model) {

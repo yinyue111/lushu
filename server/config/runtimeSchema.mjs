@@ -1,4 +1,5 @@
 import { parseFallbackOrder } from './fallbackOrder.mjs';
+import { DEFAULT_MODEL_PRICING } from './modelPricingDefaults.mjs';
 // Whitelist of runtime-configurable settings (docs/admin.md, build design §1.2).
 // Effective value = parse(DB override) ?? parse(env) ?? safe default. Env values come from
 // server/config/index.mjs, which already parsed/clamped them at startup, so env stays the fallback.
@@ -78,11 +79,13 @@ export const RUNTIME_SCHEMA = {
   },
   'model.pricing': {
     type: 'pricing',
-    label: '模型单价（USD / 百万 token，按服务商账单手填；不填则成本记为「未知」）',
+    // Shipped defaults = official API list prices (server/config/modelPricingDefaults.mjs). Admin may
+    // override from the relay bill; clearing a model leaves it unpriced (never stored as 0).
+    label: '模型单价（USD / 百万 token；默认官方标价，可按中继账单改；不填则成本记为「未知」）',
     group: 'model',
     role: 'admin',
-    env: () => ({}),
-    default: {}
+    env: () => ({ ...DEFAULT_MODEL_PRICING }),
+    default: { ...DEFAULT_MODEL_PRICING }
   },
   'registration.mode': {
     type: 'enum',

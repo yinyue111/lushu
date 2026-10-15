@@ -180,7 +180,7 @@ function ModelTierForm({ id, value, onChange, disabled }) {
   );
 }
 
-/** 单价表：每个模型一行（每百万 token 的美元价），带来源和日期。不预填任何价格。 */
+/** 单价表：每个模型一行（每百万 token 的美元价），带来源和日期。出厂默认见 modelPricingDefaults.mjs。 */
 function PricingForm({ id, value, onChange, disabled }) {
   const rows = Object.entries(value ?? {});
   const write = (next) => onChange(Object.fromEntries(next));
@@ -188,7 +188,11 @@ function PricingForm({ id, value, onChange, disabled }) {
     write(rows.map(([model, price], i) => (i === index ? [patch.model ?? model, { ...price, ...patch.price }] : [model, price])));
   return (
     <div id={id} className="space-y-2 rounded-md border border-line p-3">
-      {rows.length === 0 && <p className="text-xs text-warn-ink">还没有填任何单价：花费只能显示已知部分，日上限的「自动」模式不会拦截。</p>}
+      {rows.length === 0 && (
+        <p className="text-xs text-warn-ink">
+          当前没有单价：花费只能显示已知部分，日上限的「自动」模式不会拦截。出厂默认是官方标价；若被清空可从 docs/admin.md「模型单价」补回。
+        </p>
+      )}
       {rows.map(([model, price], index) => (
         <fieldset key={index} className="grid gap-2 border-b border-line pb-2 sm:grid-cols-5">
           <legend className="sr-only">单价 {index + 1}</legend>

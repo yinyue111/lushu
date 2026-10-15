@@ -70,7 +70,7 @@ npm run admin:create -- --username root --role admin --production
 
 ### 可配置项
 
-模型（轻快/细品模式：服务商、接口地址、模型名、思考强度、超时，配置页是表单，原始 JSON 收在「高级」里）、备用模型顺序和「上游报错时改用备用模型」开关、模型单价（美元/百万 token，带来源和日期，**由管理员按账单填写；空着就是没有单价，不当 0、不估算**）、注册方式与邀请码、开放城市、首页推荐城市（只能从开放城市里选；默认 杭州/上海/苏州，已去掉 成都/北京/广州）、各种额度、失败是否扣额度（默认不扣）、每日花费上限、联网核对的各项、后台安全参数。密钥（两档模型 key、核对 key）只写不读。
+模型（轻快/细品模式：服务商、接口地址、模型名、思考强度、超时，配置页是表单，原始 JSON 收在「高级」里）、备用模型顺序和「上游报错时改用备用模型」开关、模型单价（美元/百万 token，带来源和日期；**默认填官方 API 标价**，可按中继账单改；空着就是没有单价，不当 0、不估算，见下「模型单价」）、注册方式与邀请码、开放城市、首页推荐城市（只能从开放城市里选；默认 杭州/上海/苏州，已去掉 成都/北京/广州）、各种额度、失败是否扣额度（默认不扣）、每日花费上限、联网核对的各项、后台安全参数。密钥（两档模型 key、核对 key）只写不读。
 
 ### 备用模型（上游报错 / 超时）
 
@@ -129,11 +129,39 @@ npm run admin:create -- --username root --role admin --production
 
 | 模式 | 行为 |
 |---|---|
-| `auto`（默认） | 只有轻快、细品当前用的模型**都有单价**，且今天没有「没有单价」的调用时才拦截；否则不拦截，概览写明原因（如「未生效：grok-x 没有单价」）。现在单价全空，所以**默认等于不拦截**。 |
+| `auto`（默认） | 只有轻快、细品当前用的模型**都有单价**，且今天没有「没有单价」的调用时才拦截；否则不拦截，概览写明原因（如「未生效：grok-x 没有单价」）。代码默认已带官方标价（`grok-4.7` / `gemini-3.8-flash-high`）；若后台清空或换了未标价的模型，仍会按本行规则不拦截。 |
 | `on` | 按已知金额（下限）拦截，没有单价的调用不计。 |
 | `off` | 只在概览显示，不拦截。 |
 
 拦截时新的生成请求（轻快、细品都算）返回 429 `COST_CAP_REACHED`，已有路书不受影响。花费每 15 秒重新统计一次。概览「今日花费」卡片下面显示当前的拦截状态。
+
+
+### 模型单价（官方标价 → `model.pricing`）
+
+单位一律 **USD / 百万 token**（与后台表单、`estimateModelCost` 一致）。若官网写的是每 1K，乘 1000；不换算成「每次调用多少钱」。
+
+**本仓库实际用的模型 id**（`docs/deploy.env.example` / 代码默认；经中继 `https://t.aiwuq.cn/v1`）：
+
+| 模式 | 配置键 | 模型 id | 说明 |
+|---|---|---|---|
+| 轻快（fast） | `AI_MODEL_FAST` / `model.fast` | `gemini-3.8-flash-high` | `-high` 是中继思考档后缀；对应 Google 官方 `gemini-3.8-flash` |
+| 细品（deep） | `AI_MODEL_DEEP` / `OPENAI_MODEL` / `model.deep` | `grok-4.7` | 细品空则沿用 `OPENAI_MODEL` |
+| 联网核对 | `ENRICH_MODEL` | `grok-4.7`（默认） | 核对花费多来自上游 `cost_in_usd_ticks`，不走本表 |
+
+**代码出厂默认**在 `server/config/modelPricingDefaults.mjs`，经 `model.pricing` 的 env/default 读入（后台未覆盖时生效）。检索日 **2026-10-16**，仅取第一方页面：
+
+| 模型 id（本应用键） | input | output | 来源 URL | 官网摘录（检索日） |
+|---|---:|---:|---|---|
+| `grok-4.7` | 2.00 | 6.00 | https://docs.x.ai/developers/pricing | 「grok-4.7 (< 200k prompt tokens) … Input $2.00 … Cached input $0.50 … Output $6.00」；≥200k 为 $4 / $1 / $12。推理页写明 reasoning tokens 计入总消耗，usage 在 `output_tokens_details.reasoning_tokens` → **按 output 计价**。 |
+| `gemini-3.8-flash-high` | 0.75 | 3.75 | https://ai.google.dev/pricing | 对应官方 `gemini-3.8-flash` Standard Paid（至 2026-12-31）：「Input price … $0.75」「Output price (including thinking tokens) … $3.75」「Context caching price … $0.075」。thinking **含在 output**。 |
+
+**字段怎么对账**：
+
+- `input` ← 官方 Input / 1M（标准、短上下文、非 cached 价）。
+- `output` ← 官方 Output / 1M；**reasoning / thinking token 按 output 计**（见上）。
+- 官方还有 **cached input**、Grok **≥200k** 长上下文档：本配置只有 input/output 两列，**不单独存**。有 cache 命中时估算偏高；若 prompt 真超过 200k（路书场景远低于此）会偏低。
+- 中继（`t.aiwuq.cn`）账单可能与官方标价不同；要以中继账单为准时，在后台改 `model.pricing` 并写上来源/日期。
+- 某个模型没有官方价、或未写入配置 → **留空**，成本记「未知」，**绝不写成 0**。概览在仍有未标价调用时显示「至少 $X」。
 
 ## 6. 迁移与回滚
 
@@ -254,7 +282,7 @@ node scripts/smoke-prod.mjs --base https://example.com --commit "$(git rev-parse
 1. Caddy 白名单/Basic Auth、compose 按 digest 引用、`APP_IMAGE_DIGEST` 注入、GHCR 推送权限：需要运维改并定上线日期（Dockerfile 和 CI 工作流已在本地提交）。
 2. （已做）`playwright` / `axe-core` 已加进 devDependencies，lockfile 已改；生产镜像用 `npm ci --omit=dev`，不含它们，也不下载浏览器。
 4. 未设置时注册方式默认 `open` 还是 `invite`。
-5. 模型单价由谁、按什么来源维护（目前全空：花费只显示下限，日上限 `auto` 模式不拦截）。
+5. ~~模型单价由谁、按什么来源维护~~（2026-10-16 已定：默认 = 官方 API 标价，见「模型单价」；中继账单可覆盖）。
 8. `CONFIG_ENC_KEY` 由谁保管（启动检查和生成方式已做，见第 1 节表格）。
 6. 挂路径 `/admin` 还是子域名。
 7. 「旧运维工具」各面板并入新页面的顺序和时间。
