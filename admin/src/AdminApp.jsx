@@ -14,6 +14,7 @@ import VerifiedPlacesPage from './pages/VerifiedPlacesPage';
 import LegacyOpsPage from './pages/LegacyOpsPage';
 
 /** @type {{ path: string, label: string, permission: any, Component: any }[]} */
+/** @type {{ path: string, label: string, permission: string, Component: any, phase2?: boolean }[]} */
 const NAV = [
   { path: 'dashboard', label: '概览', permission: 'dashboard.read', Component: DashboardPage },
   { path: 'corrections', label: '纠错队列', permission: 'corrections.read', Component: CorrectionsPage },

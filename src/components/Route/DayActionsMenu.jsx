@@ -8,8 +8,8 @@ import { cn } from '../ui/cn';
  */
 export function DayActionsMenu({ dayNumber, onMerge, onDelete, className }) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
+  const triggerRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const menuRef = useRef(/** @type {HTMLUListElement | null} */ (null));
   const menuId = useId();
 
   useEffect(() => {
@@ -22,7 +22,8 @@ export function DayActionsMenu({ dayNumber, onMerge, onDelete, className }) {
       }
     };
     const onPointer = (event) => {
-      if (menuRef.current?.contains(event.target) || triggerRef.current?.contains(event.target)) return;
+      const target = /** @type {Node | null} */ (event.target);
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
       setOpen(false);
     };
     document.addEventListener('keydown', onKey);
@@ -36,8 +37,7 @@ export function DayActionsMenu({ dayNumber, onMerge, onDelete, className }) {
   function closeAnd(action) {
     setOpen(false);
     action?.();
-    // Focus returns to trigger after the confirm dialog path; here for non-confirm actions.
-    queuePromise(() => triggerRef.current?.focus());
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
   }
 
   return (
@@ -87,8 +87,4 @@ export function DayActionsMenu({ dayNumber, onMerge, onDelete, className }) {
       )}
     </span>
   );
-}
-
-function queuePromise(fn) {
-  queuePromise.resolve().then(fn);
 }
