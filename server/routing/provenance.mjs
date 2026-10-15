@@ -99,7 +99,7 @@ export function normalizeStoredRouteLegs(routeLegs, stops = [], transport = '') 
     return [
       unverifiedRouteLeg(
         leg,
-        new RoutingError(ROUTING_ERROR_CODES.PROVENANCE_INVALID, '道路结果缺少服务端凭据，或站点/交通方式已经变化，请重新核验', {
+        new RoutingError(ROUTING_ERROR_CODES.PROVENANCE_INVALID, '道路结果缺少服务端凭据，或站点/交通方式已经变化，请重新核对', {
           category: 'provenance',
           retryable: true
         })

@@ -26,7 +26,7 @@ export const cityStories = {
     city: '苏州',
     kicker: '园林、平江路、评弹与夜游',
     headline: '园林不赶场，平江路不踩点，晚上还能顺路看水巷',
-    summary: '适合周末轻旅行和亲子慢游。重点校验门票、闭园时间、排队和晚间回酒店动线。',
+    summary: '适合周末轻旅行和亲子慢游。重点核对门票、闭园时间、排队和晚间回酒店动线。',
     seasonNotes: [{ months: [7, 8], text: '暑期建议上午园林、傍晚水巷' }],
     image: localImage('/assets/suzhou-garden.webp'),
     palette: 'garden'
@@ -395,8 +395,8 @@ export function curatedRouteToRoutebook(route) {
       { id: 'crowd', label: '拥挤风险', state: '需错峰', detail: '热门 POI 建议上午或傍晚执行。' }
     ],
     metrics: [
-      { label: '真实打卡', value: '待验证' },
-      { label: '主线完成率', value: '待验证' },
+      { label: '真实打卡', value: '待核对' },
+      { label: '主线完成率', value: '待核对' },
       { label: '来源状态', value: '编辑样板' }
     ],
     logs: [],

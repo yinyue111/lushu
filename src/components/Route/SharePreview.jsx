@@ -144,8 +144,8 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
         setShareState({
           loading: false,
           message: options.claimOriginalAuthor
-            ? '已提交原作者授权审核：运营核实授权和道路后才会公开，期间仍可用朋友链接分享。'
-            : '已提交运营审核，确认来源授权、查过路线后才能公开分享。',
+            ? '已申请公开（原作者授权）：确认授权、查过路线后才会公开，这期间可以先用朋友链接分享。'
+            : '已申请公开。确认来源授权、查过路线后才会公开。',
           url: ''
         });
         return;
@@ -359,13 +359,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
               title={isCuratedRoute && !shareUrl ? curatedHint : undefined}
             >
               <Link2 />{' '}
-              {shareState.loading
-                ? '提交中...'
-                : shareUrl
-                  ? '复制分享链接'
-                  : routebook.publishStatus === 'pending_review'
-                    ? '已提交，等待审核'
-                    : '提交公开审核'}
+              {shareState.loading ? '提交中...' : shareUrl ? '复制分享链接' : routebook.publishStatus === 'pending_review' ? '已申请公开' : '申请公开'}
             </Button>
           )}
           <Button variant="outline" onClick={copyShareText}>

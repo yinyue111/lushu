@@ -151,13 +151,13 @@ export function publicTrustEvidenceLabel(row, evidence) {
     return '跳过或替换的站点不算到达。';
   }
   if (evidence.syncStatus !== 'synced') {
-    return '上传并校验通过后，才会计入路线可信度。';
+    return '上传并核对通过后，才会计入路线可信度。';
   }
   if (evidence.countsTowardPublicTrust) {
-    return '已计入可信度：GPS 确认到达，账号已校验（尚未接入实名认证）。';
+    return '已计入可信度：GPS 确认到达，账号已确认（尚未接入实名认证）。';
   }
   if (evidence.validArrival && !evidence.identityAttested) {
-    return '未计入可信度：GPS 确认到达，但账号还没完成校验。';
+    return '未计入可信度：GPS 确认到达，但账号还没完成确认。';
   }
   if (evidence.arrivalConfidence === 'weak') {
     return '普通反馈：离站点很近，但定位不够准，不计入可信度。';
@@ -247,7 +247,7 @@ export function buildPlatformAlternatives(current, routebook, latestByStop, poiK
       name,
       day: current?.day,
       time: current?.time,
-      verify: `平台 POI 库运营审核：${row?.field || '综合信息'}${row?.value ? ` · ${row.value}` : ''}`.slice(0, 120),
+      verify: `平台地点库人工核实：${row?.field || '综合信息'}${row?.value ? ` · ${row.value}` : ''}`.slice(0, 120),
       risk: String(row?.reason ?? '').slice(0, 120)
     };
     if (isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop)))) continue;

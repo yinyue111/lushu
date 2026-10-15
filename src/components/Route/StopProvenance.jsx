@@ -84,7 +84,7 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
   const placeOk = stop?.provenance?.reviewedPoi === true && !approximate;
   const items = [
     trust.tone === 'verified'
-      ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达验证` : trust.label }
+      ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达核对` : trust.label }
       : trust.tone === 'trial'
         ? { tone: 'warn', text: '未实地确认' }
         : null, // 内测期大多是 0：没人打卡就不占一格，评分区已有统一说明。

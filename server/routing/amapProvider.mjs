@@ -22,7 +22,7 @@ export function createAmapRoutingProvider({ apiKey = '', fetchImpl = globalThis.
     /** @param {Record<string, any>} [options] */
     async route({ origin, destination, mode = 'walking', city = '', signal } = {}) {
       if (!key) {
-        throw new RoutingError(ROUTING_ERROR_CODES.PROVIDER_NOT_CONFIGURED, '未配置高德 Web 服务密钥，道路路线未校验', {
+        throw new RoutingError(ROUTING_ERROR_CODES.PROVIDER_NOT_CONFIGURED, '未配置高德 Web 服务密钥，道路路线还没核对', {
           category: 'configuration',
           retryable: false
         });
@@ -47,7 +47,7 @@ export function createAmapRoutingProvider({ apiKey = '', fetchImpl = globalThis.
       const amapOrigin = coordinateForAmap(origin);
       const amapDestination = coordinateForAmap(destination);
       if (!amapOrigin || !amapDestination) {
-        throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_MISSING, '路段起终点缺少可用坐标，道路路线未校验', { category: 'input', retryable: false });
+        throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_MISSING, '路段起终点缺少可用坐标，道路路线还没核对', { category: 'input', retryable: false });
       }
 
       const url = buildAmapUrl({

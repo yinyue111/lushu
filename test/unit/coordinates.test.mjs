@@ -70,5 +70,5 @@ test('distanceKm / navigability / labels', () => {
   assert.equal(coordinateReviewLabel({ lat: 30, lng: 120, geoConfidence: 10 }), '定位待复核');
   assert.equal(coordinateReviewLabel({}), '缺少坐标');
   assert.match(routeLegLabel(a, b), /^步行约 \d+ 分钟 · 约 [\d.]+ km（直线距离，未查实际路线）$/);
-  assert.equal(routeLegLabel(a, {}), '转场待校验');
+  assert.equal(routeLegLabel(a, {}), '路程待核对');
 });

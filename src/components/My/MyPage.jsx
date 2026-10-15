@@ -237,7 +237,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
   async function recoverProfile() {
     setSyncBusy(true);
-    setProfileMessage('正在校验恢复码并同步账号...');
+    setProfileMessage('正在核对恢复码，同步账号…');
     try {
       const credentials = parseProfileSyncCode(recoveryCode);
       const data = await saveProfile({
@@ -292,7 +292,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   async function endAccount(action) {
     const deleting = action === 'delete';
     if (deleting && window.prompt('将永久删除云端账号、路书、打卡、照片及本机副本。建议先导出。请输入 DELETE 确认：') !== 'DELETE') return;
-    if (!deleting && !window.confirm('将撤销云端访问凭据并清除本机资料。再次访问需重新验证绑定身份，确认退出？')) return;
+    if (!deleting && !window.confirm('将撤销云端访问凭据并清除本机资料。再次访问需要重新登录，确认退出？')) return;
     setSyncBusy(true);
     let resumeQueue;
     try {

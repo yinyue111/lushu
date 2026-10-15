@@ -735,11 +735,11 @@ function buildSourceEvidenceForStop(routebook, stop) {
 function mergeFeedbackMetrics(metrics, feedbackSummary) {
   const trustedFeedbackCount = feedbackSummary.attestedCheckinCount ?? 0;
   const feedbackMetrics = [
-    { label: '认证打卡', value: trustedFeedbackCount ? `${trustedFeedbackCount} 次` : '待验证' },
-    { label: '有效到达', value: trustedFeedbackCount ? `${feedbackSummary.completionRate}%` : '待验证' },
-    { label: '踩坑率', value: trustedFeedbackCount ? `${feedbackSummary.pitfallRate}%` : '待验证' },
-    { label: '平均修改', value: feedbackSummary.saveVersionCount > 1 ? `${feedbackSummary.editRate}%` : '待验证' },
-    { label: '最近验证', value: feedbackSummary.latestFeedbackAt ? new Date(feedbackSummary.latestFeedbackAt).toLocaleDateString('zh-CN') : '待验证' },
+    { label: '认证打卡', value: trustedFeedbackCount ? `${trustedFeedbackCount} 次` : '待核对' },
+    { label: '有效到达', value: trustedFeedbackCount ? `${feedbackSummary.completionRate}%` : '待核对' },
+    { label: '踩坑率', value: trustedFeedbackCount ? `${feedbackSummary.pitfallRate}%` : '待核对' },
+    { label: '平均修改', value: feedbackSummary.saveVersionCount > 1 ? `${feedbackSummary.editRate}%` : '待核对' },
+    { label: '最近核对', value: feedbackSummary.latestFeedbackAt ? new Date(feedbackSummary.latestFeedbackAt).toLocaleDateString('zh-CN') : '待核对' },
     { label: '复制转化', value: feedbackSummary.shareExposureCount ? `${feedbackSummary.copyConversionRate}%` : `${feedbackSummary.copyCount} 次` },
     { label: '纠错反馈', value: `${feedbackSummary.correctionCount} 条` }
   ];

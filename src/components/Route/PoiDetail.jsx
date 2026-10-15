@@ -535,7 +535,7 @@ function buildPoiTrustState(stop, city) {
       verified: true,
       value: String(Math.round(score)),
       label: `POI 可信 ${Math.round(score)}`,
-      detailLabel: trust?.label || '不同的人打卡验证',
+      detailLabel: trust?.label || '不同的人打卡核对',
       detail: [trust?.freshnessLabel, `${sampleCount} 个人有效打卡`, `有效到达 ${validArrivals} 次`, pitfallRate == null ? '' : `踩坑率 ${pitfallRate}%`]
         .filter(Boolean)
         .join(' · '),
@@ -547,8 +547,8 @@ function buildPoiTrustState(stop, city) {
     tone: 'prediction',
     badgeClass: 'badge-blue',
     verified: false,
-    value: '待验证',
-    label: 'POI 待验证',
+    value: '待核对',
+    label: '地点待核对',
     detailLabel: '打卡的人还不够',
     detail: `已有 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 个人有效打卡，够数后再打分。`,
     score: null

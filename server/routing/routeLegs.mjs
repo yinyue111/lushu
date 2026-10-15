@@ -33,7 +33,7 @@ export function normalizeRouteLeg(candidate = {}, context = {}) {
     };
   }
 
-  const fallbackError = new RoutingError(ROUTING_ERROR_CODES.UPSTREAM_PAYLOAD_INVALID, '路径规划结果不完整，道路距离和时长未校验', {
+  const fallbackError = new RoutingError(ROUTING_ERROR_CODES.UPSTREAM_PAYLOAD_INVALID, '路径规划结果不完整，道路距离和时长还没核对', {
     category: 'upstream_payload',
     retryable: true
   });
@@ -102,7 +102,7 @@ export async function buildRouteLegs({
       if (!providerConfigured) {
         return unverifiedRouteLeg(
           context,
-          new RoutingError(ROUTING_ERROR_CODES.PROVIDER_NOT_CONFIGURED, '未配置路径规划服务，道路路线未校验', { category: 'configuration', retryable: false })
+          new RoutingError(ROUTING_ERROR_CODES.PROVIDER_NOT_CONFIGURED, '未配置路径规划服务，道路路线还没核对', { category: 'configuration', retryable: false })
         );
       }
 

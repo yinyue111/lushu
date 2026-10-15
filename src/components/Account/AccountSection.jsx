@@ -92,7 +92,7 @@ function SignedIn({ account }) {
       {!account.emailVerified && (
         <Notice className="mt-3" tone="info" icon={Mail}>
           {account.emailMasked
-            ? '邮箱还没验证。验证后，忘了密码可以用邮箱自己找回，也能用邮箱登录。'
+            ? '邮箱还没验证。验证后，忘了密码可以用邮箱自己找回，也能用邮箱登录。' // copy-lint-ignore 邮箱验证是账号流程的专有说法，不是信息核对
             : '加个邮箱吧：忘了密码可以用邮箱自己找回，也能用邮箱登录。'}
         </Notice>
       )}

@@ -256,7 +256,7 @@ function publicReviewEvidence(checkin, stop) {
     if (confidence === 'weak') return { kind: 'low', badgeClass: 'badge-orange', label: 'GPS 到达置信度不足' };
     if (confidence === 'invalid') return { kind: 'low', badgeClass: 'badge-orange', label: 'GPS 位置疑似偏离' };
   }
-  return { kind: 'feedback', badgeClass: 'badge-blue', label: '体验反馈（未验证到达）' };
+  return { kind: 'feedback', badgeClass: 'badge-blue', label: '体验反馈（未核对到达）' };
 }
 
 function isVisitedFeedback(checkin) {

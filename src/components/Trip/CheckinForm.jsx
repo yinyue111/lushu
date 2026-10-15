@@ -74,7 +74,7 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           coordinateSystem: 'unknown',
           userAgent: String(navigator.userAgent ?? '').slice(0, 160)
         }),
-      onError: () => setGpsError('没拿到定位，仍可记录；这条算普通反馈，不算到达验证。'),
+      onError: () => setGpsError('没拿到定位，仍可记录；这条算普通反馈，不算到达核对。'),
       options: { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     });
     // 未同意前绝不调用定位 API：先弹出说明，用户同意后再请求。
@@ -118,7 +118,7 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           <LocateFixed /> {gps ? '重新定位' : '用 GPS 证明我到了（选填）'}
         </Button>
         <p className={cn('mt-2 text-meta', gpsError ? 'font-semibold text-lemon-ink' : 'text-muted')}>
-          {gps ? `已定位 · 精度约 ${gps.accuracy} 米` : gpsError || '不开定位也能记录；只是这条会作为普通反馈，不算“到达验证”。'}
+          {gps ? `已定位 · 精度约 ${gps.accuracy} 米` : gpsError || '不开定位也能记录；只是这条会作为普通反馈，不算「到达核对」。'}
         </p>
       </div>
       <LocationConsentDialog
@@ -130,7 +130,7 @@ export default function CheckinForm({ onSubmit, onCancel }) {
         }}
         onDecline={() => {
           setConsentOpen(false);
-          setGpsError('未同意定位：这条打卡会作为普通反馈记录，不算到达验证。');
+          setGpsError('未同意定位：这条打卡会作为普通反馈记录，不算到达核对。');
         }}
       />
       <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />

@@ -169,7 +169,7 @@ export function distanceKm(from, to) {
 
 export function routeLegLabel(from, to) {
   const km = distanceKm(from, to);
-  if (!Number.isFinite(km)) return '转场待校验';
+  if (!Number.isFinite(km)) return '路程待核对';
   const mode = km <= 1.2 ? '步行' : '打车';
   const minutes = mode === '步行' ? Math.max(6, Math.round((km / 4.5) * 60)) : Math.max(12, Math.round((km / 22) * 60 + 8));
   const distLabel = km < 1 ? `约 ${Math.max(0.1, Math.round(km * 10) / 10)} km` : `约 ${km.toFixed(1)} km`;

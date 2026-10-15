@@ -3,8 +3,8 @@
 
 const PUBLISH_STATUS = {
   draft: '草稿',
-  review: '审核中',
-  pending: '审核中',
+  review: '已申请公开',
+  pending: '已申请公开',
   published: '已公开',
   featured: '精选',
   archived: '已下架',

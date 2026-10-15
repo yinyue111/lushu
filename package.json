@@ -40,7 +40,7 @@
     "postgres:parity": "node --env-file-if-exists=.env scripts/postgres-parity.mjs",
     "postgres:export": "node --env-file-if-exists=.env scripts/postgres-export-jsonl.mjs",
     "source:lease": "node scripts/source-lease.mjs",
-    "verify": "npm run check:syntax && npm run lint && npm run format:check && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5 && npm run test:profile-trip && npm run test:storage-safety && npm run test:backup && npm run test:pwa-build",
+    "verify": "npm run check:syntax && npm run lint && npm run lint:copy && npm run format:check && npm run typecheck && npm run build && npm run test:unit && npm run test:security && npm run test:profile-migration && npm run test:checkin-queue && npm run test:p0 && npm run test:w3-w5 && npm run test:profile-trip && npm run test:storage-safety && npm run test:backup && npm run test:pwa-build",
     "verify:full": "npm run verify && npm run smoke:api",
     "preview": "npm run build && npm run start",
     "poi:dedup-report": "node scripts/poi-dedup-report.mjs",
@@ -49,7 +49,8 @@
     "jev:eval": "node scripts/jev/eval-labels.mjs",
     "test:e2e:admin": "node e2e/admin.e2e.mjs",
     "smoke:prod": "node scripts/smoke-prod.mjs",
-    "admin:create": "node --env-file-if-exists=.env scripts/admin-create.mjs"
+    "admin:create": "node --env-file-if-exists=.env scripts/admin-create.mjs",
+    "lint:copy": "node scripts/copy-lint.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -65,6 +66,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@babel/parser": "7.29.7",
     "@eslint/js": "^9.39.5",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@tailwindcss/vite": "^4.3.3",

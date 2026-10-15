@@ -211,10 +211,10 @@ export function buildTrustMetrics(routebook) {
   const trust = getRouteTrustPresentation(routebook);
   const feedback = routebook.feedbackSummary ?? {};
   return [
-    { label: '有效到达', value: trust.sampleCount ? `${trust.sampleCount} 次` : '待验证' },
-    { label: '完成率', value: trust.sampleCount ? `${Math.round(Number(feedback.completionRate) || 0)}%` : '待验证' },
-    { label: '踩坑反馈', value: trust.sampleCount ? `${Math.round(Number(feedback.pitfallRate) || 0)}%` : '待验证' },
-    { label: '最近验证', value: formatVerifiedDate(trust.latestVerifiedAt) }
+    { label: '有效到达', value: trust.sampleCount ? `${trust.sampleCount} 次` : '待核对' },
+    { label: '完成率', value: trust.sampleCount ? `${Math.round(Number(feedback.completionRate) || 0)}%` : '待核对' },
+    { label: '踩坑反馈', value: trust.sampleCount ? `${Math.round(Number(feedback.pitfallRate) || 0)}%` : '待核对' },
+    { label: '最近核对', value: formatVerifiedDate(trust.latestVerifiedAt) }
   ];
 }
 
@@ -234,7 +234,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
       tone: 'verified',
       badgeClass: 'badge-green',
       label: trust.label,
-      shortLabel: '真实打卡验证',
+      shortLabel: '真实打卡核对',
       value: trust.scoreText,
       note: `${trust.sampleCount} 个人有效打卡`
     };
@@ -244,7 +244,7 @@ export function buildRouteTrustState(trust, isTrustedCity) {
     badgeClass: 'badge-blue',
     label: trust.label,
     shortLabel: '资料核对',
-    value: '待验证',
+    value: '待核对',
     note: `已有 ${Math.min(trust.sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 个人有效打卡，够数后再打分。`
   };
 }
@@ -267,7 +267,7 @@ export function createDraftStop(routebook, activeDay) {
     area: '',
     stay: '60 分钟',
     cost: '待估算',
-    verify: '新增站点，需真实打卡验证',
+    verify: '新增站点，需真实打卡核对',
     risk: '需复核营业时间和交通',
     provenance: { origin: 'user-added', name: '' },
     lat: center.lat,
@@ -349,9 +349,9 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     },
     {
       id: 'client-edit-ai-stale',
-      label: 'AI 校验状态',
+      label: '核对状态',
       state: '需复核',
-      detail: '路线已被人工编辑，旧模型校验只作参考；分享前建议重新保存并按实际日期复核开放时间。'
+      detail: '路线改过了，之前的核对只作参考；分享前建议重新保存，并按实际日期复核开放时间。'
     }
   ];
   const staleIds = new Set(['hours', 'walk', 'budget', 'crowd', 'edit-routing', 'edit-tempo', 'edit-detour']);

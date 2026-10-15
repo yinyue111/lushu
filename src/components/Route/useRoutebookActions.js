@@ -326,7 +326,7 @@ export function useRoutebookActions({
             }
           : item
       );
-      updateRoutebook(upgradedStops, { editReason: '坐标重校验' }, current);
+      updateRoutebook(upgradedStops, { editReason: '坐标重新核对' }, current);
       setShareState(`「${name}」已匹配平台可信坐标，已更新定位并恢复导航`);
     } catch {
       // 解析失败静默保持降级：站点仍标记「坐标待确认」，用户可手动修正坐标。
@@ -483,7 +483,7 @@ export function useRoutebookActions({
         localSaved
           ? data.shareUrl
             ? `已保存并发布，H5 分享页：${new URL(data.shareUrl, window.location.origin).toString()}${anonymousNote}`
-            : `已保存为草稿，点击分享可提交公开审核${anonymousNote}`
+            : `已保存为草稿，点「分享」可以申请公开${anonymousNote}`
           : `已存到云端，但这台设备没存上${anonymousNote}`
       );
       return { status: 'saved', routebook: next };

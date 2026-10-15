@@ -309,7 +309,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     commitCheckinsState(nextRows);
     applyLocalActionState(actionPlan);
     if (navigator.onLine === false) {
-      setModeNote('已在这台设备上记下，可以继续走；联网后会自动同步并校验。');
+      setModeNote('已在这台设备上记下，可以继续走；联网后会自动同步并核对。');
       return;
     }
     void syncQueuedCheckins();
@@ -748,7 +748,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
           {checkins.length > 0 && (
             <div className="rounded-card bg-white p-4 text-center shadow-card">
               <p className="text-sm text-ink-2">
-                到达验证 <b className="num">{progressStats.validArrivals}</b> 站 · 计入可信度 <b className="num">{progressStats.publicTrustSamples}</b> 站
+                到达核对 <b className="num">{progressStats.validArrivals}</b> 站 · 计入可信度 <b className="num">{progressStats.publicTrustSamples}</b> 站
               </p>
               <p className="mt-1 text-meta text-muted">
                 普通反馈 {progressStats.feedbackOnly} 站 · 定位偏离 {progressStats.lowConfidenceArrivals} 次 · 跳过 {progressStats.skipped} 站 · 替换{' '}

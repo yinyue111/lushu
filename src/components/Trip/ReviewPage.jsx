@@ -256,7 +256,7 @@ export default function ReviewPage({ routebook, onBack }) {
         missingCount > 0
           ? stats.pendingCount > 0
             ? `；${stats.pendingCount} 条记录待同步，回顾链接是生成时的快照，同步完成后请重新生成链接才会包含这些记录`
-            : `；${missingCount} 条记录因身份未验证未进入公开回顾`
+            : `；${missingCount} 条记录因账号还没完成认证，没进入公开回顾`
           : '';
       setShareState({ loading: false, message: `已生成实际执行路线回顾链接${missingNote}`, url });
       try {

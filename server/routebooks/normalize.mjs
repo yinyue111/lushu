@@ -373,7 +373,7 @@ export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = D
     return {
       id: 'edit-hours',
       label: '营业时间',
-      state: '未核验',
+      state: '未核对',
       detail: '没有出行日期，系统没有检查闭馆冲突；填写日期后可检查。到达时段和最晚入场仍需有有效营业事实才能判断。'
     };
   }
@@ -400,7 +400,7 @@ export function buildOpeningHoursValidation(stops, city, travelDate, { nowMs = D
     return {
       id: 'edit-hours',
       label: '营业时间',
-      state: '未核验',
+      state: '未核对',
       detail: `${unknownStops} 个站点没有带证据的营业时间数据，系统没有核对开放时段；出发前需逐个确认到达时段和最晚入场。`
     };
   }
@@ -488,7 +488,7 @@ function formatMoneyAmount(value) {
 }
 
 function formatBudgetSummary(summary) {
-  if (!summary?.knownCount) return summary?.unknownCount ? `待补充（${summary.unknownCount} 处费用未知）` : '待验证';
+  if (!summary?.knownCount) return summary?.unknownCount ? `待补充（${summary.unknownCount} 处费用未知）` : '待核对';
   const amount =
     summary.min === summary.max ? `约 ${formatMoneyAmount(summary.min)} 元` : `约 ${formatMoneyAmount(summary.min)}–${formatMoneyAmount(summary.max)} 元`;
   return summary.unknownCount ? `${amount}（另有 ${summary.unknownCount} 处待补充）` : amount;
@@ -627,7 +627,7 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
       state: lowConfidence ? '需复核' : '通过',
       detail: lowConfidence
         ? `${lowConfidence} 个站点的坐标没有经过已审核 POI 或地图服务精确定位，出发前请核对位置。`
-        : '全部站点坐标来自已审核 POI 或地图服务精确定位。'
+        : '全部站点坐标来自已核对地点或地图服务精确定位。'
     }
   ];
   // Only server-computed rows survive; model-written rows (e.g. "拥挤风险：通过") are dropped.
@@ -653,7 +653,7 @@ function normalizeRoutebookStop(stop, index, city, context = {}) {
     stay: truncateString(stop?.stay, 24) || '60 分钟',
     cost: costText || (costInfo.known ? formatCostInfo(costInfo) : '待估算'),
     costInfo: { ...costInfo, text: costText || (costInfo.known ? formatCostInfo(costInfo) : '待估算') },
-    verify: truncateString(stop?.verify, 120) || '需通过真实打卡继续验证',
+    verify: truncateString(stop?.verify, 120) || '需要真实打卡继续核对',
     risk: truncateString(stop?.risk, 120) || '需出发前复核',
     lat: coordinate.lat,
     lng: coordinate.lng,

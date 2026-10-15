@@ -26,9 +26,9 @@ export default function TrustExplanation({ routebook }) {
         <ul className="mt-2 grid gap-1 pl-4">
           <li>站点来源：{parts.map(([label, count]) => `${label} ${count} 站`).join('，') || '—'}</li>
           <li>
-            命中已审核 POI {breakdown.reviewedPoiCount}/{breakdown.stopCount} 站；精确定位 {breakdown.verifiedCoordinateCount}/{breakdown.stopCount} 站
+            命中已核对地点 {breakdown.reviewedPoiCount}/{breakdown.stopCount} 站；精确定位 {breakdown.verifiedCoordinateCount}/{breakdown.stopCount} 站
           </li>
-          <li>有证据且在有效期内的已审核事实：{breakdown.verifiedFactStopCount} 站</li>
+          <li>有证据且在有效期内的已核对的事实：{breakdown.verifiedFactStopCount} 站</li>
         </ul>
       )}
       <p className="mt-2">模型对自己的打分不计入；AI 写的提示单独标为“AI 提示（未确认）”。</p>

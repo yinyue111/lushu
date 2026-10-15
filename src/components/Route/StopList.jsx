@@ -223,12 +223,12 @@ function StopRow({
             <div className="mt-2 flex flex-wrap gap-1.5">
               {trustBadge.verified && (
                 <Chip size="sm" tone="ok">
-                  最近验证 {formatVerifiedDate(stop.poiTrust?.latestVerifiedAt)}
+                  最近核对 {formatVerifiedDate(stop.poiTrust?.latestVerifiedAt)}
                 </Chip>
               )}
               {evidence.map((item) => (
                 <Chip key={item.id || item.label} size="sm" tone={item.type === 'approved-correction' ? 'ok' : 'sky'}>
-                  {item.type === 'approved-correction' ? '已审核纠错' : '攻略来源'} {sourceEvidencePrediction(item)}
+                  {item.type === 'approved-correction' ? '已核对的纠错' : '攻略来源'} {sourceEvidencePrediction(item)}
                 </Chip>
               ))}
             </div>
@@ -286,7 +286,7 @@ export function MiniStopCard({ stop, index, theme, selected, routeTrustTone, onS
           </Chip>
         ) : trustBadge.verified ? (
           <Chip size="sm" tone="ok" className="mt-1">
-            <CircleCheckBig /> 已验证
+            <CircleCheckBig /> 已核对
           </Chip>
         ) : null}
       </span>

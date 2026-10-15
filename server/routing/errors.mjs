@@ -66,7 +66,7 @@ function compactIssue(issue) {
     code: String(issue.code || ROUTING_ERROR_CODES.PROVIDER_ERROR).slice(0, 80),
     category: String(issue.category || 'provider').slice(0, 40),
     retryable: issue.retryable === true,
-    message: String(issue.message || '路径未校验').slice(0, 180)
+    message: String(issue.message || '路线还没核对').slice(0, 180)
   });
   if (Number.isInteger(issue.httpStatus)) normalized.httpStatus = issue.httpStatus;
   if (issue.upstreamCode) normalized.upstreamCode = String(issue.upstreamCode).slice(0, 40);

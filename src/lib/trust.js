@@ -16,7 +16,7 @@ export function getRouteTrustPresentation(routebook) {
     displayScore >= 0 &&
     displayScore <= 100;
   const metaLabel = typeof meta.label === 'string' && meta.label.trim() ? meta.label.trim() : '';
-  const label = verified ? metaLabel || '真实打卡验证可信分' : metaLabel || '资料核对';
+  const label = verified ? metaLabel || '真实打卡核对可信分' : metaLabel || '资料核对';
   const sampleProgressText = verified
     ? ''
     : sampleCount > 0
@@ -26,7 +26,7 @@ export function getRouteTrustPresentation(routebook) {
   return {
     verified,
     score: verified ? Math.round(displayScore) : null,
-    scoreText: verified ? String(Math.round(displayScore)) : '待验证',
+    scoreText: verified ? String(Math.round(displayScore)) : '待核对',
     compactText: verified ? `${label} ${Math.round(displayScore)}` : label,
     label,
     sampleProgressText,
@@ -73,7 +73,7 @@ export function getRouteTrustBadgeState(routebook) {
     tone: 'prediction',
     badgeClass: 'badge-blue',
     verified: false,
-    value: '待验证',
+    value: '待核对',
     text: presentation.label,
     compactText: presentation.compactText,
     sampleProgressText: presentation.sampleProgressText,
@@ -106,7 +106,7 @@ export function getStopTrustBadge(stop, routeTone) {
   const { score, verified } = evaluatePoiTrustSample(stop?.poiTrust);
   return verified
     ? { tone: 'verified', badgeClass: 'badge-green', verified: true, value: String(Math.round(score)), label: `POI 可信 ${Math.round(score)}` }
-    : { tone: 'prediction', badgeClass: 'badge-blue', verified: false, value: '待验证', label: 'POI 待验证' };
+    : { tone: 'prediction', badgeClass: 'badge-blue', verified: false, value: '待核对', label: '地点待核对' };
 }
 
 // 可信指标遮罩：路线未达 verified 时，带「可信/预测/均分/评分/得分」字样的指标
@@ -114,14 +114,14 @@ export function getStopTrustBadge(stop, routeTone) {
 export function maskTrustMetrics(metrics = [], routeTone, limit = 6) {
   return metrics.slice(0, limit).map((metric) => {
     if (routeTone === 'verified' || !/(可信|预测|均分|评分|得分)/.test(String(metric?.label ?? ''))) return metric;
-    return { ...metric, value: routeTone === 'trial' ? '待复核' : '待验证' };
+    return { ...metric, value: routeTone === 'trial' ? '待复核' : '待核对' };
   });
 }
 
 export function formatVerifiedDate(value) {
-  if (!value) return '待验证';
+  if (!value) return '待核对';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '待验证' : date.toLocaleDateString('zh-CN');
+  return Number.isNaN(date.getTime()) ? '待核对' : date.toLocaleDateString('zh-CN');
 }
 
 /** Metrics that describe how the roadbook performs for us (conversion, edit rate), not for a traveller. */

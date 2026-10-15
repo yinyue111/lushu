@@ -58,7 +58,7 @@ export default function RouteStats({ routebook, trust, trustState }) {
       </Tile>
       <Tile className="text-success-ink" icon={CircleCheckBig}>
         <span className="num block text-display-sm leading-tight sm:text-display">{samples}</span>
-        <span className="text-sm font-semibold">人到达验证</span>
+        <span className="text-sm font-semibold">人到达核对</span>
         <small className="mt-0.5 block text-meta text-muted">{samples ? `最近 ${latest}` : '还没有人打卡'}</small>
       </Tile>
       <Tile className="text-info-ink" icon={ThumbsUp}>

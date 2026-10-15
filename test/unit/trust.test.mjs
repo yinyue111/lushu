@@ -23,7 +23,7 @@ test('route trust is verified only with verified-feedback, enough samples and a 
   assert.equal(ok.verified, true);
   assert.equal(ok.score, 88);
   assert.equal(ok.scoreText, '88');
-  assert.equal(ok.label, '真实打卡验证可信分');
+  assert.equal(ok.label, '真实打卡核对可信分');
   assert.equal(ok.sampleProgressText, '');
   assert.equal(ok.latestVerifiedAt, '2026-10-01');
   for (const meta of [
@@ -38,7 +38,7 @@ test('route trust is verified only with verified-feedback, enough samples and a 
     const presentation = getRouteTrustPresentation({ trustMeta: meta });
     assert.equal(presentation.verified, false, JSON.stringify(meta));
     assert.equal(presentation.score, null);
-    assert.equal(presentation.scoreText, '待验证');
+    assert.equal(presentation.scoreText, '待核对');
     assert.equal(presentation.latestVerifiedAt, null);
   }
 });
@@ -64,7 +64,7 @@ test('badge state: trial for non-launch cities, verified/prediction otherwise', 
   const verified = getRouteTrustBadgeState({ city: '杭州', trustMeta: verifiedMeta() });
   assert.deepEqual([verified.tone, verified.badgeClass, verified.value, verified.score], ['verified', 'badge-green', '88', 88]);
   const prediction = getRouteTrustBadgeState({ city: '上海', trustMeta: { sampleCount: 1 } });
-  assert.deepEqual([prediction.tone, prediction.value, prediction.score], ['prediction', '待验证', null]);
+  assert.deepEqual([prediction.tone, prediction.value, prediction.score], ['prediction', '待核对', null]);
 });
 
 test('POI trust sample evaluation and stop badges', () => {
@@ -81,7 +81,7 @@ test('POI trust sample evaluation and stop badges', () => {
     value: '80',
     label: 'POI 可信 80'
   });
-  assert.equal(getStopTrustBadge({}, 'prediction').value, '待验证');
+  assert.equal(getStopTrustBadge({}, 'prediction').value, '待核对');
 });
 
 test('trust metric masking and verified date formatting', () => {
@@ -93,13 +93,13 @@ test('trust metric masking and verified date formatting', () => {
   assert.deepEqual(maskTrustMetrics(metrics, 'verified'), metrics);
   assert.deepEqual(
     maskTrustMetrics(metrics, 'prediction').map((metric) => metric.value),
-    ['待验证', 6, '待验证']
+    ['待核对', 6, '待核对']
   );
   assert.deepEqual(
     maskTrustMetrics(metrics, 'trial', 2).map((metric) => metric.value),
     ['待复核', 6]
   );
-  assert.equal(formatVerifiedDate(''), '待验证');
-  assert.equal(formatVerifiedDate('not a date'), '待验证');
+  assert.equal(formatVerifiedDate(''), '待核对');
+  assert.equal(formatVerifiedDate('not a date'), '待核对');
   assert.match(formatVerifiedDate('2026-10-08T00:00:00Z'), /2026/);
 });

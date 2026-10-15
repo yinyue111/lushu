@@ -12,7 +12,7 @@ export function routingCoordinateForStop(stop) {
   const lat = coordinateNumber(stop?.lat);
   const lng = coordinateNumber(stop?.lng);
   if (lat == null || lng == null || !isValidCoordinate(lat, lng)) {
-    throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_MISSING, '站点缺少可用经纬度，道路路线未校验', { category: 'input', retryable: false });
+    throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_MISSING, '站点缺少可用经纬度，道路路线还没核对', { category: 'input', retryable: false });
   }
 
   const confidence = Number(stop?.geoConfidence);
@@ -20,7 +20,7 @@ export function routingCoordinateForStop(stop) {
     .trim()
     .toLowerCase();
   if (stop?.navigationDisabled === true || (Number.isFinite(confidence) && confidence < 60) || COARSE_COORDINATE_SOURCES.has(source)) {
-    throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_UNVERIFIED, '站点坐标尚未达到可导航精度，道路路线未校验', { category: 'input', retryable: false });
+    throw new RoutingError(ROUTING_ERROR_CODES.COORDINATES_UNVERIFIED, '站点坐标尚未达到可导航精度，道路路线还没核对', { category: 'input', retryable: false });
   }
 
   return {

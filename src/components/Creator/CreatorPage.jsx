@@ -127,7 +127,7 @@ export default function CreatorPage({ creatorId, viewerProfileId = '', onBack, o
               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${verifiedAverage === null ? 'bg-sky-soft text-sky-ink' : 'bg-success-soft text-success-ink'}`}
             >
               {verifiedAverage === null ? <ShieldQuestion className="size-3.5" aria-hidden="true" /> : <ShieldCheck className="size-3.5" aria-hidden="true" />}
-              {verifiedAverage === null ? '真实可信均分待验证' : `真实可信均分 ${verifiedAverage}`}
+              {verifiedAverage === null ? '还没人走过，暂无均分' : `真实可信均分 ${verifiedAverage}`}
             </span>
           }
         />

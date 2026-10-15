@@ -245,7 +245,7 @@ export function StepGuide(props) {
       {importState.sources.length > 0 && (
         <div className="mt-4 rounded-card border border-line bg-white p-4">
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-            {importState.sources.length} 条来源已分析，来源预测均分 {average}；该分数不代表真实到访验证
+            {importState.sources.length} 条来源已分析，来源预测均分 {average}；这个分数不代表真的有人去过
           </p>
           <div className="flex items-center justify-between gap-2">
             <strong className="text-copy font-extrabold">已分析 {importState.sources.length} 条来源</strong>

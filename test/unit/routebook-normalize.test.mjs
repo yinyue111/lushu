@@ -96,7 +96,7 @@ test('opening validation never claims through when arrival window is unknown', (
   assert.match(monday.detail, /缺少有效证据|已过期/);
 
   const unknown = buildOpeningHoursValidation([stop('不存在的地点', '80 元')], '杭州', '2026-10-09');
-  assert.equal(unknown.state, '未核验');
+  assert.equal(unknown.state, '未核对');
   assert.match(unknown.detail, /到达时段和最晚入场/);
 });
 

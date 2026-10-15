@@ -143,7 +143,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
               </Button>
               {onOpenDestination && (
                 <div className="mt-6">
-                  <p className="text-meta font-semibold text-muted">或先去已验证的目的地看看：</p>
+                  <p className="text-meta font-semibold text-muted">或先去已核对的目的地看看：</p>
                   <div className="mt-2 flex flex-wrap justify-center gap-2">
                     {trustedCities
                       .filter((item) => item !== city)

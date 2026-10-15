@@ -8,6 +8,7 @@ import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
 import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
 import { isModerationWithheld } from '../moderation/index.mjs';
+import { modernTermCopy } from '../lib/termCopy.mjs';
 
 export function isPublicRoutebook(routebook) {
   if (!PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft')) return false;
@@ -83,8 +84,9 @@ export function publicRoutebookView(routebook) {
       : [],
     metrics: Array.isArray(routebook.metrics)
       ? routebook.metrics.slice(0, 10).map((item) => ({
-          label: truncateString(item?.label, 60),
-          value: !routeTrustVisible && ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
+          label: modernTermCopy(truncateString(item?.label, 60)),
+          value:
+            !routeTrustVisible && ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待核对' : modernTermCopy(truncateString(item?.value, 80))
         }))
       : [],
     feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
@@ -220,8 +222,8 @@ function publicRouteVariant(variant = {}) {
     trustScore: null,
     metrics: Array.isArray(variant.metrics)
       ? variant.metrics.slice(0, 10).map((item) => ({
-          label: truncateString(item?.label, 60),
-          value: ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待验证' : truncateString(item?.value, 80)
+          label: modernTermCopy(truncateString(item?.label, 60)),
+          value: ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待核对' : modernTermCopy(truncateString(item?.value, 80))
         }))
       : [],
     validations: Array.isArray(variant.validations)

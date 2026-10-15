@@ -389,7 +389,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
       stay: String(stop.stay ?? '60 分钟').slice(0, 18),
       cost: displayCost,
       costInfo: { ...costInfo, text: displayCost },
-      verify: String(stop.verify ?? '需通过真实打卡继续验证').slice(0, 60),
+      verify: String(stop.verify ?? '需要真实打卡继续核对').slice(0, 60),
       risk: String(stop.risk ?? '需出发前复核').slice(0, 60),
       lat: coordinate.lat,
       lng: coordinate.lng,

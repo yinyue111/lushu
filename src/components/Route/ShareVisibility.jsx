@@ -66,7 +66,7 @@ export default function ShareVisibility({
           icon={Globe2}
           title="公开发布"
           active={current === 'public'}
-          badge={shareUrl ? '已公开' : pendingReview ? '审核中' : publication?.publicAllowed === false ? '暂不可用' : ''}
+          badge={shareUrl ? '已公开' : pendingReview ? '已申请公开' : publication?.publicAllowed === false ? '暂不可用' : ''}
           muted={publication?.publicAllowed === false && !shareUrl}
         >
           {publication?.publishingDisabled ? (
@@ -88,15 +88,15 @@ export default function ShareVisibility({
                   </label>
                   <span>
                     <Button size="sm" variant="outline" disabled={!claimConfirmed || busy} onClick={onClaimAuthorship}>
-                      提交原作者授权审核
+                      以原作者身份申请公开
                     </Button>
                   </span>
                 </span>
               )}
-              {(claimed || pendingReview) && <span className="mt-1 block">已提交授权审核，运营核实后才会公开。</span>}
+              {(claimed || pendingReview) && <span className="mt-1 block">已申请公开，确认授权后才会公开。</span>}
             </>
           ) : (
-            <span className="block">提交审核，确认来源授权、查过路线后出现在城市列表与搜索里。</span>
+            <span className="block">申请公开：确认来源授权、查过路线后，会出现在城市列表和搜索里。</span>
           )}
         </Option>
       </ul>
