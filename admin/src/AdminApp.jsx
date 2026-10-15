@@ -90,7 +90,6 @@ export default function AdminApp() {
                 <a
                   href={`/admin/${item.path}`}
                   aria-current={item.path === active.path ? 'page' : undefined}
-                  aria-disabled={item.phase2 ? 'true' : undefined}
                   onClick={(event) => {
                     event.preventDefault();
                     go(item.path);

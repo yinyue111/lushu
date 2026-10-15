@@ -126,6 +126,8 @@ try {
   assert.ok(await page.getByRole('link', { name: 'E2E 示例来源页' }).first().isVisible());
   await axe('corrections');
   await shot('05-corrections');
+  await page.getByText('设为人工核实').first().waitFor();
+  await page.locator('details').filter({ hasText: '更多' }).first().locator('summary').click();
   await page
     .getByRole('button', { name: /按地点批量改回/ })
     .first()
@@ -211,18 +213,23 @@ try {
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await page.getByRole('heading', { level: 1, name: '配置' }).waitFor(); // back on the page that was open
   await nav('审计');
-  await page.getByRole('cell', { name: 'config.save' }).first().waitFor();
+  await page
+    .getByRole('cell', { name: /保存配置|config\.save/ })
+    .first()
+    .waitFor();
   await axe('audit');
   await shot('13-audit');
   await nav('系统信息');
   await page.getByText('库结构版本', { exact: true }).waitFor();
   await axe('system');
   await shot('14-system');
-  await nav('已核实地点（二期）');
+  await page.locator('nav[aria-label="后台导航"] a[href="/admin/verified-places"]').click();
+  await page.getByRole('heading', { level: 1, name: '地点核对库（二期）' }).waitFor();
   await axe('verified-places');
   await shot('15-verified-places-placeholder');
   await nav('旧运维工具');
-  await page.getByText('这些面板是过渡用的').waitFor();
+  await page.getByRole('heading', { level: 1, name: '旧运维工具' }).waitFor();
+  await page.getByRole('textbox', { name: '脚本令牌' }).waitFor();
   await page.waitForTimeout(800);
   await axe('legacy-ops');
   await shot('15b-legacy-ops');
