@@ -230,7 +230,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const curatedHint = '精选路线请先「定制同款」复制为个人路书再发布';
 
   return (
-    <Sheet title="分享路书" description="公开页只展示路线和核验状态，不转载原攻略。" onClose={onClose} wide>
+    <Sheet title="分享路书" description="公开页只展示路线和核对状态，不转载原攻略。" onClose={onClose} wide>
       {!isCuratedRoute && (
         <ShareVisibility
           routebook={routebook}

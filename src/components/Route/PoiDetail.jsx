@@ -169,7 +169,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
           <InfoTile
             icon={Wallet}
             iconClass="text-success-ink bg-success-soft"
-            label="已核验费用"
+            label="已核对费用"
             value={stop.verifiedPrice.text}
             hint={verifiedPriceHint(stop.verifiedPrice)}
           />
@@ -183,7 +183,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
           value={coordinateLabel}
           hint={!canNavigate ? '只知道大概范围，别直接导航' : ''}
         />
-        <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待真实验证'} />
+        <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待实地核对'} />
       </div>
 
       <Section title="真实人群与排队">
@@ -262,7 +262,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       )}
 
       {stop.facts?.length > 0 && (
-        <Section title="事实核验" icon={FileSearch}>
+        <Section title="事实核对" icon={FileSearch}>
           <ul className="divide-y divide-line overflow-hidden rounded-tile border border-line">
             {stop.facts.slice(0, 6).map((fact) => {
               const body = (
@@ -401,7 +401,7 @@ function Pill({ tone = 'sky', children }) {
 /** @param {any} price */
 function verifiedPriceHint(price) {
   const day = (value) => (value ? String(value).slice(0, 10) : '');
-  return [price.source?.label || '运营核验', price.verifiedAt ? `核验于 ${day(price.verifiedAt)}` : '', price.expiresAt ? `有效至 ${day(price.expiresAt)}` : '']
+  return [price.source?.label || '运营核对', price.verifiedAt ? `核对于 ${day(price.verifiedAt)}` : '', price.expiresAt ? `有效至 ${day(price.expiresAt)}` : '']
     .filter(Boolean)
     .join(' · ');
 }

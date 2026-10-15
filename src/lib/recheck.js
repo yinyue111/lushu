@@ -6,8 +6,8 @@
  */
 export function recheckSummaryText(result, error = null) {
   if (error) {
-    if (error.status === 429) return '核验太频繁了，请稍等一分钟再试（地图服务有调用配额）';
-    if (error.code === 'ROUTEBOOK_RECHECK_DRAFT_ONLY') return '已提交或已公开的路书由运营重新核验道路';
+    if (error.status === 429) return '核对太频繁了，请稍等一分钟再试（地图服务有调用配额）';
+    if (error.code === 'ROUTEBOOK_RECHECK_DRAFT_ONLY') return '已提交或已公开的路书由运营重新核对道路';
     return `路线没查完：${error.message || '网络异常'}`;
   }
   const geocoded = result?.geocoded ?? [];
@@ -24,5 +24,5 @@ export function recheckSummaryText(result, error = null) {
   const routing = result?.routing;
   if (routing?.expectedLegs && result?.routingConfigured === false) parts.push('查路线的功能还没开，先按直线估算，出发前请自己看一下导航');
   else if (routing?.expectedLegs) parts.push(`${routing.verifiedLegs ?? 0}/${routing.expectedLegs} 段路线已查过`);
-  return parts.length ? `${parts.join('；')}。` : '核验完成，没有需要重新定位的站点。';
+  return parts.length ? `${parts.join('；')}。` : '核对完成，没有需要重新定位的站点。';
 }

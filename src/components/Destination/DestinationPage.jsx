@@ -58,7 +58,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
             <h1 className="mt-3 text-4xl leading-tight font-black tracking-tight lg:text-6xl">{city}</h1>
             <p className="mt-3 max-w-xl text-copy leading-relaxed text-white/90 lg:text-lg">{story.summary}</p>
             <div className="mt-4 flex flex-wrap gap-2 text-meta font-semibold">
-              <HeroFact icon={ShieldCheck}>编辑样板 · 待真实验证</HeroFact>
+              <HeroFact icon={ShieldCheck}>编辑样板 · 待实地核对</HeroFact>
               <HeroFact icon={Camera}>真实数据来自有效 GPS 打卡</HeroFact>
               <HeroFact icon={Route}>
                 {serverBooks.length ? `公开路线 ${serverBooks.length} 条 · ` : ''}编辑样板 {curated.length} 条

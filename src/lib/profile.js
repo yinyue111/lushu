@@ -107,7 +107,7 @@ export function profileRoutebookFields(profile = getProfile()) {
     profileId: profile.id,
     creator: {
       id: profile.id,
-      name: profile.creatorName || '匿名旅行者',
+      name: profile.creatorName || '',
       bio: profile.creatorBio || `${profile.homeCity || '本地'}出发，偏好${profile.tempo || '松弛'}路线`,
       sourceAuthorization: 'user-generated'
     }

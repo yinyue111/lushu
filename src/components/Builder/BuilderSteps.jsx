@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { GENERATION_MODES } from '../../lib/generationModes';
-import { AlertCircle, CalendarDays, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Train, X } from 'lucide-react';
+import { AlertCircle, Check, Home, ImageUp, Link, Loader2, MapPin, Plus, Train, X } from 'lucide-react';
 import { trustedCities } from '../../lib/content';
 import { cities as allCities } from '../../lib/chinaCities.js';
 import { Button } from '../ui/button';
@@ -7,6 +8,7 @@ import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
 import { cityCover, smallImage } from '../visual/theme';
 import { averageSourcePrediction, budgetHint, budgetValueForLabel, importStatusLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
+import { dayOptionsForMonth, parseYmd, resolveTripDate } from '../../lib/tripDate.js';
 
 const TONES = {
   sky: 'bg-sky-soft text-sky-ink',
@@ -404,19 +406,7 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
       <StepTitle title="你想怎么玩？" sub="先勾偏好，AI 按你的选择排路线；生成后还能改。" />
       <GenerationModePicker mode={mode} setMode={setMode} generation={generation} />
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Field label="出行日期" hint="可不填">
-          <span className="relative">
-            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
-            <input
-              id="builder-date"
-              className={cn(inputClass, 'pl-9')}
-              type="date"
-              lang="zh-CN"
-              value={constraints.date}
-              onChange={(e) => setConstraints((p) => ({ ...p, date: e.target.value }))}
-            />
-          </span>
-        </Field>
+        <TripDateFields value={constraints.date} onChange={(next) => setConstraints((p) => ({ ...p, date: next }))} />
         <Field label="住宿 / 出发地">
           <span className="relative">
             <Home className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
@@ -467,6 +457,82 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
         </Field>
       </div>
     </section>
+  );
+}
+
+/** Month/day selects (U10): no year picker; year = next upcoming on/after today. */
+export function TripDateFields({ value = '', onChange, now = undefined }) {
+  const clock = now ?? new Date();
+  const parsed = parseYmd(value);
+  const [draft, setDraft] = useState(() => (parsed ? { month: String(parsed.month), day: String(parsed.day) } : { month: '', day: '' }));
+
+  useEffect(() => {
+    const next = parseYmd(value);
+    if (next) setDraft({ month: String(next.month), day: String(next.day) });
+    else if (!String(value ?? '').trim()) setDraft({ month: '', day: '' });
+  }, [value]);
+
+  const days = draft.month ? dayOptionsForMonth(Number(draft.month), clock) : [];
+
+  function commit(month, day) {
+    setDraft({ month, day });
+    if (!month || !day) {
+      onChange('');
+      return;
+    }
+    const resolved = resolveTripDate(Number(month), Number(day), clock);
+    onChange(resolved || '');
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="text-meta font-semibold text-ink-2">出行日期</legend>
+      <p className="text-meta leading-snug text-muted">可不填</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex min-w-[6rem] flex-1 flex-col gap-1">
+          <span className="text-meta text-muted">月</span>
+          <select
+            className={inputClass}
+            value={draft.month}
+            aria-label="出行月份"
+            onChange={(e) => {
+              const month = e.target.value;
+              if (!month) {
+                commit('', '');
+                return;
+              }
+              const allowed = dayOptionsForMonth(Number(month), clock);
+              const day = draft.day && allowed.includes(Number(draft.day)) ? draft.day : '';
+              commit(month, day);
+            }}
+          >
+            <option value="">不填</option>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <option key={m} value={m}>
+                {m} 月
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex min-w-[6rem] flex-1 flex-col gap-1">
+          <span className="text-meta text-muted">日</span>
+          <select
+            className={inputClass}
+            value={draft.day && days.includes(Number(draft.day)) ? draft.day : ''}
+            aria-label="出行日"
+            disabled={!draft.month}
+            onChange={(e) => commit(draft.month, e.target.value)}
+          >
+            <option value="">不填</option>
+            {days.map((d) => (
+              <option key={d} value={d}>
+                {d} 日
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </fieldset>
   );
 }
 

@@ -113,7 +113,7 @@ export default function PrivacyPage({ onBack }) {
       <section className="space-y-2">
         <h2 className="text-lg font-extrabold">AI 生成内容</h2>
         <p>
-          路书由 AI 根据你的输入与已核验的地点资料生成，页面上会标注「AI 生成」。营业时间、价格等仅在有来源和有效期时显示为「已核验」，其余请出行前自行确认。
+          路书由 AI 根据你的输入与已核对的地点资料生成，页面上会标注「AI 生成」。营业时间、价格等仅在有来源和有效期时显示为「已核对」，其余请出行前自行确认。
         </p>
       </section>
 

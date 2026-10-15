@@ -374,7 +374,7 @@ export function curatedRouteToRoutebook(route) {
       source: 'prediction',
       sampleCount: 0,
       displayScore: null,
-      label: '编辑样板 · 待真实验证'
+      label: '编辑样板 · 待实地核对'
     },
     days: [...new Set(route.stops.map((stop) => stop.day))],
     stops: route.stops.map((stop, index) => ({
@@ -389,7 +389,7 @@ export function curatedRouteToRoutebook(route) {
     })),
     assets: route.tags.map((tag) => ({ label: tag, type: '主题', confidence: 82 })),
     validations: [
-      { id: 'verification', label: '真实验证', state: '待打卡', detail: '这是编辑样板，尚无足够有效 GPS 到达样本，执行后会根据真实反馈更新。' },
+      { id: 'verification', label: '实地核对', state: '待打卡', detail: '这是编辑样板，尚无足够有效 GPS 到达样本，执行后会根据真实反馈更新。' },
       { id: 'walk', label: '步行强度', state: '待复核', detail: '站点按相邻片区编排，实际步行与交通时间需按出行日地图复核。' },
       { id: 'budget', label: '预算风险', state: '可控', detail: '餐饮和体验点保留价格区间，现场消费需二次确认。' },
       { id: 'crowd', label: '拥挤风险', state: '需错峰', detail: '热门 POI 建议上午或傍晚执行。' }

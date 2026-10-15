@@ -342,7 +342,7 @@ export default function PublicSharePage({ publicId, onBack, onSave, onUse, onCus
               </ul>
             </section>
           )}
-          <p className="px-1 text-xs leading-relaxed text-muted">这里只展示路线和核验结果，不转载原攻略。有人走过并打卡后，可信度会更新。</p>
+          <p className="px-1 text-xs leading-relaxed text-muted">这里只展示路线和核对结果，不转载原攻略。有人走过并打卡后，可信度会更新。</p>
         </aside>
       </div>
 

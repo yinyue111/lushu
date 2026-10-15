@@ -86,10 +86,9 @@ function StopRow({
   const enrichedClaims = enrichment ? enrichment.claimsFor(stop) : [];
   const checked = { price: enrichedClaims.some((c) => c.field === 'price'), hours: enrichedClaims.some((c) => c.field === 'hours') };
   // A checked price replaces the cost line; checked hours remove 「开放时间待确认」 from the notes.
-  const approximateEarly = !isNavigableCoordinate(stop);
   const price = costDisplay(stop);
-  // 一张卡最多露出一个「待确认」：位置没核准时，价格的待确认收进下面的清单。
-  const costText = checked.price || (price.pending && approximateEarly) ? '' : price.text;
+  // U8: never show 「价格待确认」 on the station row — it lives in 「出发前确认」.
+  const costText = checked.price || price.pending ? '' : price.text;
   const verifyText = withoutCheckedPending(stop.verify, checked);
   const riskText = withoutCheckedPending(stop.risk, checked);
   const confirmItems = confirm ? confirmItemsForStop(stop, { city: confirm.city, checked }) : [];

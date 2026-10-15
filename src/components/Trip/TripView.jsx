@@ -739,7 +739,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
               ))}
               {!nearbyVisible.length && (
                 <p className="p-2 text-sm text-muted">
-                  暂无已核验位置的{NEARBY_FILTERS.find((filter) => filter.value === nearbyFilter)?.label || '附近地点'}。设施类型不会根据名称猜测。
+                  暂无已核对位置的{NEARBY_FILTERS.find((filter) => filter.value === nearbyFilter)?.label || '附近地点'}。设施类型不会根据名称猜测。
                 </p>
               )}
             </div>

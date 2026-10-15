@@ -333,7 +333,7 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
       id: 'client-edit-density',
       label: '节奏密度',
       state: dense ? '偏紧' : '路线还没查',
-      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '站点密度正常；道路耗时已失效，需重新核验后判断可达性。'
+      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '站点密度正常；道路耗时已失效，需重新核对后判断可达性。'
     },
     {
       id: 'client-edit-geo',

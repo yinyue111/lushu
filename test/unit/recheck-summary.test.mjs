@@ -19,3 +19,9 @@ test('recheck summary explains when road verification is not configured', () => 
   assert.match(text, /查路线的功能还没开/);
   assert.doesNotMatch(text, /0\/6/);
 });
+
+test('empty success uses 核对 wording', () => {
+  assert.equal(recheckSummaryText({ geocoded: [], unresolved: [], routing: {} }), '核对完成，没有需要重新定位的站点。');
+  assert.match(recheckSummaryText(null, Object.assign(new Error('x'), { status: 429 })), /核对太频繁/);
+  assert.match(recheckSummaryText(null, Object.assign(new Error('x'), { code: 'ROUTEBOOK_RECHECK_DRAFT_ONLY' })), /重新核对道路/);
+});

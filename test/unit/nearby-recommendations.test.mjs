@@ -4,6 +4,7 @@ import {
   buildNearbyFacilities,
   filterNearbyRecommendations,
   hasNearbyCoordinate,
+  formatNearbyDistance,
   normalizeFacilityType,
   trustedKnowledgeStop
 } from '../../src/lib/nearbyRecommendations.js';
@@ -41,4 +42,10 @@ test('facility category is structured, reviewed and city scoped', () => {
   assert.equal(normalizeFacilityType('卫生间'), 'toilet');
   assert.equal(normalizeFacilityType('咖啡馆'), '');
   assert.deepEqual(buildNearbyFacilities({ current: { ...current, geoConfidence: 30 }, routebook }), []);
+});
+
+test('formatNearbyDistance uses 核对 wording when unknown', () => {
+  assert.equal(formatNearbyDistance(-1), '距离待核对');
+  assert.equal(formatNearbyDistance(Number.NaN), '距离待核对');
+  assert.match(formatNearbyDistance(0.05), /约 \d+m/);
 });

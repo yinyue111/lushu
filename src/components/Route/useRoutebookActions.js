@@ -243,15 +243,15 @@ export function useRoutebookActions({
   async function recheckRoute({ auto = false, stopIds } = {}) {
     const start = latestRoutebookRef.current;
     if (!canEdit || (start?.publishStatus || 'draft') !== 'draft') {
-      if (!auto) setRecheckState({ busy: false, message: '已提交或已公开的路书由运营重新核验道路' });
+      if (!auto) setRecheckState({ busy: false, message: '已提交或已公开的路书由运营重新核对道路' });
       return 'skipped';
     }
-    setRecheckState({ busy: true, message: auto ? '正在为新站点重新定位并核验相关道路…' : '正在重新定位待确认站点并核验道路…' });
+    setRecheckState({ busy: true, message: auto ? '正在为新站点重新定位并核对相关道路…' : '正在重新定位待确认站点并核对道路…' });
     // The server re-checks its own copy, so local edits are synced first.
     if (localEditsDirtyRef.current || !Number.isInteger(currentRoutebookVersion(start))) {
       const saved = await saveCurrentRoutebook();
       if (saved?.status !== 'saved') {
-        setRecheckState({ busy: false, message: '路书还没同步到云端，暂时无法核验道路；同步后可再试' });
+        setRecheckState({ busy: false, message: '路书还没同步到云端，暂时无法核对道路；同步后可再试' });
         return 'failed';
       }
     }
@@ -267,7 +267,7 @@ export function useRoutebookActions({
       });
       if (routebookSyncSequenceRef.current !== operationSequence) {
         adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
-        setRecheckState({ busy: false, message: '道路已核验，但页面已有新的编辑；保存后可再次核验' });
+        setRecheckState({ busy: false, message: '道路已核对，但页面已有新的编辑；保存后可再次核对' });
         return 'failed';
       }
       const next = { ...data.routebook, ...profileRoutebookFields(profile), editToken: data.routebook.editToken || current.editToken };
@@ -743,7 +743,7 @@ export function useRoutebookActions({
     setShareState(
       result.stop.navigationDisabled
         ? `已换成「${poi.name}」。地图上没找到它的准确位置，价格和营业时间也待确认，出发前请自己查一下`
-        : `已换成「${poi.name}」，价格、营业时间待确认（保存后会自动去查），正在核验道路…`
+        : `已换成「${poi.name}」，价格、营业时间待确认（保存后会自动去查），正在核对道路…`
     );
     await recheckRoute({ auto: true, stopIds: [result.stop.id] });
   }
@@ -752,7 +752,7 @@ export function useRoutebookActions({
     const result = setStopTransportMode(stops, stopId, mode);
     if (!result.ok) return;
     updateRoutebook(result.stops, { editReason: '修改交通方式' });
-    setShareState(`已改交通为${LEG_TRANSPORT_OPTIONS.find((o) => o.value === mode)?.label || mode}，建议再核验道路`);
+    setShareState(`已改交通为${LEG_TRANSPORT_OPTIONS.find((o) => o.value === mode)?.label || mode}，建议再核对道路`);
     recheckRoute({ auto: true, stopIds: [stopId] });
   }
 

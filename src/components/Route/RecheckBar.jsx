@@ -3,8 +3,8 @@ import { roadSummary } from '../../lib/routeRoads';
 import { Button } from '../ui/button';
 
 /**
- * Owner draft only: road verification status plus a self-service "重新核验道路" button
- * (re-locates stops whose position is unconfirmed, re-verifies touched legs; rate-limited server-side).
+ * Owner draft only: road verification status plus a self-service "重新查路线" button
+ * (re-locates stops whose position is unconfirmed, re-checks touched legs; rate-limited server-side).
  * @param {{ routebook: Record<string, any>, recheckState: { busy: boolean, message: string }, onRecheck: () => void }} props
  */
 export default function RecheckBar({ routebook, recheckState, onRecheck }) {
