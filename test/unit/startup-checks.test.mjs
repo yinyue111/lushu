@@ -226,3 +226,12 @@ test('PROXY_MODE=host|container: which hop must (and must not) be trusted', asyn
   assert.deepEqual(ctr('', '', { isProduction: false }), []);
   assert.deepEqual(ctr('', '', { trustProxyHeaders: false }), []);
 });
+
+test('production warns loudly when OPERATOR_NAME / OPERATOR_EMAIL are missing', () => {
+  const missing = evaluateStartupSafety({ ...base, operatorName: '', operatorEmail: '' });
+  assert.ok(missing.warnings.some((w) => /OPERATOR_NAME \+ OPERATOR_EMAIL not set/.test(w)));
+  const set = evaluateStartupSafety({ ...base, operatorName: '示例', operatorEmail: 'a@b.c' });
+  assert.ok(!set.warnings.some((w) => /OPERATOR_/.test(w)));
+  const dev = evaluateStartupSafety({ ...base, isProduction: false, operatorName: '', operatorEmail: '' });
+  assert.ok(!dev.warnings.some((w) => /OPERATOR_/.test(w)));
+});

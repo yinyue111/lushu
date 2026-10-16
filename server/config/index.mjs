@@ -198,6 +198,13 @@ export const PROFILE_IDENTITY_ASSERTION_SECRET = process.env.PROFILE_IDENTITY_AS
 export const TRUST_PROXY_HEADERS = process.env.TRUST_PROXY_HEADERS === 'true';
 
 // L4: canonical public origin for absolute URLs in share-page og:image tags.
+// 隐私说明里的运营主体与联系邮箱；未配置时页面不显示，生产启动时告警。
+export const OPERATOR_NAME = String(process.env.OPERATOR_NAME ?? '')
+  .trim()
+  .slice(0, 120);
+export const OPERATOR_EMAIL = String(process.env.OPERATOR_EMAIL ?? '')
+  .trim()
+  .slice(0, 200);
 export const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL);
 
 function normalizePublicBaseUrl(value) {

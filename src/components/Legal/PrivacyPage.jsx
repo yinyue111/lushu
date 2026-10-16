@@ -1,12 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { hasLocationConsent, withdrawLocationConsent, LOCATION_POLICY_VERSION } from '../../lib/locationConsent.js';
 import { Button } from '../ui/button';
+import { getLegalInfo } from '../../lib/api.js';
+import { operatorCopy, thirdPartySentence } from '../../lib/privacyCopy.js';
 
-// 隐私说明草案：只写代码实际做的事；主体、联系方式、保存期限等需运营与法务确认，留空标注。
-const TODO = (text) => <mark className="rounded bg-lemon-soft px-1 font-semibold text-lemon-ink">【待确认：{text}】</mark>;
+// 隐私说明草案：只写代码实际做的事。运营主体与联系邮箱来自服务端 OPERATOR_NAME / OPERATOR_EMAIL，未配置时不显示。
 
 export default function PrivacyPage({ onBack }) {
   const [consented, setConsented] = useState(() => hasLocationConsent());
+  const [operator, setOperator] = useState(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    getLegalInfo(controller.signal)
+      .then((data) => setOperator(data?.operator ?? null))
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+  const { operatorLine, supportLine } = operatorCopy(operator);
   return (
     <article className="mx-auto max-w-3xl space-y-6 px-4 py-8 text-copy leading-relaxed" aria-labelledby="privacy-title">
       <header className="space-y-2">
@@ -15,7 +25,7 @@ export default function PrivacyPage({ onBack }) {
           隐私说明（草案）
         </h1>
         <p className="text-meta text-muted">
-          版本 {LOCATION_POLICY_VERSION}。运营主体：{TODO('公司全称与联系方式')}
+          版本 {LOCATION_POLICY_VERSION}。{operatorLine}
         </p>
       </header>
 
@@ -44,23 +54,23 @@ export default function PrivacyPage({ onBack }) {
         </p>
         <p>
           服务端把邮箱加密保存（用来给你发信），另存一份不可还原的摘要（用来查找账号、防止重复注册），页面和运营后台只显示打码后的样子（如
-          ab***@qq.com）。发信通过邮件服务商完成：
-          {TODO('邮件服务商名称与发件域名')}，服务商只收到收件地址和邮件内容。
+          ab***@qq.com）。发信通过第三方邮件服务完成，服务商只收到收件地址和邮件内容。
         </p>
         <p>
-          换邮箱要输入当前密码，并验证新邮箱；换好后，旧邮箱会收到一封通知。账号注销时，邮箱密文立即清除，摘要随账号一起标记删除，邮箱可以重新注册；运营备份中的副本最多保留一个月，之后清除。
+          换邮箱要输入当前密码，并验证新邮箱；换好后，旧邮箱会收到一封通知。账号注销时，邮箱密文立即清除，摘要随账号一起标记删除，邮箱可以重新注册；运营备份中的副本最多保留
+          30 天，之后清除。
         </p>
       </section>
 
       <section className="space-y-2">
         <h2 className="text-lg font-extrabold">手机号</h2>
         <p>
-          手机号是选填的，填了也能用来登录。我们不发短信验证码，无法确认号码属于你本人，请用你自己的号码。忘了密码时，优先用邮箱验证码重设；没有绑定邮箱的，用注册时拿到的恢复码重设；恢复码都用完了，可以联系我们，核实是本人后补发一个一次性恢复码（核实方式：
-          {TODO('客服核实流程与联系方式')}）。
+          手机号是选填的，填了也能用来登录。我们不发短信验证码，无法确认号码属于你本人，请用你自己的号码。忘了密码时，优先用邮箱验证码重设；没有绑定邮箱的，用注册时拿到的恢复码重设；恢复码都用完了，可以联系我们，核实是本人后补发一个一次性恢复码。
+          {supportLine}
         </p>
         <p>
-          以后如接入短信验证，会先在这里说明短信服务商和用途：{TODO('短信服务商名称')}
-          。账号注销后，手机号摘要随账号一起标记删除，号码可以重新注册；运营备份中的副本最多保留一个月，之后清除。
+          以后如接入短信验证，会先在这里说明短信服务商和用途。账号注销后，手机号摘要随账号一起标记删除，号码可以重新注册；运营备份中的副本最多保留 30
+          天，之后清除。
         </p>
       </section>
 
@@ -90,13 +100,12 @@ export default function PrivacyPage({ onBack }) {
 
       <section className="space-y-2">
         <h2 className="text-lg font-extrabold">第三方服务</h2>
+        <p>{thirdPartySentence()}</p>
         <ul className="list-disc space-y-1.5 pl-5">
-          <li>大模型服务：{TODO('最终选定的模型服务商名称、所在地及备案情况')}</li>
           <li>地图与地理编码：配置后使用高德开放平台或天地图；开发环境使用 OpenStreetMap 底图。</li>
           <li>
             门票与开放时间核对（登录后生成的路书）：为核对景点的门票和开放时间，只把地点名称和所在城市发给高德开放平台和联网搜索服务（经大模型服务的联网搜索），不发送你的账号、攻略原文或任何个人信息；核对结果会注明来源网页和查询日期。
           </li>
-          <li>内容安全审核：{TODO('境内内容安全服务商名称')}</li>
         </ul>
       </section>
 
@@ -104,9 +113,8 @@ export default function PrivacyPage({ onBack }) {
         <h2 className="text-lg font-extrabold">保存期限与你的权利</h2>
         <p>
           当前版本没有自动到期删除；数据保存到你注销为止，注销时服务中的资料、照片和打卡记录立即删除。你可以在「我的 → 账号」或「我的 →
-          资料与隐私」导出资料，或注销并删除服务中的资料、照片和打卡记录（运营备份中的副本最多保留一个月，之后清除）。
+          资料与隐私」导出资料，或注销并删除服务中的资料、照片和打卡记录（运营备份中的副本最多保留 30 天，之后清除）。
         </p>
-        <p>数据存储地点：{TODO('服务器所在地区；是否存在数据出境')}</p>
       </section>
 
       <section className="space-y-2">

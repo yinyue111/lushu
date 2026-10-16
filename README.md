@@ -124,7 +124,11 @@ npm run restore:data -- --input ./backups/manual.trbk   # 仅解密与校验
 npm run restore:data -- --input ./backups/manual.trbk --data-dir ./restored-data --apply
 ```
 
-**备份保留期（隐私政策承诺最多一个月）**：隐私政策写明「运营备份中的副本最多保留一个月，之后清除」。`npm run backup:prune`（`--dir ./backups`，可加 `--dry-run`）删除 mtime 超过 30 天的 `trusted-routebook-*.trbk`，常量见 `scripts/lib/backupRetention.mjs`。仓库不包含定时任务：运维必须每天定时运行它（如 cron `0 4 * * * npm run backup:prune`）。仓库之外的备份——`pg_dump` 文件、`appdata` 卷快照、云盘/对象存储副本、主机快照——不受该脚本管理，必须由运维另外配置不超过 30 天的轮换或生命周期规则，否则隐私政策中的承诺不成立。
+**备份保留期（隐私政策承诺最多 30 天）**：隐私政策写明「运营备份中的副本最多保留 30 天，之后清除」。`npm run backup:prune`（`--dir ./backups`，可加 `--dry-run`）按文件名里的时间戳（`trusted-routebook-<ts>.trbk`，不看 mtime）删除超过 30 天的备份；文件名解析不出日期的跳过并打印警告；目录不存在时非零退出（`--dry-run` 也一样）。常量见 `scripts/lib/backupRetention.mjs`。
+
+- 仓库不包含定时任务：运维必须每天定时运行它（如 cron `0 4 * * * cd /srv/lushu && npm run backup:prune || <告警命令>`）。失败必须告警（非零退出要触发通知或监控），不能静默失败；cron 的输出也不要丢到 `/dev/null`。
+- 上线前在预发布环境验收：放一个文件名日期为 31 天前的测试备份（如 `touch backups/trusted-routebook-$(date -u -d '31 days ago' +%Y-%m-%dT%H-%M-%S-000Z).trbk`），运行 `npm run backup:prune`，确认输出的 `removed` 包含它且文件已删除。
+- 仓库之外的备份——`pg_dump` 文件、`appdata` 卷快照、云盘/对象存储副本、主机快照——不受该脚本管理，必须由运维另外配置不超过 30 天的轮换或生命周期规则（同样要有失败告警），否则隐私政策中的承诺不成立。
 
 恢复默认拒绝覆盖非空目录。不要为绕过运行中写租约而直接删除锁；先停服务，使用 `npm run source:lease -- --help` 查看检查和精确令牌恢复方式。备份文件、照片、租约及生成产物均已被 Git 忽略。
 

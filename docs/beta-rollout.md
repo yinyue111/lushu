@@ -19,7 +19,7 @@
 | ALERT_WEBHOOK_URL | | 已设 / 未设（可选） |
 
 ## 1. 上线前
-1. 备份数据库：`pg_dump -Fc -n trusted_routebook > lushu-$(date +%F-%H%M).dump`，确认文件大小合理，并能 `pg_restore -l` 列出内容。 这份 dump 含用户数据，隐私政策承诺备份最多保留一个月：上线验证完后，30 天内删除或纳入有 30 天上限的轮换（见 README「备份保留期」）。
+1. 备份数据库：`pg_dump -Fc -n trusted_routebook > lushu-$(date +%F-%H%M).dump`，确认文件大小合理，并能 `pg_restore -l` 列出内容。 这份 dump 含用户数据，隐私政策承诺备份最多保留 30 天：上线验证完后，30 天内删除或纳入有 30 天上限的轮换（见 README「备份保留期」）。定时清理失败必须告警，不能静默；在预发布环境放一个文件名日期为 31 天前的测试备份，运行 `npm run backup:prune`，确认已删除。
 2. 保留当前运行的镜像（回滚就用它）。
 3. 确认新产物来自 CI 通过的提交号，和部署记录一致。
 

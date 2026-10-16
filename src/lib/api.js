@@ -276,6 +276,10 @@ export async function getCmsConfig(signal) {
   return getJson('/cms', signal);
 }
 
+export async function getLegalInfo(signal) {
+  return getJson('/legal', signal);
+}
+
 export async function getProducts(signal) {
   return getJson('/products', signal);
 }

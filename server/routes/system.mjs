@@ -1,5 +1,14 @@
 // System/config API routes.
-import { ALLOW_LOCAL_ADMIN_BYPASS, IS_PRODUCTION, AMAP_GEOCODE_KEY, APP_ID, CMS_CONFIG_PATH, PRODUCT_CONFIG_PATH } from '../config/index.mjs';
+import {
+  ALLOW_LOCAL_ADMIN_BYPASS,
+  IS_PRODUCTION,
+  AMAP_GEOCODE_KEY,
+  APP_ID,
+  CMS_CONFIG_PATH,
+  OPERATOR_EMAIL,
+  OPERATOR_NAME,
+  PRODUCT_CONFIG_PATH
+} from '../config/index.mjs';
 import { planningAccessState, hasAdminAccess, isLocalRequest, verifyAdminAccess } from '../auth/request-access.mjs';
 import { writeConfigDocument } from '../storage/config-documents.mjs';
 import { cities as allSupportedCities, getRegionForCity, JZH_CITIES, regionCityGroups as allRegionCityGroups } from '../../src/lib/chinaCities.js';
@@ -149,6 +158,10 @@ export const systemRoutes = [
     const config = normalizeCmsConfig(await readJsonBody(req));
     await writeConfigDocument(CMS_CONFIG_PATH, config);
     return sendJson(res, 200, { ok: true, config });
+  }),
+  route('GET', '/api/legal', async ({ req, res }) => {
+    enforceRateLimit(req, 'public-config');
+    return sendJson(res, 200, { ok: true, operator: { name: OPERATOR_NAME, email: OPERATOR_EMAIL } });
   }),
   route('GET', '/api/products', async ({ req, res }) => {
     enforceRateLimit(req, 'public-config');

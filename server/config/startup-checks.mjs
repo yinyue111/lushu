@@ -63,6 +63,8 @@ export function resolveProfileIdSecret({ profileIdSecret, adminToken, apiToken, 
  *   allowOsmBasemapInProduction?: boolean,
  *   aiProviderRegion?: string,
  *   moderationProvider?: string,
+ *   operatorName?: string,
+ *   operatorEmail?: string,
  *   authEnabled?: boolean,
  *   authPhoneHashSecret?: string,
  *   registrationMode?: string,
@@ -147,6 +149,14 @@ export function evaluateStartupSafety(input) {
     );
   }
 
+  if (input.isProduction && (input.operatorName !== undefined || input.operatorEmail !== undefined)) {
+    const missing = [!input.operatorName ? 'OPERATOR_NAME' : '', !input.operatorEmail ? 'OPERATOR_EMAIL' : ''].filter(Boolean);
+    if (missing.length) {
+      warnings.push(
+        `!!! ${missing.join(' + ')} not set: the privacy page shows no operator / contact / support email. Set them before public launch (release blocker U14).`
+      );
+    }
+  }
   if (input.isProduction && !input.publicBaseUrl) {
     warnings.push('PUBLIC_BASE_URL is not set; share pages fall back to the request Host header for og:image URLs.');
   }
