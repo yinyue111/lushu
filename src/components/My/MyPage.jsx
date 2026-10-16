@@ -322,7 +322,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       setLocalDataVersion((value) => value + 1);
       onProfileChanged?.(fresh);
       onLocalBooksChanged?.();
-      setProfileMessage(deleting ? '账号已注销。运营备份中的副本按备份周期清除。' : '已退出。');
+      setProfileMessage(deleting ? '账号已注销。运营备份中的副本最多保留一个月，之后清除。' : '已退出。');
     } catch (err) {
       setProfileMessage(`${deleting ? '注销' : '退出'}未完成：${err.message}`);
     } finally {

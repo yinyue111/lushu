@@ -34,6 +34,7 @@
     "test:profile-trip": "node scripts/profile-trip-regression.mjs",
     "test:pwa-build": "node scripts/pwa-build-regression.mjs",
     "backup:data": "node --env-file-if-exists=.env scripts/backup-data.mjs",
+    "backup:prune": "node scripts/backup-prune.mjs",
     "restore:data": "node --env-file-if-exists=.env scripts/restore-data.mjs",
     "postgres:migrate": "node --env-file-if-exists=.env scripts/postgres-migrate.mjs",
     "postgres:backfill": "node --env-file-if-exists=.env scripts/postgres-backfill.mjs",

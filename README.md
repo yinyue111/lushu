@@ -124,6 +124,8 @@ npm run restore:data -- --input ./backups/manual.trbk   # 仅解密与校验
 npm run restore:data -- --input ./backups/manual.trbk --data-dir ./restored-data --apply
 ```
 
+**备份保留期（隐私政策承诺最多一个月）**：隐私政策写明「运营备份中的副本最多保留一个月，之后清除」。`npm run backup:prune`（`--dir ./backups`，可加 `--dry-run`）删除 mtime 超过 30 天的 `trusted-routebook-*.trbk`，常量见 `scripts/lib/backupRetention.mjs`。仓库不包含定时任务：运维必须每天定时运行它（如 cron `0 4 * * * npm run backup:prune`）。仓库之外的备份——`pg_dump` 文件、`appdata` 卷快照、云盘/对象存储副本、主机快照——不受该脚本管理，必须由运维另外配置不超过 30 天的轮换或生命周期规则，否则隐私政策中的承诺不成立。
+
 恢复默认拒绝覆盖非空目录。不要为绕过运行中写租约而直接删除锁；先停服务，使用 `npm run source:lease -- --help` 查看检查和精确令牌恢复方式。备份文件、照片、租约及生成产物均已被 Git 忽略。
 
 ### PROFILE_ID_SECRET 迁移
