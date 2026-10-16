@@ -282,8 +282,21 @@ export default function App() {
         const latestCached = getStoredRoutebookById(routeId);
         const latestInMemory = routebookRef.current && (routebookRef.current.publicId || routebookRef.current.id) === routeId ? routebookRef.current : null;
         const latestLocal = selectLatestLocalRoutebook([latestCached, latestInMemory, cached], profile.id, routeId);
-        const refreshDecision = routebookRefreshDecision(data.routebook, latestLocal, profile.id);
-        if (refreshDecision.preserveLocal) {
+        const refreshDecision = routebookRefreshDecision(data.routebook, latestLocal, profile.id, { remoteFromCache: Boolean(data.offlineCache) });
+        // 离线兜底的旧缓存不是云端现状：有本机副本就照本机显示，不比对、不提示。
+        if (data.offlineCache && latestLocal) {
+          setRoutebook(latestLocal);
+          setRouteLoadState({ loading: false, error: '' });
+          return;
+        }
+        // 只有本机改了（云端没前进）：继续显示本机编辑，不算冲突。
+        if (refreshDecision.preserveLocal && !refreshDecision.conflict) {
+          setRoutebook(latestLocal);
+          replaceSavedBook(latestLocal);
+          setRouteLoadState({ loading: false, error: '' });
+          return;
+        }
+        if (refreshDecision.conflict) {
           const conflictKey = routebookRefreshConflictKey(data.routebook, latestLocal);
           const firstSeen = !routebookRefreshConflictsRef.current.has(conflictKey);
           if (firstSeen) {

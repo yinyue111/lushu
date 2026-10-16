@@ -98,9 +98,14 @@ assert.match(sw, /caches\.match\(APP_SHELL_URL\)/, 'navigation must retain an of
   assert.ok(book.intercepted);
   assert.match(book.response.body, /#v5$/);
   version = 6;
-  assert.match((await sandbox.dispatchFetch('/api/routebooks/rb1')).response.body, /#v6$/, 'routebook data is network-first');
+  const onlineBook = (await sandbox.dispatchFetch('/api/routebooks/rb1')).response;
+  assert.match(onlineBook.body, /#v6$/, 'routebook data is network-first');
+  assert.equal(onlineBook.headers?.get?.('x-lushu-offline-cache') ?? null, null, 'live responses are not tagged');
   offline = true;
-  assert.match((await sandbox.dispatchFetch('/api/routebooks/rb1')).response.body, /#v6$/, 'offline routebook comes from the data cache');
+  const offlineBook = (await sandbox.dispatchFetch('/api/routebooks/rb1')).response;
+  assert.match(offlineBook.body, /#v6$/, 'offline routebook comes from the data cache');
+  // B5: the stale fallback is tagged so the page never mistakes it for the cloud copy (no false conflict).
+  assert.equal(offlineBook.headers.get('x-lushu-offline-cache'), '1', 'offline fallback is tagged as cache');
   assert.match(
     (await sandbox.dispatchFetch('/api/share/s1').catch(() => ({ response: { body: 'miss' } }))).response.body,
     /miss/,

@@ -109,9 +109,16 @@ async function routebookDataResponse(request) {
     return response;
   } catch (error) {
     const cached = await cache.match(request);
-    if (cached) return cached;
+    if (cached) return markOfflineCache(cached);
     throw error;
   }
+}
+
+// 标记离线兜底：页面据此知道这是旧缓存、不是云端现状，不拿它判断冲突。
+function markOfflineCache(cached) {
+  const headers = new Headers(cached.headers);
+  headers.set('x-lushu-offline-cache', '1');
+  return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
 }
 
 function isRoutebookDataRequest(url) {

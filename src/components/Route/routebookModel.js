@@ -57,7 +57,20 @@ export function selectLatestLocalRoutebook(candidates, profileId, routeId = '') 
 
 // 判断 GET 返回是否会静默覆盖本地编辑。contentDiverged 同时覆盖“远端版本领先”
 // 和“同版本但 GET 等待中发生编辑”两种竞态；调用方据此先保留两个可恢复副本。
-export function routebookRefreshDecision(remote, local, profileId) {
+// 冲突提示只在「两边都改过」时出现：本机有未同步编辑，且云端在上次共同同步之后也前进了
+// （版本号更大；没有版本号时看 updatedAt）。离线时 Service Worker 兜底返回的旧缓存
+// 不代表云端现状（remoteFromCache），连不上云端也不算分叉。
+export function routebookRemoteAdvanced(remote, local) {
+  const remoteVersion = currentRoutebookVersion(remote);
+  const localVersion = currentRoutebookVersion(local);
+  if (remoteVersion != null && localVersion != null) return remoteVersion > localVersion;
+  const remoteUpdated = Date.parse(remote?.updatedAt ?? '');
+  const localUpdated = Date.parse(local?.updatedAt ?? '');
+  if (!Number.isFinite(remoteUpdated)) return false;
+  return !Number.isFinite(localUpdated) || remoteUpdated > localUpdated;
+}
+
+export function routebookRefreshDecision(remote, local, profileId, { remoteFromCache = false } = {}) {
   const remoteId = String(remote?.publicId || remote?.id || '').trim();
   const localId = String(local?.publicId || local?.id || '').trim();
   const sameRoute = Boolean(remoteId && localId && remoteId === localId);
@@ -68,7 +81,12 @@ export function routebookRefreshDecision(remote, local, profileId) {
   const localVersion = currentRoutebookVersion(local);
   const versionDiverged = remoteVersion != null && localVersion != null && remoteVersion !== localVersion;
   const preserveLocal = Boolean(sameRoute && localOwned && localDirty && contentDiverged);
+  const remoteAdvanced = !remoteFromCache && routebookRemoteAdvanced(remote, local);
+  const conflict = Boolean(preserveLocal && remoteAdvanced);
   return {
+    remoteFromCache: Boolean(remoteFromCache),
+    remoteAdvanced,
+    conflict,
     sameRoute,
     localOwned,
     localDirty,
@@ -77,7 +95,7 @@ export function routebookRefreshDecision(remote, local, profileId) {
     remoteVersion,
     localVersion,
     preserveLocal,
-    reason: preserveLocal ? (versionDiverged ? 'local-dirty-remote-version' : 'local-dirty-refresh-race') : ''
+    reason: conflict ? 'local-dirty-remote-advanced' : preserveLocal ? (remoteFromCache ? 'local-dirty-offline-cache' : 'local-dirty-refresh-race') : ''
   };
 }
 

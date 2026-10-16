@@ -4,14 +4,16 @@
 import vm from 'node:vm';
 
 class MockResponse {
-  constructor(body = '', { status = 200, type = 'basic' } = {}) {
+  constructor(body = '', { status = 200, type = 'basic', statusText = '', headers = undefined } = {}) {
     this.body = String(body);
     this.status = status;
+    this.statusText = statusText;
+    this.headers = new Headers(headers);
     this.ok = status >= 200 && status < 300;
     this.type = type;
   }
   clone() {
-    return new MockResponse(this.body, { status: this.status, type: this.type });
+    return new MockResponse(this.body, { status: this.status, type: this.type, statusText: this.statusText, headers: this.headers });
   }
   static error() {
     return new MockResponse('', { status: 0, type: 'error' });
@@ -81,6 +83,7 @@ export function createServiceWorkerSandbox(source, { origin = 'https://routebook
     Set,
     Promise,
     Response: MockResponse,
+    Headers,
     Request: class {
       constructor(url) {
         this.url = url;

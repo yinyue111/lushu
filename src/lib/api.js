@@ -18,6 +18,8 @@ async function readApiResponse(response) {
   const data = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   const requestId = data.requestId || response.headers.get('x-request-id') || '';
   if (requestId && !data.requestId) data.requestId = requestId;
+  // Service Worker 离线兜底返回的是旧缓存，不代表云端现状。
+  if (response.ok && response.headers?.get?.('x-lushu-offline-cache') === '1') data.offlineCache = true;
   if (!response.ok) {
     const error = /** @type {Error & Record<string, any>} */ (new Error(data.error ?? `HTTP ${response.status}`));
     error.status = response.status;
