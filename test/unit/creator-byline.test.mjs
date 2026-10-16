@@ -26,9 +26,17 @@ test('U18: public views gate the byline on a real nickname; author hint links to
   assert.match(hero, /const creatorName = isOwner \? ownLabel : nickname;/);
   assert.match(hero, /\{creatorName && \(/);
   assert.match(hero, /设个昵称，分享时会显示/);
-  assert.match(hero, /href="\/my#nickname"/);
+  assert.match(hero, /href="\/my#account"/);
   assert.doesNotMatch(hero, /路书作者|匿名旅行者/);
   // V-U24: no masked account in the author's own hero either; 「我」 until a nickname exists.
   assert.match(hero, /const ownLabel = isOwner \? nickname \|\| '我' : null;/);
   assert.doesNotMatch(hero, /accountLabel/);
+});
+
+test('B5: author byline shows 「我 · 草稿」 once (no stacked 「我」 avatar) and the hint links to /my#account', () => {
+  const hero = readFileSync(new URL('../../src/components/Route/RouteHero.jsx', import.meta.url), 'utf8');
+  assert.match(hero, /\{nickname && \(\s*<span className="grid size-8/);
+  assert.match(hero, /\{isOwner && <span> · \{publishStatusLabel\(routebook\.publishStatus\)\}<\/span>\}/);
+  assert.match(hero, /href="\/my#account"[\s\S]*设个昵称，分享时会显示/);
+  assert.doesNotMatch(hero, /href="\/my#nickname"/);
 });

@@ -132,9 +132,12 @@ export default function RouteHero({
           )}
           {creatorName && (
             <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy" data-testid="route-byline">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
-                {String(creatorName).slice(0, 1)}
-              </span>
+              {/* B5: no avatar initial for the placeholder 「我」, so the byline reads once as 「我 · 草稿」. */}
+              {nickname && (
+                <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
+                  {String(creatorName).slice(0, 1)}
+                </span>
+              )}
               <span className="min-w-0 truncate">
                 <b className="text-white">{creatorName}</b>
                 {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
@@ -144,7 +147,7 @@ export default function RouteHero({
           )}
           {showNicknameHint && (
             <a
-              href="/my#nickname"
+              href="/my#account"
               className={`${TAP_TARGET} mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white`}
               data-testid="nickname-hint"
             >
