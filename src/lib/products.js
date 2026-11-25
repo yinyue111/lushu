@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { productCards } from './content.js';
+import { productCards } from './seedProducts.js';
 import { getProducts } from './api.js';
 
 export function useProductCards() {

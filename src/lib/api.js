@@ -189,6 +189,32 @@ export async function revokeFriendLink(publicId, payload = {}, signal) {
   return deleteJson(`/routebooks/${encodeURIComponent(publicId)}/friend-link`, payload, signal, ownerHeaders(payload?.profileId));
 }
 
+/** Sync the owner's pre-trip checklist ticks (`confirmAcks`) to the cloud routebook. */
+export async function saveRoutebookConfirmAcks(publicId, payload = {}, signal) {
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/confirm-acks`, payload, signal, ownerHeaders(payload?.profileId));
+}
+
+/** Sync the owner's AA expense ledger (`travelers` + `extraExpenses`) to the cloud routebook. */
+export async function saveRoutebookExpenses(publicId, payload = {}, signal) {
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/expenses`, payload, signal, ownerHeaders(payload?.profileId));
+}
+
+export async function sendRoutebookReminderEmail(publicId, signal) {
+  const profile = getProfile();
+  return postJson(`/routebooks/${encodeURIComponent(publicId)}/reminder-email`, {}, signal, ownerHeaders(profile?.id));
+}
+
+export async function getCityWeather(city, signal) {
+  if (!city) return { ok: true, available: false, forecasts: [] };
+  return getJson(`/weather?city=${encodeURIComponent(city)}`, signal);
+}
+
+/** Unlisted friend-link companion identity, stop votes and task claims (gated by `?k=`, no account login required). */
+export async function saveCompanionFeedback(publicId, friendKey, payload = {}, signal) {
+  const key = /^[a-f0-9]{32}$/.test(String(friendKey ?? '')) ? `?k=${friendKey}` : '';
+  return postJson(`/share/${encodeURIComponent(publicId)}/companion${key}`, { ...payload, friendKey }, signal);
+}
+
 /** Which of these routebook ids were deleted (so local copies can be dropped). */
 export async function checkDeletedRoutebooks(ids, signal) {
   return postJson('/routebooks/deleted', { ids }, signal);
@@ -248,6 +274,21 @@ export async function getPoiKnowledge({ city = '', stopName = '', limit = 20 } =
   if (stopName) params.set('stopName', stopName);
   params.set('limit', String(limit));
   return getJson(`/poi-knowledge?${params.toString()}`, signal);
+}
+
+export async function getPoiDining(city = '', signal) {
+  if (!city) return { ok: true, pois: [] };
+  return getJson(`/pois/dining?city=${encodeURIComponent(city)}`, signal);
+}
+
+export async function getProfileAssets(profileId, signal) {
+  const params = new URLSearchParams();
+  if (profileId) params.set('profileId', profileId);
+  return getJson(`/profile/assets?${params.toString()}`, signal, ownerHeaders(profileId));
+}
+
+export async function saveProfileAssets(profileId, payload = {}, signal) {
+  return postJson('/profile/assets', { ...payload, profileId }, signal, ownerHeaders(profileId));
 }
 
 export async function createFavorite(favorite, signal) {

@@ -14,7 +14,7 @@ export const chipVariants = cva('inline-flex items-center gap-1.5 rounded-chip f
       brand: 'bg-primary-soft text-primary-strong',
       primary: 'bg-primary-soft text-primary-strong',
       dark: 'bg-ink text-white',
-      glass: 'border border-white/30 bg-white/20 text-white backdrop-blur-md',
+      glass: 'border border-white/35 bg-black/60 text-white backdrop-blur-md',
       // Over photos only (needs the saturated fill to stay readable).
       lemon: 'bg-lemon text-ink',
       // Quiet status: no fill, a coloured dot carries the cue and the text the meaning.

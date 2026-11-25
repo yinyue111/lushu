@@ -2,8 +2,9 @@
 // 只给服务端/运营用 scripts/symbolicate.mjs 还原报错栈。
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const OUT = join(ROOT, 'dist-sourcemaps');
 const TARGETS = [
   { dir: join(ROOT, 'dist'), name: 'user' },

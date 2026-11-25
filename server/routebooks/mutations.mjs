@@ -5,6 +5,8 @@ import { sanitizeEditToken, createRouteEditToken, normalizeProfileId, safeTokenE
 import { getSavedRoutebook } from '../storage/records.mjs';
 import { isDeletedRoutebook, routebookDeletedError } from './tombstones.mjs';
 import {
+  normalizeConfirmAcks,
+  normalizeExpenseLedger,
   normalizeCreator,
   normalizeRoutebookForStorage,
   getResolvableRoutebook,
@@ -179,6 +181,71 @@ export async function setRoutebookFriendLink(publicId, input = {}, context = {})
   return { routebook: updated, changed: true };
 }
 
+/**
+ * Persist the owner's pre-trip checklist ticks (`confirmAcks`) so multi-device reads
+ * and unlisted friend links (`?k=`) reflect preparation progress.
+ * @param {string} publicId
+ * @param {Record<string, any>} input
+ * @param {{ verifiedProfileId?: string }} context
+ */
+export async function setRoutebookConfirmAcks(publicId, input = {}, context = {}) {
+  const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
+  if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+  if (!canOverwriteRoutebook(routebook, input, context)) {
+    throw createHttpError('只能更新自己路书的行前确认进度', 403, 'ROUTEBOOK_OWNER_REQUIRED');
+  }
+  const nextAcks = normalizeConfirmAcks(input?.confirmAcks);
+  const prevAcks = normalizeConfirmAcks(routebook.confirmAcks);
+  if (nextAcks.length === prevAcks.length && nextAcks.every((k, i) => k === prevAcks[i])) {
+    return { routebook, changed: false };
+  }
+  const latestVer = await currentRoutebookVersion(routebook.publicId || routebook.id);
+  const versionMetadata = await routebookMutationMetadata(
+    routebook,
+    { expectedVersion: input?.expectedVersion ?? latestVer },
+    { changeReason: '更新行前确认进度', actorType: 'user' }
+  );
+  const updated = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      editToken: sanitizeEditToken(routebook.editToken),
+      confirmAcks: nextAcks
+    },
+    routebook.publicId || routebook.id
+  );
+  await appendVersionedRoutebook(updated, 'confirm-acks-updated', { previousStatus: routebook.publishStatus || 'draft' });
+  return { routebook: updated, changed: true };
+}
+
+export async function setRoutebookExpenseLedger(publicId, input = {}, context = {}) {
+  const routebook = await getSavedRoutebook(publicId);
+  if (isDeletedRoutebook(routebook)) throw routebookDeletedError(sanitizePublicId(publicId), routebook);
+  if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
+  if (!canOverwriteRoutebook(routebook, input, context)) {
+    throw createHttpError('只能更新自己路书的同行账本', 403, 'ROUTEBOOK_OWNER_REQUIRED');
+  }
+  const nextLedger = normalizeExpenseLedger(input?.expenseLedger ?? input);
+  const latestVer = await currentRoutebookVersion(routebook.publicId || routebook.id);
+  const versionMetadata = await routebookMutationMetadata(
+    routebook,
+    { expectedVersion: input?.expectedVersion ?? latestVer },
+    { changeReason: '同步同行记账', actorType: 'user' }
+  );
+  const updated = normalizeRoutebookForStorage(
+    {
+      ...routebook,
+      ...versionMetadata,
+      editToken: sanitizeEditToken(routebook.editToken),
+      expenseLedger: nextLedger
+    },
+    routebook.publicId || routebook.id
+  );
+  await appendVersionedRoutebook(updated, 'expense-ledger-updated', { previousStatus: routebook.publishStatus || 'draft' });
+  return { routebook: updated, changed: true };
+}
+
 export async function copyRoutebook(publicId, input = {}) {
   const routebook = await getResolvableRoutebook(publicId);
   if (!routebook) throw createHttpError('路书不存在或尚未保存', 404, 'ROUTEBOOK_NOT_FOUND');
@@ -232,6 +299,13 @@ function normalizeRoutebookDraftForStorage(input, existingRoutebook = null) {
       // friend links and authorship claims are only ever set by their own endpoints.
       guideOrigins: [...routebookGuideOrigins(existingRoutebook), ...routebookGuideOrigins(hardenedInput)],
       friendLink: existingRoutebook?.friendLink ?? null,
+      confirmAcks: Array.isArray(hardenedInput?.confirmAcks)
+        ? normalizeConfirmAcks(hardenedInput.confirmAcks)
+        : normalizeConfirmAcks(existingRoutebook?.confirmAcks),
+      expenseLedger:
+        hardenedInput?.expenseLedger && typeof hardenedInput.expenseLedger === 'object'
+          ? normalizeExpenseLedger(hardenedInput.expenseLedger)
+          : normalizeExpenseLedger(existingRoutebook?.expenseLedger),
       authorshipClaim: existingRoutebook?.authorshipClaim ?? null
     },
     existingRoutebook ? existingRoutebook.publicId || existingRoutebook.id : ''

@@ -38,6 +38,7 @@ import { readJsonBody, sendJson } from '../http/response.mjs';
 import { NO_POI_CATALOG, route } from '../http/router.mjs';
 import { enforceRateLimit } from '../http/rate-limit.mjs';
 import { handleMapTile } from '../http/map-tiles.mjs';
+import { fetchCityWeatherForecast } from '../geo/weather.mjs';
 import { loadCodexRuntime } from '../ai/generate.mjs';
 import { normalizeCmsConfig, normalizeProductConfig, readCmsConfig, readProductConfig } from '../content/cms.mjs';
 import { buildReadinessSnapshot } from '../http/health.mjs';
@@ -145,6 +146,12 @@ export const systemRoutes = [
     },
     NO_POI_CATALOG
   ),
+  route('GET', '/api/weather', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'public-config');
+    const city = String(url.searchParams.get('city') ?? '').trim();
+    const forecast = await fetchCityWeatherForecast(city, /** @type {any} */ (req).signal);
+    return sendJson(res, 200, { ok: true, ...forecast });
+  }),
   route('GET', '/api/cms', async ({ req, res }) => {
     enforceRateLimit(req, 'public-config');
     return sendJson(res, 200, {

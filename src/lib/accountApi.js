@@ -80,17 +80,25 @@ export async function clearOfflineRoutebookData() {
   }
 }
 export const logout = async (signal) => {
-  const result = await postJson('/auth/logout', {}, signal);
-  await clearOfflineRoutebookData();
-  return result;
+  try {
+    return await postJson('/auth/logout', {}, signal);
+  } finally {
+    await clearOfflineRoutebookData();
+  }
 };
 export const logoutAll = async (signal) => {
-  const result = await postJson('/auth/logout-all', {}, signal);
-  await clearOfflineRoutebookData();
-  return result;
+  try {
+    return await postJson('/auth/logout-all', {}, signal);
+  } finally {
+    await clearOfflineRoutebookData();
+  }
 };
 export const changePassword = (currentPassword, password, signal) => postJson('/auth/password', { currentPassword, password }, signal);
 export const regenerateRecoveryCodes = (password, signal) => postJson('/auth/recovery-codes', { password }, signal);
 export const claimDeviceData = (body, signal) => postJson('/auth/claim', body, signal);
-export const deleteAccount = (password, signal) => postJson('/auth/delete', { password }, signal);
+export const deleteAccount = async (password, signal) => {
+  const result = await postJson('/auth/delete', { password }, signal);
+  await clearOfflineRoutebookData();
+  return result;
+};
 export const exportAccount = (signal) => getJson('/auth/export', signal);

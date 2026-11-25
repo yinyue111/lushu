@@ -10,11 +10,12 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { startServer } from '../test/helpers/server.mjs';
 import { authEnv, createClient } from '../test/helpers/accounts.mjs';
 import { hermeticServerEnv } from '../scripts/lib/hermetic-env.mjs';
 
-const PROJECT_ROOT = new URL('..', import.meta.url).pathname;
+const PROJECT_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const requireFrom = [PROJECT_ROOT, process.env.E2E_TOOLS_DIR].filter(Boolean).map((dir) => createRequire(join(dir, 'package.json')));
 const load = (name) => {
   for (const r of requireFrom) {
@@ -110,14 +111,11 @@ async function deepFailure(page, label) {
   await page.getByLabel('攻略链接或正文').fill('杭州一日：上午柳浪闻莺，中午南宋御街吃饭，下午北山街散步看宝石山。');
   await page.getByRole('button', { name: '用这篇攻略排路线' }).click();
   for (const name of ['柳浪闻莺', '南宋御街', '北山街']) {
-    const box = page
-      .locator('li', { has: page.getByText(name, { exact: true }) })
-      .first()
-      .locator('input[type=checkbox]');
-    await box.waitFor();
-    if (!(await box.isChecked())) await box.check();
+    const mustBtn = page.getByRole('group', { name: `${name} 排入方式` }).getByRole('button', { name: '必去' });
+    await mustBtn.waitFor();
+    if ((await mustBtn.getAttribute('aria-pressed')) !== 'true') await mustBtn.click();
   }
-  await page.getByRole('button', { name: /下一步/ }).click();
+  await page.getByRole('button', { name: '调偏好' }).click();
   await page.getByText('细品', { exact: true }).click();
   await page.getByRole('button', { name: '生成路书' }).last().click();
   await page.getByRole('button', { name: '用轻快重试' }).waitFor({ timeout: 60000 });

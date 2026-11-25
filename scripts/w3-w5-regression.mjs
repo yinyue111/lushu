@@ -329,10 +329,10 @@ async function main() {
 
     const initialCoverage = await fetchJson(`${baseUrl}/api/poi-coverage`, { headers: adminHeaders() });
     assert.equal(initialCoverage.response.status, 200);
-    assert.equal(initialCoverage.data.totals.totalPois, 16);
+    assert.equal(initialCoverage.data.totals.totalPois, 20);
     assert.equal(initialCoverage.data.totals.approvedPois, 0);
     assert.equal(initialCoverage.data.totals.evidenceBackedPois, 0);
-    assert.equal(initialCoverage.data.totals.pendingReview, 16);
+    assert.equal(initialCoverage.data.totals.pendingReview, 20);
     assert.equal(initialCoverage.data.totals.verifiedCoveragePercent, 0);
     assert.equal(initialCoverage.data.totals.currentFactPercent, null);
     assert.deepEqual(
@@ -340,7 +340,8 @@ async function main() {
       [
         ['杭州', 10],
         ['上海', 3],
-        ['苏州', 3]
+        ['苏州', 3],
+        ['南京', 4]
       ]
     );
 
@@ -538,7 +539,7 @@ async function main() {
 
     const coverage = await fetchJson(`${baseUrl}/api/poi-coverage`, { headers: adminHeaders() });
     assert.equal(coverage.response.status, 200);
-    assert.equal(coverage.data.totals.totalPois, 19);
+    assert.equal(coverage.data.totals.totalPois, 23);
     assert.equal(coverage.data.totals.approvedPois, 2);
     assert.equal(coverage.data.totals.evidenceBackedPois, 2);
     assert.equal(coverage.data.totals.verifiedPois, 1);
@@ -547,7 +548,7 @@ async function main() {
     assert.equal(coverage.data.totals.pendingFacts, 1);
     assert.equal(coverage.data.totals.trustStates.verified, 1);
     assert.equal(coverage.data.totals.trustStates.stale, 1);
-    assert.equal(coverage.data.totals.pendingReview, 17);
+    assert.equal(coverage.data.totals.pendingReview, 21);
 
     const restartRow = approvedPoi({
       poiId: 'poi-test-restart-token',

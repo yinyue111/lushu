@@ -140,6 +140,8 @@ export const checkinRoutes = [
         worth: truncateString(body?.worth, 20),
         queue: truncateString(body?.queue, 40),
         cost: truncateString(body?.cost, 40),
+        paidBy: truncateString(body?.paidBy, 24),
+        splitWith: Array.isArray(body?.splitWith) ? [...new Set(body.splitWith.map((x) => truncateString(x, 24)).filter(Boolean))].slice(0, 12) : [],
         crowd: truncateString(body?.crowd, 20),
         comment: truncateString(body?.comment, 300),
         pitfall: truncateString(body?.pitfall, 200),

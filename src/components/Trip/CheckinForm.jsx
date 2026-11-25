@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Check, LocateFixed } from 'lucide-react';
+import { Check, LocateFixed, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
@@ -8,6 +8,13 @@ import LocationConsentDialog from './LocationConsentDialog';
 
 // 本地暂存照片 dataURL 上限（约 400KB），防 localStorage 被撑爆。
 const MAX_PHOTO_DATA_URL_LENGTH = 400 * 1024;
+
+const QUEUE_QUICK_OPTIONS = [
+  { label: '不用排', value: '0 分钟' },
+  { label: '15 分钟内', value: '15 分钟' },
+  { label: '30 分钟左右', value: '30 分钟' },
+  { label: '1 小时以上', value: '60 分钟' }
+];
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -44,10 +51,13 @@ async function compressImageToDataUrl(file, maxEdge = 1280, quality = 0.8) {
 }
 
 /** @param {Record<string, any>} props */
-export default function CheckinForm({ onSubmit, onCancel }) {
+export default function CheckinForm({ onSubmit, onCancel, travelers = ['我'], onAddTraveler = undefined }) {
   const fieldPrefix = useId().replaceAll(':', '');
   const [queue, setQueue] = useState('');
   const [cost, setCost] = useState('');
+  const [paidBy, setPaidBy] = useState('我');
+  const [splitWith, setSplitWith] = useState(() => (Array.isArray(travelers) && travelers.length ? travelers : ['我']));
+  const [newTraveler, setNewTraveler] = useState('');
   const [worth, setWorth] = useState('');
   const [crowd, setCrowd] = useState('');
   const [comment, setComment] = useState('');
@@ -74,12 +84,12 @@ export default function CheckinForm({ onSubmit, onCancel }) {
           coordinateSystem: 'unknown',
           userAgent: String(navigator.userAgent ?? '').slice(0, 160)
         }),
-      onError: () => setGpsError('没拿到定位，仍可记录；这条算普通反馈，不算到达核对。'),
+      onError: () => setGpsError('没拿到定位，仍可保存；这条作为普通反馈记录。'),
       options: { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     });
     // 未同意前绝不调用定位 API：先弹出说明，用户同意后再请求。
     if (result === 'needs-consent') setConsentOpen(true);
-    if (result === 'unsupported') setGpsError('这个浏览器不支持定位，仍可记录；这条算普通反馈。');
+    if (result === 'unsupported') setGpsError('当前浏览器不支持定位，仍可直接保存。');
   }
 
   async function handlePhotoChange(event) {
@@ -90,7 +100,6 @@ export default function CheckinForm({ onSubmit, onCancel }) {
     if (!file) return;
     setPhotoBusy(true);
     try {
-      // canvas 压缩到最长边 1280、JPEG 质量 0.8，控制上传与本地暂存体积。
       const dataUrl = await compressImageToDataUrl(file, 1280, 0.8);
       if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
         setPhotoError('照片压缩后仍超过 400KB，本次不上传；请稍后重拍或换一张照片。');
@@ -110,17 +119,47 @@ export default function CheckinForm({ onSubmit, onCancel }) {
       onSubmit={(e) => {
         e.preventDefault();
         if (photoBusy) return;
-        onSubmit({ queue, cost, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
+        onSubmit({ queue, cost, paidBy, splitWith, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
       }}
     >
-      <div className="rounded-card bg-canvas p-3.5">
-        <Button variant={gps ? 'soft' : 'dark'} className="w-full" onClick={locate}>
-          <LocateFixed /> {gps ? '重新定位' : '用 GPS 证明我到了（选填）'}
+      <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />
+      <ChoiceGroup label="现场人多吗" options={['清净', '适中', '拥挤', '人挤人']} value={crowd} onChange={setCrowd} />
+      <fieldset>
+        <legend className="mb-2 text-sm font-bold text-ink-2">排队多久（选填）</legend>
+        <div className="flex flex-wrap gap-2">
+          {QUEUE_QUICK_OPTIONS.map((opt) => {
+            const active = queue === opt.value;
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                aria-pressed={active}
+                onClick={() => setQueue(active ? '' : opt.value)}
+                className={cn(
+                  'min-h-11 rounded-full px-3.5 text-sm font-semibold sm:min-h-10',
+                  active ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line'
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-canvas p-3">
+        <span className="min-w-0 flex-1 text-meta text-muted">
+          {gps ? (
+            <span className="font-semibold text-success-ink">已附带当前定位（精度约 {gps.accuracy} 米）</span>
+          ) : (
+            gpsError || '顺手附带定位可帮后来人确认这里正常开放（选填）'
+          )}
+        </span>
+        <Button size="sm" variant={gps ? 'soft' : 'outline'} onClick={locate}>
+          <LocateFixed /> {gps ? '刷新定位' : '附带定位'}
         </Button>
-        <p className={cn('mt-2 text-meta', gpsError ? 'font-semibold text-lemon-ink' : 'text-muted')}>
-          {gps ? `已定位 · 精度约 ${gps.accuracy} 米` : gpsError || '不开定位也能记录；只是这条会作为普通反馈，不算「到达核对」。'}
-        </p>
       </div>
+
       <LocationConsentDialog
         open={consentOpen}
         onAgree={() => {
@@ -130,22 +169,110 @@ export default function CheckinForm({ onSubmit, onCancel }) {
         }}
         onDecline={() => {
           setConsentOpen(false);
-          setGpsError('未同意定位：这条打卡会作为普通反馈记录，不算到达核对。');
+          setGpsError('未开启定位：仍可直接保存，作为普通游玩笔记记录。');
         }}
       />
-      <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />
-      <ChoiceGroup label="现场人多吗" options={['空', '适中', '拥挤', '不建议']} value={crowd} onChange={setCrowd} />
+
       <details className="group rounded-card border border-line">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-copy font-bold">
-          多说几句（选填）
-          <span className="text-meta font-normal text-muted">排队、花费、短评、照片</span>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2.5 text-copy font-bold [&::-webkit-details-marker]:hidden">
+          补充花费、短评或照片（选填）
+          <span className="text-meta font-normal text-muted">展开填写</span>
         </summary>
         <div className="flex flex-col gap-3 border-t border-line p-4">
-          <Field label="排队多久">
-            <input id={`${fieldPrefix}-queue`} className={inputClass} value={queue} onChange={(e) => setQueue(e.target.value)} placeholder="例如 15 分钟" />
-          </Field>
           <Field label="实际花了多少">
-            <input id={`${fieldPrefix}-cost`} className={inputClass} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="例如 80 元" />
+            <input
+              id={`${fieldPrefix}-cost`}
+              className={inputClass}
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="例如 120 元（填总开销可算 AA）"
+            />
+          </Field>
+          <div className="rounded-tile bg-canvas/80 p-3 text-xs" data-testid="checkin-aa-fields">
+            <p className="font-bold text-ink-2">同行记账（选填，回顾页自动算 AA 转账）</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="谁付的钱">
+              <span className="text-muted">付款人：</span>
+              {travelers.map((person) => {
+                const active = paidBy === person;
+                return (
+                  <button
+                    key={`pay-${person}`}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setPaidBy(person)}
+                    className={cn(
+                      'min-h-11 rounded-full border px-2.5 text-xs font-bold sm:min-h-8',
+                      active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-ink-2'
+                    )}
+                  >
+                    {person}
+                  </button>
+                );
+              })}
+            </div>
+            {travelers.length > 1 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="参与分摊的人">
+                <span className="text-muted">参与分摊：</span>
+                {travelers.map((person) => {
+                  const active = splitWith.includes(person);
+                  return (
+                    <button
+                      key={`split-${person}`}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        setSplitWith((prev) => {
+                          if (prev.includes(person)) {
+                            const next = prev.filter((p) => p !== person);
+                            return next.length ? next : [person];
+                          }
+                          return [...prev, person];
+                        });
+                      }}
+                      className={cn(
+                        'min-h-11 rounded-full border px-2.5 text-xs font-bold sm:min-h-8',
+                        active ? 'border-primary-strong bg-primary-soft text-primary-strong' : 'border-line-strong bg-white text-muted'
+                      )}
+                    >
+                      {active ? `${person} ✓` : person}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {onAddTraveler && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <label className="sr-only" htmlFor={`${fieldPrefix}-add-traveler`}>
+                  添加同行伙伴称呼
+                </label>
+                <input
+                  id={`${fieldPrefix}-add-traveler`}
+                  value={newTraveler}
+                  onChange={(e) => setNewTraveler(e.target.value)}
+                  placeholder="加同行人称呼，如 小林"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-line-strong bg-white px-2.5 text-xs text-ink"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-white"
+                  data-testid="checkin-add-traveler-btn"
+                  disabled={!newTraveler.trim()}
+                  onClick={() => {
+                    const clean = newTraveler.trim().slice(0, 20);
+                    if (!clean) return;
+                    onAddTraveler(clean);
+                    setSplitWith((prev) => (prev.includes(clean) ? prev : [...prev, clean]));
+                    setNewTraveler('');
+                  }}
+                >
+                  <Plus /> 加同行人
+                </Button>
+              </div>
+            )}
+          </div>
+          <Field label="排队时长补充">
+            <input id={`${fieldPrefix}-queue`} className={inputClass} value={queue} onChange={(e) => setQueue(e.target.value)} placeholder="例如 20 分钟" />
           </Field>
           <Field label="适合谁">
             <input
@@ -165,7 +292,7 @@ export default function CheckinForm({ onSubmit, onCancel }) {
               placeholder="现场怎么样、顺不顺路、值不值得留着…"
             />
           </Field>
-          <Field label="踩坑提醒">
+          <Field label="避坑提醒">
             <input
               id={`${fieldPrefix}-pitfall`}
               className={inputClass}
@@ -208,7 +335,7 @@ function ChoiceGroup({ label, options, value, onChange }) {
             aria-pressed={value === option}
             onClick={() => onChange(value === option ? '' : option)}
             className={cn(
-              'h-10 min-w-16 rounded-full px-4 text-copy font-semibold',
+              'min-h-11 min-w-16 rounded-full px-4 text-copy font-semibold sm:min-h-10',
               value === option ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line'
             )}
           >

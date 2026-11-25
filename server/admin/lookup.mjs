@@ -111,6 +111,7 @@ export async function updateUser({ admin, req, userId, action, reason, quota }) 
 
 function statusOf(routebook) {
   if ((routebook.publishStatus || 'draft') === 'archived') return 'taken-down';
+  if (routebook.publishStatus === 'featured' && isPublicRoutebook(routebook)) return 'featured';
   if (isPublicRoutebook(routebook)) return 'public';
   if (routebook.friendLink) return 'friend-link';
   return 'draft';
@@ -208,6 +209,17 @@ export async function roadbookAction({ admin, req, publicId, action, reason }) {
     const job = await enqueueEnrichment({ routebookId: id, userId: (await enrichStore().getJob(id))?.userId || 'admin', refresh: true });
     await adminAudit(req, { admin, action: 'roadbook.rerun-enrichment', target: `routebook:${id}`, after: { queued: Boolean(job) }, reason: why });
     return { queued: Boolean(job) };
+  }
+  if (action === 'feature' || action === 'unfeature') {
+    const nextStatus = action === 'feature' ? 'featured' : 'published';
+    await updateRoutebookStatus(id, {
+      publishStatus: nextStatus,
+      opsNote: `管理后台${action === 'feature' ? '设为精选' : '取消精选'}：${why}`,
+      expectedVersion: await currentRoutebookVersion(id)
+    });
+    const after = { status: statusOf(await getSavedRoutebook(id)) };
+    await adminAudit(req, { admin, action: `roadbook.${action}`, target: `routebook:${id}`, before, after, reason: why });
+    return { before, after };
   }
   if (action === 'take-down') {
     // Public → archived (share page returns not found); friend link → revoked. The routebook itself stays.

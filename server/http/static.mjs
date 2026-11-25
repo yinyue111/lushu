@@ -6,7 +6,9 @@ import { extname, join, resolve, sep } from 'node:path';
 import { ADMIN_DIST_DIR, ADMIN_ENABLED, DIST_DIR, MIME_TYPES, PUBLIC_BASE_URL, PROJECT_ROOT, PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { STATIC_SECURITY_HEADERS, sendJson, securityHeaders } from './response.mjs';
 import { sanitizePublicId, clampNumber, normalizeCityName, truncateString } from '../lib/util.mjs';
-import { cityStories, defaultCityImage } from '../../src/lib/content.js';
+import { cityStories, defaultCityImage, getCityStory } from '../../src/lib/content.js';
+import { cities as supportedCities } from '../../src/lib/chinaCities.js';
+import { openCities } from '../config/runtimeViews.mjs';
 import { getSavedReview } from '../storage/records.mjs';
 import { getResolvableRoutebook, normalizeCreator } from '../routebooks/normalize.mjs';
 import { listSavedRoutebooks } from '../routebooks/list.mjs';
@@ -228,7 +230,7 @@ async function serveDirectory(req, res, { root, prefix, headers: baseHeaders, mi
 // rank15①：/share/:id 与 /review/:id 的 H5 落地页注入 og meta（微信/朋友圈等
 // 分享卡片抓不到 SPA 运行时标题）。读取失败或路书/回顾非公开时原样回退 index.html。
 export function matchShareLandingPath(req) {
-  if (req.method !== 'GET') return null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
   let pathname = '';
   let key = '';
   try {
@@ -237,6 +239,22 @@ export function matchShareLandingPath(req) {
     key = String(parsed.searchParams.get('k') ?? '').slice(0, 64);
   } catch {
     return null;
+  }
+  const destMatch = /^\/destination(?:\/(.*))?$/.exec(pathname);
+  if (destMatch) {
+    let rawCity = destMatch[1] ?? '';
+    if (rawCity.length > 1 && rawCity.endsWith('/')) rawCity = rawCity.slice(0, -1);
+    if (!rawCity || rawCity.includes('/')) return { kind: 'destination-invalid' };
+    let decodedCity = '';
+    try {
+      decodedCity = decodeURIComponent(rawCity);
+    } catch {
+      return { kind: 'destination-invalid' };
+    }
+    if (!decodedCity || decodedCity !== decodedCity.trim() || /\s/.test(decodedCity) || !supportedCities.includes(decodedCity)) {
+      return { kind: 'destination-invalid' };
+    }
+    return openCities().includes(decodedCity) ? { kind: 'destination-open', city: decodedCity } : { kind: 'destination-closed', city: decodedCity };
   }
   const match = /^\/(share|review|creator|route)\/([^/]+)\/?$/.exec(pathname);
   if (!match) return null;
@@ -263,6 +281,49 @@ function escapeHtmlText(value) {
 
 async function buildShareLandingMeta(target) {
   try {
+    if (target.kind === 'destination-invalid') {
+      return {
+        status: 404,
+        noindex: true,
+        title: '没找到这个城市｜AI 可信路书',
+        description: '没找到这个城市',
+        image: '',
+        path: '',
+        prerender: {
+          heading: '没找到这个城市',
+          lines: ['这个地址对应的城市不在支持范围内。']
+        }
+      };
+    }
+    if (target.kind === 'destination-closed') {
+      const closedNote = `内测期间先开放江浙沪的城市（上海、江苏、浙江），${target.city}暂时还不能生成。`;
+      return {
+        status: 200,
+        noindex: true,
+        title: `${target.city}｜AI 可信路书`,
+        description: closedNote,
+        image: cityStories[target.city]?.image ?? defaultCityImage,
+        path: '',
+        prerender: {
+          heading: target.city,
+          lines: [closedNote]
+        }
+      };
+    }
+    if (target.kind === 'destination-open') {
+      const story = getCityStory(target.city);
+      return {
+        status: 200,
+        title: `${target.city}｜AI 可信路书`,
+        description: truncateString(story.summary, 160),
+        image: cityStories[target.city]?.image ?? defaultCityImage,
+        path: `/destination/${encodeURIComponent(target.city)}`,
+        prerender: {
+          heading: target.city,
+          lines: [story.kicker, story.summary].filter(Boolean)
+        }
+      };
+    }
     await refreshModerationState();
     if (target.kind === 'creator') {
       // Author homepage: never emit the creator id (no og:url / canonical, id never in title/description).
@@ -348,7 +409,7 @@ function injectShareLandingMeta(html, meta) {
         ]
       : ['<meta name="twitter:card" content="summary">']),
     `<meta name="description" content="${safeDescription}">`,
-    ...(meta.unlisted ? ['<meta name="robots" content="noindex, nofollow">'] : []),
+    ...(meta.unlisted ? ['<meta name="robots" content="noindex, nofollow">'] : meta.noindex ? ['<meta name="robots" content="noindex">'] : []),
     '<meta property="og:locale" content="zh_CN">',
     ...(meta.url ? [`<meta property="og:url" content="${escapeHtmlText(meta.url)}">`, `<link rel="canonical" href="${escapeHtmlText(meta.url)}">`] : []),
     // Implicit AIGC label for machine readers (see src/lib/aigc.js).
@@ -359,7 +420,7 @@ function injectShareLandingMeta(html, meta) {
   // 先移除 index.html 里的站点级默认分享标签：否则爬虫常取第一个（相对路径的 og:image、通用 description），
   // 分享卡片会显示站点默认图文而不是这条路书。
   let output = html
-    .replace(/[ \t]*<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>[ \t]*\r?\n?/gi, '')
+    .replace(/[ \t]*(?:<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>|<link\s+rel="canonical"[^>]*>)[ \t]*\r?\n?/gi, '')
     .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${safeTitle}</title>`);
   if (output.includes('</head>')) {
     output = output.replace('</head>', () => `    ${metaTags}\n  </head>`);
@@ -413,13 +474,17 @@ export async function serveShareLandingHtml(req, res, target, vite = null) {
     return false;
   }
   const body = injectShareLandingMeta(html, meta);
-  res.writeHead(200, {
+  const statusCode = Number(meta.status) || 200;
+  const robotsHeader = meta.unlisted ? 'noindex, nofollow' : meta.noindex ? 'noindex' : '';
+  res.writeHead(statusCode, {
     // dev 下 vite 会注入内联脚本（react-refresh preamble），不能带静态 CSP。
     ...(vite ? securityHeaders() : STATIC_SECURITY_HEADERS),
     'content-type': 'text/html; charset=utf-8',
     'cache-control': meta.unlisted ? 'private, no-store' : 'no-cache',
-    ...(meta.unlisted ? { 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' } : {})
+    'content-length': Buffer.byteLength(body, 'utf8'),
+    ...(robotsHeader ? { 'x-robots-tag': robotsHeader } : {}),
+    ...(meta.unlisted ? { 'referrer-policy': 'no-referrer' } : {})
   });
-  res.end(body);
+  res.end(req.method === 'HEAD' ? undefined : body);
   return true;
 }

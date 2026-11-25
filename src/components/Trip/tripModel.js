@@ -1,10 +1,10 @@
 // Pure helpers for the in-trip page (progress, review, alternatives, navigation).
 // Extracted verbatim from the former monolithic TripView.jsx.
-import { distanceKm } from '../../lib/coordinates';
-import { hasNearbyCoordinate, trustedKnowledgeStop } from '../../lib/nearbyRecommendations';
-import { normalizeTripStops, tripRoutebookId } from '../../lib/tripSession';
-import { greedyModeOrder } from '../../lib/routeModes';
-import { checkinEvidenceState, isLocallyProcessedCheckin, isServerSyncedCheckin, listQueuedCheckins } from '../../lib/checkinQueue';
+import { distanceKm } from '../../lib/coordinates.js';
+import { hasNearbyCoordinate, trustedKnowledgeStop } from '../../lib/nearbyRecommendations.js';
+import { normalizeTripStops, tripRoutebookId } from '../../lib/tripSession.js';
+import { greedyModeOrder } from '../../lib/routeModes.js';
+import { checkinEvidenceState, isLocallyProcessedCheckin, isServerSyncedCheckin, listQueuedCheckins } from '../../lib/checkinQueue.js';
 
 // 打卡不需要路书写凭证（editToken），payload 里不带，减少凭证暴露面。
 export function buildCheckinPayload(routebook, stop, profile, data) {
@@ -37,15 +37,15 @@ export function createClientCheckinId() {
   return `checkin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export { nextStopEta, isTripLiveToday } from '../../lib/stopTiming';
+export { nextStopEta, isTripLiveToday } from '../../lib/stopTiming.js';
 
-export function buildReview(checkins, stops) {
-  if (!checkins.length) return '记录到达后会自动沉淀完成度、花费、排队和踩坑反馈';
+export function buildReview(checkins, stops, current = null, next = null) {
+  if (!checkins.length) {
+    const dayPrefix = current?.day ? `${current.day}` : '第 1 天';
+    return next?.name ? `${dayPrefix} · 下一站 ${next.name}` : `${dayPrefix} · 按自己的节奏逛就行`;
+  }
   const progress = summarizeProgress(checkins, stops);
-  const stopIds = new Set((stops ?? []).map(stopKeyForStop));
-  const routeCheckins = checkins.filter((item) => isServerSyncedCheckin(item) && stopIds.has(checkinKey(item)));
-  const pitfallCount = routeCheckins.filter((item) => item.status === 'visited' && (item.worth === '踩坑' || item.pitfall)).length;
-  return `有效到达 ${progress.validArrivals}/${stops.length} 站，公开可信样本 ${progress.publicTrustSamples} 站，踩坑 ${pitfallCount} 条`;
+  return `已走 ${progress.processed}/${stops.length} 站${next?.name ? ` · 下一站 ${next.name}` : ' · 行程收尾中'}`;
 }
 
 export function safeReadCheckins(storageKey) {
@@ -348,4 +348,52 @@ export function alternativeReason(candidate, currentCategory, activeStops) {
   else details.push(`可切换为${candidate.category}`);
   if (activeStops.some((stop) => stopKeyForStop(stop) === stopKeyForStop(candidate.stop))) details.push('将同步移除后续重复站点');
   return details.join('，');
+}
+
+/**
+ * 行中「晚点了 / 来不及了」智能精简建议：从当日剩余未走站点中挑出最适合弹性略过的一站（优先避开已预约场馆与收尾锚点）。
+ * @param {any[]} stops
+ * @param {number} currentIndex
+ * @param {Map<string, any>} latestByStop
+ */
+export function suggestCompactPlan(stops = [], currentIndex = 0, latestByStop = new Map()) {
+  const current = stops[currentIndex];
+  if (!current) return null;
+  const curDay = current.day || 'Day 1';
+  const openToday = stops
+    .map((stop, idx) => ({ stop, idx }))
+    .filter(({ stop, idx }) => idx >= currentIndex && (stop.day || 'Day 1') === curDay && !isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop))));
+
+  if (openToday.length < 2) return null;
+
+  // 给每个候选站打「可弹性略过分」：餐饮/街区缓冲分更高，含「预约」字样的核心场馆分最低，当天最后一站略降权保留收尾体验。
+  const scored = openToday.map(({ stop, idx }, pos) => {
+    const notes = `${stop?.verify ?? ''} ${stop?.risk ?? ''}`;
+    const hasReservation = /预约/.test(notes) && !/(不需|无需|不用|免).*预约/.test(notes);
+    const cat = stopCategory(stop);
+    let elasticity = 50;
+    if (cat === '餐饮休息' || cat === '室内商业') elasticity += 25;
+    if (hasReservation) elasticity -= 40;
+    if (pos === openToday.length - 1 && openToday.length > 2) elasticity -= 15;
+    const stayMins = parseInt(String(stop?.stay ?? '').replace(/[^\d]/g, ''), 10) || 60;
+    return { stop, idx, elasticity, stayMins, hasReservation, cat };
+  });
+
+  scored.sort((a, b) => b.elasticity - a.elasticity || a.idx - b.idx);
+  const chosen = scored[0];
+  if (!chosen) return null;
+
+  const reason =
+    chosen.cat === '餐饮休息' || chosen.cat === '室内商业'
+      ? '属于弹性餐饮/街区缓冲点，略过不影响核心主线'
+      : chosen.hasReservation
+        ? '今日剩余站点均需留意时间，可先减掉此站留出缓冲'
+        : '无需提前预约，减掉后可把时间留给同天其他重点站';
+
+  return {
+    stop: chosen.stop,
+    stopIndex: chosen.idx,
+    savedMinutes: chosen.stayMins,
+    reason
+  };
 }

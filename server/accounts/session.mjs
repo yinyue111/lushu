@@ -23,6 +23,21 @@ export function readSessionCookie(req) {
   return '';
 }
 
+/**
+ * Non-browser clients (WeChat Mini-Program `wx.request` / native mobile App) pass the opaque
+ * session token via `Authorization: Bearer <sid>`. Browsers never attach Authorization cross-site
+ * automatically, so Bearer auth is inherently immune to CSRF while sharing the same session store.
+ */
+export function readBearerSessionToken(req) {
+  const authHeader = String(req.headers?.authorization ?? '').trim();
+  const match = /^Bearer\s+([A-Za-z0-9_-]{43})$/i.exec(authHeader);
+  return match ? match[1] : '';
+}
+
+export function readSessionToken(req) {
+  return readSessionCookie(req) || readBearerSessionToken(req);
+}
+
 export function hasSessionCookie(req) {
   return String(req.headers.cookie ?? '').includes(`${SESSION_COOKIE}=`);
 }
@@ -43,7 +58,7 @@ export function clearSessionCookie(res) {
 
 /** Starts a fresh session (always a new sid: login, registration, password change and claim rotate). */
 export async function startSession(req, res, user, now = Date.now()) {
-  const previous = readSessionCookie(req);
+  const previous = readSessionToken(req);
   if (previous) await accountStore().revokeSession(hashSid(previous));
   const sid = randomBytes(32).toString('base64url');
   const absoluteExpiresAt = new Date(now + AUTH_SESSION_MAX_DAYS * DAY).toISOString();
@@ -59,8 +74,9 @@ export async function startSession(req, res, user, now = Date.now()) {
   };
   await accountStore().createSession(session);
   appendSetCookie(res, cookie(sid, Math.floor((Date.parse(absoluteExpiresAt) - now) / 1000)));
-  req.authSession = Promise.resolve({ session, user });
-  return session;
+  const sessionWithToken = { ...session, rawSid: sid };
+  req.authSession = Promise.resolve({ session: sessionWithToken, user });
+  return sessionWithToken;
 }
 
 /**
@@ -69,7 +85,7 @@ export async function startSession(req, res, user, now = Date.now()) {
  */
 export function resolveSession(req, now = Date.now()) {
   req.authSession ??= (async () => {
-    const sid = readSessionCookie(req);
+    const sid = readSessionToken(req);
     if (!sid) return null;
     const store = accountStore();
     const session = await store.getSession(hashSid(sid));
@@ -87,7 +103,7 @@ export function resolveSession(req, now = Date.now()) {
 }
 
 export async function endSession(req, res) {
-  const sid = readSessionCookie(req);
+  const sid = readSessionToken(req);
   if (sid) await accountStore().revokeSession(hashSid(sid));
   clearSessionCookie(res);
   req.authSession = Promise.resolve(null);

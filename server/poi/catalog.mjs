@@ -52,10 +52,122 @@ const TRUSTED_POI_CATALOG = [
   { poiId: 'poi-sh-exhibition-center', city: '上海', name: '上海展览中心', aliases: ['上海展览馆'], lat: 31.2264, lng: 121.4512 },
   { poiId: 'poi-sz-humble-admin-garden', city: '苏州', name: '拙政园', aliases: [], lat: 31.3243, lng: 120.6252 },
   { poiId: 'poi-sz-pingjiang-road', city: '苏州', name: '平江路', aliases: ['平江历史文化街区'], lat: 31.3156, lng: 120.6314, openHours: ALWAYS_OPEN_HOURS },
-  { poiId: 'poi-sz-shantang-street', city: '苏州', name: '山塘街', aliases: ['七里山塘'], lat: 31.3267, lng: 120.6004, openHours: ALWAYS_OPEN_HOURS }
+  { poiId: 'poi-sz-shantang-street', city: '苏州', name: '山塘街', aliases: ['七里山塘'], lat: 31.3267, lng: 120.6004, openHours: ALWAYS_OPEN_HOURS },
+  {
+    poiId: 'poi-nj-nanjing-museum',
+    city: '南京',
+    name: '南京博物院',
+    aliases: ['南博'],
+    lat: 32.0405,
+    lng: 118.8244,
+    openHours: { closedWeekdays: [1], note: '周一闭馆（法定节假日另行公告）' }
+  },
+  { poiId: 'poi-nj-jiming-temple', city: '南京', name: '鸡鸣寺', aliases: ['古鸡鸣寺'], lat: 32.0608, lng: 118.7953 },
+  { poiId: 'poi-nj-laomendong', city: '南京', name: '老门东', aliases: ['老门东历史文化街区'], lat: 32.0135, lng: 118.7867, openHours: ALWAYS_OPEN_HOURS },
+  {
+    poiId: 'poi-nj-fuzimiao-qinhuai',
+    city: '南京',
+    name: '夫子庙秦淮风光带',
+    aliases: ['夫子庙', '秦淮河'],
+    lat: 32.0206,
+    lng: 118.7885,
+    openHours: ALWAYS_OPEN_HOURS
+  }
 ];
 
-const OPERATIONAL_POI_CITIES = ['杭州', '上海', '苏州'];
+// 四城可信地点库中的顺路餐饮点位（仅保留核对过的坐标与菜系说明，不硬编码未核实价格；独立于 20 个景区覆盖基线）。
+export const TRUSTED_DINING_CATALOG = [
+  {
+    poiId: 'poi-hz-zhiweiguan-hubin',
+    city: '杭州',
+    category: 'dining',
+    area: '湖滨商圈',
+    name: '知味观·湖滨总店',
+    aliases: ['知味观味庄'],
+    lat: 30.2528,
+    lng: 120.1636,
+    note: '杭帮传统点心与小吃 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-hz-kuiyuanguan',
+    city: '杭州',
+    category: 'dining',
+    area: '上城区',
+    name: '奎元馆·解放路总店',
+    aliases: ['奎元馆'],
+    lat: 30.2478,
+    lng: 120.1695,
+    note: '杭式老字号面馆 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-sh-lanxin-jinxian',
+    city: '上海',
+    category: 'dining',
+    area: '静安/进贤路',
+    name: '兰心餐厅·进贤路',
+    aliases: ['兰心餐厅'],
+    lat: 31.2229,
+    lng: 121.4581,
+    note: '本帮家常小馆 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-sh-lailai-xiaolong',
+    city: '上海',
+    category: 'dining',
+    area: '人民广场',
+    name: '莱莱小笼·乔艾',
+    aliases: ['莱莱小笼'],
+    lat: 31.2335,
+    lng: 121.4765,
+    note: '沪上汤包点心铺 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-sz-tongdexing',
+    city: '苏州',
+    category: 'dining',
+    area: '十全街',
+    name: '同得兴·十全街店',
+    aliases: ['同得兴'],
+    lat: 31.3005,
+    lng: 120.6319,
+    note: '苏式汤面老字号 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-sz-yaba-shengjian',
+    city: '苏州',
+    category: 'dining',
+    area: '平江路/临顿路',
+    name: '哑巴生煎·临顿路店',
+    aliases: ['哑巴生煎'],
+    lat: 31.3168,
+    lng: 120.6279,
+    note: '苏式生煎与小吃 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-nj-jiangyouji',
+    city: '南京',
+    category: 'dining',
+    area: '老门东',
+    name: '蒋有记·老门东店',
+    aliases: ['蒋有记'],
+    lat: 32.0136,
+    lng: 118.7869,
+    note: '金陵清真牛肉锅贴 · 价格以门店菜单为准'
+  },
+  {
+    poiId: 'poi-nj-baiweizhai',
+    city: '南京',
+    category: 'dining',
+    area: '鸡鸣寺',
+    name: '鸡鸣寺百味斋素菜馆',
+    aliases: ['百味斋'],
+    lat: 32.0612,
+    lng: 118.7955,
+    note: '寺院素面与简餐 · 价格以门店菜单为准'
+  }
+];
+
+const OPERATIONAL_POI_CITIES = ['杭州', '上海', '苏州', '南京'];
 
 /** Read-only copy of the built-in seed POIs (labeling kits, reports). */
 export function seedPoiCatalog() {
@@ -289,7 +401,7 @@ function normalizeOperationalPoiRow(raw, line = 1) {
   const cityText = truncateString(raw.city, 40).replace(/市$/u, '');
   if (!cityText) errors.push(poiValidationIssue('CITY_REQUIRED', 'city', '城市不能为空'));
   if (cityText && !OPERATIONAL_POI_CITY_SET.has(cityText)) {
-    errors.push(poiValidationIssue('UNSUPPORTED_OPERATIONAL_CITY', 'city', '运营内容当前只支持杭州、上海、苏州'));
+    errors.push(poiValidationIssue('UNSUPPORTED_OPERATIONAL_CITY', 'city', '运营内容当前只支持杭州、上海、苏州、南京'));
   }
   const name = truncateString(raw.name || raw.poiName, 120);
   if (!name) errors.push(poiValidationIssue('POI_NAME_REQUIRED', 'name', 'POI 名称不能为空'));
@@ -545,8 +657,10 @@ function seedPoiSnapshot(seed) {
     city: seed.city,
     name: seed.name,
     aliases: seed.aliases ?? [],
-    category: '',
-    location: { lat: seed.lat, lng: seed.lng, address: '' },
+    category: seed.category || '',
+    area: seed.area || '',
+    note: seed.note || '',
+    location: { lat: seed.lat, lng: seed.lng, address: seed.area || '' },
     sourceKind: 'seed',
     sourceType: 'fallback',
     reviewStatus: 'pending',

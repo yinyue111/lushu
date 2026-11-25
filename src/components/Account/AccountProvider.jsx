@@ -1,6 +1,14 @@
 import { Suspense, createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { getAuthConfig, getMe, logout as logoutRemote, logoutAll as logoutAllRemote } from '../../lib/accountApi';
-import { attachAccountToDevice, claimSummary, detachAccountFromDevice } from '../../lib/account';
+import { clearOfflineRoutebookData, getAuthConfig, getMe, logout as logoutRemote } from '../../lib/accountApi';
+import {
+  attachAccountToDevice,
+  claimSummary,
+  clearPendingLogout,
+  detachAccountFromDevice,
+  executeLogout,
+  readPendingLogout,
+  retryPendingLogout
+} from '../../lib/account';
 import { getProfile } from '../../lib/profile';
 import { Toast } from '../ui/toast';
 // 登录表单只在打开时才下载：首屏不带它和 drawer 依赖。
@@ -8,7 +16,7 @@ const LoginSheet = lazy(() => import('./LoginSheet'));
 
 const AccountContext = createContext(/** @type {any} */ (null));
 
-/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, account: any, generation: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
+/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, account: any, generation: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean, accountDeleted?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
 export function useAccount() {
   return useContext(AccountContext) ?? FALLBACK;
 }
@@ -40,48 +48,95 @@ export function AccountProvider({ children, onProfileChanged }) {
   const resumeRef = useRef(/** @type {null | (() => void)} */ (null));
   const profileChangedRef = useRef(onProfileChanged);
   profileChangedRef.current = onProfileChanged;
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const logoutInFlightRef = useRef(0);
+  const retryInFlightRef = useRef(/** @type {Promise<void> | null} */ (null));
+  const sessionEpochRef = useRef(0);
+
+  const flushPendingLogout = useCallback((fallbackProfileId = '') => {
+    if (!readPendingLogout()) return Promise.resolve();
+    if (retryInFlightRef.current) return retryInFlightRef.current;
+    const epoch = sessionEpochRef.current;
+    logoutInFlightRef.current += 1;
+    const task = retryPendingLogout({
+      accountProfileId: accountRef.current?.profileId || fallbackProfileId || '',
+      isCancelled: () => sessionEpochRef.current !== epoch
+    })
+      .then((result) => {
+        if (!result.settled) return;
+        setAccount(null);
+        setGeneration(null);
+        profileChangedRef.current?.(result.profile);
+        setToast(result.toast);
+      })
+      .finally(() => {
+        logoutInFlightRef.current = Math.max(0, logoutInFlightRef.current - 1);
+        if (retryInFlightRef.current === task) retryInFlightRef.current = null;
+      });
+    retryInFlightRef.current = task;
+    return task;
+  }, []);
 
   const refresh = useCallback(async () => {
+    let meAccount = null;
     try {
       const [me, authConfig] = await Promise.all([getMe(), getAuthConfig()]);
+      const nextMode = me.mode || authConfig.mode;
+      meAccount = me.account ?? null;
       setConfig({
-        mode: me.mode || authConfig.mode,
+        mode: nextMode,
         registration: authConfig.registration,
         emailVerificationRequired: authConfig.emailVerificationRequired !== false
       });
-      setAccount(me.account ?? null);
-      setGeneration(me.account ? (me.generation ?? null) : null);
+      const pendingLogout = readPendingLogout();
+      setAccount(meAccount);
+      setGeneration(meAccount ? (me.generation ?? null) : null);
       // Logged in by cookie but this device's profile is not the account's yet (e.g. storage cleared).
-      if (me.account && getProfile().id !== me.account.profileId) {
-        const { profile } = await attachAccountToDevice(me.account);
+      // Do not re-attach account data to this device while a pending logout is waiting to complete.
+      if (meAccount && !pendingLogout && getProfile().id !== meAccount.profileId) {
+        const { profile } = await attachAccountToDevice(meAccount);
         profileChangedRef.current?.(profile);
       }
       // Signed out elsewhere (logout everywhere, password reset, account disabled): this device becomes a guest again.
-      if (!me.account && (me.mode || authConfig.mode) !== 'access-code' && getProfile().accountUserId) {
-        profileChangedRef.current?.(detachAccountFromDevice());
+      if (!meAccount && nextMode !== 'access-code' && getProfile().accountUserId) {
+        profileChangedRef.current?.(detachAccountFromDevice(getProfile().id));
       }
     } catch {
       // Account status is best effort; the site keeps working for browsing.
     } finally {
       setReady(true);
     }
-  }, []);
+    if (readPendingLogout()) {
+      await flushPendingLogout(meAccount?.profileId || '');
+    }
+  }, [flushPendingLogout]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const onOnline = () => {
+      if (readPendingLogout()) {
+        void flushPendingLogout(accountRef.current?.profileId || '');
+      }
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [flushPendingLogout]);
+
   const enabled = config.mode !== 'access-code';
-  const accountRef = useRef(account);
-  accountRef.current = account;
   useEffect(() => {
     if (config.mode !== 'login') return undefined;
     const onLoginRequired = () => {
+      // A 401 during an active or retried logout means the session is already gone; never pop the login sheet.
+      if (logoutInFlightRef.current > 0 || readPendingLogout()) return;
       if (accountRef.current) {
         // The session ended elsewhere (logout everywhere, password reset): treat this device as signed out.
         setAccount(null);
         setGeneration(null);
-        profileChangedRef.current?.(detachAccountFromDevice());
+        profileChangedRef.current?.(detachAccountFromDevice(accountRef.current?.profileId));
       }
       setSheet((current) => current ?? { view: 'login', reason: '这一步需要登录。登录后再点一次就行。' });
     };
@@ -114,6 +169,8 @@ export function AccountProvider({ children, onProfileChanged }) {
 
   const handleAuthenticated = useCallback(
     async (nextAccount, /** @type {{ recoveryCodes?: string[] }} */ { recoveryCodes } = {}) => {
+      sessionEpochRef.current += 1;
+      clearPendingLogout();
       const { profile, claim } = await attachAccountToDevice(nextAccount);
       setAccount(nextAccount);
       // Refresh so generation quota lands with the new session.
@@ -124,24 +181,43 @@ export function AccountProvider({ children, onProfileChanged }) {
         setGeneration(null);
       }
       profileChangedRef.current?.(profile);
-      // Accounts without a verified email (signed up before email, or while verification was off) get a nudge, never a block.
+      // Verified-email signups can self-reset via email anytime, so let them proceed immediately
+      // without the hard-locked recovery-code wall; unverified accounts still see their codes first.
+      const needsCodeWall = Boolean(recoveryCodes?.length && !nextAccount?.emailVerified);
       const emailNudge = nextAccount?.emailVerified ? '' : '还没绑定邮箱：去「我的 → 账号」加一个，忘了密码能自己找回';
-      const summary = [claimSummary(claim), recoveryCodes?.length ? '' : emailNudge].filter(Boolean).join('；');
+      const registerOk = recoveryCodes?.length && nextAccount?.emailVerified ? '注册成功。备用恢复码可在「我的 → 账号」生成' : '';
+      const summary = [registerOk, claimSummary(claim), needsCodeWall ? '' : emailNudge].filter(Boolean).join('；');
       if (summary) setToast(summary);
-      if (recoveryCodes?.length) setSheet({ view: 'codes', codes: recoveryCodes, afterRegister: true });
+      if (needsCodeWall) setSheet({ view: 'codes', codes: recoveryCodes, afterRegister: true });
       else finish();
     },
     [finish]
   );
 
-  const logout = useCallback(async ({ everywhere = false } = {}) => {
+  const logout = useCallback(async ({ everywhere = false, accountDeleted = false } = {}) => {
+    const targetProfileId = accountRef.current?.profileId || '';
+    logoutInFlightRef.current += 1;
     try {
-      await (everywhere ? logoutAllRemote() : logoutRemote());
+      if (accountDeleted) {
+        clearPendingLogout();
+        await logoutRemote().catch(() => {});
+        await clearOfflineRoutebookData();
+        const fresh = detachAccountFromDevice(targetProfileId);
+        setAccount(null);
+        setGeneration(null);
+        profileChangedRef.current?.(fresh);
+        setToast('已退出登录');
+        return;
+      }
+      const result = await executeLogout({ everywhere, accountProfileId: targetProfileId });
+      profileChangedRef.current?.(result.profile);
+      if (result.settled) {
+        setAccount(null);
+        setGeneration(null);
+      }
+      setToast(result.toast);
     } finally {
-      setAccount(null);
-      setGeneration(null);
-      profileChangedRef.current?.(detachAccountFromDevice());
-      setToast(everywhere ? '已在所有设备上退出登录' : '已退出登录');
+      logoutInFlightRef.current = Math.max(0, logoutInFlightRef.current - 1);
     }
   }, []);
 

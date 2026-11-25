@@ -15,6 +15,7 @@ import { PUBLIC_ROUTE_STATUSES } from '../config/index.mjs';
 import { canOverwriteRoutebook } from '../routebooks/mutations.mjs';
 import { recheckOwnerRoutebook } from '../routing/ownerRecheck.mjs';
 import { sanitizeEditToken } from '../auth/tokens.mjs';
+import { modernOwnerRoutebookCopy } from '../lib/termCopy.mjs';
 
 /**
  * @param {Record<string, any>} routebook
@@ -52,7 +53,7 @@ export const routingRoutes = [
       });
       return routebook;
     });
-    return sendJson(res, 200, { ok: true, routebook: await enrichRoutebook(updated) });
+    return sendJson(res, 200, { ok: true, routebook: modernOwnerRoutebookCopy(await enrichRoutebook(updated)) });
   }),
   // Owner self-service: re-geocode replaced/moved stops and re-verify the legs they touch.
   // Drafts only (public routebooks are re-checked by ops above); rate-limited (AMap quota).
@@ -86,6 +87,6 @@ export const routingRoutes = [
       return { routebook, summary };
     });
     const enriched = await enrichRoutebook(result.routebook);
-    return sendJson(res, 200, { ok: true, routebook: { ...enriched, ownerAccessVerified: actor.verified }, recheck: result.summary });
+    return sendJson(res, 200, { ok: true, routebook: modernOwnerRoutebookCopy({ ...enriched, ownerAccessVerified: actor.verified }), recheck: result.summary });
   })
 ];

@@ -11,6 +11,8 @@ export default function RecheckBar({ routebook, recheckState, onRecheck }) {
   const stops = routebook.stops ?? [];
   const road = roadSummary(stops, routebook.routeLegs ?? []);
   const pending = stops.filter((stop) => stop.navigationDisabled === true || stop.coordinateSource === 'user-edit').length;
+  const allVerified = (!road.expectedLegs || road.verifiedLegs >= road.expectedLegs) && pending === 0;
+  if (allVerified && !recheckState.busy && !recheckState.message) return null;
   return (
     <section
       aria-label="重新查路线"
@@ -18,12 +20,12 @@ export default function RecheckBar({ routebook, recheckState, onRecheck }) {
       data-testid="recheck-bar"
     >
       <span className="min-w-0 flex-1 font-semibold text-ink-2">
-        {road.expectedLegs && road.verifiedLegs >= road.expectedLegs ? '路线已查' : road.expectedLegs ? '路线还没查，点这里查' : '没有需要查的路线'}
-        {pending > 0 && ` · ${pending} 站位置待确认`}
+        {road.expectedLegs && road.verifiedLegs >= road.expectedLegs ? '站间车程已查清' : road.expectedLegs ? '站间车程按直线预估' : '没有需要查的站间路线'}
+        {pending > 0 && ` · ${pending} 站地图定位可复核`}
       </span>
       <Button size="sm" variant="outline" onClick={onRecheck} disabled={recheckState.busy} aria-describedby="recheck-status">
         {recheckState.busy ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-        {recheckState.busy ? '正在查路线…' : '重新查路线'}
+        {recheckState.busy ? '正在替你查路线…' : '测算车程与定位'}
       </Button>
       <p id="recheck-status" role="status" aria-live="polite" className="w-full text-xs font-semibold text-ink-2 empty:hidden">
         {recheckState.message}

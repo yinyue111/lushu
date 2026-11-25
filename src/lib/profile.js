@@ -4,11 +4,11 @@ const PROFILE_REGISTRATION_KEY = 'trusted-routebook:profile-registration:v1';
 
 const defaultProfile = {
   homeCity: '杭州',
-  preferredCities: ['杭州', '上海', '苏州'],
+  preferredCities: ['杭州', '上海', '苏州', '南京'],
   budget: '',
   companion: '朋友',
   tempo: '松弛但不空',
-  transport: '步行 + 打车',
+  transport: '公交地铁 + 步行',
   themes: ['Citywalk'],
   creatorName: '',
   creatorBio: '',

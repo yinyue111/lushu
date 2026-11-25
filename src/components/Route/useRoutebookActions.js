@@ -9,16 +9,19 @@ import {
   getRoutebookRemote,
   recheckOwnRoutebook,
   recordJourneyEvent,
+  saveProfileAssets,
   saveRoutebookRemote,
-  saveRoutebookVariant
+  saveRoutebookVariant,
+  sendRoutebookReminderEmail
 } from '../../lib/api';
 import { recheckSummaryText } from '../../lib/recheck';
 import { profileRoutebookFields } from '../../lib/profile';
 import { recordProductClick as recordProductClickTelemetry } from '../../lib/productTelemetry';
-import { downloadTripIcs, requestTripNotification } from '../../lib/reminders';
+import { trackEvent } from '../../lib/betaTelemetry.js';
+import { downloadTripIcs, readTripReminders, requestTripNotification } from '../../lib/reminders';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { modeSlug, orderedDays, reorderStopsByMode, variantSummary } from '../../lib/routeModes';
-import { retimeReorderedDays } from '../../lib/stopTiming';
+import { retimeReorderedDays, shiftSubsequentDayTimes } from '../../lib/stopTiming';
 import {
   adoptNewerServerVersionScalars,
   buildEditedMetrics,
@@ -74,7 +77,11 @@ export function useRoutebookActions({
   const [syncLabel, setSyncLabel] = useState(() => (hasUnsyncedLocalEdits(routebook) ? '有改动未保存到云端' : '已保存'));
   const [undoEpoch, setUndoEpoch] = useState(0);
   const [patchState, setPatchState] = useState(
-    /** @type {{ busy: boolean, message: string, proposal: any, peek?: any, failed?: boolean }} */ ({ busy: false, message: '', proposal: null })
+    /** @type {{ busy: boolean, message: string, proposal: any, beforeStops?: any[], scopeType?: string, peek?: any, failed?: boolean }} */ ({
+      busy: false,
+      message: '',
+      proposal: null
+    })
   );
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
@@ -154,6 +161,39 @@ export function useRoutebookActions({
     if (!nextCity) return;
     updateRoutebook(stops, { city: nextCity, suggestedCity: null, editReason: '改城市' });
     setShareState(`城市已改成「${nextCity}」`);
+  }
+
+  function setTravelDate(ymd) {
+    const clean = String(ymd ?? '').trim();
+    updateRoutebook(stops, {
+      travelDate: clean,
+      constraints: { ...(routebook.constraints ?? {}), date: clean },
+      editReason: clean ? '设置出行日期' : '清空出行日期'
+    });
+    setShareState(clean ? `已按 ${clean} 自动排查闭馆与预约提醒` : '已清空出行日期');
+  }
+
+  function swapWholeDays(dayA, dayB) {
+    if (!dayA || !dayB || dayA === dayB) return;
+    const swapped = stops.map((stop) => {
+      const day = stop.day || 'Day 1';
+      if (day === dayA) return { ...stop, day: dayB };
+      if (day === dayB) return { ...stop, day: dayA };
+      return stop;
+    });
+    const dayOrder = routebook.days?.length ? routebook.days : [...new Set(stops.map((s) => s.day || 'Day 1'))];
+    const ordered = dayOrder.flatMap((day) => swapped.filter((s) => (s.day || 'Day 1') === day));
+    updateRoutebook(ordered, { editReason: `对调${dayA}与${dayB}` });
+    setShareState(`已把 ${dayA} 与 ${dayB} 整天对调，避开闭馆日且保持同区顺路`);
+  }
+
+  function shiftDayTimesFrom(stopId, minStartMinutes) {
+    const target = stops.find((item) => stopKey(item.id) === stopKey(stopId));
+    const day = target?.day || activeDay || 'Day 1';
+    const nextStops = shiftSubsequentDayTimes(stops, day, stopId, minStartMinutes);
+    if (nextStops.every((item, idx) => item === stops[idx])) return;
+    updateRoutebook(nextStops, { editReason: '顺延时间' });
+    setShareState('已顺延后续站点时间');
   }
 
   function moveStop(stopId, direction) {
@@ -341,16 +381,52 @@ export function useRoutebookActions({
     }
     const nextStops = reorderByMode(mode);
     if (!nextStops?.length) return;
+    trackEvent('ai_adjust_apply', modeSlug(mode));
     createVariantByMode(mode, nextStops);
   }
 
+  function updateTransitWindow(patch = {}) {
+    const nextConstraints = {
+      ...(routebook.constraints ?? {}),
+      ...(patch.arrivalTime !== undefined ? { arrivalTime: patch.arrivalTime } : {}),
+      ...(patch.arrivalHub !== undefined ? { arrivalHub: patch.arrivalHub } : {}),
+      ...(patch.departureTime !== undefined ? { departureTime: patch.departureTime } : {}),
+      ...(patch.departureHub !== undefined ? { departureHub: patch.departureHub } : {})
+    };
+    let nextStops = stops;
+    if (patch.arrivalTime) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(patch.arrivalTime));
+      const arrMin = m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      const firstDay = (routebook.days ?? ['Day 1'])[0] || 'Day 1';
+      const firstDayStop = stops.find((s) => (s.day || 'Day 1') === firstDay);
+      if (arrMin != null && firstDayStop) {
+        nextStops = shiftSubsequentDayTimes(stops, firstDay, firstDayStop.id, arrMin + 45);
+      }
+    }
+    updateRoutebook(nextStops, { constraints: nextConstraints, editReason: '更新时间窗' });
+    trackEvent('time_window_set', 'adjust');
+    setShareState('已更新首末日车次时间窗，并同步核对站点时间');
+  }
+
   function reorderByMode(mode) {
-    const reordered = reorderStopsByMode(stops, mode, { preferredDays: routebook.days });
-    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, routebook.days));
+    const reordered = reorderStopsByMode(stops, mode, {
+      preferredDays: routebook.days,
+      constraints: routebook.constraints,
+      city: routebook.city
+    });
+    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, routebook.days), {
+      constraints: routebook.constraints,
+      allDays: routebook.days
+    });
     updateRoutebook(nextStops, {
       editReason: `${mode}重排`,
       validations: [
-        { id: `mode-${Date.now()}`, label: `${mode}重排`, state: '已应用', detail: `已按${mode}偏好重排，仍需出发前复核营业时间和交通。` },
+        {
+          id: `mode-${Date.now()}`,
+          label: `${mode}重排`,
+          state: '已应用',
+          detail: `已按${mode}偏好重排（保留正餐时段与首末日车站衔接），仍需出发前复核营业时间和交通。`
+        },
         ...(routebook.validations ?? []).slice(0, 5)
       ]
     });
@@ -376,8 +452,18 @@ export function useRoutebookActions({
     }
     const base = latestRoutebookRef.current;
     const operationSequence = ++routebookSyncSequenceRef.current;
-    const reordered = Array.isArray(presetStops) && presetStops.length ? presetStops : reorderStopsByMode(base.stops ?? [], mode, { preferredDays: base.days });
-    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, base.days));
+    const reordered =
+      Array.isArray(presetStops) && presetStops.length
+        ? presetStops
+        : reorderStopsByMode(base.stops ?? [], mode, {
+            preferredDays: base.days,
+            constraints: base.constraints,
+            city: base.city
+          });
+    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, base.days), {
+      constraints: base.constraints,
+      allDays: base.days
+    });
     const variant = {
       id: `${modeSlug(mode)}-${Date.now()}`,
       mode,
@@ -615,8 +701,25 @@ export function useRoutebookActions({
       setShareState(result.reason);
       return;
     }
+    if (profile?.profileAccessToken || profile?.accountUserId) {
+      saveProfileAssets(profile.id, { tripReminders: readTripReminders() }).catch(() => {});
+    }
     const ics = downloadTripIcs(routebook);
     setShareState(ics.ok ? `${result.reason || '已保存提醒'}，并已下载日历文件` : result.reason || ics.reason);
+  }
+
+  async function sendEmailReminder() {
+    const routeId = routebook?.publicId || routebook?.id;
+    if (!routeId) {
+      setShareState('请先保存路书再发送邮件备忘');
+      return;
+    }
+    try {
+      const res = await sendRoutebookReminderEmail(routeId);
+      setShareState(`已将出发准备备忘发送至 ${res?.sentTo || '绑定邮箱'}`);
+    } catch (error) {
+      setShareState(error?.message || '邮件发送失败，可使用日历提醒');
+    }
   }
 
   function handleShared(nextRoutebook) {
@@ -783,33 +886,50 @@ export function useRoutebookActions({
     }
   }
 
-  async function proposePatch({ day = undefined, instruction = '', stopIds = undefined } = {}) {
+  async function proposePatch({ scopeType = undefined, day = undefined, instruction = '', stopIds = undefined } = {}) {
     const routeId = routebook.publicId || routebook.id;
     if (!routeId) {
-      setShareState('请先保存路书再做局部 AI 调整');
+      setShareState('请先保存路书再做 AI 调整');
       return null;
     }
-    setPatchState({ busy: true, message: '正在局部重排…', proposal: null });
+    const effectiveType = stopIds?.length ? 'window' : scopeType === 'all' ? 'all' : 'day';
+    const beforeSnapshot = [...(latestRoutebookRef.current?.stops ?? [])];
+    setPatchState({
+      busy: true,
+      scopeType: effectiveType,
+      beforeStops: beforeSnapshot,
+      message: effectiveType === 'all' ? '正在按你的要求调整整本路线…' : '正在局部重排这一天…',
+      proposal: null
+    });
     try {
       if (localEditsDirtyRef.current) {
         const saveResult = await saveCurrentRoutebook();
         if (saveResult?.status !== 'saved') {
-          setPatchState({ busy: false, message: '请先同步云端再局部调整', proposal: null });
+          setPatchState({ busy: false, message: '请先同步云端再做 AI 调整', proposal: null });
           return null;
         }
       }
+      const scope =
+        effectiveType === 'window' ? { type: 'window', stopIds, day } : effectiveType === 'all' ? { type: 'all' } : { type: 'day', day: day || activeDay };
       const data = await proposeRoutebookPatch(routeId, {
         profileId: profile.id,
         editToken: latestRoutebookRef.current.editToken,
-        scope: stopIds?.length ? { type: 'window', stopIds, day } : { type: 'day', day: day || activeDay },
+        scope,
         instruction
       });
-      setPatchState({ busy: false, message: data.proposal?.summary || '方案已就绪，请确认', proposal: data.proposal, peek: data.patchQuota });
-      setShareState(data.proposal?.summary || '局部方案已出，请确认后应用');
+      setPatchState({
+        busy: false,
+        scopeType: effectiveType,
+        beforeStops: beforeSnapshot,
+        message: data.proposal?.summary || '方案已就绪，请先看对比再确认',
+        proposal: data.proposal,
+        peek: data.patchQuota
+      });
+      setShareState(data.proposal?.summary || '调整方案已出，请确认后应用');
       return data.proposal;
     } catch (error) {
-      setPatchState({ busy: false, message: error.message || '局部调整失败', proposal: null });
-      setShareState(error.message || '局部调整失败');
+      setPatchState({ busy: false, message: error.message || 'AI 调整失败', proposal: null });
+      setShareState(error.message || 'AI 调整失败');
       return null;
     }
   }
@@ -839,6 +959,7 @@ export function useRoutebookActions({
       saveRoutebook(next);
       onSaved?.(next);
       setPatchState({ busy: false, message: '已应用局部调整', proposal: null });
+      trackEvent('ai_adjust_apply', 'patch');
       setShareState('局部调整已写入路书');
     } catch (error) {
       const status = Number(error?.status) || 0;
@@ -890,6 +1011,10 @@ export function useRoutebookActions({
     patchState,
     removeStop,
     setCity,
+    setTravelDate,
+    updateTransitWindow,
+    swapWholeDays,
+    shiftDayTimesFrom,
     moveStop,
     moveStopBefore,
     moveStopToDayEnd,
@@ -903,6 +1028,7 @@ export function useRoutebookActions({
     recordProductClick,
     favoriteRoute,
     saveTripReminder,
+    sendEmailReminder,
     handleShared,
     undoEdit,
     redoEdit,

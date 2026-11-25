@@ -6,7 +6,7 @@ import { adoptServerProfile } from './profileSync.js';
 const INTERRUPTED_SYNC_STATUSES = new Set(['pending', 'syncing']);
 // profileId 在本地字段清单里：服务端把未注册身份降级为 anonymous 时，
 // 不能让返回行覆盖本地归属，否则打卡会静默失去主人。
-const LOCAL_FIELDS = ['clientLocalId', 'clientAction', 'localStopKey', 'stopId', 'stopName', 'profileId'];
+const LOCAL_FIELDS = ['clientLocalId', 'clientAction', 'localStopKey', 'stopId', 'stopName', 'profileId', 'paidBy', 'splitWith'];
 const DEFAULT_RETRY_DELAY_MS = 15_000;
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429]);
 // 与 src/lib/storage.js 的 CHECKIN_PREFIX 保持一致（跨路书扫描本地打卡队列用）。

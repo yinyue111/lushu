@@ -19,24 +19,27 @@ export default function RouteStats({ routebook, trust, trustState }) {
 
   if (trial || trustState.tone !== 'verified') {
     return (
-      <div
-        tabIndex={0}
-        role="status"
-        aria-label="路线可信度"
-        className="rounded-card border border-lemon/40 bg-lemon-soft/70 px-3.5 py-3 text-meta leading-snug text-lemon-ink sm:px-4"
-      >
-        <p className="text-copy font-extrabold text-ink">{trial ? 'AI 草稿 · 出发前请确认' : '还没人走过 · 暂无评分'}</p>
-        <p className="mt-1 text-meta leading-relaxed text-ink-2">
-          {trial
-            ? '地点、营业时间和路线都还没人实地确认。出发前看一眼标黄的地方；去过的人打卡后，这里会显示评分。'
-            : `${trust.sampleProgressText || '多几个人打卡后会显示评分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
-        </p>
+      <section aria-label="路线可信度" className="mt-6 lg:mt-7">
+        <details className="group rounded-card border border-line bg-canvas/80 px-3.5 py-1 text-meta leading-snug text-ink-2 sm:px-4">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+            <span>{trial ? 'AI 草稿 · 出发前请确认' : '暂无评分 · 走过的人打卡后显示'}</span>
+            <span className="shrink-0 text-meta font-semibold text-muted group-open:hidden">展开说明</span>
+            <span className="hidden shrink-0 text-meta font-semibold text-muted group-open:inline">收起</span>
+          </summary>
+          <div className="pb-2.5 text-meta leading-relaxed text-ink-2">
+            <p>
+              {trial
+                ? '地点、营业时间和路线都还没人实地确认。出发前看一眼标黄的地方；去过的人打卡后，这里会显示评分。'
+                : `还没人走过 · 暂无评分。${trust.sampleProgressText || '多几个人打卡后会显示评分'}。纠错 ${corrections} 条${Number.isInteger(version) && corrections ? ` · 已合并进 v${version}` : ''}。`}
+            </p>
+          </div>
+        </details>
         {isUnverifiedCity(routebook.city) && (
-          <p className="mt-1.5 text-meta font-bold text-ink" data-testid="unverified-city">
+          <p className="mt-2 rounded-tile bg-lemon-soft px-3 py-2 text-meta font-bold text-lemon-ink" data-testid="unverified-city">
             {UNVERIFIED_CITY_NOTE}
           </p>
         )}
-      </div>
+      </section>
     );
   }
 

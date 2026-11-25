@@ -6,6 +6,7 @@ import { Notice } from '../ui/notice';
 import { cn } from '../ui/cn';
 import { useAccount } from './AccountProvider';
 import { changePassword, confirmChangeEmail, deleteAccount, exportAccount, regenerateRecoveryCodes, sendChangeEmailCode } from '../../lib/accountApi';
+import { clearLocalProfileData } from '../../lib/profileData';
 import { EmailCodeField } from './LoginSheet';
 import { authErrorCopy, isEmail, PASSWORD_HINT } from '../../lib/accountCopy';
 
@@ -165,11 +166,14 @@ function SignedIn({ account }) {
         <PasswordPanel
           submitLabel="注销并删除"
           danger
+          confirmPhrase="注销"
           note="会删除账号、路书、行程、打卡和照片，不能撤销。已经分享出去、被别人保存的副本不在删除范围内。"
           onSubmit={async (current) => {
+            const deletedProfileId = account?.profileId;
             await deleteAccount(current);
+            if (deletedProfileId) clearLocalProfileData(deletedProfileId);
             setPanel('');
-            await logout().catch(() => {});
+            await logout({ accountDeleted: true });
           }}
         />
       )}
@@ -180,14 +184,18 @@ function SignedIn({ account }) {
   );
 }
 
-function PasswordPanel({ submitLabel, note, withNew = false, danger = false, onSubmit }) {
+function PasswordPanel({ submitLabel, note, withNew = false, danger = false, confirmPhrase = '', onSubmit }) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
+  const [confirmText, setConfirmText] = useState('');
   const [state, setState] = useState({ busy: false, error: '' });
   const currentId = useId();
   const nextId = useId();
+  const confirmId = useId();
+  const phraseUnmet = Boolean(confirmPhrase && confirmText.trim() !== confirmPhrase);
   const submit = async (event) => {
     event.preventDefault();
+    if (phraseUnmet) return;
     setState({ busy: true, error: '' });
     try {
       await onSubmit(current, next);
@@ -229,12 +237,33 @@ function PasswordPanel({ submitLabel, note, withNew = false, danger = false, onS
           </span>
         </>
       )}
+      {confirmPhrase && (
+        <>
+          <label htmlFor={confirmId} className="text-sm font-bold text-ink-2">
+            输入「{confirmPhrase}」确认删除
+          </label>
+          <input
+            id={confirmId}
+            className={inputClass}
+            autoComplete="off"
+            placeholder={confirmPhrase}
+            value={confirmText}
+            onChange={(event) => setConfirmText(event.target.value)}
+          />
+        </>
+      )}
       {state.error && (
         <Notice tone="danger" role="alert">
           {state.error}
         </Notice>
       )}
-      <Button type="submit" size="sm" variant={danger ? 'danger' : 'dark'} className={cn('justify-self-start')} disabled={state.busy || !current}>
+      <Button
+        type="submit"
+        size="sm"
+        variant={danger ? 'danger' : 'dark'}
+        className={cn('justify-self-start')}
+        disabled={state.busy || !current || phraseUnmet}
+      >
         {submitLabel}
       </Button>
     </form>

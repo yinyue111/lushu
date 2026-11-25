@@ -20,6 +20,8 @@ export function GenerationProgress({
   failure,
   city,
   duration,
+  travelDate = '',
+  candidatePlaces = [],
   mode = '',
   cancelling,
   cancelError,
@@ -30,6 +32,10 @@ export function GenerationProgress({
   onBackToPrefs
 }) {
   const modeLabel = generationModeLabel(mode);
+  const selectedPlaceNames = (Array.isArray(candidatePlaces) ? candidatePlaces : [])
+    .filter((p) => p?.included && p?.name)
+    .map((p) => p.name)
+    .slice(0, 6);
   const running = outcome === 'running' || outcome === 'starting';
   const now = useTicker(running);
   const elapsedMs = job ? job.elapsedMs + (running ? Math.max(0, now - (job.receivedAt ?? now)) : 0) : 0;
@@ -89,12 +95,24 @@ export function GenerationProgress({
         </h1>
         <p className="mt-1 text-sm text-muted">
           {city} · {duration}
+          {travelDate ? ` · ${travelDate} 出发` : ''}
           {modeLabel ? ` · ${modeLabel}` : ''}
         </p>
       </div>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
+
+      {running && (selectedPlaceNames.length > 0 || travelDate) && (
+        <div className="mt-4 rounded-card border border-line bg-canvas/70 px-3.5 py-2.5 text-xs text-ink-2" data-testid="generation-concierge-preview">
+          <p className="font-bold text-ink">正在替你同步核对：</p>
+          <p className="mt-1 leading-relaxed text-muted">
+            {selectedPlaceNames.length > 0 && `重点排入「${selectedPlaceNames.join('、')}」 · `}
+            {travelDate ? `按 ${travelDate} 检查闭馆与预约放票 · ` : '提取开放时间与预约提醒 · '}
+            测算相邻片区顺路车程
+          </p>
+        </div>
+      )}
 
       {(running || outcome === 'succeeded') && (
         <div className="mt-5 rounded-card border border-line bg-white p-4 shadow-card">

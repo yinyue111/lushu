@@ -2,22 +2,22 @@ import { trackRouteOpen } from '../../lib/betaTelemetry.js';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, CloudUpload, List, Map as MapIcon, Navigation } from 'lucide-react';
 import { recordProductExposure } from '../../lib/productTelemetry';
-import { isNavigableCoordinate } from '../../lib/coordinates';
+import { amapNameSearchUrl, isNavigableCoordinate } from '../../lib/coordinates';
 import EnrichmentStatus from './EnrichmentStatus';
-import { DayConfirmSummary, useConfirmAcks } from './ConfirmChecklist';
-import { confirmItemsForStop } from '../../lib/confirmChecklist';
+import { PreTripConciergeCard, useConfirmAcks } from './ConfirmChecklist';
+import { collectRouteConfirmEntries } from '../../lib/confirmChecklist';
+import { summarizeCompanionResponses } from '../../lib/companionFeedback';
 import { getProfile } from '../../lib/profile';
 import { getStoredFavorites } from '../../lib/storage';
 import { productsForRoutebook, useProductCards } from '../../lib/products';
-import { getRouteTrustPresentation } from '../../lib/trust';
-import { trustedCities } from '../../lib/content';
+import { getRouteTrustPresentation, getStopTrustBadge } from '../../lib/trust';
+import { curatedRoutes, trustedCities } from '../../lib/content';
 import { Button } from '../ui/button';
 import { roadbookDocumentTitle, useDocumentTitle } from '../../lib/useDocumentTitle.js';
 import { cn } from '../ui/cn';
 import { Toast } from '../ui/toast';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { dayNumber, dayTheme } from '../visual/theme';
-import RouteMap from './RouteMap';
 import { roadSummary } from '../../lib/routeRoads';
 import RouteHero, { MoreMenu } from './RouteHero';
 import RouteStats from './RouteStats';
@@ -25,8 +25,7 @@ import DayStrip from './DayStrip';
 import StopList, { MiniStopCard } from './StopList';
 import { EditToolbar, RoutePreflight, RouteProducts } from './RoutePreflight';
 import TrustExplanation from './TrustExplanation';
-import RecheckBar from './RecheckBar';
-import { buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
+import { adoptNewerServerVersionScalars, buildRouteTrustState, canEditRoutebook, createDraftStop, stopKey } from './routebookModel';
 import { useRoutebookActions } from './useRoutebookActions';
 import { useRoutebookEnrichment } from '../../lib/useRoutebookEnrichment';
 import OfflineBanner from './OfflineBanner';
@@ -36,17 +35,21 @@ import PatchProposalDialog from './PatchProposalDialog';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { DayActionsMenu } from './DayActionsMenu';
 
-// Overlays only load on demand so they stay off the route page's critical path.
+// Overlays and Leaflet map load on demand so mobile list mode stays off Leaflet's critical path.
+const RouteMap = lazy(() => import('./RouteMap'));
 const SharePreview = lazy(() => import('./SharePreview'));
+const PrintItineraryDialog = lazy(() => import('./PrintItineraryDialog'));
 const PoiDetail = lazy(() => import('./PoiDetail'));
 const StopEditor = lazy(() => import('./StopEditor'));
 
-export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onStartTrip, onBack }) {
+/** @param {Record<string, any>} props */
+export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onRegenerate = undefined, onStartTrip, onBack }) {
   const profile = useMemo(() => getProfile(), []);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [activeDay, setActiveDay] = useState(routebook.days?.[0] ?? 'Day 1');
   const [selectedId, setSelectedId] = useState(null);
   const [showShare, setShowShare] = useState(false);
+  const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [poiDetailStop, setPoiDetailStop] = useState(null);
   const [editingStop, setEditingStop] = useState(null);
   const [replacingStop, setReplacingStop] = useState(null);
@@ -58,17 +61,43 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const routeId = routebook.publicId || routebook.id;
   const [liked, setLiked] = useState(() => Boolean(routeId) && getStoredFavorites(profile.id).some((item) => item?.routeId === routeId));
   const exposureRef = useRef(new Set());
+  const dayHeadingRef = useRef(/** @type {HTMLHeadingElement | null} */ (null));
   const productCards = useProductCards();
 
   const stops = useMemo(() => routebook.stops ?? [], [routebook.stops]);
   const enrichment = useRoutebookEnrichment(routebook);
-  const { acks: confirmAcks, toggle: toggleConfirm } = useConfirmAcks(routebook?.publicId || routebook?.id || '');
   const days = useMemo(() => (routebook.days?.length ? routebook.days : ['Day 1']), [routebook.days]);
   const routeProducts = useMemo(() => productsForRoutebook(productCards, routebook, 4), [routebook, productCards]);
   const trust = getRouteTrustPresentation(routebook);
   const canEdit = canEditRoutebook(routebook, profile.id);
   const isOwner = routebook.profileId === profile.id || routebook.creator?.id === profile.id;
+  const isCuratedTemplate = useMemo(() => curatedRoutes.some((r) => r.id === routeId), [routeId]);
+  const canSyncConfirm = Boolean(isOwner && routeId && !isCuratedTemplate);
+  const { acks: confirmAcks, toggle: toggleConfirm } = useConfirmAcks(routeId || '', {
+    serverAcks: routebook?.confirmAcks,
+    canSync: canSyncConfirm,
+    syncPayload: { profileId: profile.id, editToken: routebook?.editToken },
+    onLocalChange: (nextList) => {
+      if (routebook) routebook.confirmAcks = nextList;
+    },
+    onSynced: (res) => {
+      if (Array.isArray(res?.confirmAcks) && routebook) routebook.confirmAcks = res.confirmAcks;
+      if (res?.version != null) adoptNewerServerVersionScalars(routebook, res);
+    }
+  });
   const trustState = buildRouteTrustState(trust, trustedCities.includes(routebook.city));
+  const routeTransport = routebook?.transport || routebook?.constraints?.transport || '';
+  const verifiedStopCount = useMemo(
+    () =>
+      stops.filter(
+        (stop) =>
+          getStopTrustBadge(stop, trustState.tone)?.verified ||
+          stop?.provenance?.reviewedPoi === true ||
+          Number(stop?.provenance?.verifiedFactCount) > 0 ||
+          enrichment.claimsFor(stop).length > 0
+      ).length,
+    [stops, trustState.tone, enrichment]
+  );
 
   const dayEntries = useMemo(
     () =>
@@ -93,14 +122,9 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const activeEntry = dayEntries.find((entry) => entry.day === activeDay) ?? dayEntries[0];
   const dayStops = useMemo(() => activeEntry?.stops ?? [], [activeEntry]);
   const confirm = useMemo(() => ({ city: routebook?.city || '', acks: confirmAcks, toggle: toggleConfirm }), [routebook?.city, confirmAcks, toggleConfirm]);
-  const dayConfirmEntries = useMemo(
-    () =>
-      dayStops.flatMap((stop) => {
-        const claims = enrichment.claimsFor(stop);
-        const checked = { price: claims.some((c) => c.field === 'price'), hours: claims.some((c) => c.field === 'hours') };
-        return confirmItemsForStop(stop, { city: confirm.city, checked }).map((item) => ({ item, stopName: stop.name }));
-      }),
-    [dayStops, enrichment, confirm.city]
+  const routeConfirmEntries = useMemo(
+    () => collectRouteConfirmEntries(routebook, { claimsForStop: (stop) => enrichment.claimsFor(stop) }),
+    [routebook, enrichment]
   );
 
   const actions = useRoutebookActions({
@@ -128,9 +152,28 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   const dismissDeleted = useCallback(() => setDeletedStop(null), []);
   const removeStopWithUndo = (stopId) => {
     const stop = stops.find((item) => stopKey(item.id) === stopKey(stopId));
+    const willDelete = Boolean(stop && stops.length - 1 >= 2);
+    const dayIdx = willDelete ? dayStops.findIndex((item) => stopKey(item.id) === stopKey(stopId)) : -1;
+    const nextTargetStop = dayIdx >= 0 ? (dayStops[dayIdx + 1] ?? dayStops[dayIdx - 1] ?? null) : null;
     actions.removeStop(stopId);
     // removeStop refuses to go below 2 stops; only offer undo when something was actually removed.
-    if (stop && stops.length - 1 >= 2) setDeletedStop({ id: stop.id, name: stop.name || '这一站' });
+    if (willDelete) {
+      setDeletedStop({ id: stop.id, name: stop.name || '这一站' });
+      const focusAfterDelete = () => {
+        if (nextTargetStop) {
+          const card = document.querySelector(`[data-stop-card="${CSS.escape(String(nextTargetStop.id))}"]`);
+          const candidates = card ? Array.from(card.querySelectorAll('h3 button, button:not([disabled]), a[href]')) : [];
+          const focusable = /** @type {HTMLElement|null} */ (candidates.find((el) => el.getClientRects().length > 0) ?? null);
+          if (focusable) {
+            focusable.focus();
+            return;
+          }
+        }
+        dayHeadingRef.current?.focus?.();
+      };
+      window.requestAnimationFrame(focusAfterDelete);
+      window.setTimeout(focusAfterDelete, 50);
+    }
   };
   const undoDeletedStop = () => {
     const target = deletedStop;
@@ -139,7 +182,8 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     // Return focus to where the deleted stop was: its restored card's first control.
     window.setTimeout(() => {
       const card = target && document.querySelector(`[data-stop-card="${CSS.escape(String(target.id))}"]`);
-      const focusable = /** @type {HTMLElement|null} */ (card?.querySelector('button, a[href]') ?? null);
+      const candidates = card ? Array.from(card.querySelectorAll('h3 button, button:not([disabled]), a[href]')) : [];
+      const focusable = /** @type {HTMLElement|null} */ (candidates.find((el) => el.getClientRects().length > 0) ?? null);
       (focusable || /** @type {HTMLElement|null} */ (card))?.focus?.();
     }, 60);
   };
@@ -218,14 +262,40 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
     setLiked(true);
     actions.favoriteRoute();
   }, [actions]);
-  const heroActions = useMemo(() => ({ ...actions, favoriteRoute: favorite }), [actions, favorite]);
+  const heroActions = useMemo(() => ({ ...actions, favoriteRoute: favorite, openPrintSheet: () => setShowPrintSheet(true) }), [actions, favorite]);
+
+  const navigateToStop = useCallback(
+    (stop) => {
+      if (!stop) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setShareState('需要网络：联网后才能打开高德地图');
+        return;
+      }
+      if (!isNavigableCoordinate(stop)) {
+        window.open(amapNameSearchUrl(stop, routebook.city), '_blank', 'noopener,noreferrer');
+        return;
+      }
+      window.open(
+        `https://uri.amap.com/marker?position=${Number(stop.lng)},${Number(stop.lat)}&name=${encodeURIComponent(stop.name)}&src=trusted-routebook&coordinate=wgs84&callnative=1`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+    },
+    [routebook.city, setShareState]
+  );
 
   const handlers = {
     select: setSelectedId,
+    openCard: (stop) => {
+      setSelectedId(stop.id);
+      if (!isDesktop) setPoiDetailStop(stop);
+    },
+    navigateStop: navigateToStop,
     detail: setPoiDetailStop,
     edit: (stop) => setEditingStop({ stop, isNew: false }),
     replace: (stop) => setReplacingStop(stop),
     moveStop: actions.moveStop,
+    shiftDayTimesFrom: actions.shiftDayTimesFrom,
     removeStop: removeStopWithUndo,
     moveStopBefore: actions.moveStopBefore,
     moveStopToDayEnd: actions.moveStopToDayEnd,
@@ -235,6 +305,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
   };
 
   const customize = () => onCustomize(routebook);
+  const regenerate = onRegenerate ? () => onRegenerate(routebook) : customize;
   const openShare = () => setShowShare(true);
 
   return (
@@ -266,6 +337,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         routebook={routebook}
         dayCount={days.length}
         stopCount={stops.length}
+        verifiedStopCount={verifiedStopCount}
         trustState={trustState}
         isOwner={isOwner}
         liked={liked}
@@ -275,12 +347,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         onBack={onBack}
         onStartTrip={onStartTrip}
         onCustomize={customize}
+        onRegenerate={regenerate}
         onShare={openShare}
       />
 
       <div className="mx-auto max-w-[1376px] items-start lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] lg:gap-8 lg:px-8 lg:pt-7 lg:pb-20">
         <div className="relative z-[3] -mt-[26px] min-w-0 rounded-t-[26px] bg-white px-4 pt-[18px] pb-10 lg:mt-0 lg:rounded-none lg:p-0">
-          <RouteStats routebook={routebook} trust={trust} trustState={trustState} />
+          {trustState.tone === 'verified' && <RouteStats routebook={routebook} trust={trust} trustState={trustState} />}
 
           {canEdit && (
             <EditToolbar
@@ -302,19 +375,109 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               onTransportPref={actions.applyTransportPreference}
             />
           )}
-          {canEdit && (routebook.publishStatus || 'draft') === 'draft' && (
-            <RecheckBar routebook={routebook} recheckState={actions.recheckState} onRecheck={() => actions.recheckRoute()} />
-          )}
+          <PreTripConciergeCard
+            routebook={routebook}
+            claimsForStop={(stop) => enrichment.claimsFor(stop)}
+            verifiedStopCount={verifiedStopCount}
+            canEdit={canEdit}
+            recheckState={actions.recheckState}
+            onRecheck={() => actions.recheckRoute()}
+            onSelectDate={actions.setTravelDate}
+            onSwapDays={actions.swapWholeDays}
+            onSaveReminder={actions.saveTripReminder}
+            onSendEmailReminder={actions.sendEmailReminder}
+            onApplyMode={actions.applyModeReorder}
+            entries={routeConfirmEntries}
+            acks={confirmAcks}
+            onToggleAck={toggleConfirm}
+            multiDay={days.length > 1}
+            canSync={canSyncConfirm}
+          />
+
+          {canEdit &&
+            Array.isArray(routebook?.companions) &&
+            routebook.companions.length > 0 &&
+            (() => {
+              const comp = summarizeCompanionResponses(routebook, routebook.companions, routeConfirmEntries);
+              if (!comp.memberCount) return null;
+              return (
+                <section
+                  data-testid="owner-companion-card"
+                  aria-label="同行伙伴表态汇总"
+                  className="mt-3 rounded-card border border-line bg-sky-soft/50 px-3.5 py-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong className="font-extrabold text-ink">同行伙伴表态 · {comp.memberNames.join('、')}</strong>
+                    <span className="text-xs font-semibold text-sky-ink">{comp.memberCount} 人已认领</span>
+                  </div>
+                  {comp.claimedSummary.length > 0 && (
+                    <p className="mt-1.5 text-xs text-ink-2">
+                      分工认领：{comp.claimedSummary.map((c) => `${c.owners.join('、')}办「${c.stopName}${c.label}」`).join('；')}
+                    </p>
+                  )}
+                  {comp.skipSuggestions.length > 0 ? (
+                    <ul className="mt-2 grid gap-1.5">
+                      {comp.skipSuggestions.map((row) => (
+                        <li
+                          key={row.key}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-tile border border-line bg-white px-3 py-2 text-xs"
+                        >
+                          <span className="font-semibold text-ink-2">
+                            「<b className="text-ink">{row.stop.name}</b>」：{row.skipNames.join('、')}选了先不去
+                            {row.want > 0 ? `（另有 ${row.want} 人想去）` : ''}
+                          </span>
+                          <span className="flex flex-wrap gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setReplacingStop(row.stop)} data-testid="companion-replace-stop-btn">
+                              换附近替代点
+                            </Button>
+                            <Button size="sm" variant="dark" onClick={() => removeStopWithUndo(row.stop.id)} data-testid="companion-remove-stop-btn">
+                              移出这站
+                            </Button>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted">大家对当前站点没有提出跳过意见，可放心按此动线出发。</p>
+                  )}
+                </section>
+              );
+            })()}
 
           <DayStrip city={routebook.city} dayEntries={dayEntries} activeDay={activeEntry?.day} onSelectDay={selectDay} />
 
-          <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 lg:mt-7">
+          <div className="sticky top-0 z-30 -mx-4 mt-4 mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-line bg-white/95 px-4 py-2 backdrop-blur lg:relative lg:mx-0 lg:mt-7 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
             {/* V-U30: one level under 「每天怎么玩」. */}
-            <h3 className="text-lg font-extrabold tracking-tight lg:text-xl">
+            <h3
+              ref={dayHeadingRef}
+              tabIndex={-1}
+              className="text-lg font-extrabold tracking-tight outline-none focus-visible:outline-2 focus-visible:outline-sky lg:text-xl"
+            >
               第 {activeEntry?.number} 天 · {activeEntry?.label}
             </h3>
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="text-meta text-muted lg:text-copy">{activeEntry?.summary}</span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              {dayEntries.length > 1 && (
+                <span className="flex items-center gap-1 lg:hidden" role="group" aria-label="快捷切天">
+                  {dayEntries.map((entry) => {
+                    const active = entry.day === activeEntry?.day;
+                    return (
+                      <button
+                        key={entry.day}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => selectDay(entry.day)}
+                        className={cn(
+                          'num inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-2.5 text-xs font-extrabold',
+                          active ? 'bg-ink text-white' : 'bg-canvas text-ink-2'
+                        )}
+                      >
+                        第{entry.number}天
+                      </button>
+                    );
+                  })}
+                </span>
+              )}
+              <span className="hidden text-meta text-muted sm:inline lg:text-copy">{activeEntry?.summary}</span>
               {canEdit && days.length > 1 && (
                 <DayActionsMenu
                   dayNumber={activeEntry?.number || 1}
@@ -325,13 +488,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             </span>
           </div>
           <EnrichmentStatus enrichment={enrichment} />
-          <DayConfirmSummary entries={dayConfirmEntries} acks={confirmAcks} onToggle={toggleConfirm} />
           {dayStops.length ? (
             <StopList
               enrichment={enrichment}
               confirm={confirm}
               stops={dayStops}
               routeLegs={routebook.routeLegs}
+              transport={routeTransport}
               theme={activeEntry.theme}
               selectedId={selectedId}
               routeTrustTone={trustState.tone}
@@ -344,6 +507,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             <p className="rounded-card bg-canvas p-6 text-center text-muted">这一天还没有安排站点。</p>
           )}
 
+          {trustState.tone !== 'verified' && <RouteStats routebook={routebook} trust={trust} trustState={trustState} />}
           <RoutePreflight routebook={routebook} />
           <RouteProducts products={routeProducts} onClick={actions.recordProductClick} onVisible={recordProductVisible} />
 
@@ -353,16 +517,18 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         {(isDesktop || mapMode) && (
           <aside className={cn(mapMode ? 'fixed inset-0 z-[1100]' : 'sticky top-[84px] h-[calc(100dvh-104px)] min-h-[520px]')} aria-label="地图">
             <div className={cn('relative isolate h-full overflow-hidden bg-[#dfeaf2]', !mapMode && 'rounded-panel shadow-pop')}>
-              <RouteMap
-                city={routebook.city}
-                routeLegs={routebook.routeLegs}
-                days={dayEntries}
-                activeDay={activeEntry?.day}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onTileStatus={setTileWarning}
-                fitPadding={mapMode ? { topLeft: [30, 80], bottomRight: [30, 300] } : { topLeft: [40, 70], bottomRight: [40, 70] }}
-              />
+              <Suspense fallback={<div className="grid h-full place-items-center text-sm text-muted">地图加载中…</div>}>
+                <RouteMap
+                  city={routebook.city}
+                  routeLegs={routebook.routeLegs}
+                  days={dayEntries}
+                  activeDay={activeEntry?.day}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onTileStatus={setTileWarning}
+                  fitPadding={mapMode ? { topLeft: [30, 80], bottomRight: [30, 300] } : { topLeft: [40, 70], bottomRight: [40, 70] }}
+                />
+              </Suspense>
               <div
                 className={cn(
                   'no-scrollbar absolute top-3.5 right-3.5 z-[600] flex gap-2 overflow-x-auto',
@@ -378,7 +544,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                       aria-pressed={pressed}
                       onClick={() => selectDay(entry.day)}
                       className={cn(
-                        'inline-flex h-[38px] shrink-0 items-center gap-2 rounded-full pr-3.5 pl-1.5 text-sm font-bold whitespace-nowrap shadow-pop',
+                        'inline-flex h-11 shrink-0 items-center gap-2 rounded-full pr-3.5 pl-1.5 text-sm font-bold whitespace-nowrap shadow-pop sm:h-[38px]',
                         pressed ? 'bg-ink text-white' : 'bg-white text-ink'
                       )}
                     >
@@ -496,9 +662,10 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               </Button>
             )}
             <MoreMenu
-              actions={actions}
+              actions={heroActions}
               onShare={openShare}
               onCustomize={customize}
+              onRegenerate={regenerate}
               canEdit={canEdit}
               triggerClassName="h-[50px] w-auto flex-col gap-0 bg-canvas px-3 text-xs shadow-none [&_svg]:size-[18px]"
               triggerLabel="更多"
@@ -534,6 +701,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       {showAdjustChat && (
         <AdjustChatSheet
           routebook={routebook}
+          activeDay={activeEntry?.day || activeDay}
           onClose={() => setShowAdjustChat(false)}
           handlers={{
             ...actions,
@@ -541,7 +709,15 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               const stop = stops.find((s) => s.name === name);
               if (stop) setReplacingStop({ ...stop, _query: query });
             },
-            onCustomize: customize
+            removeStopByName: (name) => {
+              const stop = stops.find((s) => s.name === name);
+              if (stop) actions.removeStop(stop.id);
+            },
+            moveStopToDayByName: (name, targetDay) => {
+              const stop = stops.find((s) => s.name === name);
+              if (stop && targetDay) actions.moveStopToDayEnd(stop.id, targetDay);
+            },
+            onCustomize: regenerate
           }}
         />
       )}
@@ -560,11 +736,24 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
         }
         confirmLabel={dayAction?.type === 'merge' ? '合并' : '删除'}
         danger={dayAction?.type === 'delete'}
+        {
+          /** @type {any} */ ...{ fallbackFocus: dayHeadingRef }
+        }
         onCancel={() => setDayAction(null)}
         onConfirm={() => {
+          const willCollapseMenu = days.length <= 2;
           if (dayAction?.type === 'delete') actions.deleteDay(dayAction.day);
           if (dayAction?.type === 'merge') actions.mergeDayInto(dayAction.fromDay, dayAction.toDay);
           setDayAction(null);
+          if (willCollapseMenu) {
+            const ensureFocus = () => {
+              if (!document.activeElement || document.activeElement === document.body) {
+                dayHeadingRef.current?.focus?.();
+              }
+            };
+            window.requestAnimationFrame(ensureFocus);
+            window.setTimeout(ensureFocus, 50);
+          }
         }}
       />
       <Toast message={shareState} onDismiss={dismissToast} className="bottom-[calc(150px+env(safe-area-inset-bottom))] lg:bottom-8" />
@@ -578,8 +767,14 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
 
       <Suspense fallback={null}>
         {showShare && (
-          <SharePreview routebook={routebook} onClose={() => setShowShare(false)} onShared={actions.handleShared} onConflictDraftSaved={() => onSaved?.()} />
+          <SharePreview
+            routebook={{ ...routebook, confirmAcks: [...confirmAcks] }}
+            onClose={() => setShowShare(false)}
+            onShared={actions.handleShared}
+            onConflictDraftSaved={() => onSaved?.()}
+          />
         )}
+        {showPrintSheet && <PrintItineraryDialog routebook={routebook} onClose={() => setShowPrintSheet(false)} />}
         {poiDetailStop && <PoiDetail stop={poiDetailStop} routebook={routebook} onClose={() => setPoiDetailStop(null)} />}
         {editingStop && (
           <StopEditor

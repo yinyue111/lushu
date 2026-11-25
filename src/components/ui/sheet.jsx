@@ -1,3 +1,5 @@
+import { useOverlayBackClose } from '../../lib/overlayHistory';
+import { useRestoreFocus } from '../../lib/useRestoreFocus';
 import { Dialog, DialogContent } from './dialog';
 import { Drawer, DrawerContent } from './drawer';
 import { useMediaQuery } from './useMediaQuery';
@@ -7,8 +9,11 @@ import { useMediaQuery } from './useMediaQuery';
  * Always mounted "open"; the caller unmounts it to close.
  * @param {Record<string, any>} props
  */
-export function Sheet({ title, description, onClose, children, className, wide = false, hideClose = false, preventDismiss = false }) {
+export function Sheet({ title, description, onClose, children, className, wide = false, hideClose = false, preventDismiss = false, fallbackFocus }) {
+  useRestoreFocus(fallbackFocus);
+  useOverlayBackClose(true, onClose, { disabled: preventDismiss });
   const desktop = useMediaQuery('(min-width: 768px)');
+  const shouldHideClose = hideClose || preventDismiss;
   const onOpenChange = (open) => {
     if (!open) {
       if (preventDismiss) return;
@@ -21,7 +26,8 @@ export function Sheet({ title, description, onClose, children, className, wide =
         <DialogContent
           title={title}
           description={description}
-          hideClose={hideClose || preventDismiss}
+          hideClose={shouldHideClose}
+          fallbackFocus={fallbackFocus}
           className={[wide ? 'w-[min(720px,calc(100vw-32px))]' : '', className].filter(Boolean).join(' ')}
           onPointerDownOutside={preventDismiss ? (e) => e.preventDefault() : undefined}
           onEscapeKeyDown={preventDismiss ? (e) => e.preventDefault() : undefined}
@@ -33,7 +39,7 @@ export function Sheet({ title, description, onClose, children, className, wide =
   }
   return (
     <Drawer open onOpenChange={onOpenChange} dismissible={!preventDismiss}>
-      <DrawerContent title={title} description={description} className={className}>
+      <DrawerContent title={title} description={description} hideClose={shouldHideClose} fallbackFocus={fallbackFocus} className={className}>
         {children}
       </DrawerContent>
     </Drawer>

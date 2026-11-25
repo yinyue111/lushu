@@ -2,6 +2,17 @@ import { adminGet } from '../api';
 import { COST_ESTIMATE_BIAS_HINT, formatCostHeadline, formatCostUnknownNote } from '../costDisplay.js';
 import { Button, Card, Notice, Page, formatTime, percent, usd, useLoad } from '../ui';
 
+const JOURNEY_LABELS = [
+  ['time_window_set', '设首末日时间窗'],
+  ['ai_adjust_apply', '重排或AI微调'],
+  ['companion_submit', '同行投票/共记'],
+  ['trip_start', '进入行中执行'],
+  ['checkin_submit', '提交行中打卡'],
+  ['expense_add', '记录AA账单'],
+  ['review_export', '导出游记长图/卡片'],
+  ['itinerary_print', '导出打印单/日历']
+];
+
 export default function DashboardPage() {
   const { data, error, loading, reload } = useLoad(() => adminGet('/dashboard'));
   const d = data;
@@ -63,6 +74,23 @@ export default function DashboardPage() {
             </p>
           </Card>
         </div>
+      )}
+      {d?.journeyFunnel && (
+        <Card title="近 7 天核心动作触达（行前 → 行中 → 行后）">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {JOURNEY_LABELS.map(([key, label]) => {
+              const item = d.journeyFunnel[key] || { people: 0, count: 0 };
+              return (
+                <div key={key} className="rounded bg-canvas p-2.5">
+                  <dt className="text-xs text-muted">{label}</dt>
+                  <dd className="mt-0.5 text-lg font-semibold">
+                    {item.count} 次 <span className="text-xs font-normal text-muted">（{item.people} 人）</span>
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </Card>
       )}
       {d?.generatedAt && <p className="text-xs text-muted">统计于 {formatTime(d.generatedAt)}</p>}
     </Page>

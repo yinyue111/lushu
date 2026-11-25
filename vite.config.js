@@ -2,12 +2,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { pwaPrecachePlugin } from './scripts/pwa-precache-plugin.mjs';
+import { publicBaseUrlHtmlPlugin } from './scripts/lib/public-base-url.mjs';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), pwaPrecachePlugin()],
+  plugins: [react(), tailwindcss(), publicBaseUrlHtmlPlugin(), pwaPrecachePlugin()],
   // 生产构建生成 hidden source map（JS 里不留 sourceMappingURL）；构建后由 scripts/move-sourcemaps.mjs
   // 挪到 dist-sourcemaps/（不在静态目录里，外网拿不到），只给服务端/运营用 scripts/symbolicate.mjs 还原报错栈。
-  build: { sourcemap: 'hidden' },
+  build: {
+    sourcemap: 'hidden',
+    rollupOptions: {
+      output: {
+        chunkFileNames: (info) => (info.name === 'index' ? 'assets/vendor-[hash].js' : 'assets/[name]-[hash].js')
+      }
+    }
+  },
   server: {
     host: '127.0.0.1',
     port: 5174,

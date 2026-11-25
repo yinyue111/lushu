@@ -3,6 +3,7 @@ import { decodeHtmlEntities } from './html-text.mjs';
 import { MAX_IMPORT_URLS, MAX_IMPORT_PAGE_BYTES, IMPORT_TIMEOUT_MS } from '../config/index.mjs';
 import { clampNumber, createHttpError } from '../lib/util.mjs';
 import { assertPublicHttpResponseUrl, fetchPublicPageResponse, getResponseHeader, assertPublicHttpUrl } from './ssrf.mjs';
+import { extractCleanUrls } from '../../src/lib/shareCommand.js';
 
 const SOURCE_PLATFORMS = [
   {
@@ -29,8 +30,7 @@ const SOURCE_PLATFORMS = [
 ];
 
 export function extractUrls(text) {
-  const matches = String(text ?? '').match(/https?:\/\/[^\s"'<>，。；、)）]+/gi) ?? [];
-  return [...new Set(matches.map((url) => url.replace(/[.,;!?]+$/, '')))].slice(0, MAX_IMPORT_URLS);
+  return extractCleanUrls(text, MAX_IMPORT_URLS);
 }
 
 export function detectPlatform(url) {

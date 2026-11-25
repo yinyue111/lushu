@@ -9,17 +9,7 @@ import { cn } from '../ui/cn';
  * authorization (server policy IMPORTED_ROUTEBOOK_PUBLIC_POLICY); this explains why.
  * @param {Record<string, any>} props
  */
-export default function ShareVisibility({
-  routebook,
-  publication,
-  shareUrl,
-  friendUrl,
-  busy,
-  onCreateFriendLink,
-  onCopyFriendLink,
-  onRevokeFriendLink,
-  onClaimAuthorship
-}) {
+export default function ShareVisibility({ routebook, publication, shareUrl, friendUrl, busy, onCopyFriendLink, onRevokeFriendLink, onClaimAuthorship }) {
   const headingId = useId();
   const claimId = useId();
   const [claimConfirmed, setClaimConfirmed] = useState(false);
@@ -44,23 +34,21 @@ export default function ShareVisibility({
         </Option>
         <Option icon={Link2} title="朋友链接" active={current === 'friend'} badge="不公开">
           <span className="block">只有拿到链接的人能打开；不会出现在公开列表，也不会被搜索引擎收录。随时可以停用。</span>
-          {friendUrl && <span className="mt-2 block rounded-tile bg-canvas px-2.5 py-1.5 font-mono text-xs break-all text-ink-2">{friendUrl}</span>}
-          <span className="mt-2 flex flex-wrap gap-2">
-            {friendUrl ? (
-              <>
+          {friendUrl ? (
+            <>
+              <span className="mt-2 block rounded-tile bg-canvas px-2.5 py-1.5 font-mono text-xs break-all text-ink-2">{friendUrl}</span>
+              <span className="mt-2 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={onCopyFriendLink} disabled={busy}>
                   复制朋友链接
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onRevokeFriendLink} disabled={busy}>
                   停用链接
                 </Button>
-              </>
-            ) : (
-              <Button size="sm" variant="outline" onClick={onCreateFriendLink} disabled={busy || Boolean(shareUrl)}>
-                生成朋友链接
-              </Button>
-            )}
-          </span>
+              </span>
+            </>
+          ) : (
+            <span className="mt-1 block text-xs text-muted">点底部「生成朋友链接」即可创建并复制。</span>
+          )}
         </Option>
         <Option
           icon={Globe2}

@@ -10,6 +10,7 @@ import { route } from '../http/router.mjs';
 import {
   OPERATIONAL_POI_CITY_SET,
   POI_REVIEW_STATUSES,
+  TRUSTED_DINING_CATALOG,
   buildPoiCoverageSnapshot,
   commitPoiBatch,
   findTrustedPoi,
@@ -111,6 +112,33 @@ export const poiRoutes = [
       ...(pois.length ? {} : { reason: amapFailed ? 'search-failed' : 'no-match' })
     });
   }),
+  route('GET', '/api/pois/dining', async ({ req, res, url }) => {
+    enforceRateLimit(req, 'public-read');
+    const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
+    if (!city) return sendJson(res, 200, { ok: true, city: '', pois: [] });
+    const catalog = await listMergedPois();
+    const operationalDining = catalog.filter(
+      (poi) =>
+        normalizeCityName(poi.city) === city &&
+        poi.reviewStatus !== 'rejected' &&
+        (poi.category === 'dining' || poi.category === '餐饮' || poi.facility?.type === 'food')
+    );
+    const seedDining = TRUSTED_DINING_CATALOG.filter((poi) => normalizeCityName(poi.city) === city);
+    const byId = new Map();
+    for (const poi of [...seedDining, ...operationalDining]) {
+      if (poi?.poiId) byId.set(poi.poiId, poi);
+    }
+    const pois = [...byId.values()].slice(0, 24).map((poi) => ({
+      poiId: poi.poiId,
+      name: poi.name,
+      city: poi.city,
+      area: poi.area || poi.location?.address || poi.city,
+      lat: poi.location?.lat ?? poi.lat,
+      lng: poi.location?.lng ?? poi.lng,
+      note: truncateString(poi.note, 80) || '平台已核对位置餐饮点 · 价格以门店菜单为准'
+    }));
+    return sendJson(res, 200, { ok: true, city, pois });
+  }),
   route('GET', '/api/pois/resolve', async ({ req, res, url }) => {
     enforceRateLimit(req, 'public-read');
     const city = url.searchParams.get('city') ? normalizeCityName(url.searchParams.get('city')) : '';
@@ -139,7 +167,7 @@ export const poiRoutes = [
     const reviewStatus = truncateString(url.searchParams.get('reviewStatus'), 24);
     const freshnessState = truncateString(url.searchParams.get('freshnessState'), 24);
     if (city && !OPERATIONAL_POI_CITY_SET.has(city)) {
-      throw createHttpError('运营 POI 当前只支持杭州、上海、苏州', 400, 'UNSUPPORTED_OPERATIONAL_CITY');
+      throw createHttpError('运营 POI 当前只支持杭州、上海、苏州、南京', 400, 'UNSUPPORTED_OPERATIONAL_CITY');
     }
     if (reviewStatus && !POI_REVIEW_STATUSES.has(reviewStatus)) {
       throw createHttpError('reviewStatus 只能是 pending/approved/rejected', 400, 'INVALID_POI_STATUS_FILTER');

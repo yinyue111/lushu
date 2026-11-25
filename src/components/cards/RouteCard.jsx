@@ -18,7 +18,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
   return (
     <article
       className={cn(
-        'group relative flex overflow-hidden rounded-card border border-line bg-white shadow-card transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:shadow-pop motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        'group relative flex overflow-hidden rounded-card border border-line bg-white shadow-card transition-shadow duration-200 hover:shadow-pop motion-reduce:transition-none',
         layout === 'tall' ? 'flex-col' : layout === 'feature' ? 'flex-col sm:flex-row' : 'flex-row',
         className
       )}
@@ -41,12 +41,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
         style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
       >
         {cover ? (
-          <img
-            src={smallImage(cover)}
-            alt=""
-            loading="lazy"
-            className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          />
+          <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-10 size-full object-cover" />
         ) : (
           <>
             <RouteIcon className="absolute -right-4 -bottom-4 -z-20 size-28 text-white/20" strokeWidth={1.5} aria-hidden="true" />
@@ -75,13 +70,13 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
             ))}
           </div>
         )}
-        <h3 className="line-clamp-2 text-lead leading-snug font-extrabold">
+        <h3 className="text-lead leading-snug font-extrabold">
           <button
             type="button"
             onClick={onOpen}
-            className="relative text-left transition-colors after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] hover:text-primary-strong"
+            className="inline-flex min-h-[47px] w-full items-center py-1.5 text-left transition-colors hover:text-primary-strong"
           >
-            {routebook.title || `${routebook.city} 路书`}
+            <span className="line-clamp-2">{routebook.title || `${routebook.city} 路书`}</span>
           </button>
         </h3>
         {routebook.summary && <p className="line-clamp-2 text-sm text-muted">{routebook.summary}</p>}

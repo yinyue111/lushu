@@ -5,9 +5,9 @@ import { buildLabelingKit } from '../../scripts/jev/build-labeling-kit.mjs';
 import { labelDecision, scoreLabels } from '../../scripts/jev/eval-labels.mjs';
 import { assertNoPersonalData } from '../../server/shadow/privacy.mjs';
 
-test('labeling kit: ~300 items, labels blank, no personal data, committed file is current', () => {
+test('labeling kit: ~300-400 items across 4 seed cities, labels blank, no personal data, committed file is current', () => {
   const items = buildLabelingKit();
-  assert.ok(items.length >= 280 && items.length <= 340, String(items.length));
+  assert.ok(items.length >= 280 && items.length <= 440, String(items.length));
   assert.ok(
     items.every((item) => item.label === null),
     'labels are never pre-filled'

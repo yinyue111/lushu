@@ -1,5 +1,6 @@
 // Phase-1 dashboard: exactly 3 numbers (PRD P1). Definitions are in docs/admin.md §5.
-import { AI_LOG_PATH } from '../config/index.mjs';
+import { AI_LOG_PATH, FUNNEL_LOG_PATH } from '../config/index.mjs';
+import { buildJourneyBehavior } from '../analytics/funnelEvents.mjs';
 import { currentSnapshot, getConfig } from '../config/runtime.mjs';
 import { readMatchingJsonLines } from '../storage/jsonl.mjs';
 import { enrichStore } from '../enrich/store.mjs';
@@ -96,7 +97,10 @@ export function generationCostToday(rows, now = Date.now()) {
 }
 
 export async function dashboard(now = Date.now()) {
-  const rows = await readMatchingJsonLines(AI_LOG_PATH, (row) => Date.parse(row?.createdAt ?? '') >= now - 7 * DAY, 200000, 200000);
+  const [rows, funnelRows] = await Promise.all([
+    readMatchingJsonLines(AI_LOG_PATH, (row) => Date.parse(row?.createdAt ?? '') >= now - 7 * DAY, 200000, 200000),
+    readMatchingJsonLines(FUNNEL_LOG_PATH, (row) => Date.parse(row?.createdAt ?? '') >= now - 7 * DAY, 100000, 100000).catch(() => [])
+  ]);
   const gen = generationCostToday(rows, now);
   const enrichSpend = await enrichStore()
     .getSpend(now)
@@ -109,6 +113,7 @@ export async function dashboard(now = Date.now()) {
     proxyMisconfig: proxyMisconfigMonitor().state(),
     successRate: successRate(rows, now),
     pendingRatio: await pendingRatio(now),
+    journeyFunnel: buildJourneyBehavior(funnelRows, { sinceMs: now - 7 * DAY }),
     cost: {
       ...gen,
       enrichUsd: Number(enrichSpend.usd || 0),

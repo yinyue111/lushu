@@ -9,7 +9,8 @@ import {
   positiveInteger,
   normalizeRoutebookActorType,
   createHttpError,
-  normalizeCityName
+  normalizeCityName,
+  distanceMeters
 } from '../lib/util.mjs';
 import { safeSourceUrl } from '../lib/urls.mjs';
 import {
@@ -27,10 +28,11 @@ import { findTrustedPoi, resolvePoiId } from '../poi/catalog.mjs';
 import { normalizeCoordinate } from '../geo/normalize-coordinate.mjs';
 import { curatedRoutes, curatedRouteToRoutebook } from '../../src/lib/content.js';
 import { getSavedRoutebook } from '../storage/records.mjs';
-import { normalizeStoredRouteLegs, normalizeStopTransportMode } from '../routing/provenance.mjs';
+import { normalizeStoredRouteLegs, normalizeStopTransportMode, plannedLegMode, WALKING_LEG_MAX_METERS } from '../routing/provenance.mjs';
 import { routeExecutionMetricRows, routeExecutionValidationRows, summarizeRouteExecution } from '../routing/routeExecution.mjs';
 import { importSourceId } from '../ops/source-identity.mjs';
 import { checkVisitWindow } from '../../src/lib/openingHours.js';
+import { buildTimeOfDayValidation } from '../../src/lib/timeOfDay.js';
 import { normalizeStopProvenance } from '../trust/provenance.mjs';
 import { coordinateVerificationLevel, normalizePlaceText, placeNameVariants, routeEvidenceScore } from '../../src/lib/trustSignals.js';
 import { formatCostInfo, stopCostInfo, sumStopCosts } from '../../src/lib/cost.js';
@@ -96,7 +98,7 @@ export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = [
     { label: '资料核对分', value: stopCount ? `${evidence.score}` : '—' },
     { label: '定位待复核', value: lowGeoCount ? `${lowGeoCount} 处` : '0 处' },
     { label: '预算估算', value: formatBudgetSummary(budgetSummary) },
-    { label: '编辑校验', value: '已重算' }
+    { label: '编辑核对', value: '已重算' }
   ];
   // Only system-computed metrics are kept; model-written metrics are dropped.
   void metrics;
@@ -106,6 +108,7 @@ export function buildRoutebookMetrics(stops, existingMetrics = [], routeLegs = [
 /** Metric labels the server computes itself (see buildRoutebookMetrics / mergeSourceMetrics). */
 const SYSTEM_METRIC_LABELS = new Set([
   '道路核验',
+  '道路核对',
   '路线已查',
   '道路距离',
   '道路耗时',
@@ -113,6 +116,7 @@ const SYSTEM_METRIC_LABELS = new Set([
   '定位待复核',
   '预算估算',
   '编辑校验',
+  '编辑核对',
   '导入来源',
   '来源均分'
 ]);
@@ -129,6 +133,8 @@ export const SYSTEM_VALIDATION_IDS = new Set([
   'edit-routing',
   'edit-tempo',
   'edit-detour',
+  'edit-time-of-day',
+  'edit-transport-estimate',
   'edit-budget',
   'edit-hours',
   'edit-constraints',
@@ -196,7 +202,7 @@ function mergeSourceValidations(validations, sourceSummary) {
     state,
     detail: truncateString(detail, 120)
   };
-  return [sourceValidation, ...validations.filter((item) => item.id !== 'source-trust')].slice(0, 8);
+  return [sourceValidation, ...validations.filter((item) => item.id !== 'source-trust')].slice(0, 12);
 }
 
 /**
@@ -604,6 +610,34 @@ function buildBudgetValidation(budgetSummary, constraints, stops) {
   return { id: 'edit-budget', label: '预算风险', state, detail };
 }
 
+export function buildTransportEstimateValidation(stops = [], context = {}) {
+  const transport = String(context?.constraints?.transport || context?.transport || '').trim();
+  if (/自驾|驾车|开车|driv/i.test(transport) || /打车|出租|网约车|taxi/i.test(transport)) return null;
+  const legs = Array.isArray(context?.routeLegs) ? context.routeLegs : [];
+  let usesTaxiFallback = false;
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const from = stops[index];
+    const to = stops[index + 1];
+    if ((from?.day || 'Day 1') !== (to?.day || 'Day 1')) continue;
+    const meters = distanceMeters(from, to);
+    if (meters == null || meters <= WALKING_LEG_MAX_METERS) continue;
+    const verifiedLeg = legs.find(
+      (leg) => leg?.status === 'verified' && String(leg?.fromStopId) === String(from?.id) && String(leg?.toStopId) === String(to?.id)
+    );
+    if ((verifiedLeg && verifiedLeg.mode === 'driving') || (!verifiedLeg && plannedLegMode(from, to, transport) === 'driving')) {
+      usesTaxiFallback = true;
+      break;
+    }
+  }
+  if (!usesTaxiFallback) return null;
+  return {
+    id: 'edit-transport-estimate',
+    label: '交通估算',
+    state: '待核对',
+    detail: '长距离转场暂按打车估算，坐公交地铁请出发前用导航核对换乘耗时。'
+  };
+}
+
 export function buildRoutebookValidations(stops, existingValidations = [], reason = '保存', context = {}) {
   const validations = Array.isArray(existingValidations) ? existingValidations : [];
   const groupedByDay = stops.reduce((map, stop) => {
@@ -616,8 +650,12 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
   const lowConfidence = stops.filter((stop) => coordinateVerificationLevel(stop) !== 'verified').length;
   const budget = sumStopCosts(stops);
   const execution = summarizeRouteExecution(stops, context.routeLegs);
+  const timeOfDay = buildTimeOfDayValidation(stops);
+  const transportEstimate = buildTransportEstimateValidation(stops, context);
   const calculated = [
     ...routeExecutionValidationRows(execution, { reason, crowdedDay, missingCoordinate }),
+    ...(timeOfDay ? [timeOfDay] : []),
+    ...(transportEstimate ? [transportEstimate] : []),
     buildBudgetValidation(budget, context.constraints, stops),
     buildOpeningHoursValidation(stops, context.city, context.travelDate),
     buildConstraintValidation(stops, context.constraints, context.city),
@@ -626,13 +664,13 @@ export function buildRoutebookValidations(stops, existingValidations = [], reaso
       label: '定位可信',
       state: lowConfidence ? '需复核' : '通过',
       detail: lowConfidence
-        ? `${lowConfidence} 个站点的坐标没有经过已审核 POI 或地图服务精确定位，出发前请核对位置。`
+        ? `${lowConfidence} 个站点的坐标没有经过已核对 POI 或地图服务精确定位，出发前请核对位置。`
         : '全部站点坐标来自已核对地点或地图服务精确定位。'
     }
   ];
   // Only server-computed rows survive; model-written rows (e.g. "拥挤风险：通过") are dropped.
   const merged = [...calculated, ...systemValidations(validations).filter((item) => !calculated.some((next) => next.id === item.id))];
-  return merged.slice(0, 8);
+  return merged.slice(0, 12);
 }
 
 function normalizeRoutebookStop(stop, index, city, context = {}) {
@@ -803,10 +841,12 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
       : [];
   const days = [...inputDays, ...stopDays.filter((day) => !inputDays.includes(day))];
   const sourceSummary = normalizeSourceSummary(input?.sourceSummary, input?.importedSources);
-  const routeLegs = normalizeStoredRouteLegs(input?.routeLegs, stops, input?.constraints?.transport);
+  const effectiveTransport = input?.constraints?.transport || input?.transport || '';
+  const effectiveConstraints = { ...(input?.constraints ?? {}), ...(effectiveTransport ? { transport: effectiveTransport } : {}) };
+  const routeLegs = normalizeStoredRouteLegs(input?.routeLegs, stops, effectiveTransport);
   const validationContext = {
     city,
-    constraints: input?.constraints,
+    constraints: effectiveConstraints,
     routeLegs,
     travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate)
   };
@@ -856,7 +896,7 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     aiNotes: normalizeAiNotes(input?.aiNotes),
     importedSources,
     sourceSummary,
-    constraints: normalizeRouteConstraints(input?.constraints),
+    constraints: normalizeRouteConstraints(effectiveConstraints),
     travelDate: resolveTravelDate(input?.travelDate, input?.constraints?.date, input?.provider?.travelDate),
     variants: normalizeRouteVariants(input?.variants, city, stops, { ...validationContext, importedSources }),
     activeVariantId: sanitizePublicId(input?.activeVariantId),
@@ -867,9 +907,65 @@ export function normalizeRoutebookForStorage(input, existingId = '') {
     routingWarning: normalizeRoutingWarning(input?.routingWarning, publishStatus),
     guideOrigins: routebookGuideOrigins({ guideOrigins: input?.guideOrigins, importedSources }),
     friendLink: normalizeFriendLink(input?.friendLink),
+    confirmAcks: normalizeConfirmAcks(input?.confirmAcks),
+    expenseLedger: normalizeExpenseLedger(input?.expenseLedger),
     authorshipClaim: normalizeAuthorshipClaim(input?.authorshipClaim),
     ...versionMetadata
   };
+}
+
+const CONFIRM_ACK_KEY_RE = /^[A-Za-z0-9_\u4e00-\u9fa5-]{1,48}:(?:reservation|price|hours|position|note)$/;
+
+/**
+ * Owner's pre-trip checklist ticks ("<stopId>:<kind>"). Strictly structural keys — never free text.
+ * Shared read-only on unlisted friend links (?k=), never on public square views or copies.
+ * @param {any} acks
+ * @returns {string[]}
+ */
+export function normalizeConfirmAcks(acks) {
+  if (!Array.isArray(acks)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const item of acks) {
+    const key = String(item ?? '').trim();
+    if (!CONFIRM_ACK_KEY_RE.test(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+    if (out.length >= 120) break;
+  }
+  return out;
+}
+
+/**
+ * Owner's AA expense ledger (traveler roster + extra expenses like taxi/hotel/dinner).
+ * Shared on unlisted friend links (?k=) for co-traveler transparency, never exposed on public square views.
+ * @param {any} ledger
+ */
+export function normalizeExpenseLedger(ledger) {
+  if (!ledger || typeof ledger !== 'object') return { travelers: [], extraExpenses: [] };
+  const travelers = Array.isArray(ledger.travelers)
+    ? [...new Set(ledger.travelers.map((t) => truncateString(String(t ?? '').trim(), 20)).filter(Boolean))].slice(0, 12)
+    : [];
+  const extraExpenses = [];
+  if (Array.isArray(ledger.extraExpenses)) {
+    for (const item of ledger.extraExpenses.slice(0, 80)) {
+      const amount = Math.round(Number(item?.amount) * 100) / 100;
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) continue;
+      const id =
+        String(item?.id ?? '')
+          .trim()
+          .replace(/[^A-Za-z0-9_-]/g, '')
+          .slice(0, 40) || `exp_${cryptoRandomId().slice(0, 10)}`;
+      const title = truncateString(String(item?.title ?? '').trim(), 40) || '共同开销';
+      const paidBy = truncateString(String(item?.paidBy ?? '').trim(), 20) || '我';
+      const splitWith = Array.isArray(item?.splitWith)
+        ? [...new Set(item.splitWith.map((x) => truncateString(String(x ?? '').trim(), 20)).filter(Boolean))].slice(0, 12)
+        : [];
+      const createdAt = Number.isFinite(Date.parse(String(item?.createdAt ?? ''))) ? new Date(item.createdAt).toISOString() : '';
+      extraExpenses.push({ id, title, amount, paidBy, splitWith, createdAt });
+    }
+  }
+  return { travelers, extraExpenses };
 }
 
 /**
@@ -934,6 +1030,15 @@ function normalizeStoredProvider(provider = {}, extra = {}) {
   return Object.fromEntries(Object.entries(normalized).filter(([, value]) => value !== ''));
 }
 
+export function normalizeClockTime(value) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? '').trim());
+  if (!m) return '';
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return '';
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 export function normalizeRouteConstraints(input = {}) {
   return {
     duration: truncateString(input?.duration, 30),
@@ -942,6 +1047,11 @@ export function normalizeRouteConstraints(input = {}) {
     companion: truncateString(input?.companion, 30),
     date: normalizeTravelDate(input?.date),
     base: truncateString(input?.base, 80),
+    arrivalTime: normalizeClockTime(input?.arrivalTime),
+    arrivalHub: truncateString(input?.arrivalHub, 40),
+    departureTime: normalizeClockTime(input?.departureTime),
+    departureHub: truncateString(input?.departureHub, 40),
+    mealPlan: truncateString(input?.mealPlan, 30),
     transport: truncateString(input?.transport, 60),
     theme: truncateString(input?.theme, 120),
     mustGo: truncateString(input?.mustGo, 120),

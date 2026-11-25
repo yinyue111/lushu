@@ -1,27 +1,63 @@
 import { NETWORK_ERROR_TEXT } from '../../lib/networkCopy.js';
-import { useEffect, useMemo, useState } from 'react';
-import { Camera, Copy, ExternalLink, Heart, MapPin, Plus, Route, Ticket, Trash2, UserRound } from 'lucide-react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { Camera, Copy, ExternalLink, Heart, MapPin, Navigation, Plus, Route, Ticket, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
+import { ACCOUNT_DETACHED_EVENT } from '../../lib/account';
 import { LOCAL_ROUTEBOOKS_CHANGED_EVENT } from '../../lib/routebookTombstones';
-import { deleteFavorite, deleteRoutebookRemote, getMyCheckins, getMyClicks, getMyFavorites, getMyRoutebooks, saveProfile } from '../../lib/api';
+import {
+  deleteFavorite,
+  deleteRoutebookRemote,
+  getMyCheckins,
+  getMyClicks,
+  getMyFavorites,
+  getMyRoutebooks,
+  getProfileAssets,
+  saveProfile,
+  saveProfileAssets,
+  saveRoutebookRemote
+} from '../../lib/api';
 import { flushAllCheckinQueues, pauseCheckinQueue } from '../../lib/checkinQueue';
-import { deleteRoutebook, getStoredClicks, getStoredFavorites, getStoredRoutebooks, listStoredCheckins, removeFavorite } from '../../lib/storage';
+import {
+  deleteRoutebook,
+  getStoredClicks,
+  getStoredFavorites,
+  getStoredRoutebooks,
+  listStoredCheckins,
+  removeFavorite,
+  saveRoutebook as persistRoutebook
+} from '../../lib/storage';
 import { getProfile, hasProfileCloudRegistrationConsent, parseProfileSyncCode, resetProfile, updateProfile } from '../../lib/profile';
 import { deleteProfileRemote, exportProfileData, issueRecoveryCode, logoutProfileRemote } from '../../lib/profileApi';
 import { clearLocalProfileData, stripLocalExportSecrets } from '../../lib/profileData';
 import { adoptServerProfile } from '../../lib/profileSync';
-import { listTripSessions } from '../../lib/tripSession';
+import { listTripSessions, tripRoutebookId } from '../../lib/tripSession';
+import {
+  addWishlistItem,
+  appendWishlistItemToRoutebook,
+  buildWishlistGuidePrompt,
+  groupWishlistByCity,
+  mergeWishlistFromCloud,
+  readWishlist,
+  removeWishlistItem
+} from '../../lib/wishlist';
+import { mergeTripRemindersFromCloud } from '../../lib/reminders';
+import { curatedRouteToRoutebook, curatedRoutes } from '../../lib/content';
 import { getRouteTrustBadgeState } from '../../lib/trust';
+import { useAccount } from '../Account/AccountProvider';
 import { publishStatusLabel, sourceAuthorizationLabel } from '../ui/labels';
 import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
 import { ConfirmDialog } from '../ui/confirm-dialog';
+import { Dialog, DialogContent } from '../ui/dialog';
+import { inputClass } from '../ui/field';
 import { RouteCard } from '../cards/RouteCard';
 import { routebookCardMeta } from '../../lib/routebookCardMeta';
 import { EmptyArt } from '../visual/EmptyArt';
 import { MyAccountPanel } from './MyAccountPanel';
 
 /** @param {Record<string, any>} props */
-export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfileChanged, onLocalBooksChanged }) {
+export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook, onOpenCreator, onProfileChanged, onLocalBooksChanged }) {
+  const { required: loginRequired, account, requireLogin } = useAccount();
   const [serverData, setServerData] = useState({ routebooks: [], checkins: [], clicks: [], favorites: [] });
   const [profile, setProfile] = useState(() => getProfile());
   const [profileMessage, setProfileMessage] = useState('');
@@ -29,6 +65,10 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   const [recoveryCode, setRecoveryCode] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
   const [error, setError] = useState('');
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+  const [deleteProfileOpen, setDeleteProfileOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const deleteInputId = useId();
   const [activeTab, setActiveTab] = useState(() =>
     typeof window !== 'undefined' && ['#account', '#nickname'].includes(window.location.hash) ? 'account' : 'routebooks'
   );
@@ -43,12 +83,53 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
     return () => window.clearTimeout(timer);
   }, [activeTab]);
   const [localDataVersion, setLocalDataVersion] = useState(0);
+  useEffect(() => {
+    const onDetached = (/** @type {any} */ event) => {
+      const nextProfile = event?.detail?.profile ?? getProfile();
+      setProfile(nextProfile);
+      setServerData({ routebooks: [], checkins: [], clicks: [], favorites: [] });
+      setLocalDataVersion((value) => value + 1);
+      onLocalBooksChanged?.();
+    };
+    window.addEventListener(ACCOUNT_DETACHED_EVENT, onDetached);
+    return () => window.removeEventListener(ACCOUNT_DETACHED_EVENT, onDetached);
+  }, [onLocalBooksChanged]);
+  useEffect(() => {
+    if (!account?.profileId) return;
+    const latest = getProfile();
+    if (latest.id === account.profileId && (profile.id !== latest.id || profile.accountUserId !== latest.accountUserId)) {
+      setProfile(latest);
+      setLocalDataVersion((value) => value + 1);
+    }
+  }, [account?.id, account?.profileId, profile.id, profile.accountUserId]);
   const [removedFavoriteKeys, setRemovedFavoriteKeys] = useState(() => new Set());
   const [favoriteNotice, setFavoriteNotice] = useState('');
   const [expandedSections, setExpandedSections] = useState(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [cityFilter, setCityFilter] = useState('');
+  const [wishCity, setWishCity] = useState('杭州');
+  const [wishPlace, setWishPlace] = useState('');
+  const [wishNote, setWishNote] = useState('');
+  const [wishTargetItem, setWishTargetItem] = useState(/** @type {any} */ (null));
+  const [wishTargetBookKey, setWishTargetBookKey] = useState('');
+  const [wishTargetDay, setWishTargetDay] = useState('Day 1');
+  const [wishAppendFeedback, setWishAppendFeedback] = useState(/** @type {{ text: string, book: any } | null} */ (null));
+  const wishFormId = useId().replaceAll(':', '');
   /* eslint-disable react-hooks/exhaustive-deps -- localDataVersion is a cache-busting tick: bumping it re-reads localStorage. */
   const localBooks = useMemo(() => getStoredRoutebooks(profile.id), [profile.id, localDataVersion]);
+  const wishlistItems = useMemo(() => readWishlist(profile.id), [profile.id, localDataVersion]);
+  const wishlistGroups = useMemo(() => groupWishlistByCity(wishlistItems), [wishlistItems]);
+  const activeTripsByRouteId = useMemo(() => {
+    const map = new Map();
+    for (const session of listTripSessions(profile.id)) {
+      const sStops = Array.isArray(session?.stops) ? session.stops : [];
+      const done = sStops.filter((s) => s?.tripStatus === 'visited' || s?.tripStatus === 'skipped').length;
+      if (session?.routeId && done > 0 && done < sStops.length) {
+        map.set(String(session.routeId), { done, total: sStops.length });
+      }
+    }
+    return map;
+  }, [profile.id, localDataVersion]);
   const localCheckins = useMemo(() => listStoredCheckins().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
   const localClicks = useMemo(() => getStoredClicks().filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
   const localFavorites = useMemo(() => getStoredFavorites(profile.id).filter((item) => belongsToProfile(item, profile.id)), [profile.id, localDataVersion]);
@@ -64,9 +145,15 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
       getMyRoutebooks(profile.id, 80, ctrl.signal),
       getMyCheckins(profile.id, 80, ctrl.signal),
       getMyClicks(profile.id, 80, ctrl.signal),
-      getMyFavorites(profile.id, 80, ctrl.signal)
-    ]).then(([bookResult, checkinResult, clickResult, favoriteResult]) => {
+      getMyFavorites(profile.id, 80, ctrl.signal),
+      getProfileAssets(profile.id, ctrl.signal)
+    ]).then(([bookResult, checkinResult, clickResult, favoriteResult, assetsResult]) => {
       if (ctrl.signal.aborted) return;
+      if (assetsResult?.status === 'fulfilled' && assetsResult.value) {
+        if (Array.isArray(assetsResult.value.wishlist)) mergeWishlistFromCloud(profile.id, assetsResult.value.wishlist);
+        if (Array.isArray(assetsResult.value.tripReminders)) mergeTripRemindersFromCloud(assetsResult.value.tripReminders);
+        setLocalDataVersion((v) => v + 1);
+      }
       setServerData({
         routebooks: bookResult.status === 'fulfilled' ? (bookResult.value.routebooks ?? []) : [],
         checkins: checkinResult.status === 'fulfilled' ? (checkinResult.value.checkins ?? []) : [],
@@ -135,6 +222,12 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
   );
   const sharedBooks = books.filter((book) => ['published', 'featured'].includes(book.publishStatus));
   const creatorBooks = sharedBooks.filter((book) => book.creator?.id === profile.id || book.profileId === profile.id);
+  const hasSidePanels = creatorBooks.length > 0 || sharedBooks.length > 0;
+  const bookCities = useMemo(() => [...new Set(books.map((b) => b.city).filter(Boolean))], [books]);
+  const filteredBooks = useMemo(
+    () => (cityFilter && bookCities.includes(cityFilter) ? books.filter((b) => b.city === cityFilter) : books),
+    [books, cityFilter, bookCities]
+  );
 
   async function handleRemoveFavorite(item) {
     removeFavorite(item, profile.id);
@@ -303,8 +396,6 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
   async function endAccount(action) {
     const deleting = action === 'delete';
-    if (deleting && window.prompt('将永久删除云端账号、路书、打卡、照片及本机副本。建议先导出。请输入 DELETE 确认：') !== 'DELETE') return;
-    if (!deleting && !window.confirm('退出后，这台设备上的资料会清掉，云端登录凭据也会作废；要再看云端的路书，需要重新登录。确定退出？')) return;
     setSyncBusy(true);
     let resumeQueue;
     try {
@@ -333,7 +424,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
 
   const tabs = [
     { id: 'routebooks', icon: Route, label: '路书', count: books.length },
-    { id: 'favorites', icon: Heart, label: '收藏', count: favorites.length },
+    { id: 'favorites', icon: Heart, label: '收藏', count: favorites.length + wishlistItems.length },
     { id: 'checkins', icon: Camera, label: '打卡', count: checkins.length },
     { id: 'account', icon: UserRound, label: '账号' }
   ];
@@ -352,7 +443,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
           <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">我的</h1>
           <p className="mt-1 max-w-[36em] text-meta leading-relaxed text-muted max-sm:hidden">本机和云端的记录合在一起显示。换设备时用恢复码接着用。</p>
         </div>
-        <Button variant="primary" className="max-sm:w-full" onClick={() => onNewBook({})}>
+        <Button variant="primary" className={cn('max-sm:w-full', activeTab === 'routebooks' && !books.length && 'max-sm:hidden')} onClick={() => onNewBook({})}>
           <Plus /> 新建路书
         </Button>
       </header>
@@ -368,7 +459,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             <Tabs.Trigger
               key={id}
               value={id}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-full whitespace-nowrap border border-line bg-white px-2 text-sm sm:gap-1.5 sm:px-4 font-bold text-ink-2 transition-colors hover:border-line-strong data-[state=active]:border-ink data-[state=active]:bg-ink data-[state=active]:text-white"
+              className="inline-flex h-11 lg:h-10 shrink-0 items-center justify-center gap-1 rounded-full whitespace-nowrap border border-line bg-white px-2 text-sm sm:gap-1.5 sm:px-4 font-bold text-ink-2 transition-colors hover:border-line-strong data-[state=active]:border-ink data-[state=active]:bg-ink data-[state=active]:text-white"
             >
               <Icon className="size-4 max-sm:hidden" aria-hidden="true" />
               {label}
@@ -378,7 +469,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         </Tabs.List>
 
         <Tabs.Content value="routebooks" className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section aria-labelledby="my-books">
+          <section aria-labelledby="my-books" className={cn(!hasSidePanels && 'lg:col-span-full')}>
             <h2 id="my-books" className="mb-2 text-title-xs font-extrabold tracking-tight">
               我的路书 <span className="num text-muted">{books.length}</span>
             </h2>
@@ -387,11 +478,45 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                 ? '登录后生成和保存的路书都存在账号里，换手机、换电脑登录也能看到。'
                 : '现在存在这台设备上。登录后，路书会存进账号，换设备也能看到。'}
             </p>
+            {bookCities.length >= 2 && (
+              <div className="mb-3.5 flex flex-wrap gap-1.5" role="group" aria-label="按城市筛选路书" data-testid="my-city-filters">
+                <button
+                  type="button"
+                  aria-pressed={!cityFilter}
+                  onClick={() => setCityFilter('')}
+                  className={cn(
+                    'min-h-11 rounded-full px-3.5 text-xs font-bold sm:min-h-9',
+                    !cityFilter ? 'bg-ink text-white' : 'bg-white border border-line text-ink-2 hover:bg-canvas'
+                  )}
+                >
+                  全部 {books.length}
+                </button>
+                {bookCities.map((c) => {
+                  const count = books.filter((b) => b.city === c).length;
+                  const active = cityFilter === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setCityFilter(active ? '' : c)}
+                      className={cn(
+                        'min-h-11 rounded-full px-3.5 text-xs font-bold sm:min-h-9',
+                        active ? 'bg-ink text-white' : 'bg-white border border-line text-ink-2 hover:bg-canvas'
+                      )}
+                    >
+                      {c} {count}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {books.length ? (
               <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {visibleRows('books', books, 8).map((book) => {
+                <div className={cn('grid grid-cols-1 gap-4 sm:grid-cols-2', !hasSidePanels && 'lg:grid-cols-3')}>
+                  {visibleRows('books', filteredBooks, 8).map((book) => {
                     const bookKey = book.publicId ?? book.id ?? `${book.city}-${book.title}`;
+                    const activeTrip = activeTripsByRouteId.get(tripRoutebookId(book));
                     return (
                       <RouteCard
                         key={bookKey}
@@ -399,7 +524,7 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                         meta={routebookCardMeta(book, {
                           extra: [
                             book.city || '城市待补充',
-                            publishStatusLabel(book.publishStatus),
+                            activeTrip ? `行中已走 ${activeTrip.done}/${activeTrip.total} 站` : publishStatusLabel(book.publishStatus),
                             book.routingWarning?.unverifiedLegs ? `${book.routingWarning.unverifiedLegs} 段路线还没查` : ''
                           ]
                             .filter(Boolean)
@@ -411,6 +536,11 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                             <Button size="sm" variant="dark" onClick={() => onOpenBook(book)}>
                               <Route /> 打开
                             </Button>
+                            {activeTrip && onStartTrip && (
+                              <Button size="sm" variant="primary" onClick={() => onStartTrip(book)}>
+                                <Navigation /> 继续出行
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -427,26 +557,52 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                     );
                   })}
                 </div>
-                <ShowAllToggle total={books.length} collapsedCount={8} expanded={expandedSections.has('books')} onToggle={() => toggleExpanded('books')} />
+                <ShowAllToggle
+                  total={filteredBooks.length}
+                  collapsedCount={8}
+                  expanded={expandedSections.has('books')}
+                  onToggle={() => toggleExpanded('books')}
+                />
               </>
             ) : (
               <Empty
                 icon={Route}
                 art
-                text="还没有路书。贴一段攻略，或者直接选个城市，先排一条路线。"
+                text={
+                  loginRequired && !account
+                    ? '生成专属路书需先登录；未登录也可以先逛精选路书，或把别人分享的路书存下来。'
+                    : '还没有路书。贴一段攻略，或者直接选个城市，先排一条路线。'
+                }
                 action={
-                  <Button variant="primary" size="sm" onClick={() => onNewBook({})}>
-                    <Plus /> 排一条路线
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        if (loginRequired && !account) {
+                          requireLogin('生成专属路书需先登录；未登录可先看精选路书。', () => onNewBook({}));
+                          return;
+                        }
+                        onNewBook({});
+                      }}
+                    >
+                      <Plus /> 排一条路线
+                    </Button>
+                    {loginRequired && !account && curatedRoutes[0] && (
+                      <Button variant="outline" size="sm" onClick={() => onOpenBook(curatedRouteToRoutebook(curatedRoutes[0]))}>
+                        <Route /> 先看精选路书
+                      </Button>
+                    )}
+                  </div>
                 }
               />
             )}
           </section>
 
-          <div className="grid content-start gap-4">
-            {(books.length > 0 || creatorBooks.length > 0) && (
-              <SidePanel title="我的公开路线" count={creatorBooks.length}>
-                {creatorBooks.length ? (
+          {hasSidePanels && (
+            <div className="grid content-start gap-4">
+              {creatorBooks.length > 0 && (
+                <SidePanel title="我的公开路线" count={creatorBooks.length}>
                   <ul className="divide-y divide-line">
                     {visibleRows('creatorBooks', creatorBooks, 8).map((book) => (
                       <li key={`creator-${book.publicId || book.title}`} className="py-2.5">
@@ -462,20 +618,16 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       </li>
                     ))}
                   </ul>
-                ) : null}
-                <ShowAllToggle
-                  total={creatorBooks.length}
-                  collapsedCount={8}
-                  expanded={expandedSections.has('creatorBooks')}
-                  onToggle={() => toggleExpanded('creatorBooks')}
-                />
-                {creatorBooks.length ? null : <p className="text-sm text-muted">你公开分享的路线会出现在这里。</p>}
-              </SidePanel>
-            )}
-            {/* V-U29: with no routebooks yet, one empty state is enough — 0-count panels fold away. */}
-            {(books.length > 0 || sharedBooks.length > 0) && (
-              <SidePanel title="我的分享" count={sharedBooks.length}>
-                {sharedBooks.length ? (
+                  <ShowAllToggle
+                    total={creatorBooks.length}
+                    collapsedCount={8}
+                    expanded={expandedSections.has('creatorBooks')}
+                    onToggle={() => toggleExpanded('creatorBooks')}
+                  />
+                </SidePanel>
+              )}
+              {sharedBooks.length > 0 && (
+                <SidePanel title="我的分享" count={sharedBooks.length}>
                   <ul className="divide-y divide-line">
                     {visibleRows('sharedBooks', sharedBooks, 8).map((book) => {
                       const url = book.shareUrl || `/share/${book.publicId}`;
@@ -499,63 +651,326 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
                       );
                     })}
                   </ul>
-                ) : null}
-                <ShowAllToggle
-                  total={sharedBooks.length}
-                  collapsedCount={8}
-                  expanded={expandedSections.has('sharedBooks')}
-                  onToggle={() => toggleExpanded('sharedBooks')}
-                />
-                {sharedBooks.length ? null : <p className="text-sm text-muted">发布或被精选的路书会出现在这里。</p>}
-              </SidePanel>
-            )}
-          </div>
+                  <ShowAllToggle
+                    total={sharedBooks.length}
+                    collapsedCount={8}
+                    expanded={expandedSections.has('sharedBooks')}
+                    onToggle={() => toggleExpanded('sharedBooks')}
+                  />
+                </SidePanel>
+              )}
+            </div>
+          )}
         </Tabs.Content>
 
-        <Tabs.Content value="favorites" className="mt-5">
-          <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mb-3">
-            {favoriteNotice}
-          </p>
-          {favorites.length ? (
-            <>
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {visibleRows('favorites', favorites, 12).map((item) => (
-                  <li key={item.id ?? favoriteKeyOf(item)} className="flex flex-col gap-2 rounded-card border border-line bg-white p-4 shadow-card">
-                    <span className="flex items-start gap-2">
-                      <Heart className="mt-0.5 size-4 shrink-0 fill-primary text-primary" aria-hidden="true" />
-                      <strong className="line-clamp-2 text-copy font-extrabold">{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
-                    </span>
-                    <span className="text-xs text-muted">
-                      {item.city || '城市待补充'} · 收藏于 {formatHistoryDate(item.createdAt)}
-                    </span>
-                    <div className="mt-auto flex gap-2 pt-1">
+        <Tabs.Content value="favorites" className="mt-5 grid gap-6">
+          <section
+            data-testid="my-wishlist-section"
+            aria-labelledby="my-wishlist-heading"
+            className="rounded-panel border border-line bg-white p-4 shadow-card lg:p-5"
+          >
+            <h2 id="my-wishlist-heading" className="text-lg font-extrabold">
+              平时攒的想去清单 <span className="num text-muted">{wishlistItems.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">刷到想去的景点或小店先随手记下，按城市自动归类，出发前一键排成顺路路书。</p>
+            <form
+              className="mt-3 grid gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!wishCity.trim() || !wishPlace.trim()) return;
+                const next = addWishlistItem(profile.id, { city: wishCity, place: wishPlace, note: wishNote });
+                if (profile.profileAccessToken || profile.accountUserId) {
+                  saveProfileAssets(profile.id, { wishlist: next }).catch(() => {});
+                }
+                setWishPlace('');
+                setWishNote('');
+                setLocalDataVersion((v) => v + 1);
+              }}
+            >
+              <label className="sr-only" htmlFor={`${wishFormId}-city`}>
+                想去城市
+              </label>
+              <input
+                id={`${wishFormId}-city`}
+                className={inputClass}
+                value={wishCity}
+                onChange={(e) => setWishCity(e.target.value)}
+                placeholder="城市，如杭州"
+              />
+              <label className="sr-only" htmlFor={`${wishFormId}-place`}>
+                想去的地点
+              </label>
+              <input
+                id={`${wishFormId}-place`}
+                className={inputClass}
+                value={wishPlace}
+                onChange={(e) => setWishPlace(e.target.value)}
+                placeholder="想去的地点，如：法喜寺、茅家埠"
+              />
+              <label className="sr-only" htmlFor={`${wishFormId}-note`}>
+                备注（选填）
+              </label>
+              <input
+                id={`${wishFormId}-note`}
+                className={inputClass}
+                value={wishNote}
+                onChange={(e) => setWishNote(e.target.value)}
+                placeholder="备注（选填），如：想喝龙井"
+              />
+              <Button type="submit" variant="dark" disabled={!wishCity.trim() || !wishPlace.trim()}>
+                <Plus /> 记下来
+              </Button>
+            </form>
+
+            {wishlistGroups.length > 0 && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {wishlistGroups.map((group) => (
+                  <div key={group.city} className="rounded-card border border-line bg-canvas/70 p-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong className="text-copy font-extrabold">
+                        {group.city} · {group.items.length} 个地点
+                      </strong>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        data-testid="wishlist-build-route"
+                        onClick={() =>
+                          onNewBook({
+                            city: group.city,
+                            guide: buildWishlistGuidePrompt(group.city, group.items),
+                            initialStep: 1
+                          })
+                        }
+                      >
+                        用这 {group.items.length} 个地点排路线
+                      </Button>
+                    </div>
+                    <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                      {group.items.map((item) => {
+                        const candidateBooks = books.filter(
+                          (b) => (b.publishStatus || 'draft') === 'draft' && (!b.city || b.city === item.city || books.length <= 5)
+                        );
+                        const sameCityBooks = candidateBooks.filter((b) => b.city === item.city);
+                        const selectableBooks = sameCityBooks.length ? sameCityBooks : candidateBooks;
+                        return (
+                          <li
+                            key={item.id}
+                            className="inline-flex items-center gap-1 rounded-full border border-line bg-white py-1 pr-1.5 pl-3 text-xs font-semibold text-ink-2"
+                          >
+                            <span>
+                              {item.place}
+                              {item.note ? `（${item.note}）` : ''}
+                            </span>
+                            {selectableBooks.length > 0 && (
+                              <button
+                                type="button"
+                                data-testid="wishlist-add-to-book-btn"
+                                onClick={() => {
+                                  const firstBook = selectableBooks[0];
+                                  const firstKey = String(firstBook.publicId || firstBook.id || '');
+                                  setWishTargetItem(item);
+                                  setWishTargetBookKey(firstKey);
+                                  setWishTargetDay(firstBook.days?.[0] || 'Day 1');
+                                  setWishAppendFeedback(null);
+                                }}
+                                className="rounded-full bg-canvas px-2 py-0.5 text-xs font-bold text-sky-ink hover:bg-line"
+                              >
+                                + 加到路书
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              aria-label={`移除心愿地点 ${item.place}`}
+                              onClick={() => {
+                                const next = removeWishlistItem(profile.id, item.id);
+                                if (profile.profileAccessToken || profile.accountUserId) {
+                                  saveProfileAssets(profile.id, { wishlist: next }).catch(() => {});
+                                }
+                                if (wishTargetItem?.id === item.id) setWishTargetItem(null);
+                                setLocalDataVersion((v) => v + 1);
+                              }}
+                              className="grid size-6 place-items-center rounded-full text-muted hover:bg-canvas hover:text-ink"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {wishTargetItem &&
+              (() => {
+                const draftBooks = books.filter((b) => (b.publishStatus || 'draft') === 'draft');
+                const sameCity = draftBooks.filter((b) => b.city === wishTargetItem.city);
+                const options = sameCity.length ? sameCity : draftBooks;
+                const chosen = options.find((b) => String(b.publicId || b.id || '') === wishTargetBookKey) || options[0];
+                const dayChoices = chosen?.days?.length ? chosen.days : ['Day 1'];
+                if (!chosen) return null;
+                return (
+                  <div
+                    data-testid="wishlist-append-picker"
+                    className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-sky-soft/60 p-3 text-xs"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="font-extrabold text-ink">把「{wishTargetItem.place}」加到：</strong>
+                      <label className="sr-only" htmlFor={`${wishFormId}-target-book`}>
+                        选择目标路书
+                      </label>
+                      <select
+                        id={`${wishFormId}-target-book`}
+                        className="h-9 rounded-lg border border-line-strong bg-white px-2.5 text-xs font-semibold text-ink"
+                        value={String(chosen.publicId || chosen.id || '')}
+                        onChange={(e) => {
+                          const nextKey = e.target.value;
+                          setWishTargetBookKey(nextKey);
+                          const nextBook = options.find((b) => String(b.publicId || b.id || '') === nextKey);
+                          setWishTargetDay(nextBook?.days?.[0] || 'Day 1');
+                        }}
+                      >
+                        {options.map((b) => {
+                          const k = String(b.publicId || b.id || '');
+                          return (
+                            <option key={k} value={k}>
+                              {b.title || `${b.city}路书`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <label className="sr-only" htmlFor={`${wishFormId}-target-day`}>
+                        选择第几天
+                      </label>
+                      <select
+                        id={`${wishFormId}-target-day`}
+                        className="h-9 rounded-lg border border-line-strong bg-white px-2.5 text-xs font-semibold text-ink"
+                        value={dayChoices.includes(wishTargetDay) ? wishTargetDay : dayChoices[0]}
+                        onChange={(e) => setWishTargetDay(e.target.value)}
+                      >
+                        {dayChoices.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="dark"
-                        disabled={!item.routeId}
-                        onClick={() =>
-                          onOpenBook(books.find((book) => (book.publicId || book.id) === item.routeId) || { id: item.routeId, publicId: item.routeId })
-                        }
+                        data-testid="wishlist-confirm-append-btn"
+                        onClick={async () => {
+                          const res = appendWishlistItemToRoutebook(chosen, wishTargetItem, dayChoices.includes(wishTargetDay) ? wishTargetDay : dayChoices[0]);
+                          if (!res) return;
+                          if (res.alreadyExists) {
+                            setWishAppendFeedback({
+                              text: `《${chosen.title}》里已经有「${wishTargetItem.place}」（在 ${res.day}）`,
+                              book: chosen
+                            });
+                            setWishTargetItem(null);
+                            return;
+                          }
+                          persistRoutebook(res.routebook, profile.id);
+                          let finalBook = res.routebook;
+                          if (profile.profileAccessToken || profile.accountUserId) {
+                            try {
+                              const saved = await saveRoutebookRemote({ ...res.routebook, profileId: profile.id });
+                              if (saved?.routebook) {
+                                finalBook = { ...res.routebook, ...saved.routebook, editToken: saved.routebook.editToken || res.routebook.editToken };
+                                persistRoutebook(finalBook, profile.id);
+                                setServerData((prev) => ({
+                                  ...prev,
+                                  routebooks: [finalBook, ...prev.routebooks.filter((r) => (r.publicId || r.id) !== (finalBook.publicId || finalBook.id))]
+                                }));
+                              }
+                            } catch {
+                              // 离线或暂未同步时保留本机草稿
+                            }
+                          }
+                          setLocalDataVersion((v) => v + 1);
+                          onLocalBooksChanged?.();
+                          setWishTargetItem(null);
+                          setWishAppendFeedback({
+                            text: `已把「${wishTargetItem.place}」加到《${finalBook.title}》${res.day}（当天共 ${res.dayStopCount} 站${res.crowdedDay ? '，当天站点偏满可适当调整' : '，节奏合适'}）`,
+                            book: finalBook
+                          });
+                        }}
                       >
-                        打开路线
+                        确认加入
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-muted" onClick={() => handleRemoveFavorite(item)}>
-                        <Trash2 /> 取消收藏
+                      <Button size="sm" variant="ghost" onClick={() => setWishTargetItem(null)}>
+                        取消
                       </Button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-              <ShowAllToggle
-                total={favorites.length}
-                collapsedCount={12}
-                expanded={expandedSections.has('favorites')}
-                onToggle={() => toggleExpanded('favorites')}
-              />
-            </>
-          ) : (
-            <Empty icon={Heart} text="在路书页点“收藏”，喜欢的路线就会出现在这里。" />
-          )}
+                  </div>
+                );
+              })()}
+
+            {wishAppendFeedback && (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="wishlist-append-feedback"
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-tile bg-success-soft px-3.5 py-2.5 text-xs font-semibold text-success-ink"
+              >
+                <span>{wishAppendFeedback.text}</span>
+                <Button size="sm" variant="outline" className="bg-white" onClick={() => onOpenBook(wishAppendFeedback.book)}>
+                  打开路书查看
+                </Button>
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="my-saved-routes">
+            <h2 id="my-saved-routes" className="mb-2 text-lg font-extrabold">
+              收藏的路线 <span className="num text-muted">{favorites.length}</span>
+            </h2>
+            <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mb-3">
+              {favoriteNotice}
+            </p>
+            {favorites.length ? (
+              <>
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {visibleRows('favorites', favorites, 12).map((item) => (
+                    <li key={item.id ?? favoriteKeyOf(item)} className="flex flex-col gap-2 rounded-card border border-line bg-white p-4 shadow-card">
+                      <span className="flex items-start gap-2">
+                        <Heart className="mt-0.5 size-4 shrink-0 fill-primary text-primary" aria-hidden="true" />
+                        <strong className="line-clamp-2 text-copy font-extrabold">{item.routeTitle || item.routeId || '未命名收藏路线'}</strong>
+                      </span>
+                      <span className="text-xs text-muted">
+                        {item.city || '城市待补充'} · 收藏于 {formatHistoryDate(item.createdAt)}
+                      </span>
+                      <div className="mt-auto flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="dark"
+                          disabled={!item.routeId}
+                          onClick={() =>
+                            onOpenBook(books.find((book) => (book.publicId || book.id) === item.routeId) || { id: item.routeId, publicId: item.routeId })
+                          }
+                        >
+                          打开路线
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-muted" onClick={() => handleRemoveFavorite(item)}>
+                          <Trash2 /> 取消收藏
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <ShowAllToggle
+                  total={favorites.length}
+                  collapsedCount={12}
+                  expanded={expandedSections.has('favorites')}
+                  onToggle={() => toggleExpanded('favorites')}
+                />
+              </>
+            ) : (
+              <Empty icon={Heart} text="在路书页点“收藏”，喜欢的路线就会出现在这里。" />
+            )}
+          </section>
         </Tabs.Content>
 
         <Tabs.Content value="checkins" className="mt-5 grid gap-6 lg:grid-cols-2">
@@ -628,12 +1043,16 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
             setRecoveryCode={setRecoveryCode}
             syncBusy={syncBusy}
             profileMessage={profileMessage}
+            hasPublishedRoutes={creatorBooks.length > 0}
             onSave={handleProfileSave}
             onPrepareSyncCode={prepareSyncCode}
             onRecover={recoverProfile}
             onExport={exportAccount}
-            onLogout={() => endAccount('logout')}
-            onDelete={() => endAccount('delete')}
+            onLogout={() => setConfirmLogoutOpen(true)}
+            onDelete={() => {
+              setDeleteConfirmText('');
+              setDeleteProfileOpen(true);
+            }}
             onOpenCreator={onOpenCreator}
           />
         </Tabs.Content>
@@ -654,11 +1073,71 @@ export default function MyPage({ onOpenBook, onNewBook, onOpenCreator, onProfile
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => (deleteTarget?.error ? setDeleteTarget(null) : confirmDeleteBook())}
       />
+      <ConfirmDialog
+        open={confirmLogoutOpen}
+        title="退出本机身份"
+        description="退出后，这台设备上的资料会清掉，云端登录凭据也会作废；要再看云端的路书，需要重新登录。确定退出吗？"
+        confirmLabel="退出"
+        cancelLabel="取消"
+        danger
+        onCancel={() => setConfirmLogoutOpen(false)}
+        onConfirm={() => {
+          setConfirmLogoutOpen(false);
+          void endAccount('logout');
+        }}
+      />
+      <Dialog
+        open={deleteProfileOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            setDeleteProfileOpen(false);
+            setDeleteConfirmText('');
+          }
+        }}
+      >
+        <DialogContent title="注销并删除资料" description="将永久删除云端资料、路书、打卡、照片及本机副本，建议先导出备份。">
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (deleteConfirmText.trim() !== '注销') return;
+              setDeleteProfileOpen(false);
+              setDeleteConfirmText('');
+              void endAccount('delete');
+            }}
+          >
+            <label htmlFor={deleteInputId} className="text-sm font-bold text-ink-2">
+              请输入「注销」确认删除
+            </label>
+            <input
+              id={deleteInputId}
+              className={inputClass}
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              autoComplete="off"
+              placeholder="输入：注销"
+            />
+            <div className="mt-1 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDeleteProfileOpen(false);
+                  setDeleteConfirmText('');
+                }}
+              >
+                取消
+              </Button>
+              <Button type="submit" variant="danger" disabled={syncBusy || deleteConfirmText.trim() !== '注销'}>
+                确认注销
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-/** @param {Record<string, any>} props */
 
 /** @param {Record<string, any>} props */
 function SidePanel({ title, count, children }) {

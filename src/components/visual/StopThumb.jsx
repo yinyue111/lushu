@@ -8,7 +8,7 @@ import { stopCategory, stopPhoto } from './theme';
  * if it cannot load) — never presented as a photo of this stop.
  * @param {Record<string, any>} props
  */
-export function StopThumb({ stop, number, time, color = '#e8553d', className, compact = false }) {
+export function StopThumb({ stop, number, time, color = '#e8553d', className, compact = false, dragHandle = null }) {
   const photo = stopPhoto(stop);
   const category = stopCategory(stop);
   const Icon = category.icon;
@@ -39,7 +39,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
             }
             badge={
               !compact && (
-                <SceneBadge className="top-2 right-2">
+                <SceneBadge className="top-2 right-2 hidden @[7rem]:inline-flex">
                   <Icon aria-hidden="true" className="hidden size-3 @[9rem]:block" />
                   <span className="@[9rem]:hidden">示意</span>
                   <span className="hidden @[9rem]:inline">{category.label}示意图</span>
@@ -65,6 +65,7 @@ export function StopThumb({ stop, number, time, color = '#e8553d', className, co
           {time}
         </span>
       )}
+      {dragHandle && <div className="absolute right-1 bottom-1 z-10">{dragHandle}</div>}
     </div>
   );
 }

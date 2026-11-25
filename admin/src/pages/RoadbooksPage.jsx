@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { adminGet, adminPost, query } from '../api';
 import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inputClass, useLoad } from '../ui';
 
-const STATUS = { public: '公开', 'friend-link': '好友链接', private: '私密', draft: '草稿', 'taken-down': '已下架' };
+const STATUS = { featured: '城市精选', public: '公开', 'friend-link': '好友链接', private: '私密', draft: '草稿', 'taken-down': '已下架' };
 
 export default function RoadbooksPage() {
   const [form, setForm] = useState({ q: '', city: '', profileId: '' });
@@ -69,7 +69,10 @@ function RoadbookCard({ rb, onDone }) {
   const act = (action) => async (reason) => {
     await adminPost(`/roadbooks/${encodeURIComponent(rb.publicId)}`, { action, reason });
     onDone();
-    return action === 'take-down' ? '已下架：分享页不再可见，路书本身保留' : '已排队重跑';
+    if (action === 'take-down') return '已下架：分享页不再可见，路书本身保留';
+    if (action === 'feature') return '已设为城市精选：首页与城市专题页将展示';
+    if (action === 'unfeature') return '已取消城市精选，恢复为普通公开路书';
+    return '已排队重跑';
   };
   return (
     <Card title={`${rb.title || '未命名路书'} · ${rb.city || '—'} · ${STATUS[rb.status] ?? rb.status}`}>
@@ -125,7 +128,11 @@ function RoadbookCard({ rb, onDone }) {
       </dl>
       <div className="mt-3 flex flex-wrap items-start gap-2">
         <ReasonAction label="重跑联网核对" onSubmit={act('rerun-enrichment')} />
-        {(rb.status === 'public' || rb.status === 'friend-link') && <ReasonAction label="下架分享链接" variant="danger" onSubmit={act('take-down')} />}
+        {rb.status === 'public' && <ReasonAction label="设为城市精选" onSubmit={act('feature')} />}
+        {rb.status === 'featured' && <ReasonAction label="取消城市精选" onSubmit={act('unfeature')} />}
+        {(rb.status === 'public' || rb.status === 'featured' || rb.status === 'friend-link') && (
+          <ReasonAction label="下架分享链接" variant="danger" onSubmit={act('take-down')} />
+        )}
       </div>
     </Card>
   );

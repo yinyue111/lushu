@@ -56,3 +56,37 @@ test('isTripLiveToday: no overdue warnings outside the trip day', async () => {
   assert.equal(isTripLiveToday({ checkins: [{ createdAt: new Date(2026, 9, 13, 10, 0).toISOString() }], nowMs: now }), true);
   assert.equal(isTripLiveToday({ checkins: [{ createdAt: new Date(2026, 9, 1, 10, 0).toISOString() }], nowMs: now }), false);
 });
+
+test('legScheduleConflict flags overlapping stay + leg travel against next stop time', async () => {
+  const { legScheduleConflict } = await import('../../src/lib/stopTiming.js');
+  const from = { id: 's1', day: 'Day 1', time: '09:30', stay: '2 小时' };
+  const to = { id: 's2', day: 'Day 1', time: '11:30', stay: '60 分钟' };
+  const conflict = legScheduleConflict(from, to, { status: 'verified', durationSeconds: 2700, distanceMeters: 5200 });
+  assert.equal(conflict?.kind, 'conflict');
+  assert.equal(conflict?.earliestArrival, '12:15');
+  assert.equal(conflict?.scheduledTime, '11:30');
+  assert.equal(conflict?.earliestArrivalMinutes, 12 * 60 + 15);
+
+  // Plenty of buffer -> null
+  assert.equal(legScheduleConflict(from, { id: 's2', day: 'Day 1', time: '13:00' }, { status: 'verified', durationSeconds: 1800, distanceMeters: 4000 }), null);
+
+  // Long detour without time clash -> detour hint
+  const detour = legScheduleConflict(from, { id: 's2', day: 'Day 1', time: '14:00' }, { status: 'verified', durationSeconds: 3900, distanceMeters: 12000 });
+  assert.equal(detour?.kind, 'detour');
+});
+
+test('shiftSubsequentDayTimes pushes conflicting stop and ripples same-day stops without touching other days', async () => {
+  const { shiftSubsequentDayTimes } = await import('../../src/lib/stopTiming.js');
+  const stops = [
+    { id: 's1', day: 'Day 1', time: '09:30', stay: '2 小时' },
+    { id: 's2', day: 'Day 1', time: '11:30', stay: '90 分钟' },
+    { id: 's3', day: 'Day 1', time: '13:15-14:15', stay: '60 分钟' },
+    { id: 's4', day: 'Day 2', time: '09:00', stay: '60 分钟' }
+  ];
+  const shifted = shiftSubsequentDayTimes(stops, 'Day 1', 's2', 12 * 60 + 15, 15);
+  assert.equal(shifted[0].time, '09:30');
+  assert.equal(shifted[1].time, '12:15');
+  // s2 ends at 13:45 + 15m gap = 14:00, keeping s3's 60m range -> 14:00-15:00
+  assert.equal(shifted[2].time, '14:00-15:00');
+  assert.equal(shifted[3], stops[3], 'Day 2 untouched');
+});

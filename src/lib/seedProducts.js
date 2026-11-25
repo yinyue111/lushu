@@ -1,0 +1,80 @@
+export const productCards = [
+  {
+    type: '本地玩乐',
+    title: '柳浪闻莺西湖 Citywalk 讲解',
+    poi: '柳浪闻莺',
+    targetPoi: '柳浪闻莺',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '携程本地玩乐',
+    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E8%A5%BF%E6%B9%96%20Citywalk',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '本地玩乐',
+    title: '龙井茶园采茶炒茶体验',
+    poi: '龙井茶园',
+    targetPoi: '龙井茶园',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '飞猪旅行',
+    url: 'https://h5.fliggy.com/search.html?q=%E9%BE%99%E4%BA%95%E8%8C%B6%E5%9B%AD%E4%BD%93%E9%AA%8C',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '门票',
+    title: '拙政园门票预订入口',
+    poi: '拙政园',
+    targetPoi: '拙政园',
+    city: '苏州',
+    price: '前往平台查看价格',
+    provider: '携程门票',
+    url: 'https://m.ctrip.com/webapp/ticket/dest/t140508.html',
+    linkType: 'destination_listing',
+    deepLinkStatus: 'listing_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '本地玩乐',
+    title: '平江路评弹茶馆体验',
+    poi: '平江路',
+    targetPoi: '平江路',
+    city: '苏州',
+    price: '前往平台查看价格',
+    provider: '美团',
+    url: 'https://www.meituan.com/s/%E5%B9%B3%E6%B1%9F%E8%B7%AF/',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '讲解',
+    title: '武康路建筑漫步讲解',
+    poi: '武康路',
+    targetPoi: '武康路',
+    city: '上海',
+    price: '前往平台查看价格',
+    provider: '携程本地玩乐',
+    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E6%AD%A6%E5%BA%B7%E8%B7%AF%20Citywalk',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  },
+  {
+    type: '酒店区域',
+    title: '杭州湖滨银泰周边住宿',
+    poi: '湖滨银泰',
+    targetPoi: '湖滨银泰',
+    city: '杭州',
+    price: '前往平台查看价格',
+    provider: '高德酒店区域',
+    url: 'https://ditu.amap.com/search?query=%E6%9D%AD%E5%B7%9E%E6%B9%96%E6%BB%A8%E9%85%92%E5%BA%97',
+    linkType: 'search',
+    deepLinkStatus: 'search_fallback',
+    analyticsStatus: 'not_collected'
+  }
+];

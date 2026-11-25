@@ -2,9 +2,20 @@
 // ops panels, and no source maps may remain in any served directory. Exits non-zero on a leak.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../', import.meta.url).pathname;
-const FORBIDDEN = ['/api/admin', 'x-routebook-admin-token', 'OpsConfigPanel', 'admin-token'];
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const FORBIDDEN = [
+  '/api/admin',
+  'x-routebook-admin-token',
+  'OpsConfigPanel',
+  'admin-token',
+  'node:fs',
+  'node:crypto',
+  'process.env.',
+  'PROFILE_ID_SECRET',
+  'CONFIG_ENC_KEY'
+];
 
 function files(dir) {
   if (!existsSync(dir)) return [];

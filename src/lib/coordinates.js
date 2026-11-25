@@ -13,6 +13,25 @@ export const cityCenters = {
   南京: { lat: 32.0603, lng: 118.7969, zoom: 11 },
   宁波: { lat: 29.8683, lng: 121.544, zoom: 11 },
   无锡: { lat: 31.4912, lng: 120.3119, zoom: 11 },
+  徐州: { lat: 34.2044, lng: 117.2859, zoom: 11 },
+  常州: { lat: 31.8112, lng: 119.9741, zoom: 11 },
+  南通: { lat: 31.9802, lng: 120.8943, zoom: 11 },
+  连云港: { lat: 34.5965, lng: 119.2213, zoom: 11 },
+  淮安: { lat: 33.6104, lng: 119.0153, zoom: 11 },
+  盐城: { lat: 33.3474, lng: 120.1636, zoom: 11 },
+  扬州: { lat: 32.3942, lng: 119.4129, zoom: 12 },
+  镇江: { lat: 32.188, lng: 119.425, zoom: 12 },
+  泰州: { lat: 32.4558, lng: 119.9231, zoom: 11 },
+  宿迁: { lat: 33.963, lng: 118.2752, zoom: 11 },
+  温州: { lat: 27.9943, lng: 120.6994, zoom: 11 },
+  嘉兴: { lat: 30.7461, lng: 120.7555, zoom: 12 },
+  湖州: { lat: 30.8943, lng: 120.0868, zoom: 12 },
+  绍兴: { lat: 30.0303, lng: 120.5802, zoom: 12 },
+  金华: { lat: 29.0791, lng: 119.6474, zoom: 11 },
+  衢州: { lat: 28.9702, lng: 118.8595, zoom: 11 },
+  舟山: { lat: 29.9853, lng: 122.2072, zoom: 11 },
+  台州: { lat: 28.6564, lng: 121.4208, zoom: 11 },
+  丽水: { lat: 28.4676, lng: 119.9228, zoom: 11 },
   厦门: { lat: 24.4798, lng: 118.0894, zoom: 12 },
   福州: { lat: 26.0745, lng: 119.2965, zoom: 11 },
   青岛: { lat: 36.0671, lng: 120.3826, zoom: 11 },
@@ -74,7 +93,77 @@ export const knownPoiCoordinates = {
   武康路: { lat: 31.2123, lng: 121.4382, city: '上海' },
   安福路: { lat: 31.217, lng: 121.4431, city: '上海' },
   湖滨银泰: { lat: 30.2583, lng: 120.1641, city: '杭州' },
-  平江路: { lat: 31.3156, lng: 120.6314, city: '苏州' }
+  平江路: { lat: 31.3156, lng: 120.6314, city: '苏州' },
+  拙政园: { lat: 31.3243, lng: 120.6292, city: '苏州' },
+  苏州博物馆: { lat: 31.3228, lng: 120.6277, city: '苏州' },
+  山塘街: { lat: 31.3183, lng: 120.6054, city: '苏州' },
+  南京博物院: { lat: 32.0405, lng: 118.8247, city: '南京' },
+  鸡鸣寺: { lat: 32.0609, lng: 118.7952, city: '南京' },
+  古鸡鸣寺: { lat: 32.0609, lng: 118.7952, city: '南京' },
+  老门东: { lat: 32.0132, lng: 118.7875, city: '南京' },
+  夫子庙秦淮风光带: { lat: 32.0209, lng: 118.7886, city: '南京' },
+  夫子庙: { lat: 32.0209, lng: 118.7886, city: '南京' },
+  // 江浙沪 25 城常用交通枢纽坐标（供首末日时间窗与顺路重排锚定）
+  杭州西站: { lat: 30.2947, lng: 119.9942, city: '杭州' },
+  杭州站: { lat: 30.2428, lng: 120.1806, city: '杭州' },
+  萧山机场: { lat: 30.2295, lng: 120.4344, city: '杭州' },
+  上海虹桥站: { lat: 31.1942, lng: 121.3204, city: '上海' },
+  上海站: { lat: 31.2494, lng: 121.4557, city: '上海' },
+  上海南站: { lat: 31.1542, lng: 121.4294, city: '上海' },
+  浦东机场: { lat: 31.1443, lng: 121.8083, city: '上海' },
+  苏州站: { lat: 31.3301, lng: 120.6105, city: '苏州' },
+  苏州北站: { lat: 31.4227, lng: 120.6423, city: '苏州' },
+  苏州园区站: { lat: 31.3396, lng: 120.7135, city: '苏州' },
+  南京南站: { lat: 31.9693, lng: 118.7982, city: '南京' },
+  南京站: { lat: 32.0868, lng: 118.7975, city: '南京' },
+  禄口机场: { lat: 31.742, lng: 118.862, city: '南京' },
+  无锡东站: { lat: 31.5959, lng: 120.4578, city: '无锡' },
+  无锡站: { lat: 31.588, lng: 120.3046, city: '无锡' },
+  硕放机场: { lat: 31.4986, lng: 120.4295, city: '无锡' },
+  徐州东站: { lat: 34.2673, lng: 117.3042, city: '徐州' },
+  徐州站: { lat: 34.2655, lng: 117.2041, city: '徐州' },
+  观音机场: { lat: 34.0592, lng: 117.5553, city: '徐州' },
+  常州北站: { lat: 31.8686, lng: 119.9571, city: '常州' },
+  常州站: { lat: 31.7873, lng: 119.9698, city: '常州' },
+  奔牛机场: { lat: 31.9197, lng: 119.7789, city: '常州' },
+  南通西站: { lat: 32.0728, lng: 120.7575, city: '南通' },
+  南通站: { lat: 32.0748, lng: 120.8926, city: '南通' },
+  兴东机场: { lat: 32.0708, lng: 120.9756, city: '南通' },
+  连云港站: { lat: 34.6063, lng: 119.1687, city: '连云港' },
+  白塔埠机场: { lat: 34.5714, lng: 118.8736, city: '连云港' },
+  淮安东站: { lat: 33.5824, lng: 119.1462, city: '淮安' },
+  涟水机场: { lat: 33.7911, lng: 119.1258, city: '淮安' },
+  盐城站: { lat: 33.3775, lng: 120.1887, city: '盐城' },
+  南洋机场: { lat: 33.4258, lng: 120.2031, city: '盐城' },
+  扬州东站: { lat: 32.4041, lng: 119.5122, city: '扬州' },
+  扬州站: { lat: 32.3982, lng: 119.3446, city: '扬州' },
+  扬泰机场: { lat: 32.5631, lng: 119.7153, city: '扬州' },
+  镇江站: { lat: 32.1966, lng: 119.4316, city: '镇江' },
+  镇江南站: { lat: 32.1489, lng: 119.4192, city: '镇江' },
+  泰州站: { lat: 32.5297, lng: 119.9742, city: '泰州' },
+  宿迁站: { lat: 33.8965, lng: 118.2974, city: '宿迁' },
+  宁波站: { lat: 29.862, lng: 121.5369, city: '宁波' },
+  栎社机场: { lat: 29.8267, lng: 121.4619, city: '宁波' },
+  温州南站: { lat: 27.9688, lng: 120.5877, city: '温州' },
+  温州北站: { lat: 28.0812, lng: 120.6745, city: '温州' },
+  龙湾机场: { lat: 27.9122, lng: 120.852, city: '温州' },
+  嘉兴南站: { lat: 30.6924, lng: 120.8075, city: '嘉兴' },
+  嘉兴站: { lat: 30.7689, lng: 120.7611, city: '嘉兴' },
+  湖州站: { lat: 30.8698, lng: 120.0257, city: '湖州' },
+  湖州东站: { lat: 30.8562, lng: 120.1984, city: '湖州' },
+  绍兴北站: { lat: 30.1066, lng: 120.5382, city: '绍兴' },
+  绍兴站: { lat: 30.0156, lng: 120.5764, city: '绍兴' },
+  金华站: { lat: 29.1157, lng: 119.6358, city: '金华' },
+  金华南站: { lat: 29.0884, lng: 119.7262, city: '金华' },
+  义乌站: { lat: 29.3662, lng: 120.0297, city: '金华' },
+  衢州站: { lat: 28.9403, lng: 118.8753, city: '衢州' },
+  衢州西站: { lat: 28.9831, lng: 118.8184, city: '衢州' },
+  普陀山机场: { lat: 29.9342, lng: 122.3619, city: '舟山' },
+  朱家尖蜈蚣峙码头: { lat: 29.9565, lng: 122.3712, city: '舟山' },
+  台州站: { lat: 28.6656, lng: 121.3095, city: '台州' },
+  台州西站: { lat: 28.6873, lng: 121.1965, city: '台州' },
+  路桥机场: { lat: 28.5622, lng: 121.4286, city: '台州' },
+  丽水站: { lat: 28.4526, lng: 119.9577, city: '丽水' }
 };
 
 export function isValidCoordinate(lat, lng) {
@@ -167,11 +256,24 @@ export function distanceKm(from, to) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function routeLegLabel(from, to) {
+export function routeLegLabel(from, to, transport = '') {
   const km = distanceKm(from, to);
   if (!Number.isFinite(km)) return '路程待核对';
-  const mode = km <= 1.2 ? '步行' : '打车';
-  const minutes = mode === '步行' ? Math.max(6, Math.round((km / 4.5) * 60)) : Math.max(12, Math.round((km / 22) * 60 + 8));
+  const pref = String(to?.transportMode || transport || '').trim();
+  let mode = '打车';
+  if (km <= 1.2) {
+    mode = '步行';
+  } else if (/公交|地铁|transit|metro|subway|\bbus\b/i.test(pref)) {
+    mode = '公交地铁';
+  } else if (/自驾|驾车|开车|driv/i.test(pref)) {
+    mode = '驾车';
+  }
+  const minutes =
+    mode === '步行'
+      ? Math.max(6, Math.round((km / 4.5) * 60))
+      : mode === '公交地铁'
+        ? Math.max(15, Math.round((km / 18) * 60 + 10))
+        : Math.max(12, Math.round((km / 22) * 60 + 8));
   const distLabel = km < 1 ? `${Math.max(0.1, Math.round(km * 10) / 10)} km` : `${km.toFixed(1)} km`;
   return `${mode}约 ${minutes} 分钟 · 直线 ${distLabel}（路线还没查）`;
 }

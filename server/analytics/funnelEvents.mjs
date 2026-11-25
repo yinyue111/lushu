@@ -9,6 +9,17 @@ import { raiseAlert } from '../ops/alerts.mjs';
 export const CLIENT_FUNNEL_EVENTS = new Set(['home_view', 'create_start', 'share_copy']);
 // 信任行为：点开「待确认」、点开来源、报错、隔天再打开同一份路书。只记次数和人，不记内容。
 export const CLIENT_TRUST_EVENTS = new Set(['route_view', 'confirm_open', 'confirm_search', 'source_open', 'fact_report', 'revisit']);
+// 二段价值漏斗：行前设置时间窗/微调/同行协作 → 行中启动/打卡/记账 → 行后导出游记卡/打印单。
+export const CLIENT_JOURNEY_EVENTS = new Set([
+  'time_window_set',
+  'ai_adjust_apply',
+  'companion_submit',
+  'trip_start',
+  'checkin_submit',
+  'expense_add',
+  'review_export',
+  'itinerary_print'
+]);
 export const SERVER_FUNNEL_EVENTS = new Set(['register_complete', 'share_open']);
 export const ACTIVATION_STEPS = [
   { key: 'home_view', label: '到达首页/创建页' },
@@ -25,7 +36,9 @@ export function funnelKey(profileId) {
 }
 
 export async function recordFunnelEvent(event, { profileId = '', ref = '', aliasOf = '' } = {}) {
-  if (!CLIENT_FUNNEL_EVENTS.has(event) && !SERVER_FUNNEL_EVENTS.has(event) && !CLIENT_TRUST_EVENTS.has(event)) return null;
+  if (!CLIENT_FUNNEL_EVENTS.has(event) && !SERVER_FUNNEL_EVENTS.has(event) && !CLIENT_TRUST_EVENTS.has(event) && !CLIENT_JOURNEY_EVENTS.has(event)) {
+    return null;
+  }
   const row = { event, key: funnelKey(profileId), ref: truncateString(ref, 40), createdAt: new Date().toISOString() };
   // 注册时账号 profile 和注册前的设备 profile 不同：记下别名，漏斗才能按同一个人串起来。
   const alias = funnelKey(aliasOf);
@@ -124,6 +137,17 @@ export function buildTrustBehavior(rows = [], { sinceMs = 0 } = {}) {
   out.confirmOpenRate = viewers > 0 ? Math.round((out.confirm_open.people / viewers) * 100) : null;
   out.revisitRate = viewers > 0 ? Math.round((out.revisit.people / viewers) * 100) : null;
   return out;
+}
+
+export function buildJourneyBehavior(rows = [], { sinceMs = 0 } = {}) {
+  const stats = {};
+  for (const event of CLIENT_JOURNEY_EVENTS) stats[event] = { people: new Set(), count: 0 };
+  for (const row of rows) {
+    if (!CLIENT_JOURNEY_EVENTS.has(row?.event) || (sinceMs && Date.parse(row.createdAt) < sinceMs)) continue;
+    stats[row.event].count += 1;
+    if (row.key) stats[row.key ? row.event : row.event].people.add(row.key);
+  }
+  return Object.fromEntries(Object.entries(stats).map(([event, { people, count }]) => [event, { people: people.size, count }]));
 }
 
 const MAX_CLIENT_ERROR_TEXT = 500;

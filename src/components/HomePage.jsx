@@ -11,7 +11,8 @@ import { SectionHeading } from './ui/section-heading';
 import { CityBackdrop } from './visual/CityBackdrop';
 import { hasCityPhotos, smallImage } from './visual/theme';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, seasonNoteFor, trustedCities } from '../lib/content';
-import { getCmsConfig } from '../lib/api';
+import { isJzhCity } from '../lib/openCities.js';
+import { getCmsConfig, getRoutebooksByCity } from '../lib/api';
 import { getProfile } from '../lib/profile';
 import { useAccount } from './Account/AccountProvider';
 import { useMediaQuery } from './ui/useMediaQuery';
@@ -21,14 +22,16 @@ const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
 // 同一会话内记住用户已选/输入的目的地，路由往返首页后恢复，优先于 CMS defaultCity。
 const HOME_CITY_STORAGE_KEY = 'trusted-routebook:home-city';
 
-export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestination, onRefresh }) {
+/** @param {Record<string, any>} props */
+export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = undefined, onOpenDestination, onRefresh }) {
   // V-U34: on desktop the gallery is a static grid, so it needs no tab stop (it made focus jump back up).
   const galleryIsGrid = useMediaQuery('(min-width: 1024px)');
   useEffect(() => trackFunnel('home_view'), []);
-  const { required: loginRequired, account } = useAccount();
+  const { required: loginRequired, account, requireLogin } = useAccount();
   const [profile] = useState(() => getProfile());
   const [storedCity] = useState(() => readStoredHomeCity());
   const [cmsConfig, setCmsConfig] = useState(null);
+  const [featuredBooks, setFeaturedBooks] = useState(/** @type {any[]} */ ([]));
   const [city, setCity] = useState(() => storedCity || (profile.preferredCities?.[0] ?? profile.homeCity ?? '杭州'));
   const [duration, setDuration] = useState('2 天 1 晚');
   const [theme, setTheme] = useState(profile.themes?.[0] ?? 'Citywalk');
@@ -44,6 +47,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
   const cityPhotos = useMemo(() => getCityPhotos(city), [city]);
   const visibleThemes = useMemo(() => [...new Set([...(profile.themes ?? []), ...themes])].slice(0, 8), [profile.themes]);
   const isTrustedCity = trustedCities.includes(city);
+  const cityOpen = isJzhCity(city);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -61,6 +65,18 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
       .catch(() => {});
     return () => ctrl.abort();
   }, [cityTouched]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    getRoutebooksByCity(city, 12, ctrl.signal)
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        const featured = (data?.routebooks ?? []).filter((rb) => rb?.publishStatus === 'featured');
+        setFeaturedBooks(featured);
+      })
+      .catch(() => setFeaturedBooks([]));
+    return () => ctrl.abort();
+  }, [city]);
 
   useEffect(() => {
     refreshRef.current = onRefresh;
@@ -93,12 +109,19 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
   }
 
   function startFromHero() {
-    onNewBook({
-      city,
-      duration,
-      theme: [theme],
-      guide: `想要${city}${duration}，主题偏好：${theme}。希望路线可信、少绕路，并保留真实打卡反馈。`
-    });
+    const launch = () =>
+      onNewBook({
+        city,
+        duration,
+        theme: [theme],
+        initialStep: 2,
+        guide: `想要${city}${duration}，主题偏好：${theme}。希望路线可信、少绕路，并保留真实打卡反馈。`
+      });
+    if (loginRequired && !account) {
+      requireLogin('生成专属路书需先登录；未登录可先看下方精选路书。', launch);
+      return;
+    }
+    launch();
   }
 
   function startFromImport() {
@@ -107,7 +130,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
     onNewBook({ city, duration, theme: [theme], guide, initialStep: 1, autoImport: true });
   }
 
-  const quickCities = trustedCities;
+  const quickCities = ['杭州', '上海', '苏州', '南京'];
 
   return (
     <div className="bg-white pb-16 text-ink">
@@ -115,7 +138,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
       <section className="relative isolate overflow-hidden">
         <CityBackdrop city={city} />
         <div
-          className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.35)_0%,rgba(10,12,16,.15)_40%,rgba(10,12,16,.7)_100%)]"
+          className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.58)_0%,rgba(10,12,16,.52)_45%,rgba(10,12,16,.84)_100%)]"
           aria-hidden="true"
         />
         <div className="mx-auto grid max-w-[1376px] grid-cols-[minmax(0,1fr)] gap-8 px-4 pt-10 pb-8 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-end lg:px-8 lg:pt-20 lg:pb-14">
@@ -128,7 +151,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
               <br />
               变成能照着走的路书
             </h1>
-            <p className="mt-4 max-w-[36em] text-lead leading-relaxed text-white/92 lg:text-lg">
+            <p className="mt-4 max-w-[36em] text-lead leading-relaxed text-white lg:text-lg">
               {cmsConfig?.heroSubtitle || '粘贴小红书、抖音攻略或想去的地方，AI 按天排好路线和时间，并标出出发前要确认的营业时间和预约。'}
             </p>
             <div className="mt-5 flex flex-wrap gap-2" aria-label={`${city} 路线数据`}>
@@ -173,10 +196,36 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                 {loginRequired ? '下一步会请你登录，攻略会留着。' : '登录后路书会同步到账号，换设备也能看。'}
               </p>
             )}
-            <Button variant="primary" size="lg" className="mt-3 h-[52px] w-full text-lead" onClick={guideSeed.trim() ? startFromImport : startFromHero}>
+            <Button
+              variant="primary"
+              size="lg"
+              className="mt-3 h-[52px] w-full text-lead"
+              disabled={!cityOpen}
+              onClick={guideSeed.trim() ? startFromImport : startFromHero}
+            >
               {guideSeed.trim() ? <Link2 /> : <Sparkles />} {guideSeed.trim() ? '用这篇攻略排路线' : '排一条路线'}
             </Button>
-            {!guideSeed.trim() && <p className="mt-1.5 text-center text-meta text-muted">没有攻略也行，按下面选的城市和玩法直接排。</p>}
+            {!guideSeed.trim() && (
+              <p className="mt-2.5 text-center text-meta font-medium text-ink-2">
+                {loginRequired && !account ? (
+                  <>
+                    生成专属路书需先登录 ·{' '}
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 items-center px-1 font-bold text-primary-strong underline underline-offset-2 sm:min-h-0"
+                      onClick={() => {
+                        if (cityRoutes[0]) onOpenBook(curatedRouteToRoutebook(cityRoutes[0]));
+                        else document.getElementById('home-curated-title')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      先看{cityRoutes[0] ? city : '精选'}已有路书
+                    </button>
+                  </>
+                ) : (
+                  '没有攻略也行，按下面选的城市和玩法直接排。'
+                )}
+              </p>
+            )}
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <label className="block min-w-0">
@@ -213,15 +262,23 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => commitCity(item)}
                   aria-pressed={item === city}
-                  className={cn('h-10 rounded-full px-4 text-sm font-bold sm:h-9', item === city ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line')}
+                  className={cn(
+                    'h-11 min-w-11 rounded-full px-4 text-sm font-bold sm:h-9',
+                    item === city ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line'
+                  )}
                 >
                   {item}
                 </button>
               ))}
             </div>
             {!isTrustedCity && (
-              <p role="status" className="mt-2.5 rounded-tile bg-lemon-soft px-3 py-2 text-meta font-semibold text-lemon-ink">
-                {city}暂时只能生成 AI 草稿：地点、营业时间和导航，出发前要自己确认一下。
+              <p
+                role="status"
+                className={cn('mt-2.5 rounded-tile px-3 py-2 text-meta font-semibold', cityOpen ? 'bg-sky-soft text-sky-ink' : 'bg-lemon-soft text-lemon-ink')}
+              >
+                {cityOpen
+                  ? `${city}已开放生成；地点营业时间和导航定位，出发前请自行确认。`
+                  : `内测期间先开放江浙沪的城市（上海、江苏、浙江），${city}暂时还不能生成。`}
               </p>
             )}
             <div className="mt-4">
@@ -234,7 +291,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                     aria-pressed={theme === item}
                     onClick={() => setTheme(item)}
                     className={cn(
-                      'h-10 rounded-full px-4 text-sm font-semibold sm:h-9',
+                      'h-11 min-w-11 rounded-full px-4 text-sm font-semibold sm:h-9',
                       theme === item ? 'bg-ink text-white' : 'bg-canvas text-ink-2 hover:bg-line'
                     )}
                   >
@@ -251,8 +308,14 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
         {/* Curated routes */}
         <section className="mt-10" aria-labelledby="home-curated-title">
           <SectionHeading id="home-curated-title" kicker={`${city} · 精选路线`} title="照着走就行的路线" />
-          {cityRoutes.length ? (
-            <div className={cn('grid grid-cols-1 gap-4', cityRoutes.length > 1 && 'sm:grid-cols-2', cityRoutes.length > 2 && 'lg:grid-cols-3')}>
+          {cityRoutes.length + featuredBooks.length > 0 ? (
+            <div
+              className={cn(
+                'grid grid-cols-1 gap-4',
+                cityRoutes.length + featuredBooks.length > 1 && 'sm:grid-cols-2',
+                cityRoutes.length + featuredBooks.length > 2 && 'lg:grid-cols-3'
+              )}
+            >
               {cityRoutes.map((route) => {
                 const book = curatedRouteToRoutebook(route);
                 return (
@@ -262,7 +325,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                     image={route.image}
                     tags={route.tags}
                     curated
-                    layout={cityRoutes.length === 1 ? 'feature' : 'tall'}
+                    layout={cityRoutes.length + featuredBooks.length === 1 ? 'feature' : 'tall'}
                     meta={route.subtitle}
                     onOpen={() => onOpenBook(book)}
                     actions={
@@ -274,7 +337,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                           size="sm"
                           variant="ghost"
                           className="text-sky-ink"
-                          onClick={() => onNewBook({ city: route.city, duration, theme: route.tags, guide: route.summary })}
+                          onClick={() => (onCustomize ?? onOpenBook)(book, { surface: 'home-curated' })}
                         >
                           改成我的 <ArrowRight />
                         </Button>
@@ -283,6 +346,33 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   />
                 );
               })}
+              {featuredBooks
+                .filter((fb) => !cityRoutes.some((r) => r.id === (fb.publicId || fb.id)))
+                .map((fb) => (
+                  <RouteCard
+                    key={fb.publicId || fb.id}
+                    routebook={fb}
+                    curated
+                    layout={cityRoutes.length + featuredBooks.length === 1 ? 'feature' : 'tall'}
+                    meta={routebookCardMeta(fb)}
+                    onOpen={() => onOpenBook(fb)}
+                    actions={
+                      <>
+                        <Button size="sm" variant="dark" onClick={() => onOpenBook(fb)}>
+                          <Route /> 看路书
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-sky-ink"
+                          onClick={() => (onCustomize ?? onOpenBook)(fb, { surface: 'home-featured' })}
+                        >
+                          改成我的 <ArrowRight />
+                        </Button>
+                      </>
+                    }
+                  />
+                ))}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-panel bg-canvas px-6 py-10 text-center">
@@ -316,7 +406,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
             <p className="mt-3 text-copy text-white/85">{story.summary}</p>
             <ul className="mt-4 flex flex-col gap-2 text-sm text-white/90">
               <li className="flex items-center gap-2">
-                <Compass className="size-4 text-lemon" /> 首批可信城市：上海 · 杭州 · 苏州
+                <Compass className="size-4 text-lemon" /> 首批可信城市：杭州 · 上海 · 苏州 · 南京
               </li>
             </ul>
             <Button variant="light" size="sm" className="mt-5 self-start" onClick={() => onOpenDestination(city)}>
@@ -340,9 +430,9 @@ export default function HomePage({ books, onNewBook, onOpenBook, onOpenDestinati
                   loading="lazy"
                   className="absolute inset-0 -z-10 size-full object-cover"
                 />
-                <figcaption className="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,.7))] p-3 pt-10">
+                <figcaption className="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,rgba(10,12,16,0)_0%,rgba(10,12,16,.72)_42%,rgba(10,12,16,.9)_100%)] p-3 pt-10 text-white">
                   <strong className="block text-base">{photo.title}</strong>
-                  <span className="flex items-center gap-1 text-xs text-white/85">
+                  <span className="flex items-center gap-1 text-xs text-white">
                     <MapPin className="size-3" /> {photo.poi}
                   </span>
                 </figcaption>

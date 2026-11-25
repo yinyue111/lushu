@@ -111,8 +111,8 @@ export const RUNTIME_SCHEMA = {
     group: 'cities',
     role: 'admin',
     items: () => ALL_CITIES,
-    env: () => ['杭州', '上海', '苏州'],
-    default: ['杭州', '上海', '苏州']
+    env: () => ['杭州', '上海', '苏州', '南京'],
+    default: ['杭州', '上海', '苏州', '南京']
   },
   'generation.dailyLimit': {
     type: 'int',

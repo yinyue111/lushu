@@ -26,7 +26,8 @@ export function dayNumber(day, fallbackIndex = 0) {
 const CITY_GALLERY = {
   杭州: ['/assets/hangzhou-west-lake.webp', '/assets/hangzhou-tea.webp', '/assets/old-street.webp', '/assets/local-food.webp'],
   上海: ['/assets/shanghai-street.webp', '/assets/shanghai-bund.webp', '/assets/shanghai-skyline.webp', '/assets/local-food.webp'],
-  苏州: ['/assets/suzhou-garden.webp', '/assets/suzhou-water-town.webp', '/assets/old-street.webp', '/assets/local-food.webp']
+  苏州: ['/assets/suzhou-garden.webp', '/assets/suzhou-water-town.webp', '/assets/old-street.webp', '/assets/local-food.webp'],
+  南京: ['/assets/old-street.webp', '/assets/scene-cat-museum.webp', '/assets/scene-cat-temple.webp', '/assets/local-food.webp']
 };
 
 const ASSET_RE = /^\/assets\/([\w-]+\.webp)(\?.*)?$/;
@@ -84,6 +85,16 @@ const CATEGORIES = [
     scene: scene('cat-street')
   },
   { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市/, icon: Moon, from: '#2b3a67', to: '#7c5cdb' },
+  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', scene: scene('cat-tea') },
+  {
+    id: 'food',
+    label: '吃喝',
+    test: /餐|饭|小吃|面|粉|粥|饺|包|美食|食堂|酒楼|火锅|夜宵|烧烤|菜馆/,
+    icon: Utensils,
+    from: '#e8553d',
+    to: '#ffb04a',
+    scene: scene('cat-food')
+  },
   {
     id: 'museum',
     label: '展馆',
@@ -92,16 +103,6 @@ const CATEGORIES = [
     from: '#7c5cdb',
     to: '#c07cf0',
     scene: scene('cat-museum')
-  },
-  { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', scene: scene('cat-tea') },
-  {
-    id: 'food',
-    label: '吃喝',
-    test: /餐|饭|小吃|面|美食|食堂|酒楼|火锅|夜宵/,
-    icon: Utensils,
-    from: '#e8553d',
-    to: '#ffb04a',
-    scene: scene('cat-food')
   },
   { id: 'temple', label: '寺庙', test: /寺|庙|塔|教堂|道观|祠|庵|禅院|文殊院/, icon: Landmark, from: '#c7432d', to: '#ffc93c', scene: scene('cat-temple') },
   {

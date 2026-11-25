@@ -7,8 +7,16 @@ import { normalizeCreator } from './normalize.mjs';
 import { normalizeCheckinPhotoId } from '../photos/checkin-photos.mjs';
 import { normalizeStoredRouteLegs } from '../routing/provenance.mjs';
 import { aigcMetadata } from '../../src/lib/aigc.js';
+import { TRANSPORT_OPTIONS } from '../../src/components/Builder/builderModel.js';
 import { isModerationWithheld } from '../moderation/index.mjs';
-import { modernTermCopy } from '../lib/termCopy.mjs';
+import { modernTermCopy, publicValidationRows, redactPrivatePreferenceProse } from '../lib/termCopy.mjs';
+
+const PUBLIC_TRANSPORTS = new Set(TRANSPORT_OPTIONS);
+
+function publicTransportValue(routebook) {
+  const candidate = String(routebook?.transport || routebook?.constraints?.transport || '').trim();
+  return PUBLIC_TRANSPORTS.has(candidate) ? candidate : '';
+}
 
 export function isPublicRoutebook(routebook) {
   if (!PUBLIC_ROUTE_STATUSES.has(routebook?.publishStatus || 'draft')) return false;
@@ -49,12 +57,19 @@ export function publicRoutebookView(routebook) {
   if (!routebook) return null;
   const routeTrustVisible = hasPublicRouteTrustScore(routebook.trustMeta);
   const publicRouteTrustScore = routeTrustVisible ? clampNumber(routebook.trustMeta.displayScore, 0, 100, 0) : null;
+  const transport = publicTransportValue(routebook);
+  const rawStops = Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS) : [];
+  const redactContext = {
+    constraints: routebook.constraints,
+    stopNames: rawStops.map((stop) => stop?.name).filter(Boolean)
+  };
   return {
     id: sanitizePublicId(routebook.id || routebook.publicId),
     publicId: sanitizePublicId(routebook.publicId || routebook.id),
     title: truncateString(routebook.title, 80),
-    summary: truncateString(routebook.summary, 220),
+    summary: modernTermCopy(redactPrivatePreferenceProse(truncateString(routebook.summary, 220), redactContext)),
     city: routebook.city ? normalizeCityName(routebook.city) : '',
+    ...(transport ? { transport } : {}),
     trustScore: publicRouteTrustScore,
     trustMeta: publicTrustMeta(routebook.trustMeta),
     // Only the fallback marker (「本次由备用模型生成」); model / base URL stay private.
@@ -65,7 +80,7 @@ export function publicRoutebookView(routebook) {
           .filter(Boolean)
           .slice(0, 10)
       : [],
-    stops: Array.isArray(routebook.stops) ? routebook.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
+    stops: rawStops.map((stop) => publicRoutebookStop(stop, redactContext)),
     routeLegs: publicRouteLegs(routebook),
     assets: Array.isArray(routebook.assets)
       ? routebook.assets.slice(0, 12).map((item) => ({
@@ -74,14 +89,7 @@ export function publicRoutebookView(routebook) {
           confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0)
         }))
       : [],
-    validations: Array.isArray(routebook.validations)
-      ? routebook.validations.slice(0, 8).map((item) => ({
-          id: sanitizePublicId(item?.id),
-          label: truncateString(item?.label, 60),
-          state: truncateString(item?.state, 40),
-          detail: truncateString(item?.detail, 220)
-        }))
-      : [],
+    validations: publicValidationRows(routebook.validations),
     metrics: Array.isArray(routebook.metrics)
       ? routebook.metrics.slice(0, 10).map((item) => ({
           label: modernTermCopy(truncateString(item?.label, 60)),
@@ -91,7 +99,7 @@ export function publicRoutebookView(routebook) {
       : [],
     feedbackSummary: publicFeedbackSummary(routebook.feedbackSummary),
     variants: Array.isArray(routebook.variants)
-      ? routebook.variants.slice(0, 8).map((variant) => publicRouteVariant({ ...variant, constraints: routebook.constraints }))
+      ? routebook.variants.slice(0, 8).map((variant) => publicRouteVariant({ ...variant, constraints: routebook.constraints, transport }))
       : [],
     activeVariantId: sanitizePublicId(routebook.activeVariantId),
     creator: publicCreatorView(routebook.creator),
@@ -110,7 +118,7 @@ export function publicRoutebookView(routebook) {
   };
 }
 
-const PUBLIC_STOP_ORIGINS = new Set(['user-guide', 'imported-source', 'user-added', 'model', 'unknown']);
+const PUBLIC_STOP_ORIGINS = new Set(['user-guide', 'imported-source', 'editorial', 'user-added', 'model', 'unknown']);
 
 // matchedText/proof are omitted: matchedText quotes the owner's private guide text.
 function publicStopProvenance(provenance) {
@@ -140,8 +148,9 @@ function publicCostInfo(costInfo) {
   };
 }
 
-export function publicRoutebookStop(stop = {}) {
+export function publicRoutebookStop(stop = {}, redactContext = undefined) {
   const poiTrust = publicPoiTrust(stop.poiTrust);
+  const ctx = redactContext && typeof redactContext === 'object' ? redactContext : undefined;
   return {
     id: typeof stop.id === 'number' ? stop.id : sanitizePublicId(stop.id),
     poiId: sanitizePublicId(stop.poiId),
@@ -151,8 +160,8 @@ export function publicRoutebookStop(stop = {}) {
     area: truncateString(stop.area, 40),
     stay: truncateString(stop.stay, 24),
     cost: truncateString(stop.cost, 32),
-    verify: truncateString(stop.verify, 120),
-    risk: truncateString(stop.risk, 120),
+    verify: modernTermCopy(redactPrivatePreferenceProse(truncateString(stop.verify, 120), ctx)),
+    risk: modernTermCopy(redactPrivatePreferenceProse(truncateString(stop.risk, 120), ctx)),
     // Model self-scores are no longer part of the trust model; legacy values are never exposed.
     score: null,
     provenance: publicStopProvenance(stop.provenance),
@@ -184,40 +193,48 @@ export function publicRoutebookStop(stop = {}) {
             id: sanitizePublicId(item?.id),
             sourceId: sanitizePublicId(item?.sourceId),
             type: truncateString(item?.type, 32),
-            label: truncateString(item?.label, 80),
+            label: modernTermCopy(truncateString(item?.label, 80)),
             platform: truncateString(item?.platform, 40),
             trustScore: item?.trustScore == null ? null : clampNumber(item.trustScore, 0, 100, 0),
             checkedAt: truncateString(item?.checkedAt, 60)
           }))
       : [],
     facts: Array.isArray(stop.facts)
-      ? stop.facts.slice(0, 8).map((item) => ({
-          id: sanitizePublicId(item?.id),
-          field: truncateString(item?.field, 40),
-          value: truncateString(item?.value, 180),
-          confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0),
-          sourceLabel: truncateString(item?.sourceLabel, 80),
-          sourceType: truncateString(item?.sourceType, 32),
-          status: truncateString(item?.status, 24),
-          checkedAt: truncateString(item?.checkedAt, 60)
-        }))
+      ? stop.facts
+          .slice(0, 8)
+          .map((item) => ({
+            id: sanitizePublicId(item?.id),
+            field: truncateString(item?.field, 40),
+            value: modernTermCopy(redactPrivatePreferenceProse(truncateString(item?.value, 180), ctx)),
+            confidence: item?.confidence == null ? null : clampNumber(item.confidence, 0, 100, 0),
+            sourceLabel: modernTermCopy(truncateString(item?.sourceLabel, 80)),
+            sourceType: truncateString(item?.sourceType, 32),
+            status: modernTermCopy(truncateString(item?.status, 24)),
+            checkedAt: truncateString(item?.checkedAt, 60)
+          }))
+          .filter((item) => Boolean(item.value))
       : []
   };
 }
 
 function publicRouteVariant(variant = {}) {
+  const rawStops = Array.isArray(variant.stops) ? variant.stops.slice(0, MAX_ROUTEBOOK_STOPS) : [];
+  const redactContext = {
+    constraints: variant.constraints,
+    stopNames: rawStops.map((stop) => stop?.name).filter(Boolean)
+  };
   return {
     id: sanitizePublicId(variant.id),
     mode: truncateString(variant.mode, 24),
     label: truncateString(variant.label, 40),
-    summary: truncateString(variant.summary, 160),
+    summary: modernTermCopy(redactPrivatePreferenceProse(truncateString(variant.summary, 160), redactContext)),
     days: Array.isArray(variant.days)
       ? variant.days
           .map((day) => truncateString(day, 24))
           .filter(Boolean)
           .slice(0, 10)
       : [],
-    stops: Array.isArray(variant.stops) ? variant.stops.slice(0, MAX_ROUTEBOOK_STOPS).map(publicRoutebookStop) : [],
+    stops: rawStops.map((stop) => publicRoutebookStop(stop, redactContext)),
     routeLegs: publicRouteLegs(variant),
     trustScore: null,
     metrics: Array.isArray(variant.metrics)
@@ -226,21 +243,14 @@ function publicRouteVariant(variant = {}) {
           value: ['站点均分', '资料核对分', '资料核验分'].includes(item?.label) ? '待核对' : modernTermCopy(truncateString(item?.value, 80))
         }))
       : [],
-    validations: Array.isArray(variant.validations)
-      ? variant.validations.slice(0, 8).map((item) => ({
-          id: sanitizePublicId(item?.id),
-          label: truncateString(item?.label, 60),
-          state: truncateString(item?.state, 40),
-          detail: truncateString(item?.detail, 220)
-        }))
-      : [],
+    validations: publicValidationRows(variant.validations),
     createdAt: truncateString(variant.createdAt, 60),
     updatedAt: truncateString(variant.updatedAt, 60)
   };
 }
 
 function publicRouteLegs(routebook) {
-  return normalizeStoredRouteLegs(routebook?.routeLegs, routebook?.stops, routebook?.constraints?.transport).map((leg) => {
+  return normalizeStoredRouteLegs(routebook?.routeLegs, routebook?.stops, routebook?.constraints?.transport || routebook?.transport).map((leg) => {
     const result = /** @type {Record<string, any>} */ ({ ...leg });
     delete result.proof;
     return result;

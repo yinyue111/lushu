@@ -32,7 +32,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
   const lat = Number(stop?.lat);
   const lng = Number(stop?.lng);
   const canNavigate = isNavigableCoordinate(stop);
-  const coordinateLabel = canNavigate ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : coordinateReviewLabel(stop);
+  const coordLevel = coordinateVerificationLevel(stop);
+  const positionLabel = !canNavigate ? coordinateReviewLabel(stop) : stopArea || (coordLevel === 'verified' ? '已对准具体位置' : '大致位置可导航');
+  const positionHint = !canNavigate ? '只知道大概范围，建议在地图按店名搜' : coordLevel === 'verified' ? '可直接打开地图导航' : '打开地图后请留意核对门牌';
 
   const routeId = routebook?.publicId || routebook?.id || routebook?.title;
   const routeTitle = routebook?.title;
@@ -153,7 +155,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
     }
   }
 
-  const trustTone = poiTrustState.tone === 'trial' ? 'warn' : poiTrustState.verified ? 'ok' : 'sky';
+  const trustTone = poiTrustState.tone === 'trial' ? 'warn' : poiTrustState.tone === 'verified' ? 'ok' : 'sky';
 
   return (
     <Sheet title={stop.name} description={stop.area || routebook?.city} onClose={onClose} wide>
@@ -177,57 +179,49 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         ) : (
           <InfoTile icon={Wallet} iconClass="text-success-ink bg-success-soft" label="价格" value={costDisplay(stop).text || '—'} />
         )}
-        <InfoTile
-          icon={MapPin}
-          iconClass="text-primary-strong bg-primary-soft"
-          label="坐标"
-          value={coordinateLabel}
-          hint={!canNavigate ? '只知道大概范围，别直接导航' : ''}
-        />
-        <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText || '待实地核对'} />
+        <InfoTile icon={MapPin} iconClass="text-primary-strong bg-primary-soft" label="位置" value={positionLabel} hint={positionHint} />
+        {realFeedback.audienceText && <InfoTile icon={Users} iconClass="text-lemon-ink bg-lemon-soft" label="适合人群" value={realFeedback.audienceText} />}
       </div>
 
-      <Section title="真实人群与排队">
-        {realFeedback.hasData ? (
-          <ul className="grid gap-2 rounded-tile bg-canvas p-3.5 text-sm text-ink-2">
-            {realFeedback.audienceText && (
-              <Line icon={Users}>
-                适合人群{realFeedback.feedbackCount > 0 ? `（近 30 天 ${realFeedback.feedbackCount} 份真实反馈）` : ''}：{realFeedback.audienceText}
-              </Line>
-            )}
-            {(realFeedback.queueMinutes != null || realFeedback.costMedian != null) && (
-              <Line icon={Clock}>
-                {[
-                  realFeedback.queueMinutes != null ? `实测排队约 ${realFeedback.queueMinutes} 分钟` : '',
-                  realFeedback.costMedian != null ? `人均约 ${realFeedback.costMedian} 元` : ''
-                ]
-                  .filter(Boolean)
-                  .join(' / ')}
-              </Line>
-            )}
-            {realFeedback.crowdLabel && <Line icon={Users}>实测拥挤程度：{realFeedback.crowdLabel}</Line>}
-            {realFeedback.latestDaysAgo != null && (
-              <Line icon={Clock}>
-                {realFeedback.latestDaysAgo === 0 ? '今天有人反馈过这里的情况' : `${realFeedback.latestDaysAgo} 天前有人反馈过这里的情况`}
-              </Line>
-            )}
-          </ul>
-        ) : (
-          <p className="rounded-tile border border-dashed border-line-strong p-3.5 text-sm text-muted">
-            还没有真实打卡。有人打卡后，这里会出现真实人群与排队数据。
-          </p>
-        )}
-        {realFeedback.correctionCount > 0 && (
-          <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-lemon-ink">
-            <AlertTriangle className="size-4" aria-hidden="true" /> 近期有 {realFeedback.correctionCount} 条营业信息纠错，出发前请再确认
-          </p>
-        )}
-      </Section>
+      {(realFeedback.hasData || realFeedback.correctionCount > 0) && (
+        <Section title="真实人群与排队">
+          {realFeedback.hasData && (
+            <ul className="grid gap-2 rounded-tile bg-canvas p-3.5 text-sm text-ink-2">
+              {realFeedback.audienceText && (
+                <Line icon={Users}>
+                  适合人群{realFeedback.feedbackCount > 0 ? `（近 30 天 ${realFeedback.feedbackCount} 份真实反馈）` : ''}：{realFeedback.audienceText}
+                </Line>
+              )}
+              {(realFeedback.queueMinutes != null || realFeedback.costMedian != null) && (
+                <Line icon={Clock}>
+                  {[
+                    realFeedback.queueMinutes != null ? `实测排队约 ${realFeedback.queueMinutes} 分钟` : '',
+                    realFeedback.costMedian != null ? `人均约 ${realFeedback.costMedian} 元` : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' / ')}
+                </Line>
+              )}
+              {realFeedback.crowdLabel && <Line icon={Users}>实测拥挤程度：{realFeedback.crowdLabel}</Line>}
+              {realFeedback.latestDaysAgo != null && (
+                <Line icon={Clock}>
+                  {realFeedback.latestDaysAgo === 0 ? '今天有人反馈过这里的情况' : `${realFeedback.latestDaysAgo} 天前有人反馈过这里的情况`}
+                </Line>
+              )}
+            </ul>
+          )}
+          {realFeedback.correctionCount > 0 && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-lemon-ink">
+              <AlertTriangle className="size-4" aria-hidden="true" /> 近期有 {realFeedback.correctionCount} 条营业信息纠错，出发前请再确认
+            </p>
+          )}
+        </Section>
+      )}
 
-      <Section title="出发前确认">
+      <Section title={/^编辑建议[:：]/.test(String(stop.verify ?? '')) ? '游玩与行前提示' : '出发前确认'}>
         <ul className="grid gap-2 rounded-tile bg-lemon-soft/60 p-3.5 text-sm text-ink-2">
           <Line icon={ShieldCheck} iconClass="text-sky-ink">
-            {stop.verify || '出发前核对开放时间与现场条件'}
+            {String(stop.verify || '出发前核对开放时间与现场条件').replace(/^编辑建议[:：]\s*/, '')}
           </Line>
           {stop.risk && (
             <Line icon={AlertTriangle} iconClass="text-lemon-ink">
@@ -263,18 +257,30 @@ export default function PoiDetail({ stop, routebook, onClose }) {
       )}
 
       {stop.facts?.length > 0 && (
-        <Section title="事实核对" icon={FileSearch}>
+        <Section title="站点信息明细" icon={FileSearch}>
           <ul className="divide-y divide-line overflow-hidden rounded-tile border border-line">
             {stop.facts.slice(0, 6).map((fact) => {
+              const isEditorialStop = stop?.provenance?.origin === 'editorial';
+              const verifiedFact = /已核对|运营|官方|编辑部/.test(String(fact.status ?? ''));
+              const displaySource = isEditorialStop && /^AI\s/.test(String(fact.sourceLabel ?? '')) ? '编辑部整理' : fact.sourceLabel;
+              const displayValue =
+                fact.field === '费用' && costDisplay(stop).pending && fact.value && !/待确认|未核对/.test(String(fact.value))
+                  ? `${fact.value}（AI 估算，待确认）`
+                  : fact.value;
               const body = (
                 <>
-                  <span className="num shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{fact.confidence ?? '-'}%</span>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
+                      verifiedFact ? 'bg-success-soft text-success-ink' : 'bg-canvas text-ink-2'
+                    )}
+                  >
+                    {verifiedFact ? '已核对' : '参考'}
+                  </span>
                   <span className="min-w-0">
                     <strong className="block text-sm font-bold">{fact.field}</strong>
-                    <span className="block text-sm text-ink-2">{fact.value}</span>
-                    <span className="block text-xs text-muted">
-                      {fact.status} · {fact.sourceLabel || fact.sourceType || '来源待补充'}
-                    </span>
+                    <span className="block text-sm text-ink-2">{displayValue}</span>
+                    {displaySource && <span className="block text-xs text-muted">{displaySource}</span>}
                   </span>
                 </>
               );
@@ -312,7 +318,7 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               坐标
               {{ verified: '已精确定位', approximate: '为近似位置', none: '缺失' }[coordinateVerificationLevel(stop)]}
             </span>
-            <span>坐标系 {stop.coordinateSystem ?? 'WGS84'}</span>
+            <span>{canNavigate ? '高德地图可直接导航' : '建议在地图按店名搜索'}</span>
           </div>
         </div>
         <StopProvenanceDetail stop={stop} />
@@ -341,11 +347,11 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         </Section>
       )}
 
-      <div className="sticky -bottom-6 -mx-6 mt-5 flex flex-wrap gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
-        <Button variant="dark" onClick={openInMap}>
+      <div className="sticky -bottom-6 -mx-6 mt-6 grid grid-cols-2 gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
+        <Button variant="dark" className="w-full" onClick={openInMap}>
           <ExternalLink /> {canNavigate ? '在地图中查看' : '在高德按名字搜'}
         </Button>
-        <Button variant="outline" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
+        <Button variant="outline" className="w-full" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
           <Flag /> 信息有误？纠错
         </Button>
       </div>
@@ -541,6 +547,21 @@ function buildPoiTrustState(stop, city) {
         .filter(Boolean)
         .join(' · '),
       score
+    };
+  }
+
+  const placeChecked = stop?.provenance?.reviewedPoi === true || stop?.provenance?.origin === 'editorial' || coordinateVerificationLevel(stop) === 'verified';
+
+  if (placeChecked) {
+    return {
+      tone: 'verified',
+      badgeClass: 'badge-green',
+      verified: false,
+      value: '地点已核对',
+      label: '地点已核对',
+      detailLabel: '地点位置已核对 · 暂无足够打卡评分',
+      detail: `已有 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人到场打卡，满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人后展示实测排队与评分。`,
+      score: null
     };
   }
 

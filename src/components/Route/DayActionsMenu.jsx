@@ -36,8 +36,8 @@ export function DayActionsMenu({ dayNumber, onMerge, onDelete, className }) {
 
   function closeAnd(action) {
     setOpen(false);
+    triggerRef.current?.focus();
     action?.();
-    window.setTimeout(() => triggerRef.current?.focus(), 0);
   }
 
   return (

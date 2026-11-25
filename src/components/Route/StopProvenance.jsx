@@ -6,6 +6,7 @@ import { cn } from '../ui/cn';
 const ORIGIN_UI = {
   'user-guide': { icon: NotebookPen, tone: 'ok' },
   'imported-source': { icon: Link2, tone: 'sky' },
+  editorial: { icon: BadgeCheck, tone: 'ok' },
   'user-added': { icon: PenLine, tone: 'neutral' },
   model: { icon: Sparkles, tone: 'warn' },
   unknown: { icon: CircleHelp, tone: 'neutral' }
@@ -91,11 +92,13 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
     placeOk
       ? { tone: 'ok', text: '地点已核对', title: '名称和平台已核对的地点对得上' }
       : { tone: 'warn', text: '位置待确认', title: approximate ? '位置还没精确定位' : '还没和平台地点核对上' },
-    {
-      tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' || origin === 'editorial' ? 'ok' : 'neutral',
-      text: STOP_ORIGINS[origin].label,
-      title: STOP_ORIGINS[origin].detail
-    }
+    origin !== 'unknown'
+      ? {
+          tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' || origin === 'editorial' ? 'ok' : 'neutral',
+          text: STOP_ORIGINS[origin].label,
+          title: STOP_ORIGINS[origin].detail
+        }
+      : null
   ].filter(Boolean);
   return (
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>

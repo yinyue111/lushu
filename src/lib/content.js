@@ -1,7 +1,7 @@
 const IMAGE_CACHE_VERSION = '20260731';
 const localImage = (path) => `${path}?v=${IMAGE_CACHE_VERSION}`;
 
-export const trustedCities = ['杭州', '上海', '苏州'];
+export const trustedCities = ['杭州', '上海', '苏州', '南京'];
 
 export const cityStories = {
   杭州: {
@@ -30,6 +30,15 @@ export const cityStories = {
     seasonNotes: [{ months: [7, 8], text: '暑期建议上午园林、傍晚水巷' }],
     image: localImage('/assets/suzhou-garden.webp'),
     palette: 'garden'
+  },
+  南京: {
+    city: '南京',
+    kicker: '钟山、秦淮河、博物院与老城南漫游',
+    headline: '把博物院、梧桐大道和老门东排顺，不再跨城来回折返',
+    summary: '适合两日人文漫游。重点提前核对南京博物院等热门场馆预约放票与周一闭馆时间。',
+    seasonNotes: [{ months: [10, 11], text: '秋日梧桐季建议早间进钟山片区' }],
+    image: localImage('/assets/old-street.webp'),
+    palette: 'warm'
   }
 };
 
@@ -222,6 +231,69 @@ export const curatedRoutes = [
         lng: 120.6004
       }
     ]
+  },
+  {
+    id: 'nanjing-museum-qinhuai',
+    city: '南京',
+    title: '博物院 + 古鸡鸣寺 + 老门东夜秦淮',
+    subtitle: '2 天 1 晚 · 人文不绕路 · 朋友/亲子',
+    tags: ['人文', '少绕路', '夜游'],
+    image: localImage('/assets/old-street.webp'),
+    summary: '第一天把城东南京博物院与鸡鸣寺城墙走顺，第二天慢逛老门东街巷并在秦淮河畔收尾。',
+    stops: [
+      {
+        day: 'Day 1',
+        time: '09:30',
+        name: '南京博物院',
+        area: '钟山片区',
+        stay: '150 分钟',
+        cost: '免费',
+        verify: '周一闭馆，需提前在官方公众号预约',
+        risk: '节假日名额紧张，建议提前放票日锁定',
+        score: 89,
+        lat: 32.0405,
+        lng: 118.8244
+      },
+      {
+        day: 'Day 1',
+        time: '14:30',
+        name: '鸡鸣寺',
+        area: '玄武湖畔',
+        stay: '90 分钟',
+        cost: '10 元',
+        verify: '编辑建议：游览后可顺路登台城段明城墙远眺玄武湖',
+        risk: '春季樱花季与周末香客较多',
+        score: 85,
+        lat: 32.0608,
+        lng: 118.7953
+      },
+      {
+        day: 'Day 2',
+        time: '10:30',
+        name: '老门东',
+        area: '秦淮老城南',
+        stay: '120 分钟',
+        cost: '免费',
+        verify: '编辑建议：金陵小吃集中，适合把早午餐放在这里慢逛',
+        risk: '网红小吃店午间可能排队',
+        score: 84,
+        lat: 32.0135,
+        lng: 118.7867
+      },
+      {
+        day: 'Day 2',
+        time: '18:00',
+        name: '夫子庙秦淮风光带',
+        area: '秦淮河',
+        stay: '90 分钟',
+        cost: '免费',
+        verify: '编辑建议：傍晚亮灯后沿河散步即可，游船视现场排队决定',
+        risk: '节假日核心商业街人流密集',
+        score: 82,
+        lat: 32.0206,
+        lng: 118.7885
+      }
+    ]
   }
 ];
 
@@ -231,88 +303,8 @@ export const inspirationPhotos = [
   { city: '上海', poi: '陆家嘴', title: '浦江天际线', source: '目的地图片', image: localImage('/assets/shanghai-skyline.webp') },
   { city: '上海', poi: '外滩', title: '城市水岸', source: '目的地图片', image: localImage('/assets/shanghai-bund.webp') },
   { city: '苏州', poi: '平江路', title: '江南水巷', source: '目的地图片', image: localImage('/assets/suzhou-water-town.webp') },
-  { city: '苏州', poi: '姑苏古城', title: '园林与假山', source: '目的地图片', image: localImage('/assets/suzhou-garden.webp') }
-];
-
-export const productCards = [
-  {
-    type: '本地玩乐',
-    title: '柳浪闻莺西湖 Citywalk 讲解',
-    poi: '柳浪闻莺',
-    targetPoi: '柳浪闻莺',
-    city: '杭州',
-    price: '前往平台查看价格',
-    provider: '携程本地玩乐',
-    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E8%A5%BF%E6%B9%96%20Citywalk',
-    linkType: 'search',
-    deepLinkStatus: 'search_fallback',
-    analyticsStatus: 'not_collected'
-  },
-  {
-    type: '本地玩乐',
-    title: '龙井茶园采茶炒茶体验',
-    poi: '龙井茶园',
-    targetPoi: '龙井茶园',
-    city: '杭州',
-    price: '前往平台查看价格',
-    provider: '飞猪旅行',
-    url: 'https://h5.fliggy.com/search.html?q=%E9%BE%99%E4%BA%95%E8%8C%B6%E5%9B%AD%E4%BD%93%E9%AA%8C',
-    linkType: 'search',
-    deepLinkStatus: 'search_fallback',
-    analyticsStatus: 'not_collected'
-  },
-  {
-    type: '门票',
-    title: '拙政园门票预订入口',
-    poi: '拙政园',
-    targetPoi: '拙政园',
-    city: '苏州',
-    price: '前往平台查看价格',
-    provider: '携程门票',
-    url: 'https://m.ctrip.com/webapp/ticket/dest/t140508.html',
-    linkType: 'destination_listing',
-    deepLinkStatus: 'listing_fallback',
-    analyticsStatus: 'not_collected'
-  },
-  {
-    type: '本地玩乐',
-    title: '平江路评弹茶馆体验',
-    poi: '平江路',
-    targetPoi: '平江路',
-    city: '苏州',
-    price: '前往平台查看价格',
-    provider: '美团',
-    url: 'https://www.meituan.com/s/%E5%B9%B3%E6%B1%9F%E8%B7%AF/',
-    linkType: 'search',
-    deepLinkStatus: 'search_fallback',
-    analyticsStatus: 'not_collected'
-  },
-  {
-    type: '讲解',
-    title: '武康路建筑漫步讲解',
-    poi: '武康路',
-    targetPoi: '武康路',
-    city: '上海',
-    price: '前往平台查看价格',
-    provider: '携程本地玩乐',
-    url: 'https://m.ctrip.com/webapp/you/thingstodo/list?keyword=%E6%AD%A6%E5%BA%B7%E8%B7%AF%20Citywalk',
-    linkType: 'search',
-    deepLinkStatus: 'search_fallback',
-    analyticsStatus: 'not_collected'
-  },
-  {
-    type: '酒店区域',
-    title: '杭州湖滨银泰周边住宿',
-    poi: '湖滨银泰',
-    targetPoi: '湖滨银泰',
-    city: '杭州',
-    price: '前往平台查看价格',
-    provider: '高德酒店区域',
-    url: 'https://ditu.amap.com/search?query=%E6%9D%AD%E5%B7%9E%E6%B9%96%E6%BB%A8%E9%85%92%E5%BA%97',
-    linkType: 'search',
-    deepLinkStatus: 'search_fallback',
-    analyticsStatus: 'not_collected'
-  }
+  { city: '苏州', poi: '姑苏古城', title: '园林与假山', source: '目的地图片', image: localImage('/assets/suzhou-garden.webp') },
+  { city: '南京', poi: '老门东', title: '城南街巷与梧桐', source: '目的地图片', image: localImage('/assets/old-street.webp') }
 ];
 
 export const defaultCityImage = localImage('/assets/city-aerial.webp');
@@ -366,6 +358,8 @@ export function curatedRouteToRoutebook(route) {
     city: route.city,
     title: route.title,
     summary: route.summary,
+    transport: '公交地铁 + 步行',
+    constraints: { transport: '公交地铁 + 步行' },
     // 精选路线视为已上架的公开内容：分享预览可直接派生 /share/publicId 复制与系统分享，
     // 但仍不允许用户对精选路线执行「发布」。
     publishStatus: 'featured',
@@ -379,13 +373,13 @@ export function curatedRouteToRoutebook(route) {
     days: [...new Set(route.stops.map((stop) => stop.day))],
     stops: route.stops.map((stop, index) => ({
       id: index + 1,
-      geoConfidence: 70,
+      geoConfidence: 88,
       coordinateSystem: 'WGS84',
-      coordinateSource: 'editorial-template',
-      coordinatePrecision: 'poi',
+      coordinateSource: 'known-poi',
+      coordinatePrecision: 'exact',
       ...stop,
       // 服务端只对精选路线里真实存在的站名承认这个来源（server/trust/provenance.mjs）。
-      provenance: { origin: 'editorial', name: stop.name }
+      provenance: { origin: 'editorial', name: stop.name, reviewedPoi: true }
     })),
     assets: route.tags.map((tag) => ({ label: tag, type: '主题', confidence: 82 })),
     validations: [

@@ -9,6 +9,9 @@ export function isAiGeneratedRoutebook(routebook) {
   // Public views carry the server-derived label because they omit provider details.
   if (typeof routebook?.aigc?.generated === 'boolean') return routebook.aigc.generated;
   const provider = routebook?.provider ?? {};
+  if (provider.name === 'curation' || provider.model === 'ops-template') {
+    return (Array.isArray(routebook?.stops) ? routebook.stops : []).some((stop) => stop?.provenance?.origin === 'model');
+  }
   if (provider.generatedAt || provider.model) return true;
   return (Array.isArray(routebook?.stops) ? routebook.stops : []).some((stop) => stop?.provenance?.origin === 'model');
 }

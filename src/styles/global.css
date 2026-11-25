@@ -206,13 +206,10 @@ a {
   border: 1px solid var(--line);
   box-shadow: var(--shadow-md);
   padding: var(--space-lg);
-  transition:
-    transform var(--duration) var(--ease-out),
-    box-shadow var(--duration) ease;
+  transition: box-shadow var(--duration) ease;
 }
 
 .card:hover {
-  transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
 
@@ -234,14 +231,14 @@ a {
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 15px;
-  transition: all var(--duration) var(--ease-out);
+  transition:
+    box-shadow var(--duration) var(--ease-out),
+    background-color var(--duration) var(--ease-out),
+    transform var(--duration) var(--ease-out);
   white-space: nowrap;
   max-width: 100%;
 }
 
-.btn:not(:disabled):hover {
-  transform: translateY(-1px);
-}
 .btn:not(:disabled):active {
   transform: scale(0.97);
 }

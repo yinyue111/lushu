@@ -117,13 +117,13 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
   const firstConflict = stats.scheduleConflicts?.[0];
   const firstRisk = stats.riskyLegs?.[0];
 
-  let routingState = '无需核验';
+  let routingState = '无需核对';
   let routingDetail = `${reason}后没有同日相邻转场。`;
   if (expectedLegs) {
     routingState = allVerified && !missingCoordinate ? '已查过' : '还没查';
     routingDetail =
       allVerified && !missingCoordinate
-        ? `${reason}后已按道路结果核验 ${verifiedLegs} 段，合计约 ${formatDistance(stats.totalDistanceMeters)}、${formatDuration(stats.totalDurationSeconds)}。`
+        ? `${reason}后已按道路结果核对 ${verifiedLegs} 段，合计约 ${formatDistance(stats.totalDistanceMeters)}、${formatDuration(stats.totalDurationSeconds)}。`
         : `${verifiedLegs ? `已查 ${verifiedLegs}/${expectedLegs} 段；` : ''}${missingCoordinate ? `${missingCoordinate} 个站点缺少可用坐标，` : ''}${unverifiedLegs} 段路线还没查，距离和时间先按直线估算，出发前用导航看一眼。`;
   }
 
@@ -143,7 +143,7 @@ export function routeExecutionValidationRows(stats = {}, { reason = '保存', cr
     tempoDetail = `${stats.unknownScheduleLegs} 段缺少规范到达时间或停留时长，暂不能完成时间可达性判断。`;
   } else if (allVerified) {
     tempoState = '可执行';
-    tempoDetail = `已用 ${verifiedLegs} 段道路耗时校验相邻站点时间，未发现到达时间冲突。`;
+    tempoDetail = `已用 ${verifiedLegs} 段道路耗时核对相邻站点时间，未发现到达时间冲突。`;
   }
 
   let detourState = '无需判断';

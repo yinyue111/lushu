@@ -17,6 +17,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
   const chainRef = useRef(Promise.resolve());
   const [state, setState] = useState({ status: 'local', message: '行中计划保存在本机' });
   const [refresh, setRefresh] = useState(0);
+  const [conflictChoice, setConflictChoice] = useState(/** @type {null | { useCloud: boolean }} */ (null));
 
   const sync = useCallback(() => {
     const controller = controllerRef.current;
@@ -58,6 +59,7 @@ export function useTripCloudSync(routebook, profile, onRestore) {
     controllerRef.current = controller;
     readyRef.current = false;
     conflictRef.current = null;
+    setConflictChoice(null);
     if (!cloudCapable) {
       setState({ status: 'local', message: '行中计划保存在本机；开启云端同步后可跨设备继续' });
       return () => controller.abort();
@@ -94,10 +96,13 @@ export function useTripCloudSync(routebook, profile, onRestore) {
     };
   }, [profile.id, cloudCapable, routeId, refresh, sync]);
 
-  async function resolveConflict(useCloud) {
+  async function resolveConflict(useCloud, { confirmed = false } = {}) {
+    if (!confirmed) {
+      setConflictChoice({ useCloud: Boolean(useCloud) });
+      return;
+    }
     const context = contextRef.current;
     const controller = controllerRef.current;
-    if (!window.confirm(useCloud ? '加载云端行中计划会替换本机执行顺序，打卡记录不受影响。确认？' : '用本机执行顺序更新云端行中计划，确认？')) return;
     try {
       const data = await getTripSessionRemote(routeId, profile.id, controller.signal);
       const remote = data.session;
@@ -120,5 +125,29 @@ export function useTripCloudSync(routebook, profile, onRestore) {
     }
   }
 
-  return { state, sync, retry: () => setRefresh((value) => value + 1), resolveConflict };
+  function requestResolveConflict(useCloud) {
+    setConflictChoice({ useCloud: Boolean(useCloud) });
+  }
+
+  function cancelResolveConflict() {
+    setConflictChoice(null);
+  }
+
+  async function confirmResolveConflict() {
+    const choice = conflictChoice;
+    setConflictChoice(null);
+    if (!choice) return;
+    await resolveConflict(choice.useCloud, { confirmed: true });
+  }
+
+  return {
+    state,
+    sync,
+    retry: () => setRefresh((value) => value + 1),
+    resolveConflict,
+    conflictChoice,
+    requestResolveConflict,
+    cancelResolveConflict,
+    confirmResolveConflict
+  };
 }

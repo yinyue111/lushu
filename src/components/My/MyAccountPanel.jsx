@@ -18,6 +18,7 @@ export function MyAccountPanel({
   setRecoveryCode,
   syncBusy,
   profileMessage,
+  hasPublishedRoutes = false,
   onSave,
   onPrepareSyncCode,
   onRecover,
@@ -76,9 +77,11 @@ export function MyAccountPanel({
           <Button type="submit" variant="primary">
             <Save /> 保存偏好
           </Button>
-          <Button type="button" variant="outline" onClick={() => onOpenCreator?.(profile.id)}>
-            <UserRound /> 看我的作者主页
-          </Button>
+          {hasPublishedRoutes && (
+            <Button type="button" variant="outline" onClick={() => onOpenCreator?.(profile.id)}>
+              <UserRound /> 看我的作者主页
+            </Button>
+          )}
         </div>
         {legacyDeviceAccount && (
           <label className="mt-4 flex items-start gap-2 rounded-tile bg-canvas p-3 text-sm text-ink-2">
@@ -99,7 +102,7 @@ export function MyAccountPanel({
         </p>
       </form>
 
-      <div className="grid content-start gap-5">
+      <div className="order-first grid content-start gap-5 lg:order-none">
         {accountsEnabled && <AccountSection />}
         {!accountsEnabled && (
           <section className="rounded-panel border border-line bg-white p-5">

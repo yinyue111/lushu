@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { TYPE_SCALE, cn } from '../../src/components/ui/cn.js';
 
 const css = readFileSync(new URL('../../src/styles/tailwind.css', import.meta.url), 'utf8');
@@ -19,7 +20,7 @@ test('named font sizes survive merging with text colours and replace each other'
 
 test('no arbitrary pixel font sizes remain in the UI source', async () => {
   const { listFiles } = await import('../../scripts/lib/list-files.mjs');
-  const root = new URL('../../', import.meta.url).pathname;
+  const root = fileURLToPath(new URL('../../', import.meta.url));
   const offenders = listFiles(root, (path) => /^src\/.+\.(jsx|js)$/.test(path)).filter((file) => /text-\[\d+px\]/.test(readFileSync(file, 'utf8')));
   assert.deepEqual(offenders, []);
 });

@@ -908,3 +908,140 @@
     transform: rotate(360deg);
   }
 }
+
+/* Moved remaining legacy ops / logs / cms rules out of user components.css */
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-strong);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.checkin-review-row {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.checkin-review-row p,
+.checkin-review-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-config-list {
+  display: grid;
+  gap: 12px;
+}
+
+.product-config-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.product-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.product-config-row .input-label {
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+
+.product-config-row .input-field {
+  padding: 9px 11px;
+  font-size: 13px;
+}
+
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.pipeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.pipeline-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--blue);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.cms-form {
+  display: grid;
+  gap: 12px;
+}
+
+.cms-form textarea {
+  min-height: 86px;
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pipeline {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .product-config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .stats-grid,
+  .pipeline {
+    grid-template-columns: 1fr;
+  }
+}

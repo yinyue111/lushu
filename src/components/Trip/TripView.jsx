@@ -15,15 +15,19 @@ import {
   RefreshCw,
   SkipForward,
   TriangleAlert,
+  Undo2,
+  Wallet,
   X
 } from 'lucide-react';
-import { getMyCheckins, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
+import { costDisplay } from '../../lib/cost';
+import { getMyCheckins, getPoiDining, getPoiKnowledge, recordJourneyEvent } from '../../lib/api';
 import { canSyncToCloud, getProfile, hasProfileCloudRegistrationConsent } from '../../lib/profile';
 import { useAccount } from '../Account/AccountProvider';
 import { checkinStorageKey, safeWriteJsonStorage } from '../../lib/storage';
-import { amapNameSearchUrl, isNavigableCoordinate } from '../../lib/coordinates';
+import { isNavigableCoordinate } from '../../lib/coordinates';
+import { buildStopNavigationDescriptor } from '../../lib/navigationAdapter.js';
 import { isGenericPending } from '../../lib/confirmChecklist';
-import { buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
+import { buildAmapNearbyFoodUrl, buildNearbyDining, buildNearbyFacilities, filterNearbyRecommendations, NEARBY_FILTERS } from '../../lib/nearbyRecommendations';
 import { normalizeTripStops, readTripSession, saveTripSession, tripRoutebookId } from '../../lib/tripSession';
 import {
   capCheckinRows,
@@ -40,13 +44,16 @@ import {
   upsertCheckin
 } from '../../lib/checkinQueue';
 import { trustedCities } from '../../lib/content';
+import { isCityOpenForGeneration } from '../../lib/chinaCities.js';
 import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
 import { cn } from '../ui/cn';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 import { Drawer, DrawerContent } from '../ui/drawer';
 import { StopThumb } from '../visual/StopThumb';
 import { dayTheme } from '../visual/theme';
 import CheckinForm from './CheckinForm';
+import { addExpenseTraveler, readExpenseState } from '../../lib/expenseSplit';
 import { useTripCloudSync } from './useTripCloudSync';
 import { stashCheckinPhoto } from '../../lib/photoStore';
 import {
@@ -63,10 +70,12 @@ import {
   publicTrustEvidenceLabel,
   safeReadCheckins,
   stopKeyForStop,
+  suggestCompactPlan,
   summarizeProgress,
   syncStatusLabel
 } from './tripModel';
 import { formatStayText } from '../../lib/routeMeta.js';
+import { trackEvent } from '../../lib/betaTelemetry.js';
 
 export default function TripView({ routebook, onBack, onAdoptTrip = undefined, onReview }) {
   // 队列补传可能触发身份注册与本地数据迁移（profileId 变化），因此用 state 保存。
@@ -101,8 +110,25 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
   const [tripStorageWarning, setTripStorageWarning] = useState('');
   const [queueFlushing, setQueueFlushing] = useState(false);
   const [poiKnowledge, setPoiKnowledge] = useState([]);
+  const [catalogDining, setCatalogDining] = useState([]);
   const [nearbyFilter, setNearbyFilter] = useState('all');
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [confirmAdoptOpen, setConfirmAdoptOpen] = useState(false);
+  const [confirmCompactOpen, setConfirmCompactOpen] = useState(false);
+  const [expenseTick, setExpenseTick] = useState(0);
+  const companionNames = useMemo(
+    () => (Array.isArray(routebook?.companions) ? routebook.companions.map((c) => c?.nickname).filter(Boolean) : []),
+    [routebook?.companions]
+  );
+  const expenseState = useMemo(
+    () => readExpenseState(routeId, companionNames, undefined, routebook?.expenseLedger, routebook?.companions),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expenseTick refreshes localStorage roster
+    [routeId, companionNames, routebook?.expenseLedger, routebook?.companions, expenseTick]
+  );
+  const [pendingAlt, setPendingAlt] = useState(/** @type {any} */ (null));
+  const tripUndoStackRef = useRef(/** @type {any[]} */ ([]));
+  const undoneCheckinIdsRef = useRef(/** @type {Set<string>} */ (new Set()));
+  const [canUndoTrip, setCanUndoTrip] = useState(false);
   const tripCloud = useTripCloudSync(routebook, profile, (session) => {
     setActiveStops(session.stops);
     const index = session.stops.findIndex((stop) => String(stop.id) === String(session.currentStopId));
@@ -112,13 +138,28 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
   const stops = activeStops;
   const latestByStop = useMemo(() => latestCheckinsByStop(checkins), [checkins]);
   const firstOpenIndex = stops.findIndex((stop) => !isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stop))));
-  const effectiveIdx = firstOpenIndex >= 0 ? Math.max(currentIdx, firstOpenIndex) : Math.min(currentIdx, Math.max(0, stops.length - 1));
+  const clampedIdx = Math.min(Math.max(0, currentIdx), Math.max(0, stops.length - 1));
+  const currentCandidateProcessed = stops[clampedIdx] ? isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(stops[clampedIdx]))) : false;
+  const effectiveIdx = !currentCandidateProcessed ? clampedIdx : firstOpenIndex >= 0 ? firstOpenIndex : clampedIdx;
   const current = stops[effectiveIdx];
   const next = stops[effectiveIdx + 1];
   const progressStats = useMemo(() => summarizeProgress(checkins, stops), [checkins, stops]);
   const progress = progressStats.progress;
-  const review = useMemo(() => buildReview(checkins, stops), [checkins, stops]);
+  const review = useMemo(() => buildReview(checkins, stops, current, next), [checkins, stops, current, next]);
   const isFinished = stops.length > 0 && progressStats.processed >= stops.length;
+  const distinctDays = useMemo(() => [...new Set(stops.map((s) => s.day || 'Day 1'))], [stops]);
+  const completedPrevDayLabel = useMemo(() => {
+    if (!current || isFinished || distinctDays.length < 2) return '';
+    const curDay = current.day || 'Day 1';
+    const curDayIdx = distinctDays.indexOf(curDay);
+    if (curDayIdx <= 0) return '';
+    const prevDay = distinctDays[curDayIdx - 1];
+    const prevStops = stops.filter((s) => (s.day || 'Day 1') === prevDay);
+    const curDayStops = stops.filter((s) => (s.day || 'Day 1') === curDay);
+    const prevAllDone = prevStops.length > 0 && prevStops.every((s) => isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(s))));
+    const curNoneDone = curDayStops.every((s) => !isLocallyProcessedCheckin(latestByStop.get(stopKeyForStop(s))));
+    return prevAllDone && curNoneDone ? prevDay : '';
+  }, [current, distinctDays, isFinished, latestByStop, stops]);
   const currentLatest = current ? latestByStop.get(stopKeyForStop(current)) : null;
   const currentProcessed = isLocallyProcessedCheckin(currentLatest);
   const currentSyncPending = queueFlushing && Boolean(currentLatest) && !isServerSyncedCheckin(currentLatest);
@@ -132,9 +173,10 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
   const nearbyItems = useMemo(
     () => [
       ...alternatives.map((item) => ({ ...item, kind: 'alternative', id: item.stop.id, canNavigate: true })),
+      ...buildNearbyDining({ current, routebook: { ...routebook, stops }, catalogDining }),
       ...buildNearbyFacilities({ current, routebook: { ...routebook, stops }, poiKnowledge })
     ],
-    [alternatives, current, routebook, stops, poiKnowledge]
+    [alternatives, catalogDining, current, routebook, stops, poiKnowledge]
   );
   const nearbyVisible = filterNearbyRecommendations(nearbyItems, nearbyFilter);
   const navigation = useMemo(() => navigationForStop(stops, effectiveIdx, routebook, latestByStop), [effectiveIdx, latestByStop, routebook, stops]);
@@ -144,6 +186,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     [travelDate, current?.day, checkins, nowTick]
   );
   const nextStopCountdown = useMemo(() => (tripLiveToday ? nextStopEta(next, nowTick, current) : null), [tripLiveToday, next, nowTick, current]);
+  const compactPlan = useMemo(() => suggestCompactPlan(stops, effectiveIdx, latestByStop), [stops, effectiveIdx, latestByStop]);
 
   useEffect(() => {
     checkinsRef.current = checkins;
@@ -154,6 +197,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     const key = `${profile.id}:${routeId}`;
     if (tripOpenRef.current === key) return;
     tripOpenRef.current = key;
+    trackEvent('trip_start', routeId);
     recordJourneyEvent('trip-open', routebook, profile.id).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- record trip-open once per profile/route; the listed fields are what the event reports.
   }, [profile.id, routeId, routebook.city, routebook.creator?.id, routebook.title]);
@@ -182,7 +226,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
         let rows = checkinsRef.current;
         for (const serverRow of serverRows) {
           const clientLocalId = String(serverRow?.clientLocalId ?? '').trim() || (serverRow?.id ? `server-${serverRow.id}` : '');
-          if (!clientLocalId) continue;
+          if (!clientLocalId || undoneCheckinIdsRef.current.has(clientLocalId)) continue;
           const existing = rows.find((item) => String(item?.clientLocalId ?? '') === clientLocalId);
           rows = existing
             ? markCheckinSynced(rows, clientLocalId, serverRow)
@@ -203,7 +247,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the identity or route changes; commitCheckins is recreated every render.
   }, [profile.id, profile.profileAccessToken, profile.accountUserId, routeId]);
 
-  // 平台 POI 库（运营审核过的修正知识）作为行中替代候选来源；失败回退路书内候选。
+  // 平台 POI 库（运营审核过的修正知识与已核对餐饮点位）作为行中附近推荐来源；失败回退路书内候选。
   useEffect(() => {
     if (!routebook?.city) return undefined;
     const ctrl = new AbortController();
@@ -211,6 +255,12 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
       .then((data) => {
         if (ctrl.signal.aborted) return;
         setPoiKnowledge(Array.isArray(data?.knowledge) ? data.knowledge : []);
+      })
+      .catch(() => {});
+    getPoiDining(routebook.city, ctrl.signal)
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        setCatalogDining(Array.isArray(data?.pois) ? data.pois : []);
       })
       .catch(() => {});
     return () => ctrl.abort();
@@ -274,6 +324,27 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     queueAndApplyLocalAction(row);
   }
 
+  function applyCompactPlan() {
+    if (!compactPlan?.stop) return;
+    const target = compactPlan.stop;
+    const row = buildPendingCheckin(routebook, target, profile, { status: 'skipped', worth: '跳过', comment: '行中压缩略过' }, { type: 'skip' });
+    pushTripUndoSnapshot();
+    const previousRows = latestKnownCheckins();
+    const nextRows = queueCheckin(previousRows, row);
+    if (!persistCheckins(nextRows)) return;
+    const updatedStops = stops.map((stop) => (stopKeyForStop(stop) === row.localStopKey ? { ...stop, tripStatus: 'skipped' } : stop));
+    const nextIdx = compactPlan.stopIndex === effectiveIdx ? Math.min(effectiveIdx + 1, Math.max(0, updatedStops.length - 1)) : effectiveIdx;
+    if (!persistTripRoute(updatedStops, { currentStopId: updatedStops[nextIdx]?.id, lastAction: { type: 'skip', stopId: target.id, at: row.time } })) {
+      persistCheckins(previousRows);
+      return;
+    }
+    commitCheckinsState(nextRows);
+    setActiveStops(updatedStops);
+    setCurrentIdx(nextIdx);
+    setModeNote(`已先略过「${target.name}」，腾出约 ${compactPlan.savedMinutes} 分钟缓冲，随时可撤销。`);
+    if (navigator.onLine !== false) void syncQueuedCheckins();
+  }
+
   function applyAlternative(alternative) {
     if (!current || currentProcessed || currentSyncPending) return;
     const alternativeStop = buildAlternativeStop(current, alternative);
@@ -292,7 +363,38 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     queueAndApplyLocalAction(row);
   }
 
+  function pushTripUndoSnapshot() {
+    tripUndoStackRef.current = [
+      ...tripUndoStackRef.current.slice(-14),
+      { stops: stops.map((s) => ({ ...s })), currentIdx: effectiveIdx, checkins: latestKnownCheckins().map((r) => ({ ...r })) }
+    ];
+    setCanUndoTrip(true);
+  }
+
+  function undoTripStep() {
+    const prev = tripUndoStackRef.current.pop();
+    setCanUndoTrip(tripUndoStackRef.current.length > 0);
+    if (!prev) return;
+    const prevIds = new Set(prev.checkins.map((r) => r.clientLocalId));
+    const currentRows = latestKnownCheckins();
+    const restoredRows = currentRows.filter((r) => {
+      if (prevIds.has(r.clientLocalId)) return true;
+      if (!isServerSyncedCheckin(r) || checkinStatusKind(r) === 'skipped') {
+        if (r.clientLocalId) undoneCheckinIdsRef.current.add(String(r.clientLocalId));
+        return false;
+      }
+      return true;
+    });
+    persistCheckins(restoredRows);
+    commitCheckinsState(restoredRows);
+    setActiveStops(prev.stops);
+    setCurrentIdx(prev.currentIdx);
+    persistTripRoute(prev.stops, { currentStopId: prev.stops[prev.currentIdx]?.id });
+    setModeNote('已撤回上一步操作，回到刚才那一站。');
+  }
+
   function queueAndApplyLocalAction(row) {
+    pushTripUndoSnapshot();
     const previousRows = latestKnownCheckins();
     const nextRows = queueCheckin(previousRows, row);
     // 本地写入成功后才提交 React 状态，避免存储配额/隐私模式失败时误推进行程。
@@ -309,6 +411,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     }
     commitCheckinsState(nextRows);
     applyLocalActionState(actionPlan);
+    trackEvent('checkin_submit', routeId);
     if (navigator.onLine === false) {
       setModeNote('已在这台设备上记下，可以继续走；联网后会自动同步并核对。');
       return;
@@ -381,7 +484,9 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
   function refreshAfterFlush() {
     const latestProfile = getProfile();
     const nextKey = checkinStorageKey(routebook, latestProfile.id);
-    const rows = safeReadCheckins(nextKey).filter((item) => String(item?.routeId ?? '') === routeId);
+    const rawRows = safeReadCheckins(nextKey).filter((item) => String(item?.routeId ?? '') === routeId);
+    const rows = rawRows.filter((item) => !undoneCheckinIdsRef.current.has(String(item?.clientLocalId ?? '')));
+    if (rows.length !== rawRows.length) safeWriteJsonStorage(nextKey, capCheckinRows(rows));
     checkinsRef.current = rows;
     setCheckins(rows);
     // 注册可能只补发 token 而不换 id：token 变化也要刷新，让服务端回填生效。
@@ -404,8 +509,6 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
       } else {
         setModeNote(`${failed} 条记录暂未同步成功，将在 15 秒后自动重试${synced ? `；本次已成功 ${synced} 条` : ''}。`);
       }
-    } else if (synced) {
-      setModeNote(`已同步 ${synced} 条，每条是否计入可信度见下方状态。`);
     }
   }
 
@@ -450,19 +553,12 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
       setModeNote('需要网络：联网后才能打开高德导航。行程和地址离线也能看。');
       return;
     }
-    if (!isNavigableCoordinate(current)) {
-      // 位置没核准：不导航到猜的坐标，改为在高德按名字搜，让用户自己挑。
-      window.open(amapNameSearchUrl(current, routebook.city), '_blank', 'noopener,noreferrer');
-      return;
-    }
-    window.open(
-      `https://uri.amap.com/navigation?to=${current.lng},${current.lat},${encodeURIComponent(current.name)}&mode=${navigation.mode}&src=trusted-routebook&coordinate=wgs84&callnative=1`,
-      '_blank',
-      'noopener,noreferrer'
-    );
+    const navDesc = buildStopNavigationDescriptor(current, routebook.city, navigation.mode);
+    window.open(navDesc.webUrl, '_blank', 'noopener,noreferrer');
   }
 
   function applyTripMode(mode) {
+    pushTripUndoSnapshot();
     const processedKeys = new Set([...latestByStop.entries()].filter(([, item]) => isLocallyProcessedCheckin(item)).map(([key]) => key));
     const completed = stops.filter((stop) => processedKeys.has(stopKeyForStop(stop)));
     const remaining = stops.filter((stop) => !processedKeys.has(stopKeyForStop(stop)));
@@ -479,6 +575,30 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
     setTripStorageWarning(ok ? '' : '实际执行路线未能写入本地存储，请保持当前页面打开。');
     if (ok) tripCloud.sync();
     return ok;
+  }
+
+  function jumpToStop(idx) {
+    const target = stops[idx];
+    if (!target || idx === effectiveIdx) return;
+    const existingCheckin = latestByStop.get(stopKeyForStop(target));
+    if (isLocallyProcessedCheckin(existingCheckin)) {
+      const kind = checkinStatusKind(existingCheckin);
+      if (kind !== 'skipped') return;
+      pushTripUndoSnapshot();
+      if (existingCheckin.clientLocalId) undoneCheckinIdsRef.current.add(String(existingCheckin.clientLocalId));
+      const filteredRows = latestKnownCheckins().filter((r) => r.clientLocalId !== existingCheckin.clientLocalId);
+      persistCheckins(filteredRows);
+      commitCheckinsState(filteredRows);
+      const reopenedStops = stops.map((s, i) => (i === idx ? { ...s, tripStatus: undefined } : s));
+      setActiveStops(reopenedStops);
+      setCurrentIdx(idx);
+      persistTripRoute(reopenedStops, { currentStopId: target.id });
+      setModeNote(`已恢复「${target.name}」，重新设为当前站`);
+      return;
+    }
+    setCurrentIdx(idx);
+    persistTripRoute(stops, { currentStopId: target.id });
+    setModeNote(`已切换到「${target.name}」`);
   }
 
   if (!current)
@@ -536,10 +656,10 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                   </Button>
                 ) : (
                   <>
-                    <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(true)}>
+                    <Button size="sm" variant="outline" onClick={() => tripCloud.requestResolveConflict(true)}>
                       加载云端计划
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => tripCloud.resolveConflict(false)}>
+                    <Button size="sm" variant="outline" onClick={() => tripCloud.requestResolveConflict(false)}>
                       保留本机计划并同步
                     </Button>
                   </>
@@ -549,8 +669,49 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
           )}
           {!trustedCities.includes(routebook.city) && (
             <p className="rounded-card bg-lemon-soft px-4 py-3 text-sm font-semibold text-lemon-ink" role="status">
-              {routebook.city}还在试运行：地点、营业时间和导航请出发前自己再核对。
+              {isCityOpenForGeneration(routebook.city)
+                ? `${routebook.city}暂未内置地点库：营业时间与定位建议出发前用高德看一眼。`
+                : `${routebook.city}还在试运行：地点、营业时间和导航请出发前自己再核对。`}
             </p>
+          )}
+
+          {!isFinished &&
+            routebook?.constraints?.departureTime &&
+            (current.day || 'Day 1') === distinctDays.at(-1) &&
+            (() => {
+              const depTime = String(routebook.constraints.departureTime).trim();
+              const depHub = String(routebook.constraints.departureHub || '').trim();
+              const m = /^(\d{1,2}):(\d{2})$/.exec(depTime);
+              const depMin = m ? Number(m[1]) * 60 + Number(m[2]) : null;
+              const leaveMin = depMin != null ? Math.max(0, depMin - 75) : null;
+              const leaveClock = leaveMin != null ? `${String(Math.floor(leaveMin / 60)).padStart(2, '0')}:${String(leaveMin % 60).padStart(2, '0')}` : '';
+              return (
+                <div
+                  data-testid="trip-departure-reminder"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-sky-soft px-4 py-3 text-sm font-semibold text-sky-ink"
+                  role="status"
+                >
+                  <span>
+                    返程提醒：今天计划 <b className="num">{depTime}</b>
+                    {depHub ? ` 从「${depHub}」` : ''}离开{leaveClock ? `，建议 ${leaveClock} 前动身去车站` : ''}
+                  </span>
+                </div>
+              );
+            })()}
+
+          {completedPrevDayLabel && (
+            <div
+              data-testid="trip-day-complete-banner"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-success/30 bg-success-soft px-4 py-3 text-sm text-success-ink"
+              role="status"
+            >
+              <span className="font-bold">
+                {completedPrevDayLabel} 行程已走完 · 接下来从 {current.day}「{current.name}」继续
+              </span>
+              <Button size="sm" variant="outline" className="bg-white" onClick={onReview}>
+                看阶段小结
+              </Button>
+            </div>
           )}
 
           {/* Current stop */}
@@ -575,12 +736,22 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                     <MapPin /> {current.area}
                   </Chip>
                 )}
+                {!costDisplay(current).pending && costDisplay(current).text && (
+                  <Chip size="sm" tone={current.verifiedPrice?.text ? 'ok' : 'sky'}>
+                    <Wallet /> {current.verifiedPrice?.text ? `已核对 ${current.verifiedPrice.text}` : costDisplay(current).text}
+                  </Chip>
+                )}
                 {!isNavigableCoordinate(current) && (
                   <Chip size="sm" tone="warn">
                     位置待确认
                   </Chip>
                 )}
               </div>
+              {current.verify && !isGenericPending(current.verify) && (
+                <p className="mt-2.5 text-sm leading-relaxed text-ink-2">
+                  {/^编辑建议[:：]/.test(current.verify) ? `游玩建议：${current.verify.replace(/^编辑建议[:：]\s*/, '')}` : `到场前确认：${current.verify}`}
+                </p>
+              )}
               {current.risk && !isGenericPending(current.risk) && (
                 <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn-ink">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />
@@ -633,14 +804,33 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
             <Button size="sm" variant="outline" onClick={skipStop} disabled={actionDisabled}>
               <SkipForward /> 跳过这站
             </Button>
+            {compactPlan && !isFinished && Boolean(nextStopCountdown?.overdue) && (
+              <Button size="sm" variant="outline" onClick={() => setConfirmCompactOpen(true)} data-testid="trip-compact-btn">
+                <Clock /> 来不及了
+              </Button>
+            )}
+            {canUndoTrip && (
+              <Button size="sm" variant="outline" onClick={undoTripStep} data-testid="trip-undo-btn">
+                <Undo2 /> 撤销上一步
+              </Button>
+            )}
           </div>
-          {notes.map((note) => (
-            <p key={note} className="rounded-card bg-sky-soft px-4 py-3 text-sm text-sky-ink" role="status">
-              {note}
-            </p>
+          {notes.map((note, noteIdx) => (
+            <div
+              key={note}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-sky-soft px-4 py-2.5 text-sm text-sky-ink"
+              role="status"
+            >
+              <span>{note}</span>
+              {noteIdx === 0 && canUndoTrip && (
+                <button type="button" onClick={undoTripStep} className="min-h-9 shrink-0 font-bold underline underline-offset-2">
+                  撤销
+                </button>
+              )}
+            </div>
           ))}
 
-          {statusCheckin && (
+          {statusCheckin && (pendingSyncCount > 0 || statusEvidence.syncStatus === 'failed' || cloudSyncOff) && (
             <div className="flex items-start gap-3 rounded-card bg-white p-4 shadow-card" role="status" aria-live="polite">
               <span
                 className={cn(
@@ -691,11 +881,11 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
             </div>
           )}
 
-          <details className="group rounded-card bg-white shadow-card">
+          <details className="group rounded-card bg-white shadow-card" data-testid="trip-nearby-panel">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5">
               <span className="min-w-0">
-                <span className="block text-copy font-bold">{current?.name ? `「${current.name}」附近的替代点与设施` : '附近替代点与设施'}</span>
-                <span className="block text-meta text-muted">以当前计划站点为中心，不是你的实时位置</span>
+                <span className="block text-copy font-bold">{current?.name ? `「${current.name}」附近找吃的、替代点与设施` : '附近找吃的、替代点与设施'}</span>
+                <span className="block text-meta text-muted">以当前计划站点为中心，含同片区老字号餐饮与顺路点</span>
               </span>
               <span className="text-meta text-muted">{nearbyItems.length} 个</span>
             </summary>
@@ -719,7 +909,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                   key={item.id}
                   onClick={() =>
                     item.kind === 'alternative'
-                      ? applyAlternative(item)
+                      ? setPendingAlt(item)
                       : window.open(
                           `https://uri.amap.com/navigation?to=${item.stop.lng},${item.stop.lat},${encodeURIComponent(item.stop.name)}&mode=walk&src=trusted-routebook&coordinate=wgs84&callnative=1`,
                           '_blank',
@@ -727,97 +917,150 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                         )
                   }
                   disabled={item.kind === 'alternative' ? actionDisabled : !item.canNavigate}
-                  className="flex items-center gap-3 rounded-tile bg-canvas p-2.5 text-left hover:bg-line disabled:opacity-50"
+                  className="flex items-center justify-between gap-3 rounded-tile bg-canvas p-2.5 text-left hover:bg-line disabled:opacity-50"
                 >
-                  <StopThumb stop={item.stop} compact className="size-12 shrink-0 rounded-xl" />
-                  <span className="min-w-0">
-                    <b className="block truncate text-copy">{item.name}</b>
-                    <span className="line-clamp-2 text-meta text-muted">
-                      {item.type} · {item.reason}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <StopThumb stop={item.stop} compact className="size-12 shrink-0 rounded-xl" />
+                    <span className="min-w-0">
+                      <b className="block truncate text-copy">{item.name}</b>
+                      <span className="line-clamp-2 text-meta text-muted">
+                        {item.type} · {item.reason}
+                      </span>
                     </span>
+                  </span>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-bold',
+                      item.kind === 'alternative' ? 'bg-primary-soft text-primary-strong' : 'bg-white text-sky-ink'
+                    )}
+                  >
+                    {item.kind === 'alternative' ? '换去这里' : '导航前往'}
                   </span>
                 </button>
               ))}
               {!nearbyVisible.length && (
                 <p className="p-2 text-sm text-muted">
-                  暂无已核对位置的{NEARBY_FILTERS.find((filter) => filter.value === nearbyFilter)?.label || '附近地点'}。设施类型不会根据名称猜测。
+                  暂无已核对位置的{NEARBY_FILTERS.find((filter) => filter.value === nearbyFilter)?.label || '附近地点'}。我们不会编造未核实的餐厅或人均价格。
                 </p>
+              )}
+              {(nearbyFilter === 'food' || (!nearbyVisible.length && nearbyFilter === 'all')) && current && (
+                <a
+                  href={buildAmapNearbyFoodUrl(current, routebook?.city)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="trip-amap-nearby-food-link"
+                  className="col-span-full flex min-h-11 items-center justify-between gap-2 rounded-tile border border-line-strong bg-white px-3.5 py-2.5 text-sm font-bold text-sky-ink hover:bg-sky-soft"
+                >
+                  <span>去高德搜「{current.name}」周边实时美食与营业餐厅</span>
+                  <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+                </a>
               )}
             </div>
           </details>
 
           {checkins.length > 0 && (
-            <div className="rounded-card bg-white p-4 text-center shadow-card">
-              <p className="text-sm text-ink-2">
-                到达核对 <b className="num">{progressStats.validArrivals}</b> 站 · 计入可信度 <b className="num">{progressStats.publicTrustSamples}</b> 站
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-white px-4 py-3.5 shadow-card">
+              <p className="text-sm font-semibold text-ink-2">
+                已走 <b className="num">{progressStats.processed}</b>/{stops.length} 站{progressStats.visited > 0 && ` · 打卡 ${progressStats.visited} 站`}
               </p>
-              <p className="mt-1 text-meta text-muted">
-                普通反馈 {progressStats.feedbackOnly} 站 · 定位偏离 {progressStats.lowConfidenceArrivals} 次 · 跳过 {progressStats.skipped} 站 · 替换{' '}
-                {progressStats.replaced} 次
-              </p>
-              <Button size="sm" variant="ghost" className="mt-2 text-sky-ink" onClick={onReview}>
-                <BookOpen /> {isFinished ? '生成这趟旅程的回顾' : '看看目前的回顾'}
-              </Button>
-              {isFinished && onAdoptTrip && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    if (window.confirm('把行中的顺序和替换写回主路书？可在路书页再撤销。')) {
-                      onAdoptTrip(stops);
-                    }
-                  }}
-                >
-                  把今日改动写回路书
+              <span className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={onReview}>
+                  <BookOpen /> {isFinished ? '生成游记与回顾' : '看看目前的回顾'}
                 </Button>
-              )}
+                {isFinished && onAdoptTrip && (
+                  <Button size="sm" variant="outline" onClick={() => setConfirmAdoptOpen(true)}>
+                    把改动写回路书
+                  </Button>
+                )}
+              </span>
             </div>
           )}
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start" aria-label="行程总览">
           <div className="rounded-panel bg-white p-4 shadow-card lg:p-5">
-            <h2 className="mb-3 text-lg font-extrabold">行程总览</h2>
-            <ol className="relative flex flex-col gap-1 before:absolute before:top-4 before:bottom-4 before:left-[15px] before:border-l-2 before:border-dotted before:border-line-strong before:content-['']">
-              {stops.map((stop, idx) => {
-                const stopCheckin = latestByStop.get(stopKeyForStop(stop));
-                const processed = isLocallyProcessedCheckin(stopCheckin);
-                const statusKind = checkinStatusKind(stopCheckin);
-                const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-extrabold">行程总览</h2>
+              {compactPlan && !isFinished && !nextStopCountdown?.overdue ? (
+                <button
+                  type="button"
+                  data-testid="trip-compact-btn"
+                  onClick={() => setConfirmCompactOpen(true)}
+                  className="min-h-9 text-xs font-bold text-sky-ink underline underline-offset-2 sm:min-h-0"
+                >
+                  时间紧？精简一站
+                </button>
+              ) : (
+                <span className="text-meta text-muted">点未走站点可先去</span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {distinctDays.map((dayName) => {
+                const dayEntries = stops.map((stop, idx) => ({ stop, idx })).filter(({ stop }) => (stop.day || 'Day 1') === dayName);
+                if (!dayEntries.length) return null;
                 return (
-                  <li
-                    key={stopKeyForStop(stop) || idx}
-                    className={cn('relative flex items-center gap-3 rounded-tile px-0 py-1.5', state === 'current' && 'bg-primary-soft/60')}
-                  >
-                    <span
-                      className={cn(
-                        'num relative z-[1] grid size-8 shrink-0 place-items-center rounded-full border-2 border-white text-meta',
-                        state === 'done' && 'bg-success-ink text-white',
-                        state === 'current' && 'bg-primary-strong text-white shadow-[0_0_0_3px_rgba(232,85,61,.25)]',
-                        state === 'upcoming' && 'bg-canvas text-ink-2'
-                      )}
-                      aria-hidden="true"
-                    >
-                      {processed ? checkinStatusIcon(statusKind) : idx + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn('truncate text-copy font-bold', state === 'done' && 'text-muted line-through decoration-1')}>{stop.name}</p>
-                      <p className="truncate text-meta text-muted">{[stop.day, stop.time, stop.area].filter(Boolean).join(' · ')}</p>
-                    </div>
-                    {state === 'current' && (
-                      <Chip size="sm" tone="primary" className="mr-2">
-                        当前
-                      </Chip>
-                    )}
-                    {state === 'done' && (
-                      <Chip size="sm" tone="ok" className="mr-2">
-                        {checkinStatusLabel(stopCheckin)}
-                      </Chip>
-                    )}
-                  </li>
+                  <div key={dayName}>
+                    {distinctDays.length > 1 && <p className="mb-1.5 text-xs font-extrabold text-muted">{dayName}</p>}
+                    <ol className="relative flex flex-col gap-1 before:absolute before:top-4 before:bottom-4 before:left-[15px] before:border-l-2 before:border-dotted before:border-line-strong before:content-['']">
+                      {dayEntries.map(({ stop, idx }) => {
+                        const stopCheckin = latestByStop.get(stopKeyForStop(stop));
+                        const processed = isLocallyProcessedCheckin(stopCheckin);
+                        const statusKind = checkinStatusKind(stopCheckin);
+                        const state = processed ? 'done' : idx === effectiveIdx ? 'current' : 'upcoming';
+                        const canReopenSkipped = processed && statusKind === 'skipped';
+                        const canJump = state === 'upcoming' || canReopenSkipped;
+                        const rowInner = (
+                          <>
+                            <span
+                              className={cn(
+                                'num relative z-[1] grid size-8 shrink-0 place-items-center rounded-full border-2 border-white text-meta',
+                                state === 'done' && (statusKind === 'skipped' ? 'bg-line-strong text-white' : 'bg-success-ink text-white'),
+                                state === 'current' && 'bg-primary-strong text-white shadow-[0_0_0_3px_rgba(232,85,61,.25)]',
+                                state === 'upcoming' && 'bg-canvas text-ink-2'
+                              )}
+                              aria-hidden="true"
+                            >
+                              {processed ? checkinStatusIcon(statusKind) : idx + 1}
+                            </span>
+                            <div className="min-w-0 flex-1 text-left">
+                              <p className={cn('truncate text-copy font-bold', state === 'done' && 'text-muted line-through decoration-1')}>{stop.name}</p>
+                              <p className="truncate text-meta text-muted">{[stop.time, stop.area].filter(Boolean).join(' · ')}</p>
+                            </div>
+                            {state === 'current' && (
+                              <Chip size="sm" tone="primary" className="mr-2">
+                                当前
+                              </Chip>
+                            )}
+                            {state === 'done' && !canReopenSkipped && (
+                              <Chip size="sm" tone="ok" className="mr-2">
+                                {checkinStatusLabel(stopCheckin)}
+                              </Chip>
+                            )}
+                            {canReopenSkipped && <span className="mr-2 shrink-0 text-meta font-semibold text-sky-ink">已跳过 · 重走</span>}
+                            {state === 'upcoming' && <span className="mr-2 shrink-0 text-meta font-semibold text-sky-ink">先去这站</span>}
+                          </>
+                        );
+                        return (
+                          <li key={stopKeyForStop(stop) || idx} className={cn('relative rounded-tile', state === 'current' && 'bg-primary-soft/60')}>
+                            {canJump ? (
+                              <button
+                                type="button"
+                                onClick={() => jumpToStop(idx)}
+                                className="flex min-h-11 w-full items-center gap-3 rounded-tile px-0 py-1.5 hover:bg-canvas"
+                              >
+                                {rowInner}
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-3 px-0 py-1.5">{rowInner}</div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
                 );
               })}
-            </ol>
+            </div>
           </div>
         </aside>
       </div>
@@ -848,9 +1091,67 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
 
       <Drawer open={showCheckin} onOpenChange={setShowCheckin}>
         <DrawerContent title={`记录到达 · ${current.name}`} description="都是选填。开了 GPS 并确认你到了这里的记录，才计入路线可信度。">
-          <CheckinForm onSubmit={submitCheckin} onCancel={() => setShowCheckin(false)} />
+          <CheckinForm
+            travelers={expenseState.travelers}
+            onAddTraveler={(name) => {
+              addExpenseTraveler(routeId, name, companionNames);
+              setExpenseTick((t) => t + 1);
+            }}
+            onSubmit={submitCheckin}
+            onCancel={() => setShowCheckin(false)}
+          />
         </DrawerContent>
       </Drawer>
+      <ConfirmDialog
+        open={Boolean(tripCloud.conflictChoice)}
+        title={tripCloud.conflictChoice?.useCloud ? '加载云端行中计划' : '保留本机行中计划'}
+        description={
+          tripCloud.conflictChoice?.useCloud
+            ? '加载云端行中计划会替换本机执行顺序，打卡记录不受影响。确定加载吗？'
+            : '用本机执行顺序更新云端行中计划，云端之前的顺序会被覆盖。确定更新吗？'
+        }
+        confirmLabel={tripCloud.conflictChoice?.useCloud ? '加载云端计划' : '更新云端计划'}
+        cancelLabel="取消"
+        onCancel={tripCloud.cancelResolveConflict}
+        onConfirm={() => void tripCloud.confirmResolveConflict()}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingAlt)}
+        title={pendingAlt ? `换去「${pendingAlt.name}」吗？` : '替换当前站'}
+        description={pendingAlt ? `会把当前站「${current.name}」换成「${pendingAlt.name}」。换完如果不合适，也可以点「撤销上一步」退回。` : ''}
+        confirmLabel="换去这里"
+        cancelLabel="取消"
+        onCancel={() => setPendingAlt(null)}
+        onConfirm={() => {
+          const target = pendingAlt;
+          setPendingAlt(null);
+          if (target) applyAlternative(target);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmCompactOpen && Boolean(compactPlan)}
+        title={compactPlan ? `时间偏紧，先略过「${compactPlan.stop.name}」？` : '精简今日行程'}
+        description={compactPlan ? `${compactPlan.reason}，预计能腾出约 ${compactPlan.savedMinutes} 分钟。确认后仍可点「撤销上一步」或在行程总览里重走。` : ''}
+        confirmLabel="先略过这站"
+        cancelLabel="保持原计划"
+        onCancel={() => setConfirmCompactOpen(false)}
+        onConfirm={() => {
+          setConfirmCompactOpen(false);
+          applyCompactPlan();
+        }}
+      />
+      <ConfirmDialog
+        open={confirmAdoptOpen}
+        title="写回主路书"
+        description="把行中的顺序和替换写回主路书吗？写回后仍可在路书页撤销。"
+        confirmLabel="写回路书"
+        cancelLabel="取消"
+        onCancel={() => setConfirmAdoptOpen(false)}
+        onConfirm={() => {
+          setConfirmAdoptOpen(false);
+          onAdoptTrip?.(stops);
+        }}
+      />
     </div>
   );
 }

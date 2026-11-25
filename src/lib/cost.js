@@ -244,7 +244,7 @@ export function unifyPendingWording(text) {
 export function costDisplay(stop) {
   const info = /** @type {any} */ (stopCostInfo(stop));
   const raw = unifyPendingWording(String(stop?.cost ?? '').trim());
-  const trusted = info.source === 'user' || info.basis === 'guide';
+  const trusted = info.source === 'user' || info.basis === 'guide' || stop?.provenance?.origin === 'editorial';
   if (info.known && trusted) return { text: raw || formatCostInfo(info), pending: false, aiNote: '' };
   if (info.known) return { text: '价格待确认', pending: true, aiNote: `AI 写的「${raw || formatCostInfo(info)}」，还没核对` };
   return { text: /待确认/.test(raw) ? raw : '价格待确认', pending: true, aiNote: '' };

@@ -8,8 +8,9 @@ import { TRUST_SCORE_EXPLANATION, routeEvidenceScore } from '../../lib/trustSign
 export default function TrustExplanation({ routebook }) {
   const computed = routeEvidenceScore(routebook?.stops ?? []);
   const breakdown = routebook?.trustMeta?.evidenceBreakdown ?? computed.breakdown;
-  // Public views hide sub-threshold scores (server omits evidenceScore); only show a number the server sent.
-  const score = routebook?.trustMeta?.evidenceScore ?? null;
+  // Only surface a numeric score in the summary once real check-in samples reached the verified threshold,
+  // so it never contradicts RouteStats' "暂无评分 · 走过的人打卡后显示".
+  const verifiedScore = routebook?.trustMeta?.source === 'verified-feedback' ? (routebook?.trustMeta?.displayScore ?? null) : null;
   const origins = breakdown?.origins ?? {};
   const parts = [
     ['来自你的攻略', origins['user-guide']],
@@ -20,7 +21,7 @@ export default function TrustExplanation({ routebook }) {
   ].filter(([, count]) => Number(count) > 0);
   return (
     <details className="mt-8 rounded-tile bg-canvas p-4 text-meta leading-relaxed text-muted">
-      <summary className="cursor-pointer font-bold text-ink-2">可信分怎么算{score != null ? `（这条路线目前 ${score} 分）` : ''}</summary>
+      <summary className="cursor-pointer font-bold text-ink-2">可信分怎么算{verifiedScore != null ? `（当前 ${verifiedScore} 分）` : ''}</summary>
       <p className="mt-2">{routebook?.trustMeta?.explanation || TRUST_SCORE_EXPLANATION}</p>
       {breakdown?.stopCount > 0 && (
         <ul className="mt-2 grid gap-1 pl-4">

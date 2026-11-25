@@ -1,4 +1,18 @@
-import { ArrowLeft, Bell, Check, ClipboardCopy, Copy, Heart, MapPin, MoreHorizontal, Navigation, Share2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bell,
+  Check,
+  ClipboardCopy,
+  Copy,
+  Heart,
+  MapPin,
+  MoreHorizontal,
+  Navigation,
+  Printer,
+  Share2,
+  ShieldCheck,
+  TriangleAlert
+} from 'lucide-react';
 import { Button } from '../ui/button';
 import { Chip } from '../ui/chip';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../ui/menu';
@@ -9,16 +23,19 @@ import { SceneBadge, SceneImage } from '../visual/SceneImage';
 import AigcChip from './AigcChip';
 import { aigcMetadata } from '../../lib/aigc.js';
 import { publicCreatorName } from '../../lib/creatorName.js';
+import { getStopTrustBadge } from '../../lib/trust';
 import { TAP_TARGET } from '../ui/tap-target.js';
 
 /**
  * Full-bleed cover. Trusted cities use bundled photography; other cities get a
  * generic AI-generated city scene labelled 「城市示意图」 (never a borrowed photo of a different place).
+ * @param {Record<string, any>} props
  */
 export default function RouteHero({
   routebook,
   dayCount,
   stopCount,
+  verifiedStopCount = undefined,
   trustState,
   isOwner,
   liked,
@@ -28,6 +45,7 @@ export default function RouteHero({
   onBack,
   onStartTrip,
   onCustomize,
+  onRegenerate = undefined,
   onShare
 }) {
   const cover = cityCover(routebook.city);
@@ -42,6 +60,13 @@ export default function RouteHero({
   // 标签叠在配图上、紧邻标题）；非 AI 内容才单独给示意图打标。见 round2/AI标识合并说明.md。
   const aiGenerated = aigcMetadata(routebook).generated;
   const TrustIcon = trustState.tone === 'trial' ? TriangleAlert : ShieldCheck;
+  const checkedStopCount =
+    typeof verifiedStopCount === 'number'
+      ? verifiedStopCount
+      : (routebook.stops ?? []).filter(
+          (stop) =>
+            getStopTrustBadge(stop, trustState.tone)?.verified || stop?.provenance?.reviewedPoi === true || Number(stop?.provenance?.verifiedFactCount) > 0
+        ).length;
 
   return (
     <section className="relative isolate overflow-hidden bg-[#1c2230] text-white">
@@ -66,7 +91,7 @@ export default function RouteHero({
         </div>
       )}
       <div
-        className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.32)_0%,rgba(10,12,16,.04)_32%,rgba(10,12,16,.62)_68%,rgba(10,12,16,.86)_100%)]"
+        className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.58)_0%,rgba(10,12,16,.56)_36%,rgba(10,12,16,.8)_70%,rgba(10,12,16,.92)_100%)]"
         aria-hidden="true"
       />
 
@@ -92,7 +117,7 @@ export default function RouteHero({
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-[380px] max-w-[1376px] items-end gap-8 px-[18px] pt-24 pb-11 lg:min-h-[400px] lg:px-8 lg:pb-8">
+      <div className="mx-auto flex min-h-64 max-w-[1376px] items-end gap-8 px-[18px] pt-16 pb-9 lg:min-h-[340px] lg:px-8 lg:pt-20 lg:pb-8">
         <div className="min-w-0 flex-1">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Chip tone="lemon">
@@ -102,8 +127,8 @@ export default function RouteHero({
               {dayCount} 天 · {stopCount} 站
             </Chip>
             {!(aiGenerated && trustState.tone === 'trial') && (
-              <Chip tone="glass">
-                <TrustIcon /> {trustState.shortLabel}
+              <Chip tone="glass" title={trustState.shortLabel}>
+                <TrustIcon /> {trustState.tone !== 'verified' && stopCount > 0 ? `${stopCount} 个地点核对了 ${checkedStopCount} 个` : trustState.shortLabel}
               </Chip>
             )}
             <AigcChip routebook={routebook} draft={trustState.tone === 'trial'} withImage={!cover} />
@@ -126,12 +151,12 @@ export default function RouteHero({
             {routebook.title}
           </h1>
           {routebook.summary && (
-            <p className="mt-2.5 hidden max-w-[720px] text-copy leading-relaxed text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,.35)] sm:line-clamp-2 lg:text-lead lg:leading-relaxed">
+            <p className="mt-2 line-clamp-2 max-w-[720px] text-sm leading-relaxed text-white [text-shadow:0_1px_10px_rgba(0,0,0,.35)] sm:mt-2.5 sm:text-copy lg:text-lead lg:leading-relaxed">
               {routebook.summary}
             </p>
           )}
           {creatorName && (
-            <div className="mt-4 flex items-center gap-2.5 text-sm text-white/92 lg:text-copy" data-testid="route-byline">
+            <div className="mt-4 flex items-center gap-2.5 text-sm text-white lg:text-copy" data-testid="route-byline">
               {/* B5: no avatar initial for the placeholder 「我」, so the byline reads once as 「我 · 草稿」. */}
               {nickname && (
                 <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-sm font-extrabold text-ink">
@@ -143,16 +168,16 @@ export default function RouteHero({
                 {isOwner && <span> · {publishStatusLabel(routebook.publishStatus)}</span>}
                 {updated && <span className="hidden sm:inline"> · {updated} 更新</span>}
               </span>
+              {showNicknameHint && (
+                <a
+                  href="/my#account"
+                  className={`${TAP_TARGET} hidden shrink-0 text-xs text-white underline underline-offset-2 hover:text-lemon sm:inline-block`}
+                  data-testid="nickname-hint"
+                >
+                  设个昵称，分享时会显示
+                </a>
+              )}
             </div>
-          )}
-          {showNicknameHint && (
-            <a
-              href="/my#account"
-              className={`${TAP_TARGET} mt-1.5 inline-block text-meta text-white/85 underline underline-offset-2 hover:text-white`}
-              data-testid="nickname-hint"
-            >
-              设个昵称，分享时会显示
-            </a>
           )}
         </div>
 
@@ -163,9 +188,14 @@ export default function RouteHero({
           <div className="flex gap-2.5">
             {canEdit ? (
               <>
-                <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving}>
-                  <Check /> {saving ? '保存中…' : '保存到我的路书'}
-                </Button>
+                {(() => {
+                  const alreadySaved = !saving && Number.isInteger(routebook.version) && !/未保存/.test(actions?.syncLabel || '');
+                  return (
+                    <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving || alreadySaved}>
+                      <Check /> {saving ? '保存中…' : alreadySaved ? '已保存' : '保存到我的路书'}
+                    </Button>
+                  );
+                })()}
               </>
             ) : (
               <Button variant="light" className="flex-1" onClick={onCustomize}>
@@ -181,7 +211,7 @@ export default function RouteHero({
             >
               <Heart className={cn(liked && 'animate-pop fill-current')} />
             </Button>
-            <MoreMenu actions={actions} onShare={onShare} onCustomize={onCustomize} canEdit={canEdit} />
+            <MoreMenu actions={actions} onShare={onShare} onCustomize={onCustomize} onRegenerate={onRegenerate} canEdit={canEdit} />
           </div>
         </div>
       </div>
@@ -190,7 +220,7 @@ export default function RouteHero({
 }
 
 /** @param {Record<string, any>} props */
-export function MoreMenu({ actions, onShare, onCustomize, canEdit, triggerClassName, triggerLabel = '' }) {
+export function MoreMenu({ actions, onShare, onCustomize, onRegenerate = undefined, canEdit, triggerClassName, triggerLabel = '' }) {
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -206,13 +236,18 @@ export function MoreMenu({ actions, onShare, onCustomize, canEdit, triggerClassN
         <MenuItem onSelect={actions.copyRoute}>
           <ClipboardCopy /> 复制行程文字
         </MenuItem>
+        {actions?.openPrintSheet && (
+          <MenuItem onSelect={actions.openPrintSheet}>
+            <Printer /> 打印 / 导出 PDF 行程单
+          </MenuItem>
+        )}
         <MenuItem onSelect={actions.saveTripReminder}>
           <Bell /> 出发提醒
         </MenuItem>
         {canEdit && (
           <>
             <MenuSeparator />
-            <MenuItem onSelect={onCustomize}>
+            <MenuItem onSelect={onRegenerate ?? onCustomize}>
               <Copy /> 整本重生成（耗 1 次）
             </MenuItem>
           </>

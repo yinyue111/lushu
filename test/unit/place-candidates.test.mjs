@@ -93,3 +93,14 @@ test('a guide pre-filled from the home page already has candidates when step 2 o
   );
   assert.deepEqual(candidatesForPrefilledGuide('   ', [{ name: 'x' }]), [{ name: 'x' }]);
 });
+
+test('verb-prefixed dictionary echoes and generic meal words are dropped cleanly', () => {
+  const text = '杭州两天怎么玩：Day1 早上逛柳浪闻莺，再去中国丝绸博物馆；Day2 早起去法喜寺吃斋饭，中午徒步到龙井村喝茶。';
+  const found = names(extractPlaceCandidates(text, { knownPlaces: ['柳浪闻莺', '法喜寺'] }));
+  assert.equal(found.includes('柳浪闻莺'), true);
+  assert.equal(found.includes('中国丝绸博物馆'), true);
+  assert.equal(found.includes('法喜寺'), true);
+  assert.equal(found.includes('龙井村'), true);
+  assert.equal(found.includes('早起去法喜寺'), false);
+  assert.equal(found.includes('斋饭'), false);
+});

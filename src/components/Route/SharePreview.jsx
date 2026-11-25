@@ -1,6 +1,6 @@
 import { costDisplay } from '../../lib/cost';
 import { useMemo, useRef, useState } from 'react';
-import { ClipboardCopy, ExternalLink, Link2, MapPin, Share2 } from 'lucide-react';
+import { ClipboardCopy, Download, ExternalLink, ImageDown, Link2, Loader2, MapPin, Share2 } from 'lucide-react';
 import { createFriendLink, getRoutebookRemote, publishOwnRoutebook, recordJourneyEvent, revokeFriendLink, saveRoutebookRemote } from '../../lib/api';
 import { IMPORTED_PUBLIC_EXPLANATION, isImportedRoutebook, routebookGuideOrigins } from '../../lib/importOrigins';
 import ShareVisibility from './ShareVisibility';
@@ -10,6 +10,7 @@ import { formatStayText } from '../../lib/routeMeta.js';
 import { getRouteTrustBadgeState, getStopTrustState, maskTrustMetrics } from '../../lib/trust';
 import { preserveRoutebookConflictDraft } from '../../lib/routebookConflict';
 import { Sheet } from '../ui/sheet';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { TrustChip } from '../cards/TrustChip';
@@ -42,6 +43,16 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   // local-only routebooks fall back to the default (imported => not publicly listed).
   const publication = routebook.publication ?? localPublication(routebook);
   const [friendState, setFriendState] = useState({ loading: false, url: '' });
+  const [confirmRevokeOpen, setConfirmRevokeOpen] = useState(false);
+  const [posterState, setPosterState] = useState(
+    /** @type {{ loading: boolean, dataUrl: string, blob: Blob | null, includeFriendQr: boolean, hasQr: boolean }} */ ({
+      loading: false,
+      dataUrl: '',
+      blob: null,
+      includeFriendQr: false,
+      hasQr: false
+    })
+  );
   const friendUrl = friendState.url || (routebook.friendShareUrl ? new URL(routebook.friendShareUrl, window.location.origin).toString() : '');
   const pendingPriceCount = (routebook.stops ?? []).filter((stop) => costDisplay(stop).pending).length;
   const publicBlocked = publication.publicAllowed === false && !shareUrl;
@@ -87,9 +98,13 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
     }
   }
 
-  async function handleRevokeFriendLink() {
+  function handleRevokeFriendLink() {
     // V-U15: say what happens to links already sent before stopping them.
-    if (!window.confirm('停用后，已经发出去的链接都打不开了；之后可以再生成一个新的。停用？')) return;
+    setConfirmRevokeOpen(true);
+  }
+
+  async function confirmRevokeFriendLink() {
+    setConfirmRevokeOpen(false);
     setFriendState((prev) => ({ ...prev, loading: true }));
     try {
       const profile = getProfile();
@@ -230,192 +245,308 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
     }
   }
 
+  async function ensureFriendUrlForPoster() {
+    if (friendUrl) return friendUrl;
+    const profile = getProfile();
+    const target = await saveForSharing(profile);
+    const routeId = target.publicId || target.id;
+    const expectedVersion = currentRoutebookVersion(target);
+    const data = await createFriendLink(routeId, {
+      ...profileRoutebookFields(profile),
+      editToken: target.editToken || routebook.editToken,
+      ...(expectedVersion != null ? { expectedVersion } : {})
+    });
+    const url = new URL(data.friendShareUrl, window.location.origin).toString();
+    onShared?.(data.routebook);
+    setFriendState({ loading: false, url });
+    return url;
+  }
+
+  async function handleGeneratePoster() {
+    setPosterState((prev) => ({ ...prev, loading: true }));
+    setShareState((prev) => ({ ...prev, message: '' }));
+    try {
+      let qrUrl = shareUrl || friendUrl;
+      if (!qrUrl && posterState.includeFriendQr && !isCuratedRoute) {
+        qrUrl = await ensureFriendUrlForPoster();
+      }
+      const { renderRoutePosterPng } = await import('../../lib/routePoster.js');
+      const result = await renderRoutePosterPng(routebook, { qrUrl });
+      setPosterState((prev) => ({
+        ...prev,
+        loading: false,
+        dataUrl: result.dataUrl,
+        blob: result.blob,
+        hasQr: Boolean(qrUrl)
+      }));
+      setShareState((prev) => ({
+        ...prev,
+        message: qrUrl ? '已生成带扫码直达的高清路线长图' : '已生成私密路线长图（不含外传链接）'
+      }));
+    } catch (error) {
+      setPosterState((prev) => ({ ...prev, loading: false }));
+      setShareState((prev) => ({ ...prev, message: `长图生成失败：${error.message}` }));
+    }
+  }
+
   const cover = cityCover(routebook.city);
   const curatedHint = '精选路线请先「定制同款」复制为个人路书再发布';
 
   return (
-    <Sheet title="分享路书" description="公开页只展示路线和核对状态，不转载原攻略。" onClose={onClose} wide>
-      {!isCuratedRoute && (
-        <ShareVisibility
-          routebook={routebook}
-          publication={publication}
-          shareUrl={shareUrl}
-          friendUrl={friendUrl}
-          busy={friendState.loading || shareState.loading}
-          onCreateFriendLink={handleCreateFriendLink}
-          onCopyFriendLink={handleCreateFriendLink}
-          onRevokeFriendLink={handleRevokeFriendLink}
-          onClaimAuthorship={() => createShareLink({ claimOriginalAuthor: true })}
-        />
-      )}
-      <article className="overflow-hidden rounded-card border border-line shadow-card">
-        <header className="relative isolate p-5 text-white" style={cover ? undefined : { backgroundImage: 'linear-gradient(135deg,#e8553d,#7c5cdb)' }}>
-          {cover ? (
-            <img src={smallImage(cover)} alt="" className="absolute inset-0 -z-20 size-full object-cover" />
-          ) : (
-            <SceneImage
-              src={CITY_SCENE}
-              sizes="720px"
-              className="absolute inset-0 -z-20 size-full object-cover"
-              badge={<SceneBadge className="right-3 bottom-3">示意图</SceneBadge>}
-            />
-          )}
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2),rgba(10,12,16,.78))]" aria-hidden="true" />
-          <TrustChip routebook={routebook} curated={isCuratedRoute} className="bg-white/95" />
-          <h3 className="mt-3 text-2xl leading-tight font-black tracking-tight">{routebook.title}</h3>
-          {routebook.summary && <p className="mt-1.5 line-clamp-2 text-sm text-white/90">{routebook.summary}</p>}
-          <div className="num mt-4 flex gap-5 text-sm font-semibold">
-            <span>
-              <b className="text-xl font-black">{stops.length}</b> 站
-            </span>
-            <span>
-              <b className="text-xl font-black">{days.length}</b> 天
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="size-4" aria-hidden="true" /> {routebook.city}
-            </span>
-          </div>
-          {trustState.tone === 'prediction' && trustState.sampleProgressText && <p className="mt-2 text-xs text-white/85">{trustState.sampleProgressText}</p>}
-        </header>
+    <>
+      <Sheet title="分享路书" description="公开页只展示路线和核对状态，不转载原攻略。" onClose={onClose} wide>
+        {!isCuratedRoute && (
+          <ShareVisibility
+            routebook={routebook}
+            publication={publication}
+            shareUrl={shareUrl}
+            friendUrl={friendUrl}
+            busy={friendState.loading || shareState.loading}
+            onCopyFriendLink={handleCreateFriendLink}
+            onRevokeFriendLink={handleRevokeFriendLink}
+            onClaimAuthorship={() => createShareLink({ claimOriginalAuthor: true })}
+          />
+        )}
+        <article className="overflow-hidden rounded-card border border-line shadow-card">
+          <header className="relative isolate p-5 text-white" style={cover ? undefined : { backgroundImage: 'linear-gradient(135deg,#e8553d,#7c5cdb)' }}>
+            {cover ? (
+              <img src={smallImage(cover)} alt="" className="absolute inset-0 -z-20 size-full object-cover" />
+            ) : (
+              <SceneImage
+                src={CITY_SCENE}
+                sizes="720px"
+                className="absolute inset-0 -z-20 size-full object-cover"
+                badge={<SceneBadge className="right-3 bottom-3">示意图</SceneBadge>}
+              />
+            )}
+            <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2),rgba(10,12,16,.78))]" aria-hidden="true" />
+            <TrustChip routebook={routebook} curated={isCuratedRoute} className="bg-white/95" />
+            <h3 className="mt-3 text-2xl leading-tight font-black tracking-tight">{routebook.title}</h3>
+            {routebook.summary && <p className="mt-1.5 line-clamp-2 text-sm text-white/90">{routebook.summary}</p>}
+            <div className="num mt-4 flex gap-5 text-sm font-semibold">
+              <span>
+                <b className="text-xl font-black">{stops.length}</b> 站
+              </span>
+              <span>
+                <b className="text-xl font-black">{days.length}</b> 天
+              </span>
+              <span className="flex items-center gap-1">
+                <MapPin className="size-4" aria-hidden="true" /> {routebook.city}
+              </span>
+            </div>
+            {trustState.tone === 'prediction' && trustState.sampleProgressText && <p className="mt-2 text-xs text-white/85">{trustState.sampleProgressText}</p>}
+          </header>
 
-        <div className="grid gap-4 bg-white p-4">
-          {days.map((day, dayIndex) => {
-            const theme = dayTheme(dayIndex);
-            const dayStops = stops.filter((s) => s.day === day);
-            if (!dayStops.length) return null;
-            return (
-              <section key={day}>
-                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-extrabold text-white" style={{ background: theme.ink }}>
-                  {day}
-                </span>
-                <ol className="mt-2 grid gap-1">
-                  {dayStops.map((stop, i) => {
-                    const stopTrust = getStopTrustState(stop, trustState.tone);
-                    return (
-                      <li key={stop.id ?? i} className="flex items-center gap-3 rounded-tile px-1 py-1.5">
-                        <span
-                          className="num grid size-6 shrink-0 place-items-center rounded-full text-xs font-black text-white"
-                          style={{ background: theme.ink }}
-                          aria-hidden="true"
-                        >
-                          {i + 1}
-                        </span>
-                        <span className="num w-11 shrink-0 text-xs font-bold text-muted">{stop.time}</span>
-                        <span className="min-w-0 flex-1">
-                          <strong className="block truncate text-sm font-bold">{stop.name}</strong>
-                          <span className="text-xs text-muted">
-                            {/* U20: pending prices live in 「出发前确认」 below, not on the row. */}
-                            {[formatStayText(stop.stay), costDisplay(stop).pending ? '' : costDisplay(stop).text].filter(Boolean).join(' · ')}
+          <div className="grid gap-4 bg-white p-4">
+            {days.map((day, dayIndex) => {
+              const theme = dayTheme(dayIndex);
+              const dayStops = stops.filter((s) => s.day === day);
+              if (!dayStops.length) return null;
+              return (
+                <section key={day}>
+                  <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-extrabold text-white" style={{ background: theme.ink }}>
+                    {day}
+                  </span>
+                  <ol className="mt-2 grid gap-1">
+                    {dayStops.map((stop, i) => {
+                      const stopTrust = getStopTrustState(stop, trustState.tone);
+                      return (
+                        <li key={stop.id ?? i} className="flex items-center gap-3 rounded-tile px-1 py-1.5">
+                          <span
+                            className="num grid size-6 shrink-0 place-items-center rounded-full text-xs font-black text-white"
+                            style={{ background: theme.ink }}
+                            aria-hidden="true"
+                          >
+                            {i + 1}
                           </span>
-                        </span>
-                        <span
-                          className={cn(
-                            'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
-                            stopTrust.tone === 'verified'
-                              ? 'bg-success-soft text-success-ink'
-                              : stopTrust.tone === 'trial'
-                                ? 'bg-lemon-soft text-lemon-ink'
-                                : 'bg-sky-soft text-sky-ink'
-                          )}
-                        >
-                          {stopTrust.value}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </section>
-            );
-          })}
-          {pendingPriceCount > 0 && (
-            <p className="text-meta text-ink-2" data-testid="preview-pending-price">
-              出发前确认：{pendingPriceCount} 站的价格
-            </p>
-          )}
+                          <span className="num w-11 shrink-0 text-xs font-bold text-muted">{stop.time}</span>
+                          <span className="min-w-0 flex-1">
+                            <strong className="block truncate text-sm font-bold">{stop.name}</strong>
+                            <span className="text-xs text-muted">
+                              {/* U20: pending prices live in 「出发前确认」 below, not on the row. */}
+                              {[formatStayText(stop.stay), costDisplay(stop).pending ? '' : costDisplay(stop).text].filter(Boolean).join(' · ')}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold',
+                              stopTrust.tone === 'verified'
+                                ? 'bg-success-soft text-success-ink'
+                                : stopTrust.tone === 'trial'
+                                  ? 'bg-lemon-soft text-lemon-ink'
+                                  : 'bg-sky-soft text-sky-ink'
+                            )}
+                          >
+                            {stopTrust.value}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              );
+            })}
+            {pendingPriceCount > 0 && (
+              <p className="text-meta text-ink-2" data-testid="preview-pending-price">
+                出发前确认：{pendingPriceCount} 站的价格
+              </p>
+            )}
 
-          {routebook.validations?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
-              <span className="w-full text-xs font-bold text-muted">出发前检查</span>
-              {routebook.validations.slice(0, 3).map((v) => (
-                <span key={v.id} className="rounded-full bg-lemon-soft px-2.5 py-0.5 text-xs font-bold text-lemon-ink">
-                  {v.label}：{v.state}
-                </span>
-              ))}
+            {routebook.validations?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
+                <span className="w-full text-xs font-bold text-muted">出发前检查</span>
+                {routebook.validations.slice(0, 3).map((v) => (
+                  <span key={v.id} className="rounded-full bg-lemon-soft px-2.5 py-0.5 text-xs font-bold text-lemon-ink">
+                    {v.label}：{v.state}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {visibleMetrics.length > 0 && (
+              <dl className="grid grid-cols-2 gap-2 border-t border-line pt-3 sm:grid-cols-4">
+                {visibleMetrics.map((m) => (
+                  <div key={m.label} className="rounded-tile bg-canvas p-2.5">
+                    <dt className="text-xs text-muted">{m.label}</dt>
+                    <dd className="num text-base font-extrabold">{m.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </article>
+
+        <div className="mt-4 rounded-card border border-line bg-canvas p-3.5" data-testid="share-poster-panel">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <strong className="block text-sm font-extrabold text-ink">一屏路线长图</strong>
+              <span className="text-xs text-muted">
+                {shareUrl || friendUrl
+                  ? '紧凑时间轴 + 行前重点 + 扫码直达，适合直接发微信群或朋友圈。'
+                  : '当前路书仅自己可见：默认不印链接，勾下方开关可附上朋友扫码二维码。'}
+              </span>
+            </div>
+            <Button variant="dark" size="sm" onClick={handleGeneratePoster} disabled={posterState.loading || friendState.loading}>
+              {posterState.loading ? <Loader2 className="animate-spin" /> : <ImageDown />}
+              {posterState.loading ? '正在绘制…' : posterState.dataUrl ? '重新生成长图' : '生成路线长图'}
+            </Button>
+          </div>
+          {!shareUrl && !friendUrl && !isCuratedRoute && (
+            <label className="mt-2.5 flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-ink-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-ink"
+                checked={posterState.includeFriendQr}
+                onChange={(e) => setPosterState((prev) => ({ ...prev, includeFriendQr: e.target.checked, dataUrl: '' }))}
+              />
+              在长图附上朋友扫码直达二维码（同时开启私密朋友链接）
+            </label>
+          )}
+          {posterState.dataUrl && (
+            <div className="mt-3 space-y-2.5 border-t border-line pt-3">
+              <img
+                src={posterState.dataUrl}
+                alt={`${routebook.title || '路线'}分享长图预览`}
+                data-testid="share-poster-image"
+                className="mx-auto max-h-96 w-auto rounded-tile border border-line bg-white shadow-card"
+              />
+              <div className="flex flex-wrap justify-center gap-2">
+                <a
+                  href={posterState.dataUrl}
+                  download={`${String(routebook.title || routebook.city || '可信路书').slice(0, 24)}-行程长图.png`}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-chip bg-ink px-4 py-2 text-xs font-bold text-white hover:opacity-90"
+                >
+                  <Download className="size-4" aria-hidden="true" /> 保存高清长图（PNG）
+                </a>
+                {typeof navigator !== 'undefined' && posterState.blob && typeof navigator.canShare === 'function' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const file = new File([posterState.blob], 'lushu-poster.png', { type: 'image/png' });
+                      if (navigator.canShare({ files: [file] })) {
+                        navigator.share({ title: routebook.title, files: [file] }).catch(() => {});
+                      }
+                    }}
+                  >
+                    <Share2 /> 发送图片
+                  </Button>
+                )}
+              </div>
             </div>
           )}
-
-          {visibleMetrics.length > 0 && (
-            <dl className="grid grid-cols-2 gap-2 border-t border-line pt-3 sm:grid-cols-4">
-              {visibleMetrics.map((m) => (
-                <div key={m.label} className="rounded-tile bg-canvas p-2.5">
-                  <dt className="text-xs text-muted">{m.label}</dt>
-                  <dd className="num text-base font-extrabold">{m.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
         </div>
-      </article>
 
-      <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
-        <div className="flex flex-wrap gap-2">
-          {/* V-U19: most people just want to send it to a friend; 申请公开 is the secondary path. */}
-          {shareUrl ? (
-            <Button variant="primary" onClick={() => createShareLink()} disabled={shareState.loading}>
-              <Link2 /> 复制分享链接
+        <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
+          <div className="flex flex-wrap gap-2">
+            {/* V-U19: most people just want to send it to a friend; 申请公开 is the secondary path. */}
+            {shareUrl ? (
+              <Button variant="primary" onClick={() => createShareLink()} disabled={shareState.loading}>
+                <Link2 /> 复制分享链接
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={handleCreateFriendLink} disabled={friendState.loading}>
+                <Link2 /> {friendState.loading ? '生成中…' : friendUrl ? '复制朋友链接' : '生成朋友链接'}
+              </Button>
+            )}
+            {!publicBlocked && !shareUrl && (
+              <Button
+                variant="outline"
+                onClick={() => createShareLink()}
+                disabled={shareState.loading || routebook.publishStatus === 'pending_review' || isCuratedRoute}
+                title={isCuratedRoute ? curatedHint : undefined}
+              >
+                {shareState.loading ? '提交中…' : routebook.publishStatus === 'pending_review' ? '已申请公开' : '申请公开'}
+              </Button>
+            )}
+            <Button variant="outline" onClick={copyShareText}>
+              <ClipboardCopy /> 复制文字摘要
             </Button>
-          ) : (
-            <Button variant="primary" onClick={handleCreateFriendLink} disabled={friendState.loading}>
-              <Link2 /> {friendState.loading ? '生成中…' : friendUrl ? '复制朋友链接' : '生成朋友链接'}
-            </Button>
-          )}
-          {!publicBlocked && !shareUrl && (
             <Button
               variant="outline"
-              onClick={() => createShareLink()}
-              disabled={shareState.loading || routebook.publishStatus === 'pending_review' || isCuratedRoute}
-              title={isCuratedRoute ? curatedHint : undefined}
+              className="max-md:w-11 max-md:px-0"
+              aria-label="系统分享"
+              disabled={!shareUrl && !friendUrl}
+              title={shareUrl || friendUrl ? undefined : '发布或生成朋友链接后才能系统分享，不会分享私有链接'}
+              onClick={() => {
+                const target = shareUrl || friendUrl;
+                if (!target) return;
+                if (navigator.share) {
+                  navigator.share({ title: routebook.title, text: buildShareText(routebook), url: target }).catch(() => {});
+                } else {
+                  copyShareText();
+                }
+              }}
             >
-              {shareState.loading ? '提交中…' : routebook.publishStatus === 'pending_review' ? '已申请公开' : '申请公开'}
+              <Share2 /> <span className="max-md:sr-only">系统分享</span>
             </Button>
-          )}
-          <Button variant="outline" onClick={copyShareText}>
-            <ClipboardCopy /> 复制文字摘要
-          </Button>
-          <Button
-            variant="outline"
-            className="max-md:w-11 max-md:px-0"
-            aria-label="系统分享"
-            disabled={!shareUrl && !friendUrl}
-            title={shareUrl || friendUrl ? undefined : '发布或生成朋友链接后才能系统分享，不会分享私有链接'}
-            onClick={() => {
-              const target = shareUrl || friendUrl;
-              if (!target) return;
-              if (navigator.share) {
-                navigator.share({ title: routebook.title, text: buildShareText(routebook), url: target }).catch(() => {});
-              } else {
-                copyShareText();
-              }
-            }}
-          >
-            <Share2 /> <span className="max-md:sr-only">系统分享</span>
-          </Button>
-          {shareUrl && (
-            <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
-              <ExternalLink className="size-[18px]" aria-hidden="true" /> 打开公开页
-            </a>
-          )}
+            {shareUrl && (
+              <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
+                <ExternalLink className="size-[18px]" aria-hidden="true" /> 打开公开页
+              </a>
+            )}
+          </div>
+          <p className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-2" role="status" aria-live="polite" aria-atomic="true">
+            {shareState.message}
+          </p>
         </div>
-        <p className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-2" role="status" aria-live="polite" aria-atomic="true">
-          {shareState.message}
-        </p>
-      </div>
-      {shareUrl ? (
-        <p className="mt-3 rounded-tile bg-canvas px-3 py-2 font-mono text-xs break-all text-ink-2">{shareUrl}</p>
-      ) : isCuratedRoute ? (
-        <p className="mt-3 text-sm text-muted">{`${curatedHint}。`}</p>
-      ) : null}
-    </Sheet>
+        {shareUrl ? (
+          <p className="mt-3 rounded-tile bg-canvas px-3 py-2 font-mono text-xs break-all text-ink-2">{shareUrl}</p>
+        ) : isCuratedRoute ? (
+          <p className="mt-3 text-sm text-muted">{`${curatedHint}。`}</p>
+        ) : null}
+      </Sheet>
+      <ConfirmDialog
+        open={confirmRevokeOpen}
+        title="停用朋友链接？"
+        description="停用后，已经发出去的链接都打不开了；之后可以再生成一个新的。"
+        confirmLabel="停用"
+        cancelLabel="取消"
+        danger
+        onCancel={() => setConfirmRevokeOpen(false)}
+        onConfirm={confirmRevokeFriendLink}
+      />
+    </>
   );
 }
 

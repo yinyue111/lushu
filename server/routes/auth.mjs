@@ -10,6 +10,7 @@ import { getConfig } from '../config/runtime.mjs';
 import { mailDelivers } from '../mail/transport.mjs';
 import { createHttpError } from '../lib/util.mjs';
 import { issueChallenge } from '../accounts/pow.mjs';
+import { startSession } from '../accounts/session.mjs';
 import {
   accountProfileIds,
   changePassword,
@@ -80,6 +81,37 @@ export const authRoutes = [
   post('/api/auth/email/code', sendChangeEmailCode),
   post('/api/auth/email', confirmChangeEmail),
   post('/api/auth/login', loginAccount),
+  // Token issuance for WeChat Mini-Program / native mobile App clients (`Authorization: Bearer <token>`).
+  post('/api/auth/token', async (req, res, body) => {
+    if (body?.identifier || body?.phone || body?.email) {
+      const result = await loginAccount(req, res, body);
+      const resolved = await req.authSession;
+      return {
+        ...result,
+        tokenType: 'Bearer',
+        accessToken: resolved?.session?.rawSid || '',
+        expiresAt: resolved?.session?.expiresAt || ''
+      };
+    }
+    const { user } = await requireAccount(req);
+    const rotated = await startSession(req, res, user);
+    return {
+      account: await currentAccount(req),
+      tokenType: 'Bearer',
+      accessToken: rotated.rawSid || '',
+      expiresAt: rotated.expiresAt
+    };
+  }),
+  post('/api/auth/wechat-mini', async (_req, _res, body) => {
+    const code = String(body?.code ?? '').trim();
+    if (!code) throw createHttpError('缺少微信小程序登录凭证 code', 400, 'WECHAT_CODE_REQUIRED');
+    const appId = String(process.env.WECHAT_MINI_APPID ?? '').trim();
+    const secret = String(process.env.WECHAT_MINI_SECRET ?? '').trim();
+    if (!appId || !secret) {
+      throw createHttpError('微信小程序一键登录尚未配置 AppID，请先使用手机号或邮箱登录', 501, 'WECHAT_MINI_NOT_CONFIGURED');
+    }
+    throw createHttpError('微信登录需绑定账号后使用，请先通过手机号或邮箱完成首次关联', 501, 'WECHAT_MINI_BIND_REQUIRED');
+  }),
   post('/api/auth/reset-password', resetPasswordWithRecovery),
   post('/api/auth/password', changePassword),
   post('/api/auth/recovery-codes', (req, _res, body) => regenerateRecoveryCodes(req, body)),

@@ -636,18 +636,35 @@ function buildStopFacts(routebook, stop, corrections, evidence) {
     status: '已审核',
     checkedAt: item.createdAt
   }));
+  const isEditorial = stop?.provenance?.origin === 'editorial' || routebook?.provider?.name === 'curation';
   const fallbackFacts = [
-    { id: 'fact-stay', field: '建议停留', value: stop.stay, confidence: 66, sourceLabel: 'AI 路线校验', sourceType: 'routebook', status: '需实地校准' },
+    {
+      id: 'fact-stay',
+      field: '建议停留',
+      value: stop.stay,
+      confidence: 66,
+      sourceLabel: isEditorial ? '编辑部整理' : 'AI 路线校验',
+      sourceType: 'routebook',
+      status: isEditorial ? '编辑部整理' : '需实地校准'
+    },
     {
       id: 'fact-cost',
       field: '费用',
       value: stop.cost,
       confidence: /\d/.test(String(stop.cost ?? '')) ? 64 : 45,
-      sourceLabel: 'AI 预算估算',
+      sourceLabel: isEditorial ? '编辑部整理' : 'AI 预算估算',
       sourceType: 'routebook',
-      status: '需出发前复核'
+      status: isEditorial ? '编辑部整理' : '需出发前复核'
     },
-    { id: 'fact-risk', field: '风险', value: stop.risk, confidence: 68, sourceLabel: 'AI 风险摘要', sourceType: 'routebook', status: '需复核' }
+    {
+      id: 'fact-risk',
+      field: '风险',
+      value: stop.risk,
+      confidence: 68,
+      sourceLabel: isEditorial ? '编辑部整理' : 'AI 风险摘要',
+      sourceType: 'routebook',
+      status: isEditorial ? '编辑部整理' : '需复核'
+    }
   ];
   // Source-derived snapshots are recomputed against today's authorization overlay.
   const existingFacts = normalizeStopFacts(stop.facts).filter(

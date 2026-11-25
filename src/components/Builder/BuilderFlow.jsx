@@ -11,7 +11,7 @@ import {
   readActiveGenerationJob,
   saveActiveGenerationJob
 } from '../../lib/generationJob';
-import { trustedCities } from '../../lib/content';
+import { curatedRouteToRoutebook, curatedRoutes, trustedCities } from '../../lib/content';
 import { createRouteEditToken, getProfile, profileRoutebookFields, updateProfile } from '../../lib/profile';
 import { adoptServerProfile } from '../../lib/profileSync';
 import { Button } from '../ui/button';
@@ -20,8 +20,9 @@ import { Field, inputClass } from '../ui/field';
 import { Notice, StepCity, StepGuide, StepPrefs, Stepper } from './BuilderSteps';
 import { GenerationProgress } from './GenerationProgress';
 import { generationModeLabel, readGenerationMode, rememberGenerationMode } from '../../lib/generationModes';
-import { BUDGET_OPTIONS, mergeMustGoConstraint } from './builderModel';
-import { candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
+import { BUDGET_OPTIONS, DEFAULT_MEAL_PLAN, DEFAULT_TRANSPORT, MEAL_PLAN_OPTIONS, TRANSPORT_OPTIONS, mergeMustGoConstraint } from './builderModel';
+import { MAX_CANDIDATE_PLACES, candidatesForPrefilledGuide, extractPlaceCandidates, reconcileTextCandidates } from '../../lib/placeCandidates';
+import { extractCleanUrls, hasActionableGuideInput, stripShareCommandBoilerplate } from '../../lib/shareCommand';
 import { knownPoiCoordinates } from '../../lib/coordinates';
 import { useAccount } from '../Account/AccountProvider';
 
@@ -33,7 +34,12 @@ const defaultConstraints = {
   companion: '朋友',
   date: '',
   base: '',
-  transport: '步行 + 打车',
+  arrivalTime: '',
+  arrivalHub: '',
+  departureTime: '',
+  departureHub: '',
+  mealPlan: DEFAULT_MEAL_PLAN,
+  transport: DEFAULT_TRANSPORT,
   theme: ['Citywalk'],
   mustGo: '',
   avoid: ''
@@ -43,15 +49,15 @@ const durations = ['1 日', '2 天 1 晚', '3 天 2 晚'];
 const budgets = BUDGET_OPTIONS.map((option) => option.label);
 const tempos = ['少走路', '松弛但不空', '高密度打卡'];
 const companions = ['独行', '情侣', '朋友', '亲子'];
-const transports = ['步行 + 打车', '地铁优先', '少换乘', '亲子少走路'];
+const transports = TRANSPORT_OPTIONS;
+const mealPlans = MEAL_PLAN_OPTIONS;
 const themes = ['Citywalk', '美食拍照', '寺院茶山', '展览咖啡', '园林夜游', '亲子慢游'];
 const builderStepLabels = ['选择目的地', '导入攻略与收藏', '设置旅行偏好', '生成路书'];
 const BUILDER_DRAFT_PREFIX = 'trusted-routebook:builder-draft:v1';
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 
-/** @param {{ modelHealth?: any, defaults?: Record<string, any>, onGenerated?: Function, onProfileChanged?: Function, onModelHealth?: Function, onBack?: Function }} props */
 /** @param {Record<string, any>} props */
-export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onProfileChanged, onModelHealth, onBack }) {
+export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, onOpenBook = undefined, onProfileChanged, onModelHealth, onBack }) {
   useEffect(() => trackFunnel('create_start'), []);
   const [profile, setProfile] = useState(() => getProfile());
   const { required: loginRequired, account, generation, requireLogin, openLogin, refresh: refreshAccount } = useAccount();
@@ -64,7 +70,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       resume?.();
     });
   const [savedDraft] = useState(() => readBuilderDraft(profile.id));
-  const hasPendingDraft = hasBuilderDefaults(defaults) && Boolean(savedDraft);
+  const hasPendingDraft = hasBuilderDefaults(defaults) && isMeaningfulSavedDraft(savedDraft, defaults);
   const [draftResolution, setDraftResolution] = useState(() => (hasPendingDraft ? 'pending' : 'resolved'));
   const initialDraft = hasBuilderDefaults(defaults) ? null : savedDraft;
   const [apiTokenInput, setApiTokenInput] = useState(() => getApiToken());
@@ -118,7 +124,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const [importState, setImportState] = useState({ loading: false, sources: initialDraft?.importedSources ?? [], error: '' });
   const [ocrState, setOcrState] = useState({ loading: false, places: initialDraft?.ocrPlaces ?? [], warnings: initialDraft?.ocrWarnings ?? [] });
   const [initialCandidatePlaces] = useState(() =>
-    defaults.guide ? candidatesForPrefilledGuide(defaults.guide, [], { knownPlaces: knownPlacesForCity(initialCity) }) : (initialDraft?.candidatePlaces ?? [])
+    defaults.guide
+      ? candidatesForPrefilledGuide(stripShareCommandBoilerplate(defaults.guide), [], { knownPlaces: knownPlacesForCity(initialCity) })
+      : (initialDraft?.candidatePlaces ?? [])
   );
   const [candidatePlaces, setCandidatePlaces] = useState(initialCandidatePlaces);
   const [manualPlace, setManualPlace] = useState(initialDraft?.manualPlace ?? '');
@@ -261,7 +269,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           importSourcesRef.current = sources;
           return { loading: false, sources, error: '' };
         });
-        if (data.guideText)
+        if (data.guideText && (data.sources ?? []).some((s) => s?.status === 'fetched'))
           setGuide((prev) => {
             const next = prev.includes(data.guideText) ? prev : [prev.trim(), data.guideText].filter(Boolean).join('\n\n');
             guideRef.current = next;
@@ -488,10 +496,42 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     onBack();
   }
 
+  function syncMustGoFromCandidates() {
+    setConstraints((prev) => {
+      const merged = mergeMustGoConstraint(prev.mustGo, candidatePlacesRef.current);
+      return merged === prev.mustGo ? prev : { ...prev, mustGo: merged };
+    });
+  }
+
+  async function quickGenerate() {
+    if (!guardLogin('你填的内容都在。没有账号？用邮箱注册就行，不用邀请码。', () => quickGenerate())) return;
+    if (urlsPendingImport.length) {
+      const imported = await handleImportLinks({ silentWhenComplete: true });
+      if (!imported || !mountedRef.current) return;
+    }
+    if (
+      !hasActionableGuideInput({
+        guide: guideRef.current,
+        sources: importSourcesRef.current,
+        candidates: candidatePlacesRef.current,
+        ocrPlaces: ocrState.places
+      })
+    ) {
+      setError('还缺内容：贴一段攻略正文或写下需求，或手动加几个地点。只有链接标题或截图文件名，没法生成。');
+      return;
+    }
+    if (!modelHealth?.ready || quotaExhausted) {
+      syncMustGoFromCandidates();
+      setStep(2);
+      return;
+    }
+    setStep(3);
+    handleGenerate();
+  }
+
   async function next() {
     if (step >= 1 && !guardLogin('你填的内容都在。没有账号？用邮箱注册就行，不用邀请码。', () => nextRef.current())) return;
     if (step === 0) {
-      // 城市为空或被清空时留在本步，属预期校验拦截。
       if (!commitCity()) return;
       setStep(1);
       return;
@@ -509,9 +549,15 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           ocrPlaces: ocrState.places
         })
       ) {
-        setError('还缺内容：贴一段攻略正文或写下需求，或手动加几个地点。只有链接标题或截图文件名，没法生成。');
+        const blockedByWall = importSourcesRef.current?.some((s) => s?.status && s.status !== 'fetched');
+        setError(
+          blockedByWall
+            ? '这条链接所在平台限制外部读取正文：请点下方「上传笔记截图识别」，或手动加几个想去的地点。'
+            : '还缺内容：贴一段攻略正文或写下需求，或手动加几个地点。只有分享口令、链接标题或截图文件名，没法生成。'
+        );
         return;
       }
+      syncMustGoFromCandidates();
       setStep(2);
       return;
     }
@@ -523,7 +569,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
   nextRef.current = next;
 
-  const hasUrls = /https?:\/\/[^\s"'<>，。；、)）]+/i.test(guide);
+  const hasUrls = extractCleanUrls(guide, 1).length > 0;
   const isTrustedCity = trustedCities.includes(city);
 
   function commitCity(nextCity = cityQuery) {
@@ -644,7 +690,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           mustGo: keepDecision ? existing.mustGo : (place.mustGo ?? existing?.mustGo ?? false)
         });
       }
-      const next = [...map.values()].slice(0, 24);
+      const next = [...map.values()].slice(0, MAX_CANDIDATE_PLACES);
       candidatePlacesRef.current = next;
       return next;
     });
@@ -653,9 +699,9 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   function handleGuideChange(value) {
     guideRef.current = value;
     setGuide(value);
-    // Re-derive text candidates from the whole text: removed text removes its candidates.
+    // Re-derive text candidates from the whole text (after stripping share-command wrappers).
     setCandidatePlaces((prev) => {
-      const next = reconcileTextCandidates(prev, extractPlaceCandidates(value, { knownPlaces: knownPlacesForCity(city) }));
+      const next = reconcileTextCandidates(prev, extractPlaceCandidates(stripShareCommandBoilerplate(value), { knownPlaces: knownPlacesForCity(city) }));
       candidatePlacesRef.current = next;
       return next;
     });
@@ -702,6 +748,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   }
 
   const needsAccessCode = modelHealth?.access === 'needs-access-code' && modelHealth?.modelReady !== false;
+  const accessOnlyNeedsLogin = modelHealth?.access === 'needs-login' && modelHealth?.modelReady !== false;
+  const generateBlockedByHealth = !modelHealth?.ready && !accessOnlyNeedsLogin;
   // Open 高级设置 once when the site turns out to need an access code; the user can still close it.
   useEffect(() => {
     if (needsAccessCode) setAdvancedOpen(true);
@@ -712,11 +760,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
     !canProceed ||
     importState.loading ||
     ocrState.loading ||
-    (!modelHealth?.ready && step === 2) ||
+    (generateBlockedByHealth && step === 2) ||
     (quotaExhausted && step === 2);
 
   return (
-    <div className={cn('page-enter mx-auto max-w-[760px] px-4 pt-5 lg:pt-8', step === 2 ? 'pb-44 sm:pb-40' : 'pb-32')}>
+    <div className="page-enter mx-auto max-w-[760px] px-4 pt-5 pb-28 lg:pt-8">
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" className="-ml-2" onClick={leaveBuilder}>
           <ArrowLeft /> 返回
@@ -774,16 +822,27 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           );
         if (defaults?.quotaWarning) parts.push(<span key="quota">{defaults.quotaWarning}</span>);
         if (!isTrustedCity && step > 0) parts.push(<span key="trial">{city} 暂时只能生成 AI 草稿，地点和营业时间出发前要自己确认。</span>);
-        if (needsLogin)
+        if (needsLogin) {
+          const sampleRoute = curatedRoutes.find((r) => r.city === city) ?? curatedRoutes[0];
           parts.push(
-            <span key="login">
-              可以先填着，点生成时再登录，内容会留着。{' '}
+            <span key="login" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span>生成专属路书需先登录；未登录可先浏览已有的精选路书。</span>
               <button type="button" className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2" onClick={() => openLogin('login')}>
                 现在登录
               </button>
+              {onOpenBook && sampleRoute && (
+                <button
+                  type="button"
+                  data-testid="guest-preview-existing"
+                  className="relative -my-2 inline-block py-2 font-bold underline underline-offset-2"
+                  onClick={() => onOpenBook(curatedRouteToRoutebook(sampleRoute))}
+                >
+                  先看{sampleRoute.city}已有路书
+                </button>
+              )}
             </span>
           );
-        else if (!account && step >= 1)
+        } else if (!account && step >= 1)
           parts.push(
             <span key="login">
               登录后路书存进账号，换设备也能看。{' '}
@@ -805,7 +864,14 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
           创建我的路书 · 第 {step + 1} 步，共 {builderStepLabels.length} 步
         </span>
         <div className="mt-3">
-          <Stepper labels={builderStepLabels} step={step} />
+          <Stepper
+            labels={builderStepLabels}
+            step={step}
+            onSelectStep={(target) => {
+              if (target === 2) syncMustGoFromCandidates();
+              setStep(target);
+            }}
+          />
         </div>
       </header>
 
@@ -859,10 +925,11 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         )}
         {step === 2 && (
           <StepPrefs
+            city={city}
             constraints={constraints}
             setConstraints={setConstraints}
             toggleTheme={toggleTheme}
-            options={{ durations, budgets, tempos, companions, transports, themes }}
+            options={{ durations, budgets, tempos, companions, transports, mealPlans, themes }}
             mode={generationMode}
             setMode={setGenerationMode}
             generation={account ? generation : null}
@@ -875,6 +942,8 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
             failure={generationFailure}
             city={city}
             duration={constraints.duration}
+            travelDate={constraints.date}
+            candidatePlaces={candidatePlaces}
             cancelling={cancelState.busy}
             cancelError={cancelState.error}
             onCancel={handleCancelGeneration}
@@ -893,7 +962,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         </Notice>
       )}
 
-      {step === 2 && !modelHealth?.ready && (
+      {step === 2 && generateBlockedByHealth && (
         <Notice role="alert" className="mt-6">
           {needsAccessCode
             ? '需要平台访问码：请在右上角「高级设置」填写访问码。表单内容会保留，填写后即可生成。'
@@ -902,26 +971,37 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
       )}
 
       {step < 3 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur max-md:bottom-[calc(56px+env(safe-area-inset-bottom))] max-md:pb-0">
-          <div className="mx-auto flex max-w-[760px] items-center justify-between gap-3 px-4 py-3">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+          <div className="mx-auto flex max-w-[760px] items-center justify-between gap-2 px-4 py-3 sm:gap-3">
             <Button variant="outline" onClick={() => (step > 0 ? setStep((s) => s - 1) : leaveBuilder())}>
               <ArrowLeft /> {step === 0 ? '取消' : '上一步'}
             </Button>
-            <Button variant="primary" className="min-w-36" onClick={next} disabled={nextDisabled}>
-              {ocrState.loading ? (
-                <>
-                  <Loader2 className="animate-spin" /> 截图识别中...
-                </>
-              ) : step === 2 ? (
-                <>
-                  <Sparkles /> {quotaExhausted ? '次数已用完' : `生成路书（${generationModeLabel(generationMode) || '轻快'}）`}
-                </>
-              ) : (
-                <>
-                  下一步 <ArrowRight />
-                </>
+            <div className="flex items-center gap-2">
+              {step === 1 && (
+                <Button variant="outline" onClick={next} disabled={nextDisabled}>
+                  调偏好
+                </Button>
               )}
-            </Button>
+              <Button variant="primary" className="min-w-32 sm:min-w-36" onClick={step === 1 ? quickGenerate : next} disabled={nextDisabled}>
+                {ocrState.loading ? (
+                  <>
+                    <Loader2 className="animate-spin" /> 截图识别中...
+                  </>
+                ) : step === 1 ? (
+                  <>
+                    <Sparkles /> 直接生成
+                  </>
+                ) : step === 2 ? (
+                  <>
+                    <Sparkles /> {quotaExhausted ? '次数已用完' : `生成路书（${generationModeLabel(generationMode) || '轻快'}）`}
+                  </>
+                ) : (
+                  <>
+                    下一步 <ArrowRight />
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -931,6 +1011,41 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
 
 function hasBuilderDefaults(defaults) {
   return Boolean(defaults && Object.values(defaults).some((value) => (Array.isArray(value) ? value.length : String(value ?? '').trim())));
+}
+
+function isSyntheticTemplateGuide(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return true;
+  return (
+    /^想要.{1,16}(?:1 日|2 天 1 晚|3 天 2 晚)，主题偏好：.+希望路线可信/.test(text) ||
+    /^想去.{1,16}，请(?:生成适合我的|基于我后续粘贴的攻略生成)可信路书。?$/.test(text)
+  );
+}
+
+function isMeaningfulSavedDraft(draft, defaults) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (defaults?.guide && String(draft.guide ?? '').trim() === String(defaults.guide).trim() && (!defaults.city || draft.city === defaults.city)) {
+    return false;
+  }
+  const hasCustomGuide = !isSyntheticTemplateGuide(draft.guide);
+  const hasSources = Array.isArray(draft.importedSources) && draft.importedSources.length > 0;
+  const hasOcr = (Array.isArray(draft.ocrPlaces) && draft.ocrPlaces.length > 0) || (Array.isArray(draft.screenshotNotes) && draft.screenshotNotes.length > 0);
+  const hasManualOrDecided =
+    Boolean(String(draft.manualPlace ?? '').trim()) ||
+    (Array.isArray(draft.candidatePlaces) && draft.candidatePlaces.some((place) => place?.origin === 'manual' || place?.decided || place?.included));
+  const c = draft.constraints ?? {};
+  const hasCustomPrefs = Boolean(
+    String(c.mustGo ?? '').trim() ||
+    String(c.avoid ?? '').trim() ||
+    String(c.base ?? '').trim() ||
+    String(c.date ?? '').trim() ||
+    String(c.budget ?? '').trim() ||
+    String(c.arrivalTime ?? '').trim() ||
+    String(c.arrivalHub ?? '').trim() ||
+    String(c.departureTime ?? '').trim() ||
+    String(c.departureHub ?? '').trim()
+  );
+  return hasCustomGuide || hasSources || hasOcr || hasManualOrDecided || hasCustomPrefs;
 }
 
 function readBuilderDraft(profileId) {
@@ -983,34 +1098,10 @@ function buildCandidateGuide(candidatePlaces) {
     .join('\n');
 }
 
-function hasActionableGuideInput({ guide = '', sources = [], candidates = [], ocrPlaces = [] } = {}) {
-  if (Array.isArray(candidates) && candidates.some((place) => place.included)) return true;
-  if (Array.isArray(ocrPlaces) && ocrPlaces.length > 0) return true;
-  if (
-    Array.isArray(sources) &&
-    sources.some((source) => {
-      if (source?.status !== 'fetched') return false;
-      return [source.description, source.excerpt, source.content, source.guideText].some((value) => String(value ?? '').trim().length >= 20);
-    })
-  ) {
-    return true;
-  }
-  const text = String(guide ?? '')
-    .split(/\r?\n/)
-    .filter((line) => {
-      const value = line.trim();
-      return value && !/^(?:来源\s*\d+|标题|摘要|公开正文摘录|可信信号|风险提示|链接)[:：]/.test(value) && !/^已上传截图[:：]/.test(value);
-    })
-    .join('\n')
-    .replace(/https?:\/\/[^\s"'<>，。；、)）]+/gi, '')
-    .replace(/截图暂未识别成功[^\n。]*[。]?/g, '')
-    .trim();
-  return text.length >= 8;
-}
-
 function extractCandidatePlacesFromSources(sources, knownPlaces = []) {
   const rows = [];
   for (const source of sources) {
+    if (source?.status !== 'fetched') continue;
     const text = `${source.title ?? ''}\n${source.description ?? ''}\n${source.excerpt ?? ''}`;
     for (const place of extractPlaceCandidates(text, { knownPlaces })) {
       if (place.intent === 'avoid') continue;
@@ -1037,7 +1128,7 @@ function knownPlacesForCity(city) {
 }
 
 function extractGuideUrls(value) {
-  return [...new Set(String(value ?? '').match(/https?:\/\/[^\s"'<>，。；、)）]+/gi) ?? [])];
+  return extractCleanUrls(value, 12);
 }
 
 function sourceUrlKeys(source) {

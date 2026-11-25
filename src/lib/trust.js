@@ -104,9 +104,19 @@ export function getStopTrustBadge(stop, routeTone) {
     return { tone: 'trial', badgeClass: 'badge-orange', verified: false, value: '待复核', label: 'AI 草稿 · 未实地确认' };
   }
   const { score, verified } = evaluatePoiTrustSample(stop?.poiTrust);
-  return verified
-    ? { tone: 'verified', badgeClass: 'badge-green', verified: true, value: String(Math.round(score)), label: `POI 可信 ${Math.round(score)}` }
-    : { tone: 'prediction', badgeClass: 'badge-blue', verified: false, value: '待核对', label: '地点待核对' };
+  if (verified) {
+    return { tone: 'verified', badgeClass: 'badge-green', verified: true, value: String(Math.round(score)), label: `POI 可信 ${Math.round(score)}` };
+  }
+  const catalogChecked =
+    stop?.provenance?.origin === 'editorial' ||
+    stop?.provenance?.reviewedPoi === true ||
+    Number(stop?.provenance?.verifiedFactCount) > 0 ||
+    stop?.coordinatePrecision === 'poi' ||
+    stop?.coordinatePrecision === 'exact';
+  if (catalogChecked) {
+    return { tone: 'verified', badgeClass: 'badge-green', verified: true, value: '地点已核对', label: '地点已核对' };
+  }
+  return { tone: 'prediction', badgeClass: 'badge-blue', verified: false, value: '待核对', label: '地点待核对' };
 }
 
 // 可信指标遮罩：路线未达 verified 时，带「可信/预测/均分/评分/得分」字样的指标

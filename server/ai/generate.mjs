@@ -32,6 +32,7 @@ import {
   buildSourceSummary,
   calculateRouteTrustScore,
   normalizeAiNotes,
+  normalizeClockTime,
   normalizeCreator,
   normalizeRouteConstraints,
   normalizeTravelDate,
@@ -221,6 +222,7 @@ function systemPrompt() {
     '每个 stop 的 coordinateSystem 固定返回 WGS84，geoConfidence 为 0-100。',
     '不许编造具体信息：门店/分店名（如“总店”“XX店”）、街道门牌号、门票或票价、人均价格、营业或开放时间、电话、活动日期，只有在用户攻略、导入来源或 approvedPoiCandidates 里出现过才能写；没有就写“待确认”或不写。站点名用攻略里的叫法，不要自己加门店后缀。行程站点只使用用户攻略（含导入来源）里明确出现的地点；不要为凑天数、好看或补路线而自行添加攻略未写的景点。若点位偏少，宁可少站或写清留白，也不要发明新站。平台会自动检查，攻略里没有的具体信息会被改成“待确认”。',
     'riskNotes 只写需要用户出发前注意的提示（如可能需预约、可能拥挤），不写“通过”之类的结论。',
+    'summary、stop.verify 与 stop.risk 会展示在公开分享页：只写路线特点、游览衔接与通用行前核对提醒，不要复述用户私密填写的预算金额（如“人均 XX 元”“预算控制在…”）、必去原话（如“按必去要求…”）、避开项（如“已避开…”）或具体到站/离站班次时间。',
     '如果输入携带 approvedPoiCandidates（运营已审核 POI 候选），优先从候选中选点并直接使用候选给出的坐标与营业时间；不在候选中的自创点位必须显式降低 geoConfidence（<60）并在 stop.risk 标注需实地复核。'
   ].join('\n');
 }
@@ -289,12 +291,42 @@ export function sanitizePayload(payload) {
       companion: truncateString(constraints.companion, 30) || '朋友',
       date: truncateString(constraints.date, 30),
       base: truncateString(constraints.base, 80),
+      arrivalTime: normalizeClockTime(constraints.arrivalTime),
+      arrivalHub: truncateString(constraints.arrivalHub, 40),
+      departureTime: normalizeClockTime(constraints.departureTime),
+      departureHub: truncateString(constraints.departureHub, 40),
+      mealPlan: truncateString(constraints.mealPlan, 30),
       transport: truncateString(constraints.transport, 60),
       theme: truncateString(constraints.theme, 120),
       mustGo: truncateString(constraints.mustGo, 120),
       avoid: truncateString(constraints.avoid, 120)
     }
   };
+}
+
+function buildScheduleRules(constraints = {}) {
+  const rules = [];
+  if (constraints.arrivalTime || constraints.arrivalHub) {
+    rules.push(
+      `首日到达约束：用户第一天${constraints.arrivalTime ? `约 ${constraints.arrivalTime}` : ''}${constraints.arrivalHub ? `抵达「${constraints.arrivalHub}」` : '抵达目的地'}；Day 1 第一站 stop.time 必须晚于抵达时间至少 45 分钟，且首站优先选离${constraints.arrivalHub || '抵达点'}顺路的片区。`
+    );
+  }
+  if (constraints.departureTime || constraints.departureHub) {
+    rules.push(
+      `末日返程约束：用户最后一天${constraints.departureTime ? `计划 ${constraints.departureTime}` : ''}${constraints.departureHub ? `从「${constraints.departureHub}」离开` : '返程'}；最后一天末站结束时间必须比返程时间提前至少 75 分钟，且靠近${constraints.departureHub || '返程枢纽'}方便赶车。`
+    );
+  }
+  const meal = String(constraints.mealPlan || '留出正餐时段').trim();
+  if (meal === '顺路简餐') {
+    rules.push('用餐节奏：以街区小吃、咖啡茶歇顺路解决为主，不必专门拉长正餐间隔。');
+  } else if (meal === '不排餐饮') {
+    rules.push('用餐节奏：只排游览景点，不单独安排餐厅站点。');
+  } else {
+    rules.push(
+      '用餐节奏：每天在 11:30–13:30 与 17:30–19:30 预留午晚餐缓冲；若攻略含餐饮店则排在饭点，若无指定餐厅则在相邻景点时间之间留出至少 60 分钟觅食空档，避免跨饭点连续赶路。'
+    );
+  }
+  return rules;
 }
 
 /** Builds the user message; untrusted text is fenced (see ./untrusted.mjs). */
@@ -314,11 +346,17 @@ export function buildUserPrompt(payload, fence = createUntrustedFence()) {
         companion: constraints.companion ?? '朋友',
         date: constraints.date ?? '',
         base: constraints.base ?? '',
+        arrivalTime: constraints.arrivalTime ?? '',
+        arrivalHub: constraints.arrivalHub ?? '',
+        departureTime: constraints.departureTime ?? '',
+        departureHub: constraints.departureHub ?? '',
+        mealPlan: constraints.mealPlan || '留出正餐时段',
         transport: constraints.transport ?? '',
         theme: constraints.theme ?? '',
         mustGo: constraints.mustGo ?? '',
         avoid: constraints.avoid ?? ''
       },
+      scheduleRules: buildScheduleRules(constraints),
       importedSources: sources.sources,
       // rank12③：运营已审核 POI 候选（名称|坐标|开放|建议停留|适合），无候选时省略。
       ...(Array.isArray(payload.poiCandidates) && payload.poiCandidates.length ? { approvedPoiCandidates: payload.poiCandidates } : {}),
@@ -434,11 +472,11 @@ function normalizeRoutebook(routebook, payload, runtime) {
             detail: `识别到约 ${requestedDayCount} 天行程，超出单次生成 ${MAX_GENERATED_ROUTE_DAYS} 天上限，已压缩为 ${inferredDayCount} 天，建议按段拆分生成。`
           },
           ...baseValidations
-        ].slice(0, 8)
+        ].slice(0, 12)
       : baseValidations;
   if (dayRepair.validation) {
     routebookValidations.unshift(dayRepair.validation);
-    routebookValidations.splice(8);
+    routebookValidations.splice(12);
   }
   const routebookMetrics = buildRoutebookMetrics(stops);
   return {

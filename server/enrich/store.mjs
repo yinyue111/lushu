@@ -197,11 +197,12 @@ function createPostgresStore(poolProvider) {
     };
   return {
     kind: 'postgres',
-    async enqueue({ routebookId, userId }) {
-      const { rows } = await q(`insert into ${S}.enrich_jobs (routebook_id, user_id) values ($1, $2) on conflict (routebook_id) do nothing returning *`, [
-        routebookId,
-        userId
-      ]);
+    async enqueue({ routebookId, userId }, now = Date.now()) {
+      const at = new Date(now).toISOString();
+      const { rows } = await q(
+        `insert into ${S}.enrich_jobs (routebook_id, user_id, next_attempt_at, created_at, updated_at) values ($1, $2, $3, $3, $3) on conflict (routebook_id) do nothing returning *`,
+        [routebookId, userId, at]
+      );
       if (rows[0]) return { job: jobFromRow(rows[0]), created: true };
       return { job: await this.getJob(routebookId), created: false };
     },

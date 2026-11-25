@@ -7,8 +7,22 @@ import { Button } from '../ui/button';
 import { Field, inputClass } from '../ui/field';
 import { cn } from '../ui/cn';
 import { cityCover, smallImage } from '../visual/theme';
-import { averageSourcePrediction, budgetHint, budgetValueForLabel, importStatusLabel, sourcePredictionTone, sourcePredictionValue } from './builderModel';
+import {
+  averageSourcePrediction,
+  budgetHint,
+  budgetValueForLabel,
+  DEFAULT_MEAL_PLAN,
+  formatTransitWindowSummary,
+  importStatusLabel,
+  MEAL_PLAN_OPTIONS,
+  sourcePredictionTone,
+  sourcePredictionValue,
+  transitHubsForCity
+} from './builderModel';
+import { MAX_CANDIDATE_PLACES } from '../../lib/placeCandidates.js';
+import { cleanShareCommandForEditor, hasShareCommandWrapper } from '../../lib/shareCommand.js';
 import { dayOptionsForMonth, isPastTripDate, parseYmd, resolveTripDate } from '../../lib/tripDate.js';
+import { quickTripDatePresets } from '../../lib/preTripAdvisor.js';
 import { TAP_TARGET } from '../ui/tap-target.js';
 
 const TONES = {
@@ -19,20 +33,32 @@ const TONES = {
 };
 
 /** @param {Record<string, any>} props */
-export function Stepper({ labels, step }) {
+export function Stepper({ labels, step, onSelectStep = undefined }) {
   return (
     <ol className="grid grid-cols-4 gap-2" aria-label="创建路书进度">
       {labels.map((label, i) => {
         const state = i === step ? 'current' : i < step ? 'done' : 'todo';
-        return (
-          <li key={label} aria-current={state === 'current' ? 'step' : undefined} className="min-w-0">
+        const clickable = Boolean(onSelectStep && step < 3 && i < step);
+        const content = (
+          <>
             <span className={cn('block h-1.5 rounded-full', state === 'todo' ? 'bg-line' : 'bg-primary')} aria-hidden="true" />
             <span className={cn('mt-2 flex items-center gap-1 truncate text-xs font-bold', state === 'todo' ? 'text-muted' : 'text-ink')}>
               {state === 'done' && <Check className="size-3.5 shrink-0 text-success-ink" aria-hidden="true" />}
-              <span className="max-sm:hidden">{label}</span>
-              <span className="sm:hidden">{i + 1}</span>
-              <span className="sr-only">{state === 'current' ? '，当前步骤' : state === 'done' ? '，已完成' : '，未开始'}</span>
+              <span className="sm:hidden">{i + 1} </span>
+              <span className={cn(state !== 'current' && 'max-sm:sr-only')}>{label}</span>
+              <span className="sr-only">{state === 'current' ? '，当前步骤' : state === 'done' ? '，已完成，点击返回此步' : '，未开始'}</span>
             </span>
+          </>
+        );
+        return (
+          <li key={label} aria-current={state === 'current' ? 'step' : undefined} className="min-w-0">
+            {clickable ? (
+              <button type="button" onClick={() => onSelectStep(i)} className="block min-h-11 w-full text-left">
+                {content}
+              </button>
+            ) : (
+              content
+            )}
           </li>
         );
       })}
@@ -41,9 +67,9 @@ export function Stepper({ labels, step }) {
 }
 
 /** @param {Record<string, any>} props */
-export function Notice({ tone = 'warn', role = 'status', children, className }) {
+export function Notice({ tone = 'warn', role = 'status', children, className, ...props }) {
   return (
-    <div role={role} className={cn('flex items-start gap-2 rounded-tile px-3.5 py-3 text-sm font-semibold', TONES[tone], className)}>
+    <div {...props} role={role} className={cn('flex items-start gap-2 rounded-tile px-3.5 py-3 text-sm font-semibold', TONES[tone], className)}>
       <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div>{children}</div>
     </div>
@@ -64,7 +90,7 @@ function StepTitle({ title, sub }) {
 export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity, city, isTrustedCity, cityClosed = false }) {
   return (
     <section>
-      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州的地点资料核对过；其他江浙沪城市是 AI 草稿，出发前要自己确认。" />
+      <StepTitle title="想去哪座城市？" sub="杭州、上海、苏州、南京的地点资料与精选路线已整理好；其他江浙沪城市可生成 AI 草稿。" />
       <Field label="目的地城市">
         <input
           id="builder-city"
@@ -80,7 +106,7 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
           onKeyDown={(event) => {
             if (event.key === 'Enter') commitCity();
           }}
-          placeholder="例如：杭州、上海、苏州，或手动输入其他城市"
+          placeholder="例如：杭州、上海、苏州、南京，或输入其他城市"
         />
       </Field>
       <datalist id="builder-city-options">
@@ -89,7 +115,7 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
         ))}
       </datalist>
       {/* Trusted cities as photo cards: the step's focal point, and the photos are the bundled city shots. */}
-      <div className="mt-5 grid grid-cols-3 gap-2.5 sm:gap-3" role="group" aria-label="首批可信城市">
+      <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3" role="group" aria-label="首批可信城市">
         {trustedCities.map((item) => {
           const cover = cityCover(item);
           const active = item === city;
@@ -105,15 +131,11 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
                 active ? 'ring-[3px] ring-ink' : 'ring-1 ring-line hover:ring-ink/40'
               )}
             >
-              {cover && (
-                <img
-                  src={smallImage(cover)}
-                  alt=""
-                  loading="lazy"
-                  className="absolute inset-0 -z-20 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
-                />
-              )}
-              <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,0)_30%,rgba(10,12,16,.72)_100%)]" aria-hidden="true" />
+              {cover && <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />}
+              <span
+                className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,12,16,.2)_0%,rgba(10,12,16,.66)_55%,rgba(10,12,16,.88)_100%)]"
+                aria-hidden="true"
+              />
               {active && (
                 <span className="absolute top-2 right-2 grid size-6 place-items-center rounded-full bg-white text-ink shadow-card" aria-hidden="true">
                   <Check className="size-4" />
@@ -123,7 +145,7 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
                 <span className="flex items-center gap-1 text-copy font-extrabold sm:text-lead">
                   <MapPin className="size-4 shrink-0" aria-hidden="true" /> {item}
                 </span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-white/85 max-sm:hidden">已有真实打卡</span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-white max-sm:hidden">已有真实打卡</span>
               </span>
             </button>
           );
@@ -169,19 +191,62 @@ export function StepGuide(props) {
   } = props;
   const average = averageSourcePrediction(importState.sources);
   const includedCount = candidatePlaces.filter((place) => place.included).length;
+  const hasWrapperNoise = hasShareCommandWrapper(guide);
   return (
     <section>
-      <StepTitle title="把攻略和收藏丢进来" sub="粘贴公开链接、正文摘要、想去的地点，也可以上传截图。" />
+      <StepTitle title="把攻略和收藏丢进来" sub="直接粘贴小红书 / 抖音分享口令、公开链接、正文摘要或地点，也可上传笔记截图。" />
       <label className="sr-only" htmlFor="builder-guide">
         攻略链接、正文摘要或收藏地点
       </label>
       <textarea
         id="builder-guide"
         className={cn(inputClass, 'min-h-36')}
-        placeholder="例如：小红书 / 抖音 / X 链接、攻略正文、想去的地点。打不开的链接请顺手贴一段正文摘要。"
+        placeholder="直接粘贴小红书 / 抖音分享口令、公开链接、攻略正文或想去的地点。支持连贴多条拼成一条路线。"
         value={guide}
         onChange={(e) => setGuide(e.target.value)}
+        onPaste={(e) => {
+          const pasted = e.clipboardData?.getData('text/plain') || '';
+          if (!pasted || !hasShareCommandWrapper(pasted)) return;
+          e.preventDefault();
+          const cleaned = cleanShareCommandForEditor(pasted);
+          const target = e.currentTarget;
+          const start = target.selectionStart ?? guide.length;
+          const end = target.selectionEnd ?? guide.length;
+          const before = guide.slice(0, start);
+          const after = guide.slice(end);
+          const separatorBefore = before && !/\n\s*$/.test(before) ? '\n\n' : '';
+          const separatorAfter = after && !/^\s*\n/.test(after) ? '\n\n' : '';
+          setGuide(`${before}${separatorBefore}${cleaned}${separatorAfter}${after}`);
+        }}
       />
+      {(hasWrapperNoise || guide.trim()) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {hasWrapperNoise && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setGuide(cleanShareCommandForEditor(guide))}>
+              清理分享口令杂字
+            </Button>
+          )}
+          {guide.trim() && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const base = cleanShareCommandForEditor(guide).trim();
+                const next = `${base}\n\n`;
+                setGuide(next);
+                const el = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('builder-guide'));
+                if (el) {
+                  el.focus();
+                  window.requestAnimationFrame(() => el.setSelectionRange(next.length, next.length));
+                }
+              }}
+            >
+              <Plus /> 再贴一条口令或攻略
+            </Button>
+          )}
+        </div>
+      )}
       {otherCityMentioned(guide, city) && (
         <p role="status" className="mt-2 flex items-start gap-1.5 text-meta font-semibold text-ink">
           <AlertCircle className="mt-0.5 size-4 shrink-0 text-lemon-ink" aria-hidden="true" />
@@ -189,7 +254,7 @@ export function StepGuide(props) {
         </p>
       )}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className={cn('mt-3 grid gap-3', hasUrls && 'sm:grid-cols-2')}>
         <label
           htmlFor="builder-screenshots"
           className="group flex cursor-pointer items-center gap-3 rounded-card border-2 border-dashed border-line-strong bg-white p-4 transition-colors hover:border-sky focus-within:border-sky"
@@ -198,8 +263,8 @@ export function StepGuide(props) {
             <ImageUp className="size-5" aria-hidden="true" />
           </span>
           <span>
-            <strong className="block text-copy font-extrabold">上传截图</strong>
-            <span className="text-xs text-muted">自动识别地点、价格和时间</span>
+            <strong className="block text-copy font-extrabold">上传攻略截图（选填）</strong>
+            <span className="text-xs text-muted">自动识别图里的地点、价格和时间；上方文本框也可直接粘贴公开链接自动读取</span>
           </span>
           <input
             id="builder-screenshots"
@@ -211,15 +276,17 @@ export function StepGuide(props) {
             className="sr-only"
           />
         </label>
-        <div className="flex items-center gap-3 rounded-card border border-line bg-canvas p-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-muted">
-            <Link className="size-5" aria-hidden="true" />
-          </span>
-          <span>
-            <strong className="block text-copy font-extrabold">公开链接分析</strong>
-            <span className="text-xs text-muted">不绕过登录墙，只读公开内容</span>
-          </span>
-        </div>
+        {hasUrls && (
+          <div className="flex items-center gap-3 rounded-card border border-line bg-canvas p-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-muted">
+              <Link className="size-5" aria-hidden="true" />
+            </span>
+            <span>
+              <strong className="block text-copy font-extrabold">公开链接分析</strong>
+              <span className="text-xs text-muted">不绕过登录墙，只读公开内容</span>
+            </span>
+          </div>
+        )}
       </div>
       <p id="builder-upload-privacy" className="mt-2 text-xs leading-relaxed text-muted">
         隐私提示：截图会上传到当前配置的第三方模型服务做文字识别。请先裁掉姓名、手机号、订单号、证件、精确定位等敏感信息；选择文件即表示同意。
@@ -261,6 +328,51 @@ export function StepGuide(props) {
                     {s.platform || '公开链接'} · {importStatusLabel(s.status, s.unavailableReason)} · {s.title?.slice(0, 30) || '标题待补充'}
                   </span>
                   {s.warnings?.[0] && <small className="w-full text-xs text-lemon-ink">{s.warnings[0]}</small>}
+                  {s.status !== 'fetched' && (
+                    <div
+                      data-testid="source-restricted-fallback"
+                      className="mt-1 flex w-full flex-wrap items-center justify-between gap-2 rounded-tile bg-sky-soft/70 px-3 py-2 text-xs text-ink"
+                    >
+                      <span className="font-semibold text-sky-ink">该平台限制外部读取正文，换个方式一样能识别：</span>
+                      <span className="flex flex-wrap gap-2">
+                        <label
+                          htmlFor="builder-screenshots"
+                          className={cn(
+                            TAP_TARGET,
+                            'inline-flex cursor-pointer items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-xs font-bold text-white hover:opacity-90'
+                          )}
+                        >
+                          <ImageUp className="size-3.5" aria-hidden="true" /> 上传笔记截图识别
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('builder-guide'));
+                            if (el) {
+                              el.focus();
+                              el.setSelectionRange(el.value.length, el.value.length);
+                            }
+                          }}
+                          className={cn(
+                            TAP_TARGET,
+                            'inline-flex items-center gap-1 rounded-full border border-line-strong bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-canvas'
+                          )}
+                        >
+                          粘贴笔记正文
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('builder-manual-place')?.focus()}
+                          className={cn(
+                            TAP_TARGET,
+                            'inline-flex items-center gap-1 rounded-full border border-line-strong bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-canvas'
+                          )}
+                        >
+                          <Plus className="size-3.5" aria-hidden="true" /> 手填地点
+                        </button>
+                      </span>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -272,9 +384,10 @@ export function StepGuide(props) {
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-extrabold">确认要去的地点</h2>
           <span className="rounded-full bg-sky-soft px-2.5 py-0.5 text-xs font-bold text-sky-ink" role="status" aria-live="polite">
-            {includedCount} 个会排进路线
+            {includedCount > 0 ? `已选 ${includedCount} 个重点` : candidatePlaces.length > 0 ? `识别到 ${candidatePlaces.length} 个地点` : '可手动补充'}
           </span>
         </div>
+        <p className="mt-1 text-xs text-muted">默认标记为「顺路去」；点「必去」优先排入，点「不去」跳过该地点。</p>
         <div className="mt-3 flex gap-2">
           <label className="sr-only" htmlFor="builder-manual-place">
             手动补充地点
@@ -297,48 +410,76 @@ export function StepGuide(props) {
           </Button>
         </div>
         {candidatePlaces.length ? (
-          <ul className="mt-3 grid grid-cols-1 gap-2">
-            {candidatePlaces.map((place, index) => (
-              <li
-                key={`${place.name}-${index}`}
-                className={cn('flex items-center gap-2 rounded-tile border border-line p-2.5 pl-3', place.included ? 'bg-white' : 'border-dashed bg-canvas')}
-              >
-                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="size-5 shrink-0 accent-[#bd3f2a]"
-                    checked={place.included}
-                    onChange={(event) => updateCandidate(index, { included: event.target.checked })}
-                  />
-                  <span className="min-w-0">
-                    <strong className="block truncate text-copy font-bold">{place.name}</strong>
-                    <span className="block truncate text-xs text-muted">{candidatePlaceHint(place)}</span>
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  aria-pressed={Boolean(place.mustGo)}
-                  onClick={() => updateCandidate(index, { mustGo: !place.mustGo, included: true })}
+          <ul className="mt-3 grid grid-cols-1 gap-2" data-testid="candidate-place-list">
+            {candidatePlaces.map((place, index) => {
+              const isExplicitSkip = place.decided === true && !place.included;
+              const mode = place.mustGo ? 'must' : isExplicitSkip ? 'skip' : 'optional';
+              return (
+                <li
+                  key={`${place.name}-${index}`}
                   className={cn(
-                    "relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-bold transition-colors after:absolute after:-inset-1.5 after:content-['']",
-                    place.mustGo ? 'bg-primary-strong text-white' : 'border border-line-strong bg-white text-ink-2 hover:border-ink/40'
+                    'flex flex-wrap items-center justify-between gap-2 rounded-tile border border-line p-2.5 pl-3',
+                    !isExplicitSkip ? 'bg-white' : 'border-dashed bg-canvas'
                   )}
                 >
-                  {place.mustGo ? <Check className="size-3.5" aria-hidden="true" /> : <MapPin className="size-3.5" aria-hidden="true" />} 必去
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setCandidatePlaces((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
-                  aria-label={`删除${place.name}`}
-                >
-                  <X />
-                </Button>
-              </li>
-            ))}
+                  <span className="min-w-0 flex-1 basis-36">
+                    <strong className={cn('block truncate text-copy font-bold', isExplicitSkip && 'text-muted line-through')}>{place.name}</strong>
+                    <span className="block truncate text-xs text-muted">{candidatePlaceHint(place)}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1" role="group" aria-label={`${place.name} 排入方式`}>
+                    <button
+                      type="button"
+                      aria-pressed={mode === 'must'}
+                      onClick={() => updateCandidate(index, { included: true, mustGo: true, decided: true })}
+                      className={cn(
+                        'inline-flex min-h-11 items-center rounded-full px-2.5 text-xs font-bold transition-colors sm:min-h-8',
+                        mode === 'must' ? 'bg-primary-strong text-white' : 'border border-line-strong bg-white text-ink-2 hover:bg-canvas'
+                      )}
+                    >
+                      必去
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={mode === 'optional'}
+                      onClick={() => updateCandidate(index, { included: true, mustGo: false, decided: true })}
+                      className={cn(
+                        'inline-flex min-h-11 items-center rounded-full px-2.5 text-xs font-bold transition-colors sm:min-h-8',
+                        mode === 'optional' ? 'bg-ink text-white' : 'border border-line-strong bg-white text-ink-2 hover:bg-canvas'
+                      )}
+                    >
+                      顺路去
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={mode === 'skip'}
+                      onClick={() => updateCandidate(index, { included: false, mustGo: false, decided: true })}
+                      className={cn(
+                        'inline-flex min-h-11 items-center rounded-full px-2.5 text-xs font-bold transition-colors sm:min-h-8',
+                        mode === 'skip' ? 'border border-ink-2 bg-ink-2 text-white' : 'border border-line-strong bg-white text-muted hover:bg-canvas'
+                      )}
+                    >
+                      不去
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setCandidatePlaces((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
+                      aria-label={`删除${place.name}`}
+                    >
+                      <X />
+                    </Button>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-muted">输入攻略、导入链接、上传截图或手动添加后，识别出的地点会列在这里；默认都不勾选，勾选的才会排进路线。</p>
+          <p className="mt-3 text-sm text-muted">粘贴攻略、导入链接、上传截图或手动添加后，识别出的地点会列在这里，方便勾选重点或删掉不想去的。</p>
+        )}
+        {candidatePlaces.length >= MAX_CANDIDATE_PLACES && (
+          <p className="mt-2 text-meta font-semibold text-lemon-ink" role="status" data-testid="candidate-cap-hint">
+            最多保留 {MAX_CANDIDATE_PLACES} 个候选地点；删掉不需要的就能继续加。
+          </p>
         )}
         {(includedCount === 1 || (includedCount === 0 && candidatePlaces.length === 1)) && (
           <p className="mt-2 text-meta text-ink-2" data-testid="single-place-hint">
@@ -390,7 +531,7 @@ function ToggleChips({ legend, icon: Icon, options, isActive, onToggle }) {
               aria-pressed={active}
               onClick={() => onToggle(option)}
               className={cn(
-                'inline-flex h-10 items-center gap-1 rounded-full border px-4 text-sm font-bold transition-colors',
+                'inline-flex h-11 items-center gap-1 rounded-full border px-4 text-sm font-bold transition-colors sm:h-10',
                 active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-ink hover:border-ink/40'
               )}
             >
@@ -405,8 +546,10 @@ function ToggleChips({ legend, icon: Icon, options, isActive, onToggle }) {
 }
 
 /** @param {Record<string, any>} props */
-export function StepPrefs({ constraints, setConstraints, toggleTheme, options, mode = 'fast', setMode = () => {}, generation = null }) {
+export function StepPrefs({ city = '', constraints, setConstraints, toggleTheme, options, mode = 'fast', setMode = () => {}, generation = null }) {
   const pick = (key) => ({ isActive: (v) => constraints[key] === v, onToggle: (v) => setConstraints((p) => ({ ...p, [key]: v })) });
+  const hubs = transitHubsForCity(city);
+  const windowSummary = formatTransitWindowSummary(constraints);
   return (
     <section>
       <StepTitle title="你想怎么玩？" sub="先勾偏好，AI 按你的选择排路线；生成后还能改。" />
@@ -421,11 +564,129 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
               className={cn(inputClass, 'pl-9')}
               value={constraints.base}
               onChange={(e) => setConstraints((p) => ({ ...p, base: e.target.value }))}
-              placeholder="湖滨银泰、杭州东站…"
+              placeholder="湖滨银泰、新街口…"
             />
           </span>
         </Field>
       </div>
+
+      <div
+        data-testid="builder-transit-window"
+        className="mt-4 rounded-card border border-line bg-canvas/60 p-4"
+        role="group"
+        aria-labelledby="builder-transit-window-title"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h3 id="builder-transit-window-title" className="flex items-center gap-1.5 text-sm font-extrabold text-ink">
+              <Train className="size-4 text-primary" aria-hidden="true" />
+              首末日到达与返程（选填）
+            </h3>
+            <p className="mt-0.5 text-meta text-muted">坐高铁或飞机来回时填上，首日从车站顺路排起，末日留足去车站时间</p>
+          </div>
+          {windowSummary && (
+            <button
+              type="button"
+              onClick={() => setConstraints((p) => ({ ...p, arrivalTime: '', arrivalHub: '', departureTime: '', departureHub: '' }))}
+              className="min-h-11 text-xs font-bold text-muted underline underline-offset-2 hover:text-ink sm:min-h-0"
+            >
+              清空时间窗
+            </button>
+          )}
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-tile border border-line bg-white p-3">
+            <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2">
+              <Field label="第一天几点到">
+                <input
+                  id="builder-arrival-time"
+                  type="time"
+                  className={inputClass}
+                  value={constraints.arrivalTime ?? ''}
+                  onChange={(e) => setConstraints((p) => ({ ...p, arrivalTime: e.target.value }))}
+                />
+              </Field>
+              <Field label="到达车站 / 机场">
+                <input
+                  id="builder-arrival-hub"
+                  className={inputClass}
+                  value={constraints.arrivalHub ?? ''}
+                  onChange={(e) => setConstraints((p) => ({ ...p, arrivalHub: e.target.value }))}
+                  placeholder={hubs[0] || '如杭州东站'}
+                />
+              </Field>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="常用到达车站">
+              {hubs.map((hub) => {
+                const active = constraints.arrivalHub === hub;
+                return (
+                  <button
+                    key={`arr-${hub}`}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() =>
+                      setConstraints((p) => ({
+                        ...p,
+                        arrivalHub: active ? '' : hub,
+                        departureHub: !active && !p.departureHub ? hub : p.departureHub
+                      }))
+                    }
+                    className={cn(
+                      'min-h-11 rounded-full border px-3 text-xs font-bold sm:min-h-8',
+                      active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-canvas text-ink-2 hover:bg-line'
+                    )}
+                  >
+                    {hub}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-tile border border-line bg-white p-3">
+            <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2">
+              <Field label="最后一天几点走">
+                <input
+                  id="builder-departure-time"
+                  type="time"
+                  className={inputClass}
+                  value={constraints.departureTime ?? ''}
+                  onChange={(e) => setConstraints((p) => ({ ...p, departureTime: e.target.value }))}
+                />
+              </Field>
+              <Field label="返程车站 / 机场">
+                <input
+                  id="builder-departure-hub"
+                  className={inputClass}
+                  value={constraints.departureHub ?? ''}
+                  onChange={(e) => setConstraints((p) => ({ ...p, departureHub: e.target.value }))}
+                  placeholder={hubs[0] || '如杭州东站'}
+                />
+              </Field>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="常用返程车站">
+              {hubs.map((hub) => {
+                const active = constraints.departureHub === hub;
+                return (
+                  <button
+                    key={`dep-${hub}`}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setConstraints((p) => ({ ...p, departureHub: active ? '' : hub }))}
+                    className={cn(
+                      'min-h-11 rounded-full border px-3 text-xs font-bold sm:min-h-8',
+                      active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-canvas text-ink-2 hover:bg-line'
+                    )}
+                  >
+                    {hub}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-6 grid gap-5">
         <ToggleChips legend="玩几天" options={options.durations} {...pick('duration')} />
         <div>
@@ -438,6 +699,21 @@ export function StepPrefs({ constraints, setConstraints, toggleTheme, options, m
           <p className="mt-1.5 text-meta text-muted">{budgetHint(constraints.budget)}</p>
         </div>
         <ToggleChips legend="节奏" options={options.tempos} {...pick('tempo')} />
+        <div>
+          <ToggleChips
+            legend="正餐与觅食"
+            options={options.mealPlans ?? MEAL_PLAN_OPTIONS}
+            isActive={(v) => (constraints.mealPlan || DEFAULT_MEAL_PLAN) === v}
+            onToggle={(v) => setConstraints((p) => ({ ...p, mealPlan: v }))}
+          />
+          <p className="mt-1.5 text-meta text-muted">
+            {(constraints.mealPlan || DEFAULT_MEAL_PLAN) === '留出正餐时段'
+              ? '默认在 11:30–13:00 与 17:30–19:00 留出午晚餐缓冲，不跨饭点硬赶路。'
+              : constraints.mealPlan === '顺路简餐'
+                ? '以街区小吃、茶歇咖啡顺路解决为主，缩短用餐留白。'
+                : '只排游览景点，正餐时间由你现场自由安排。'}
+          </p>
+        </div>
         <ToggleChips legend="和谁一起" options={options.companions} {...pick('companion')} />
         <ToggleChips legend="交通偏好" icon={Train} options={options.transports} {...pick('transport')} />
         <ToggleChips legend="主题（可多选）" options={options.themes} isActive={(v) => constraints.theme.includes(v)} onToggle={toggleTheme} />
@@ -480,6 +756,7 @@ export function TripDateFields({ value = '', onChange, now = undefined }) {
 
   const days = draft.month ? dayOptionsForMonth(Number(draft.month), clock) : [];
   const past = isPastTripDate(value, clock);
+  const presets = quickTripDatePresets(clock);
 
   function commit(month, day) {
     setDraft({ month, day });
@@ -494,7 +771,35 @@ export function TripDateFields({ value = '', onChange, now = undefined }) {
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="text-meta font-semibold text-ink-2">出行日期</legend>
-      <p className="text-meta leading-snug text-muted">可不填</p>
+      <p className="text-meta leading-snug text-muted">选上日期后，系统会自动替你排查周一闭馆与预约提前期</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="快捷出行日期">
+        {presets.map((preset) => {
+          const active = value === preset.ymd;
+          return (
+            <button
+              key={preset.key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(active ? '' : preset.ymd)}
+              className={cn(
+                'inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-bold sm:min-h-8',
+                active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-ink-2 hover:bg-canvas'
+              )}
+            >
+              {preset.shortLabel}
+            </button>
+          );
+        })}
+        {value && (
+          <button
+            type="button"
+            onClick={() => commit('', '')}
+            className="inline-flex min-h-11 items-center rounded-full border border-dashed border-line-strong px-2.5 text-xs font-semibold text-muted hover:bg-canvas sm:min-h-8"
+          >
+            暂未定
+          </button>
+        )}
+      </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-[6rem] flex-1 flex-col gap-1">
           <span className="text-meta text-muted">月</span>
@@ -604,8 +909,6 @@ export function GenerationModePicker({ mode, setMode, generation = null }) {
     </fieldset>
   );
 }
-
-/** @param {Record<string, any>} props */
 
 /** User-facing candidate hint: only two calm labels (U11). */
 function candidatePlaceHint(place) {

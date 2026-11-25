@@ -21,7 +21,7 @@ import { opsActorForRequest, validateOpsAuditInput } from '../ops/audit.mjs';
 import { keywordPrefilter, loadKeywordFile } from './filters.mjs';
 import { createDomesticModerationAdapter, strictestDecision } from './providers.mjs';
 
-export const MODERATION_ENTITY_TYPES = Object.freeze(['checkin', 'routebook']);
+export const MODERATION_ENTITY_TYPES = Object.freeze(['checkin', 'routebook', 'companion']);
 const WITHHELD_STATUSES = new Set(['pending', 'blocked', 'rejected']);
 const STATE_TTL_MS = 2000;
 

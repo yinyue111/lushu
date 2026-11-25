@@ -57,7 +57,13 @@ export default function LoginSheet({
             ))}
           </div>
         )}
-        {view === 'login' && <LoginForm onAuthenticated={onAuthenticated} onForgot={() => setView('forgot')} />}
+        {view === 'login' && (
+          <LoginForm
+            onAuthenticated={onAuthenticated}
+            onForgot={() => setView('forgot')}
+            onSwitchRegister={registration !== 'closed' ? () => setView('register') : undefined}
+          />
+        )}
         {view === 'register' && (
           <RegisterForm
             registration={registration}
@@ -130,9 +136,10 @@ function PhoneField({ value, onChange, error, autoFocus = false, optional = fals
   );
 }
 
-function PasswordField({ label = '密码', value, onChange, autoComplete, hint = '' }) {
+function PasswordField({ label = '密码', value, onChange, autoComplete, hint = '', error = '' }) {
   const id = useId();
   const [shown, setShown] = useState(false);
+  const describedBy = [error ? `${id}-error` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-meta font-semibold text-ink-2">
@@ -141,13 +148,14 @@ function PasswordField({ label = '密码', value, onChange, autoComplete, hint =
       <div className="relative">
         <input
           id={id}
-          className={cn(inputClass, 'pr-12')}
+          className={cn(inputClass, 'pr-12', error && 'border-danger')}
           type={shown ? 'text' : 'password'}
           autoComplete={autoComplete}
           maxLength={72}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          aria-describedby={hint ? `${id}-hint` : undefined}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={describedBy}
         />
         <button
           type="button"
@@ -159,9 +167,14 @@ function PasswordField({ label = '密码', value, onChange, autoComplete, hint =
           {shown ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
         </button>
       </div>
-      {hint && (
+      {hint && !error && (
         <span id={`${id}-hint`} className="text-meta leading-snug text-muted">
           {hint}
+        </span>
+      )}
+      {error && (
+        <span id={`${id}-error`} className="text-sm font-semibold text-danger">
+          {error}
         </span>
       )}
     </div>
@@ -300,7 +313,7 @@ export function EmailCodeField({ value, onChange, onSend, canSend, sentTo, label
   );
 }
 
-function LoginForm({ onAuthenticated, onForgot }) {
+function LoginForm({ onAuthenticated, onForgot, onSwitchRegister }) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [identifierError, setIdentifierError] = useState('');
@@ -338,9 +351,16 @@ function LoginForm({ onAuthenticated, onForgot }) {
       <SubmitButton busy={state.busy} busyLabel="正在登录">
         登录
       </SubmitButton>
-      <button type="button" onClick={onForgot} className="self-center py-2 text-sm font-semibold text-ink-2 underline underline-offset-4">
-        忘了密码？
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+        {onSwitchRegister && (
+          <button type="button" onClick={onSwitchRegister} className="min-h-11 text-sm font-bold text-primary-strong underline underline-offset-4">
+            还没有账号？去注册
+          </button>
+        )}
+        <button type="button" onClick={onForgot} className="min-h-11 text-sm font-semibold text-ink-2 underline underline-offset-4">
+          忘了密码？
+        </button>
+      </div>
     </form>
   );
 }
@@ -353,7 +373,7 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
   const [password, setPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [accepted, setAccepted] = useState(false);
-  const [errors, setErrors] = useState({ email: '', phone: '', code: '' });
+  const [errors, setErrors] = useState({ email: '', phone: '', code: '', password: '', privacy: '' });
   const [state, run] = useSubmit();
   if (registration === 'closed') return <Notice tone="info">暂时不开放注册。已有账号可以直接登录。</Notice>;
   const emailOk = isEmail(email);
@@ -371,14 +391,16 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
     const next = {
       email: emailOk ? '' : '邮箱格式不对，检查一下',
       phone: phone.trim() && !isMainlandMobile(phone) ? '请输入 11 位大陆手机号，或者留空' : '',
-      code: emailVerificationRequired && emailCode.length !== 6 ? '请填邮箱收到的 6 位验证码' : ''
+      code: emailVerificationRequired && emailCode.length !== 6 ? '请填邮箱收到的 6 位验证码' : '',
+      password: password.length < 8 ? '密码至少填 8 位' : '',
+      privacy: accepted ? '' : '请先勾选同意隐私说明'
     };
     setErrors(next);
-    if (next.email || next.phone || next.code) return;
+    if (next.email || next.phone || next.code || next.password || next.privacy) return;
     run(async () => {
       const data = await register({
         email: email.trim(),
-        emailCode,
+        emailCode: emailVerificationRequired ? emailCode : '',
         phone: phone.trim(),
         password,
         inviteCode,
@@ -389,11 +411,15 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
     });
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
       <EmailField value={email} onChange={setEmail} error={errors.email} autoFocus hint="用来登录、收验证码和找回账号" />
-      <EmailCodeField value={emailCode} onChange={setEmailCode} onSend={sendCode} canSend={Boolean(email.trim())} sentTo={sentTo} />
-      {errors.code && <span className="-mt-3 text-sm font-semibold text-danger">{errors.code}</span>}
-      <PasswordField value={password} onChange={setPassword} autoComplete="new-password" hint={PASSWORD_HINT} />
+      {emailVerificationRequired && (
+        <>
+          <EmailCodeField value={emailCode} onChange={setEmailCode} onSend={sendCode} canSend={Boolean(email.trim())} sentTo={sentTo} />
+          {errors.code && <span className="-mt-2 text-sm font-semibold text-danger">{errors.code}</span>}
+        </>
+      )}
+      <PasswordField value={password} onChange={setPassword} autoComplete="new-password" hint={PASSWORD_HINT} error={errors.password} />
       <PhoneField value={phone} onChange={setPhone} error={errors.phone} optional />
       {registration === 'invite' && <TextField label="邀请码" value={inviteCode} onChange={setInviteCode} autoComplete="off" hint="内测阶段，注册需要邀请码" />}
       <label className="flex items-start gap-2.5 text-sm text-ink-2">
@@ -401,7 +427,10 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
           type="checkbox"
           className="mt-0.5 size-5 shrink-0 accent-primary-strong"
           checked={accepted}
-          onChange={(event) => setAccepted(event.target.checked)}
+          onChange={(event) => {
+            setAccepted(event.target.checked);
+            if (event.target.checked && errors.privacy) setErrors((current) => ({ ...current, privacy: '' }));
+          }}
         />
         <span>
           我已读过并同意
@@ -411,10 +440,13 @@ function RegisterForm({ registration, emailVerificationRequired, onAuthenticated
           ：邮箱用来登录、收验证码和找回账号，手机号只当登录名。
         </span>
       </label>
+      {errors.privacy && <span className="-mt-2 text-sm font-semibold text-danger">{errors.privacy}</span>}
       <FormError text={state.error} />
-      <SubmitButton busy={state.busy} busyLabel="正在注册">
-        {submitLabel}
-      </SubmitButton>
+      <div className="sticky bottom-0 -mx-1 bg-white px-1 pt-2 pb-1">
+        <SubmitButton busy={state.busy} busyLabel="正在注册">
+          {submitLabel}
+        </SubmitButton>
+      </div>
     </form>
   );
 }

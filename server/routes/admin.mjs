@@ -176,6 +176,80 @@ export const adminRoutes = [
     return sendJson(res, 200, { ok: true });
   }),
 
+  r('GET', '/api/admin/verified-facts', async ({ req, res, url }) => {
+    await guard(req, 'corrections.read');
+    const cityFilter = String(url.searchParams.get('city') ?? '').trim();
+    const statusFilter = String(url.searchParams.get('status') ?? '').trim();
+    const now = Date.now();
+    const soonMs = 30 * 86400000;
+    const all = await adminStore().listVerifiedFacts(400);
+    const items = all
+      .map((f) => {
+        const expMs = Date.parse(f.expiresAt ?? '') || 0;
+        const state = expMs <= now ? 'expired' : expMs - now <= soonMs ? 'expiring' : 'fresh';
+        return { ...f, state };
+      })
+      .filter((f) => (!cityFilter || f.city === cityFilter) && (!statusFilter || f.state === statusFilter));
+    return sendJson(res, 200, { ok: true, items });
+  }),
+  r('POST', '/api/admin/verified-facts', async ({ req, res }) => {
+    const admin = await guard(req, 'corrections.write', { write: true });
+    const body = await readJsonBody(req);
+    const city = String(body.city ?? '')
+      .trim()
+      .replace(/市$/, '');
+    const place = String(body.place ?? '')
+      .trim()
+      .slice(0, 80);
+    const field = ['price', 'hours'].includes(body.field) ? body.field : 'price';
+    const value = String(body.value ?? '')
+      .trim()
+      .slice(0, 160);
+    const sourceUrl = String(body.sourceUrl ?? '')
+      .trim()
+      .slice(0, 400);
+    if (!city || !place || !value) throw createHttpError('请填齐城市、地点名称和核实值', 400, 'VERIFIED_FACT_INVALID');
+    if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) throw createHttpError('来源链接必须以 http:// 或 https:// 开头', 400, 'VERIFIED_FACT_URL_INVALID');
+    const days = Math.max(7, Math.min(365, Number(getConfig('enrich.verifiedFactDays')) || 90));
+    const nowIso = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+    const cacheKey = `${city}|${place}|${field}`;
+    const fact = await adminStore().putVerifiedFact({
+      cacheKey,
+      city,
+      place,
+      field,
+      value,
+      sources: sourceUrl ? [{ url: sourceUrl, title: '人工核实来源', kind: 'web' }] : [],
+      scope: 'cache-key',
+      verifiedBy: admin.username,
+      verifiedAt: nowIso,
+      expiresAt
+    });
+    await adminAudit(req, {
+      admin,
+      action: 'verified-fact.upsert',
+      target: `fact:${cacheKey}`,
+      after: { value, expiresAt },
+      reason: String(body.reason || '运营录入/续期核实信息').slice(0, 200)
+    });
+    return sendJson(res, 200, { ok: true, fact });
+  }),
+  r('POST', '/api/admin/verified-facts/delete', async ({ req, res }) => {
+    const admin = await guard(req, 'corrections.write', { write: true });
+    const body = await readJsonBody(req);
+    const cacheKey = String(body.cacheKey ?? '').trim();
+    if (!cacheKey) throw createHttpError('缺少记录键', 400, 'VERIFIED_FACT_KEY_REQUIRED');
+    await adminStore().deleteVerifiedFact(cacheKey);
+    await adminAudit(req, {
+      admin,
+      action: 'verified-fact.delete',
+      target: `fact:${cacheKey}`,
+      reason: String(body.reason || '移除过期或有误核实值').slice(0, 200)
+    });
+    return sendJson(res, 200, { ok: true });
+  }),
+
   // ---- corrections
   r('GET', '/api/admin/corrections', async ({ req, res, url }) => {
     await guard(req, 'corrections.read');

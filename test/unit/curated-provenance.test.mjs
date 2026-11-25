@@ -1,14 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getCuratedRoutebook, normalizeRoutebookForStorage } from '../../server/routebooks/normalize.mjs';
+import { publicRoutebookView } from '../../server/routebooks/views.mjs';
 import { curatedRoutes } from '../../src/lib/content.js';
+import { costDisplay } from '../../src/lib/cost.js';
 
-test('curated stops carry 编辑部选的点, not 来源未记录', () => {
+test('curated stops carry 编辑部选的点 across storage and publicRoutebookView, never 来源未记录', () => {
   const book = getCuratedRoutebook(curatedRoutes[0].id);
   assert.ok(
     book.stops.every((stop) => stop.provenance.origin === 'editorial'),
     JSON.stringify(book.stops.map((s) => s.provenance.origin))
   );
+  const pub = publicRoutebookView(book);
+  assert.ok(
+    pub.stops.every((stop) => stop.provenance?.origin === 'editorial'),
+    JSON.stringify(pub.stops.map((s) => s.provenance?.origin))
+  );
+  assert.equal(costDisplay(pub.stops[0]).pending, false);
+  assert.equal(costDisplay(pub.stops[0]).text, '免费');
 });
 
 test('a user routebook cannot forge the editorial origin', () => {

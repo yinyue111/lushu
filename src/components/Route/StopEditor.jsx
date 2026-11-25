@@ -52,12 +52,6 @@ export default function StopEditor({ stop, isNew = false, routebook, onClose, on
             <Field label="大概花费">
               <input className={inputClass} value={form.cost} onChange={(e) => update('cost', e.target.value)} />
             </Field>
-            <Field label="纬度" hint="不确定可以不改">
-              <input className={inputClass} inputMode="decimal" value={form.lat} onChange={(e) => update('lat', e.target.value)} />
-            </Field>
-            <Field label="经度">
-              <input className={inputClass} inputMode="decimal" value={form.lng} onChange={(e) => update('lng', e.target.value)} />
-            </Field>
           </div>
           <Field label="推荐理由">
             <textarea className={`${inputClass} min-h-20`} value={form.verify} onChange={(e) => update('verify', e.target.value)} />
@@ -65,6 +59,17 @@ export default function StopEditor({ stop, isNew = false, routebook, onClose, on
           <Field label="注意事项">
             <textarea className={`${inputClass} min-h-20`} value={form.risk} onChange={(e) => update('risk', e.target.value)} />
           </Field>
+          <details className="rounded-tile bg-canvas px-3.5 py-2.5">
+            <summary className="cursor-pointer text-sm font-bold text-ink-2">高级（经纬度）</summary>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="纬度" hint="不确定可以不改">
+                <input className={inputClass} inputMode="decimal" value={form.lat ?? ''} onChange={(e) => update('lat', e.target.value)} />
+              </Field>
+              <Field label="经度">
+                <input className={inputClass} inputMode="decimal" value={form.lng ?? ''} onChange={(e) => update('lng', e.target.value)} />
+              </Field>
+            </div>
+          </details>
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="soft" onClick={onClose}>
               取消

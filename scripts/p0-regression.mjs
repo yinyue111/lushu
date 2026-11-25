@@ -13,7 +13,7 @@ const APP_ID = 'trusted-routebook';
 const ADMIN_TOKEN = 'p0-regression-admin';
 const PUBLIC_TOKEN = 'p0-regression-public';
 const IDENTITY_SECRET = 'p0-regression-identity-secret';
-const CURATED_IDS = ['hangzhou-westlake-tea', 'shanghai-wukang-anfu', 'suzhou-pingjiang-garden'];
+const CURATED_IDS = ['hangzhou-westlake-tea', 'shanghai-wukang-anfu', 'suzhou-pingjiang-garden', 'nanjing-museum-qinhuai'];
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
@@ -326,6 +326,7 @@ async function main() {
       REQUIRE_LOCAL_ADMIN_TOKEN: 'true',
       ALLOW_LOCAL_ADMIN_BYPASS: 'false',
       RATE_LIMIT_MAX: '500',
+      RATE_LIMIT_CORE_WRITE_MAX: '200',
       RATE_LIMIT_WINDOW_MS: '60000'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -638,6 +639,8 @@ async function main() {
       'new journey events must persist a travel-date snapshot'
     );
 
+    await assertPrivacyAndLegacyStateGuards(baseUrl, dataDir);
+
     console.log(
       JSON.stringify({
         ok: true,
@@ -658,6 +661,292 @@ async function main() {
     await stopChild(child);
     await rm(dataDir, { recursive: true, force: true });
   }
+}
+
+async function publishRouteForTest(baseUrl, routeId, expectedVersion = 1) {
+  const result = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/status`, {
+    method: 'POST',
+    headers: { ...adminHeaders(), 'content-type': 'application/json' },
+    body: JSON.stringify({
+      status: 'published',
+      expectedVersion,
+      note: 'P0 隐私与旧值回归测试发布',
+      allowUnverifiedRouting: true,
+      routingOverrideReason: 'P0 隔离环境无上游道路密钥'
+    })
+  });
+  assert.equal(result.response.status, 200, `publish ${routeId}: ${JSON.stringify(result.data)}`);
+  return result.data.routebook;
+}
+
+async function fetchPublicViews(baseUrl, routeId, city = '杭州') {
+  const detail = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}`);
+  const share = await fetchJson(`${baseUrl}/api/share/${encodeURIComponent(routeId)}`);
+  const list = await fetchJson(`${baseUrl}/api/routebooks?status=published&city=${encodeURIComponent(city)}`);
+  const copy = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(routeId)}/copy`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ surface: 'public-share' })
+  });
+  assert.equal(detail.response.status, 200, `public detail ${routeId}`);
+  assert.equal(share.response.status, 200, `public share ${routeId}`);
+  assert.equal(list.response.status, 200, `public list ${routeId}`);
+  assert.equal(copy.response.status, 200, `public copy ${routeId}`);
+  const listed = (list.data.routebooks ?? []).find((item) => item.publicId === routeId);
+  assert.ok(listed, `${routeId} must be in public list`);
+  const routeHtmlRes = await fetch(`${baseUrl}/route/${encodeURIComponent(routeId)}`);
+  const shareHtmlRes = await fetch(`${baseUrl}/share/${encodeURIComponent(routeId)}`);
+  const routeHtml = await routeHtmlRes.text();
+  const shareHtml = await shareHtmlRes.text();
+  return {
+    detail: detail.data.routebook,
+    share: share.data.routebook,
+    list: listed,
+    copy: copy.data.routebook,
+    rawPayloads: [
+      ['detail', JSON.stringify(detail.data)],
+      ['share', JSON.stringify(share.data)],
+      ['list', JSON.stringify(listed)],
+      ['copy', JSON.stringify(copy.data)]
+    ],
+    htmlPages: [
+      ['/route', routeHtml],
+      ['/share', shareHtml]
+    ]
+  };
+}
+
+async function assertPrivacyAndLegacyStateGuards(baseUrl, dataDir) {
+  // 1) §4.5 Public validation privacy: mustGo, avoid, budget amount, Per-person budget & avoid count
+  const ownerProfile = await createProfile(baseUrl, { localId: 'p0-privacy-owner' });
+  const privacyRouteId = 'p0-privacy-route';
+  const savedOwner = await fetchJson(`${baseUrl}/api/routebooks`, {
+    method: 'POST',
+    headers: profileHeaders(ownerProfile),
+    body: JSON.stringify({
+      ...routePayload({
+        id: privacyRouteId,
+        city: '杭州',
+        title: 'P0 隐私校验测试路线',
+        stops: [
+          { name: '柳浪闻莺', cost: '20 元', lat: 30.242, lng: 120.1617 },
+          { name: '南宋御街', cost: '60 元', lat: 30.2432, lng: 120.1696 }
+        ]
+      }),
+      profileId: ownerProfile.id,
+      constraints: {
+        budget: '人均 3876 元',
+        mustGo: '秘密点玄武斋',
+        avoid: '前任楼下咖啡',
+        transport: '公交地铁 + 步行'
+      }
+    })
+  });
+  assert.equal(savedOwner.response.status, 200, JSON.stringify(savedOwner.data));
+  await publishRouteForTest(baseUrl, privacyRouteId);
+
+  const ownerFull = await fetchJson(`${baseUrl}/api/routebooks/${privacyRouteId}`, {
+    headers: profileHeaders(ownerProfile)
+  });
+  assert.equal(ownerFull.response.status, 200);
+  // Owner view keeps full details
+  const ownerText = JSON.stringify(ownerFull.data.routebook);
+  assert.equal(ownerText.includes('秘密点玄武斋'), true, 'owner view keeps mustGo detail');
+  assert.equal(ownerText.includes('3,876') || ownerText.includes('3876'), true, 'owner view keeps budget detail');
+
+  const publicViews = await fetchPublicViews(baseUrl, privacyRouteId);
+  const forbiddenLiterals = ['秘密点玄武斋', '前任楼下咖啡', '3876', '3,876', '避开项'];
+  for (const [label, serialized] of [...publicViews.rawPayloads, ...publicViews.htmlPages]) {
+    for (const needle of forbiddenLiterals) {
+      assert.equal(serialized.includes(needle), false, `${label} leaked "${needle}"`);
+    }
+    assert.equal(/\d+\s*个避开/.test(serialized), false, `${label} leaked avoid count`);
+  }
+  for (const [label, serialized] of publicViews.rawPayloads) {
+    assert.equal(serialized.includes('人均预算'), false, `public API ${label} must not contain 人均预算`);
+  }
+  for (const [label, book] of [
+    ['detail', publicViews.detail],
+    ['share', publicViews.share],
+    ['list', publicViews.list],
+    ['copy', publicViews.copy]
+  ]) {
+    assertNoPrivateRouteFields(book, `privacy ${label}`);
+    assert.equal(book.transport, '公交地铁 + 步行', `${label} should expose valid top-level transport`);
+    for (const row of book.validations ?? []) {
+      assert.deepEqual(Object.keys(row).sort(), ['id', 'label', 'state'], `${label} validation row keys`);
+      assert.notEqual(row.id, 'edit-budget', `${label} must drop edit-budget`);
+      assert.notEqual(row.id, 'edit-constraints', `${label} must drop edit-constraints`);
+    }
+  }
+
+  // 2) §4.5 Copy sanitization from public detail, public share AND owner full view (second identity + guest)
+  const { createPrivateRoutebookDraft } = await import('../src/lib/privateDraft.js');
+  const copierProfile = await createProfile(baseUrl, { localId: 'p0-privacy-copier' });
+  const guestProfile = { id: 'p0-guest-local', creatorName: '' };
+  for (const [sourceLabel, sourceView] of [
+    ['public-detail', publicViews.detail],
+    ['public-share', publicViews.share],
+    ['owner-full', ownerFull.data.routebook]
+  ]) {
+    const guestDraft = createPrivateRoutebookDraft(sourceView, guestProfile);
+    const guestDraftText = JSON.stringify(guestDraft);
+    for (const needle of forbiddenLiterals) {
+      assert.equal(guestDraftText.includes(needle), false, `guest draft from ${sourceLabel} leaked "${needle}"`);
+    }
+    assert.equal(/\d+\s*个避开/.test(guestDraftText), false, `guest draft from ${sourceLabel} leaked avoid count`);
+    assert.equal(/人均预算\s*约?\s*[\d,]/.test(guestDraftText), false, `guest draft from ${sourceLabel} leaked budget amount`);
+    assert.equal(guestDraft.transport, '公交地铁 + 步行');
+
+    const copierDraft = createPrivateRoutebookDraft(sourceView, copierProfile);
+    const copierDraftText = JSON.stringify(copierDraft);
+    for (const needle of forbiddenLiterals) {
+      assert.equal(copierDraftText.includes(needle), false, `copier draft from ${sourceLabel} leaked "${needle}"`);
+    }
+    assert.equal(/\d+\s*个避开/.test(copierDraftText), false, `copier draft from ${sourceLabel} leaked avoid count`);
+
+    const savedCopy = await fetchJson(`${baseUrl}/api/routebooks`, {
+      method: 'POST',
+      headers: profileHeaders(copierProfile),
+      body: JSON.stringify(copierDraft)
+    });
+    assert.equal(savedCopy.response.status, 200, `save copy from ${sourceLabel}: ${JSON.stringify(savedCopy.data)}`);
+    const copierOwnRead = await fetchJson(`${baseUrl}/api/routebooks/${encodeURIComponent(savedCopy.data.routebook.publicId)}`, {
+      headers: profileHeaders(copierProfile)
+    });
+    assert.equal(copierOwnRead.response.status, 200);
+    for (const [viewLabel, payload] of [
+      [`save-return(${sourceLabel})`, JSON.stringify(savedCopy.data)],
+      [`copier-owner-view(${sourceLabel})`, JSON.stringify(copierOwnRead.data)]
+    ]) {
+      for (const needle of forbiddenLiterals) {
+        assert.equal(payload.includes(needle), false, `${viewLabel} leaked "${needle}"`);
+      }
+      assert.equal(/\d+\s*个避开/.test(payload), false, `${viewLabel} leaked avoid count`);
+      // Copier view only blocks 人均预算 when paired with an amount (empty budget hint has the phrase itself)
+      assert.equal(/人均预算\s*约?\s*[\d,]/.test(payload), false, `${viewLabel} leaked budget amount`);
+    }
+  }
+
+  // 3) §4.4 & §4.5 Free-text state via normal save API -> public views show 待确认, owner view keeps text
+  const stateRouteId = 'p0-free-text-state';
+  const savedStateRoute = await fetchJson(`${baseUrl}/api/routebooks`, {
+    method: 'POST',
+    headers: profileHeaders(ownerProfile),
+    body: JSON.stringify({
+      ...routePayload({
+        id: stateRouteId,
+        city: '杭州',
+        title: 'P0 自由文本状态测试',
+        stops: [
+          { name: '柳浪闻莺', lat: 30.242, lng: 120.1617 },
+          { name: '茅家埠', lat: 30.2468, lng: 120.1139 }
+        ]
+      }),
+      profileId: ownerProfile.id,
+      validations: [{ id: 'source-trust', label: '导入来源', state: '避开老板娘家楼下', detail: '自写备注' }]
+    })
+  });
+  assert.equal(savedStateRoute.response.status, 200);
+  await publishRouteForTest(baseUrl, stateRouteId);
+  const stateOwnerView = await fetchJson(`${baseUrl}/api/routebooks/${stateRouteId}`, {
+    headers: profileHeaders(ownerProfile)
+  });
+  assert.equal(
+    stateOwnerView.data.routebook.validations.find((v) => v.id === 'source-trust')?.state,
+    '避开老板娘家楼下',
+    'owner view keeps original free-text state'
+  );
+  const statePublic = await fetchPublicViews(baseUrl, stateRouteId);
+  for (const [label, serialized] of statePublic.rawPayloads) {
+    assert.equal(serialized.includes('老板娘'), false, `${label} leaked free-text state`);
+  }
+  for (const [label, book] of [
+    ['detail', statePublic.detail],
+    ['share', statePublic.share],
+    ['list', statePublic.list],
+    ['copy', statePublic.copy]
+  ]) {
+    assert.equal(book.validations.find((v) => v.id === 'source-trust')?.state, '待确认', `${label} must clamp unknown state to 待确认`);
+  }
+
+  // 4) §7 Legacy validation state mapping (6 pairs across 5 views + copy, wrong-type & 已更新 -> 待确认, storage untouched)
+  const legacyCases = [
+    {
+      id: 'p0-legacy-1',
+      checks: [
+        { id: 'edit-routing', label: '路线', state: '已核验', detail: '旧数据', expected: '已查过' },
+        { id: 'edit-tempo', label: '节奏密度', state: '待复核', detail: '旧数据', expected: '还没查' },
+        { id: 'edit-detour', label: '绕路风险', state: '待复核', detail: '旧数据', expected: '还没查' },
+        { id: 'edit-hours', label: '营业时间', state: '需填出行日期', detail: '旧数据', expected: '未核对' },
+        { id: 'edit-geo', label: '定位可信', state: '需复核', detail: '合法值保持不变', expected: '需复核' },
+        { id: 'source-trust', label: '导入来源', state: '需复核', detail: '合法值保持不变', expected: '需复核' }
+      ]
+    },
+    {
+      id: 'p0-legacy-2',
+      checks: [
+        { id: 'edit-routing', label: '路线', state: '需复核', detail: '旧数据', expected: '还没查' },
+        { id: 'edit-hours', label: '营业时间', state: '无数据', detail: '旧数据', expected: '未核对' }
+      ]
+    },
+    {
+      id: 'p0-legacy-unmapped',
+      checks: [
+        { id: 'edit-routing', label: '路线', state: '已更新', detail: '4ded5b3 之前旧值不映射', expectedOwner: '已更新', expectedPublic: '待确认' },
+        { id: 'edit-geo', label: '定位可信', state: '无数据', detail: '放错类型的旧值不误映射', expectedOwner: '无数据', expectedPublic: '待确认' }
+      ]
+    }
+  ];
+
+  const baseTemplate = ownerFull.data.routebook;
+  const nowIso = new Date().toISOString();
+  for (const item of legacyCases) {
+    const row = {
+      ...baseTemplate,
+      id: item.id,
+      publicId: item.id,
+      profileId: ownerProfile.id,
+      publishStatus: 'published',
+      publishedAt: nowIso,
+      updatedAt: nowIso,
+      version: 1,
+      parentVersion: null,
+      constraints: { transport: '公交地铁 + 步行' },
+      validations: item.checks.map(({ id, label, state, detail }) => ({ id, label, state, detail }))
+    };
+    await appendFile(join(dataDir, 'routebooks.jsonl'), `${JSON.stringify(row)}\n`, 'utf8');
+  }
+  const storedBeforeReads = await readFile(join(dataDir, 'routebooks.jsonl'), 'utf8');
+
+  for (const item of legacyCases) {
+    const ownerRes = await fetchJson(`${baseUrl}/api/routebooks/${item.id}`, { headers: profileHeaders(ownerProfile) });
+    assert.equal(ownerRes.response.status, 200);
+    const pub = await fetchPublicViews(baseUrl, item.id);
+    const copiedDraft = createPrivateRoutebookDraft(pub.detail, guestProfile);
+
+    for (const check of item.checks) {
+      const expectedOwner = check.expectedOwner ?? check.expected;
+      const expectedPublic = check.expectedPublic ?? check.expected;
+      assert.equal(ownerRes.data.routebook.validations.find((v) => v.id === check.id)?.state, expectedOwner, `${item.id} owner view ${check.id}`);
+      for (const [vLabel, vBook] of [
+        ['detail', pub.detail],
+        ['share', pub.share],
+        ['list', pub.list],
+        ['copy', pub.copy],
+        ['local-draft', copiedDraft]
+      ]) {
+        const actual = vBook.validations.find((v) => v.id === check.id)?.state;
+        assert.equal(actual, expectedPublic, `${item.id} ${vLabel} ${check.id}`);
+        if (check.expected) {
+          assert.notEqual(actual, '待确认', `${item.id} ${vLabel} ${check.id} mapped legacy state must not become 待确认`);
+        }
+      }
+    }
+  }
+
+  const storedAfterReads = await readFile(join(dataDir, 'routebooks.jsonl'), 'utf8');
+  assert.equal(storedAfterReads, storedBeforeReads, 'legacy term/state rewriting must happen at read time without mutating stored rows');
 }
 
 main().catch((error) => {

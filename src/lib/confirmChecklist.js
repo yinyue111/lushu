@@ -61,9 +61,9 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
       url: amapNameSearchUrl(stop, cityName)
     });
   }
-  // 其余具体的提醒（排队、限流、天气相关的安排等）；「以现场为准」「出发前复核」这类兜底句不再单独占一条。
+  // 其余具体的提醒（仅保留真正需要行前准备的闭馆、限流、防推销等）；现场游览感受（全天开放、餐饮缓冲、人流、同质化、慢走、拍照排队）不计入行前必办清单。
   const GENERIC =
-    /^(?:请)?(?:以(?:现场|当日公告|官方)(?:信息)?为准|(?:需)?(?:出发前)?(?:再)?(?:复核|核对|确认)(?:一下)?|.{0,8}待确认|刚换的店.*|需通过真实打卡.*|.*继续验证)$/;
+    /^(?:请)?(?:以(?:现场|当日公告|官方)(?:信息)?为准|(?:需)?(?:出发前)?(?:再)?(?:复核|核对|确认)(?:一下)?|.{0,8}待确认|刚换的店.*|需通过真实打卡.*|.*继续验证|编辑建议[:：].*|.*拍照.*|全天开放.*|.*午餐缓冲.*|.*同质化.*|.*适合慢走.*|.*旅行团偏多.*|.*道路湿滑.*|.*车流偏密.*)$/;
   const rest = sentences.filter((t) => !used.has(t.slice(0, 60)) && !GENERIC.test(t) && !/价格|门票|票价|预约|(开放|营业)时间/.test(t));
   if (rest.length) add('note', '出发前留意', rest.join('；').slice(0, 80), { label: '搜一下', url: webSearch(`${cityName}${name}`) });
   return items;
@@ -78,6 +78,29 @@ export function isGenericPending(text) {
 
 export function groupConfirmItems(entries) {
   return CONFIRM_GROUPS.map((group) => ({ ...group, items: entries.filter((entry) => entry.item.kind === group.kind) })).filter((g) => g.items.length);
+}
+
+/**
+ * Collect all pre-trip confirm items across every day and stop of a routebook.
+ * @param {any} routebook
+ * @param {{ claimsForStop?: (stop: any) => any[] }} [opts]
+ */
+export function collectRouteConfirmEntries(routebook, { claimsForStop = () => [] } = {}) {
+  const stops = Array.isArray(routebook?.stops) ? routebook.stops : [];
+  const city = String(routebook?.city ?? '').trim();
+  return stops.flatMap((stop) => {
+    const claims = claimsForStop(stop) || [];
+    const checked = {
+      price: claims.some((c) => c.field === 'price'),
+      hours: claims.some((c) => c.field === 'hours')
+    };
+    const day = stop?.day || 'Day 1';
+    return confirmItemsForStop(stop, { city, checked }).map((item) => ({
+      item,
+      stopName: stop?.name || '',
+      day
+    }));
+  });
 }
 
 const ACK_PREFIX = 'lushu:confirm-ack:';

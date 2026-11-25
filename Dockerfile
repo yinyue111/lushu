@@ -10,6 +10,9 @@ ENV NODE_OPTIONS=--max-old-space-size=1024 \
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+ARG PUBLIC_BASE_URL=""
+ENV PUBLIC_BASE_URL=$PUBLIC_BASE_URL \
+    REQUIRE_PUBLIC_BASE_URL=1
 RUN npm run build
 
 # ---- deps: production node_modules only (no playwright/axe/vite; no browsers ever downloaded) ----

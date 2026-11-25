@@ -13,7 +13,8 @@ import HomePage from './components/HomePage';
 import { checkDeletedRoutebooks, checkHealth, copyRoutebookRemote, getMyRoutebooks, getRoutebookRemote, saveProfile, saveRoutebookRemote } from './lib/api';
 import { ROUTEBOOK_DELETED_EVENT, dropDeletedLocalCopy, pruneDeletedLocalRoutebooks } from './lib/routebookTombstones';
 import { flushAllCheckinQueues } from './lib/checkinQueue';
-import { createRouteEditToken, getProfile, profileRoutebookFields } from './lib/profile';
+import { getProfile, profileRoutebookFields } from './lib/profile';
+import { createPrivateRoutebookDraft, normalizeSavedPrivateDraft } from './lib/privateDraft';
 import { adoptServerProfile } from './lib/profileSync';
 import { dismissTripReminder, dueTripReminders } from './lib/reminders';
 import { readActiveGenerationJob } from './lib/generationJob';
@@ -21,7 +22,7 @@ import { getStoredRoutebookById, getStoredRoutebooks, saveRoutebook as persistRo
 import { preserveRoutebookConflictDraft } from './lib/routebookConflict';
 import { pullAccountRoutebooks } from './lib/accountRoutebookPull';
 import { uploadLocalOnlyRoutebooks } from './lib/localRoutebookSync';
-import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './components/Route/routebookModel';
+import { routebookRefreshConflictKey, routebookRefreshDecision, selectLatestLocalRoutebook } from './lib/routebookRefresh';
 
 const VIEWS = {
   home: 'home',
@@ -40,7 +41,7 @@ const PUBLIC_VIEWS = new Set([VIEWS.share, VIEWS.publicReview]);
 // Crowd data aggregated from other travellers' check-ins: a local snapshot is never
 // authoritative for these, so remote always wins. validations/metrics stay out of the
 // list on purpose — they are pure functions of stops and must follow the winning stops.
-const SERVER_DERIVED_FIELDS = ['feedbackSummary', 'poiTrust', 'trustMeta', 'trustScore', 'copyCount'];
+const SERVER_DERIVED_FIELDS = ['feedbackSummary', 'poiTrust', 'trustMeta', 'trustScore', 'copyCount', 'companions', 'expenseLedger'];
 const BuilderFlow = React.lazy(() => import('./components/Builder/BuilderFlow'));
 const DestinationPage = React.lazy(() => import('./components/Destination/DestinationPage'));
 const RouteView = React.lazy(() => import('./components/Route/RouteView'));
@@ -66,8 +67,13 @@ function initialRouteState() {
   if (reviewMatch) return { view: VIEWS.publicReview, publicId: decodePathParam(reviewMatch[1]) };
   const creatorMatch = window.location.pathname.match(/^\/creator\/([^/]+)\/?$/);
   if (creatorMatch) return { view: VIEWS.creator, publicId: decodePathParam(creatorMatch[1]) };
-  const destinationMatch = window.location.pathname.match(/^\/destination\/([^/]+)\/?$/);
-  if (destinationMatch) return { view: VIEWS.destination, publicId: '', city: decodePathParam(destinationMatch[1]) || '杭州' };
+  const destinationMatch = window.location.pathname.match(/^\/destination(?:\/(.*))?$/);
+  if (destinationMatch) {
+    let rawSeg = destinationMatch[1] ?? '';
+    if (rawSeg.length > 1 && rawSeg.endsWith('/')) rawSeg = rawSeg.slice(0, -1);
+    if (!rawSeg || rawSeg.includes('/')) return { view: VIEWS.destination, publicId: '', city: '' };
+    return { view: VIEWS.destination, publicId: '', city: decodePathParam(rawSeg) };
+  }
   const routeMatch = window.location.pathname.match(/^\/route\/([^/]+)\/?$/);
   if (routeMatch) return { view: VIEWS.route, publicId: decodePathParam(routeMatch[1]) };
   const routeReviewMatch = window.location.pathname.match(/^\/route\/([^/]+)\/review\/?$/);
@@ -92,7 +98,7 @@ export default function App() {
   const [profile, setProfile] = useState(() => getProfile());
   const [savedBooks, setSavedBooks] = useState(() => getStoredRoutebooks(profile.id));
   const [builderDefaults, setBuilderDefaults] = useState({});
-  const [destinationCity, setDestinationCity] = useState(initial.city || '杭州');
+  const [destinationCity, setDestinationCity] = useState(initial.view === VIEWS.destination ? (initial.city ?? '') : initial.city || '杭州');
   const [creatorId, setCreatorId] = useState(initial.view === VIEWS.creator ? initial.publicId : '');
   const [dueReminder, setDueReminder] = useState(null);
   const [storageNotice, setStorageNotice] = useState('');
@@ -101,6 +107,7 @@ export default function App() {
   const routebookRef = useRef(null);
   const profileRef = useRef(profile);
   const routebookRefreshConflictsRef = useRef(new Set());
+  const inAppHistoryDepthRef = useRef(0);
 
   useEffect(() => {
     routebookRef.current = routebook;
@@ -354,12 +361,15 @@ export default function App() {
   const navigate = useCallback((nextView, options = {}) => {
     setView(nextView);
     if (!PUBLIC_VIEWS.has(nextView)) setSharePublicId('');
-    if (options.city) setDestinationCity(options.city);
+    if (options.city !== undefined) setDestinationCity(options.city);
     if (options.creatorId) setCreatorId(options.creatorId);
     if (options.routeId) setSharePublicId(options.routeId);
     if (options.replacePath !== false && !PUBLIC_VIEWS.has(nextView)) {
       const nextPath = publicPathForView(nextView, options);
-      if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({}, '', nextPath);
+        inAppHistoryDepthRef.current += 1;
+      }
     }
     // F21: in-app navigation starts the next page at the top (back/forward keeps the browser's restoration).
     if (options.preserveScroll !== true && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
@@ -431,25 +441,44 @@ export default function App() {
     [profile.id]
   );
 
+  // §2.6 & §10: 「改成我的」 only copies into a private draft and opens it on /route — never triggers generation.
   const handleCustomize = useCallback(
     async (book, meta = {}) => {
-      const sourceBook = book;
-      const routeId = book?.publicId || book?.id;
-      if (routeId && meta.recordCopy !== false) {
-        try {
-          const profile = getProfile();
-          await copyRoutebookRemote(routeId, {
-            profileId: profile.id,
-            ...(book?.shareKey ? { friendKey: book.shareKey } : {}),
-            surface: meta.surface || 'customize',
-            routeTitle: book?.title,
-            city: book?.city,
-            creatorId: book?.creator?.id
-          });
-        } catch {
-          /* customization remains available when attribution sync fails */
-        }
+      if (!book) return null;
+      const activeProfile = getProfile();
+      const draft = createPrivateRoutebookDraft(book, activeProfile);
+      if (!persistRoutebook(draft, { claimOwnership: true })) {
+        setStorageNotice('这台设备存不下更多路书了，去「我的」删掉几份不需要的再试。');
+        return null;
       }
+      setRoutebook(draft);
+      setSavedBooks(getStoredRoutebooks(activeProfile.id));
+      navigate(VIEWS.route, { routeId: draft.id });
+
+      if (meta.recordCopy !== false) {
+        recordSharedRoutebookCopy(book, activeProfile, meta.surface || 'customize').catch(() => {
+          /* 401 in login mode opens LoginSheet via api.js; local copy stays intact */
+        });
+      }
+      if (activeProfile.profileAccessToken || activeProfile.accountUserId) {
+        saveRoutebookRemote(draft)
+          .then((data) => {
+            const savedDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
+            persistRoutebook(savedDraft, { claimOwnership: true });
+            setRoutebook((current) => ((current?.publicId || current?.id) === draft.id ? savedDraft : current));
+            setSavedBooks(getStoredRoutebooks(activeProfile.id));
+          })
+          .catch(() => {});
+      }
+      return draft;
+    },
+    [navigate]
+  );
+
+  // L4 full regeneration entry (MoreMenu 「整本重生成（耗 1 次）」).
+  const handleRegenerate = useCallback(
+    async (book) => {
+      const sourceBook = book;
       setBuilderDefaults({
         city: sourceBook?.city,
         duration: sourceBook?.days?.length ? `${sourceBook.days.length} 天` : '2 天 1 晚',
@@ -547,23 +576,33 @@ export default function App() {
   );
 
   const handleStartTrip = useCallback(
-    () => navigate(VIEWS.trip, { routeId: routebook?.publicId || routebook?.id }),
-    [navigate, routebook?.id, routebook?.publicId]
+    (maybeBook = undefined) => {
+      const target = maybeBook?.stops ? maybeBook : routebook;
+      if (target && target !== routebook) setRoutebook(target);
+      navigate(VIEWS.trip, { routeId: target?.publicId || target?.id });
+    },
+    [navigate, routebook]
   );
   const handleShowReview = useCallback(
     () => navigate(VIEWS.review, { routeId: routebook?.publicId || routebook?.id }),
     [navigate, routebook?.id, routebook?.publicId]
   );
   const handleBack = useCallback(() => {
+    if (inAppHistoryDepthRef.current > 0) {
+      window.history.back();
+      return;
+    }
     navigate(VIEWS.home);
   }, [navigate]);
 
   useEffect(() => {
     const onPopState = () => {
+      inAppHistoryDepthRef.current = Math.max(0, inAppHistoryDepthRef.current - 1);
       const next = initialRouteState();
       setSharePublicId(next.publicId);
       setCreatorId(next.view === VIEWS.creator ? next.publicId : '');
-      if (next.city) setDestinationCity(next.city);
+      if (next.view === VIEWS.destination) setDestinationCity(next.city ?? '');
+      else if (next.city) setDestinationCity(next.city);
       setView(next.view);
     };
     window.addEventListener('popstate', onPopState);
@@ -574,7 +613,7 @@ export default function App() {
   const routebookMatchesLocation = Boolean(routebook && sharePublicId && activeRouteId === sharePublicId);
 
   const navHidden = PUBLIC_VIEWS.has(view) || view === VIEWS.trip;
-  const showTabBar = !navHidden && view !== VIEWS.route;
+  const showTabBar = !navHidden && view !== VIEWS.route && view !== VIEWS.builder;
 
   const handleAccountProfileChanged = (nextProfile) => {
     handleProfileChanged(nextProfile);
@@ -632,6 +671,7 @@ export default function App() {
                   books={savedBooks}
                   onNewBook={handleNewBook}
                   onOpenBook={handleOpenBook}
+                  onCustomize={handleCustomize}
                   onOpenDestination={handleOpenDestination}
                   onRefresh={() => setSavedBooks(getStoredRoutebooks(profile.id))}
                 />
@@ -650,6 +690,7 @@ export default function App() {
                   modelHealth={modelHealth}
                   defaults={builderDefaults}
                   onGenerated={handleGenerated}
+                  onOpenBook={handleOpenBook}
                   onProfileChanged={handleProfileChanged}
                   onModelHealth={setModelHealth}
                   onBack={handleBack}
@@ -661,6 +702,7 @@ export default function App() {
                   setRoutebook={setRoutebook}
                   onSaved={handleRouteViewSaved}
                   onCustomize={handleCustomize}
+                  onRegenerate={handleRegenerate}
                   onStartTrip={handleStartTrip}
                   onBack={handleBack}
                 />
@@ -693,6 +735,7 @@ export default function App() {
               {view === VIEWS.my && (
                 <MyPage
                   onOpenBook={handleOpenBook}
+                  onStartTrip={handleStartTrip}
                   onNewBook={handleNewBook}
                   onOpenCreator={(id) => navigate(VIEWS.creator, { creatorId: id })}
                   onProfileChanged={handleProfileChanged}
@@ -784,75 +827,6 @@ function applyRemoteVariantTrust(variants, remoteVariants) {
 
 function stopMatchKey(value) {
   return String(value ?? '').trim();
-}
-
-function createPrivateRoutebookDraft(source, profile) {
-  const {
-    id: _sourceId,
-    publicId: _sourcePublicId,
-    shareUrl: _sourceShareUrl,
-    editToken: _sourceEditToken,
-    profileId: _sourceProfileId,
-    creator: _sourceCreator,
-    publishStatus: _sourcePublishStatus,
-    schemaVersion: _sourceSchemaVersion,
-    version: _sourceVersion,
-    parentVersion: _sourceParentVersion,
-    changeReason: _sourceChangeReason,
-    actorType: _sourceActorType,
-    publishedAt: _sourcePublishedAt,
-    archivedAt: _sourceArchivedAt,
-    copyCount: _sourceCopyCount,
-    feedbackSummary: _sourceFeedbackSummary,
-    trustMeta: _sourceTrustMeta,
-    ...routebook
-  } = source ?? {};
-  const now = new Date().toISOString();
-  return {
-    ...routebook,
-    id: createPrivateRoutebookId(),
-    stops: stripLivePoiTrust(routebook.stops),
-    variants: Array.isArray(routebook.variants) ? routebook.variants.map((variant) => ({ ...variant, stops: stripLivePoiTrust(variant?.stops) })) : [],
-    ...profileRoutebookFields(profile),
-    editToken: createRouteEditToken(),
-    schemaVersion: 2,
-    version: 0,
-    parentVersion: null,
-    changeReason: '复制为个人草稿',
-    actorType: 'user',
-    publishStatus: 'draft',
-    sourceAuthorization: 'user-generated',
-    copyCount: 0,
-    provider: {
-      ...(routebook.provider ?? {}),
-      generatedAt: now,
-      copiedAt: now
-    },
-    updatedAt: now
-  };
-}
-
-function normalizeSavedPrivateDraft(remote, local, profile) {
-  const { shareUrl: _shareUrl, ...saved } = remote ?? {};
-  return {
-    ...local,
-    ...saved,
-    ...profileRoutebookFields(profile),
-    editToken: saved.editToken || local.editToken,
-    publishStatus: 'draft',
-    sourceAuthorization: 'user-generated',
-    copyCount: 0
-  };
-}
-
-function stripLivePoiTrust(stops) {
-  if (!Array.isArray(stops)) return [];
-  return stops.map(({ poiTrust: _poiTrust, ...stop }) => stop);
-}
-
-function createPrivateRoutebookId() {
-  const uuid = globalThis.crypto?.randomUUID?.().replace(/-/g, '');
-  return uuid ? `route_${uuid}` : `route_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
 }
 
 async function recordSharedRoutebookCopy(routebook, profile, surface = 'public-share-save') {
