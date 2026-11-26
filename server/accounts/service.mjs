@@ -84,11 +84,13 @@ export function parseIdentifier(input) {
   return { kind: 'phone', value: phone, hash, throttleKey: phoneKey(hash) };
 }
 
-/** Only verified emails can sign in or reset passwords (an unverified one may be someone else's). */
+/** Only verified emails can sign in or reset passwords when email verification is required;
+ *  while EMAIL_VERIFICATION_REQUIRED=false (mail disabled), registered emails can sign in directly. */
 async function findUserByIdentifier(id) {
   if (id.kind === 'phone') return accountStore().findUserByPhoneHash(id.hash);
   const user = await accountStore().findUserByEmailHash(id.hash);
-  return user?.emailVerifiedAt ? user : null;
+  if (!user) return null;
+  return !EMAIL_VERIFICATION_REQUIRED || user.emailVerifiedAt ? user : null;
 }
 
 function requireEmail(value) {

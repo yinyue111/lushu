@@ -265,3 +265,25 @@ test('email accounts: reset, change email, legacy phone-only account adds email,
     assert.ok(!stored.includes(secret), `${secret} must not be stored in clear`);
   }
 });
+
+test('when EMAIL_VERIFICATION_REQUIRED=false (no mail provider), email-only sign-up can log back in by email', async (t) => {
+  const server = await startServer({ env: authEnv('login', { EMAIL_VERIFICATION_REQUIRED: 'false', MAIL_TRANSPORT: 'disabled' }) });
+  t.after(server.stop);
+  const client = createClient(server.baseUrl);
+  const reg = await client.post('/api/auth/register', {
+    email: 'nomail.user@example.com',
+    password: PASSWORD,
+    inviteCode: INVITE,
+    acceptPrivacy: true,
+    humanCheck: await client.humanCheck('register')
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.data));
+  assert.equal(reg.data.account.emailVerified, false);
+
+  const login = await createClient(server.baseUrl).post('/api/auth/login', {
+    identifier: 'NoMail.User@Example.com',
+    password: PASSWORD
+  });
+  assert.equal(login.status, 200, JSON.stringify(login.data));
+  assert.equal(login.data.account.emailMasked, 'no***@example.com');
+});
