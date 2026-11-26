@@ -2,6 +2,7 @@
 import { encodeQrMatrix } from './qrMatrix.js';
 import { loadCheckinPhoto } from './photoStore.js';
 import { fetchCheckinPhoto } from './photoApi.js';
+import { formatStayText } from './routeMeta.js';
 
 function stopKey(stop) {
   return String(stop?.id ?? '').trim();
@@ -55,7 +56,7 @@ export function summarizeReviewJourney(routebook, stops = [], latestByStop = new
     visitedItems.push({
       day: stop.day || 'Day 1',
       time: stop.time || '',
-      stay: stop.stay || '',
+      stay: formatStayText(stop.stay || ''),
       area: stop.area || '',
       name: stop.name || '站点',
       worth: checkin.worth || '',
@@ -73,7 +74,7 @@ export function summarizeReviewJourney(routebook, stops = [], latestByStop = new
     ? (stops || []).slice(0, 8).map((stop) => ({
         day: stop.day || 'Day 1',
         time: stop.time || '',
-        stay: stop.stay || '',
+        stay: formatStayText(stop.stay || ''),
         area: stop.area || '',
         name: stop.name || '站点',
         worth: '',

@@ -104,18 +104,41 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
         });
         return;
       }
+      // Nudge pins whose coordinates sit within ~450m of an earlier stop on the same day (e.g. 拙政园 & 苏州博物馆)
+      // so numbered markers never stack directly on top of each other.
+      const nudges = entry.stops.map((stop, index) => {
+        const lat = Number(stop?.lat);
+        const lng = Number(stop?.lng);
+        if (!isValidCoordinate(lat, lng)) return 0;
+        let clusterPos = 0;
+        for (let prevIdx = 0; prevIdx < index; prevIdx += 1) {
+          const prev = entry.stops[prevIdx];
+          if (isValidCoordinate(Number(prev?.lat), Number(prev?.lng)) && Math.hypot(lat - Number(prev.lat), lng - Number(prev.lng)) < 0.0045) {
+            clusterPos += 1;
+          }
+        }
+        if (clusterPos === 0) {
+          const hasCloseLater = entry.stops
+            .slice(index + 1)
+            .some((next) => isValidCoordinate(Number(next?.lat), Number(next?.lng)) && Math.hypot(lat - Number(next.lat), lng - Number(next.lng)) < 0.0045);
+          return hasCloseLater ? -14 : 0;
+        }
+        return clusterPos % 2 === 1 ? 14 : -22;
+      });
+
       entry.stops.forEach((stop, index) => {
         if (!isValidCoordinate(Number(stop.lat), Number(stop.lng))) return;
         const approximate = !isNavigableCoordinate(stop);
+        const offsetX = nudges[index] || 0;
         const marker = L.marker(toLatLng(stop), {
           title: approximate ? `${stop.name}（位置待确认）` : stop.name,
           alt: stop.name,
           riseOnHover: true,
-          icon: pinIcon(stop, index, entry.theme.ink, false, approximate)
+          icon: pinIcon(stop, index, entry.theme.ink, false, approximate, offsetX)
         });
         marker.on('click', () => onSelectRef.current?.(stop.id));
         marker.addTo(group);
-        pinsRef.current.set(stopKey(stop.id), { marker, stop, index, color: entry.theme.ink, approximate });
+        pinsRef.current.set(stopKey(stop.id), { marker, stop, index, color: entry.theme.ink, approximate, offsetX });
       });
       focus = navigable.map(toLatLng);
       fallbackFocus = located.map(toLatLng);
@@ -123,11 +146,15 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
 
     const bounds = focus.length ? focus : fallbackFocus;
     if (bounds.length) {
-      map.fitBounds(L.latLngBounds(bounds), {
+      const llBounds = L.latLngBounds(bounds);
+      const latSpan = Math.abs(llBounds.getNorth() - llBounds.getSouth());
+      const lngSpan = Math.abs(llBounds.getEast() - llBounds.getWest());
+      const compactSpan = Math.max(latSpan, lngSpan) < 0.03;
+      map.fitBounds(llBounds, {
         animate: false,
         paddingTopLeft: padTopLeft,
         paddingBottomRight: padBottomRight,
-        maxZoom: focus.length ? 15 : 13
+        maxZoom: focus.length ? (compactSpan ? 16 : 15) : 13
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- padding is tracked through paddingKey
@@ -137,7 +164,7 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
   useEffect(() => {
     pinsRef.current.forEach((entry, key) => {
       const active = key === stopKey(selectedId);
-      entry.marker.setIcon(pinIcon(entry.stop, entry.index, entry.color, active, entry.approximate));
+      entry.marker.setIcon(pinIcon(entry.stop, entry.index, entry.color, active, entry.approximate, entry.offsetX || 0));
       entry.marker.setZIndexOffset(active ? 1000 : 0);
     });
   }, [selectedId, days, activeDay, basemap]);
@@ -145,7 +172,7 @@ export default function RouteMap({ city, days, activeDay, selectedId, onSelect, 
   return <div ref={containerRef} className={`rb-map size-full ${className}`} role="region" aria-label="路线地图" />;
 }
 
-function pinIcon(stop, index, color, active, approximate) {
+function pinIcon(stop, index, color, active, approximate, offsetX = 0) {
   const photo = stopPhoto(stop);
   // The name truncates; the 位置待确认 note never does.
   const label = active
@@ -159,7 +186,7 @@ function pinIcon(stop, index, color, active, approximate) {
   return L.divIcon({
     className: '',
     iconSize: size,
-    iconAnchor: [size[0] / 2, size[1]],
+    iconAnchor: [size[0] / 2 - offsetX, size[1]],
     html: `<div class="${classes}" style="--c:${color}">${dot}${label}</div>`
   });
 }

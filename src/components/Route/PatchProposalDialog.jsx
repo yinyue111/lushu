@@ -1,12 +1,26 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { buildProposalDiff } from '../../lib/adjustIntents';
+import { formatStayText } from '../../lib/routeMeta.js';
 import { LoaderCircle, Sparkles } from 'lucide-react';
 
 export default function PatchProposalDialog({ patchState, onApply, onDismiss }) {
   const proposal = patchState?.proposal;
   const diff = useMemo(() => buildProposalDiff(patchState?.beforeStops || [], proposal), [patchState?.beforeStops, proposal]);
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  useEffect(() => {
+    if (!patchState?.busy) {
+      setElapsedSec(0);
+      return undefined;
+    }
+    const base = Number(patchState.startedAt) || Date.now();
+    const tick = () => setElapsedSec(Math.max(0, Math.floor((Date.now() - base) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [patchState?.busy, patchState?.startedAt]);
 
   if (!patchState?.busy && !proposal) return null;
   const isAll = (patchState?.scopeType || proposal?.scope?.type) === 'all';
@@ -18,16 +32,24 @@ export default function PatchProposalDialog({ patchState, onApply, onDismiss }) 
         description={
           patchState.busy
             ? isAll
-              ? '正在按你的要求统筹各天顺序与站点，大约十几秒。'
-              : '大约十几秒，其他天不会变。'
+              ? '正在按你的要求统筹各天顺序与站点，大约 30–60 秒。'
+              : '大约 20–45 秒，其他天不会变。'
             : proposal?.summary || '确认后才会写进路书，用了之后也能撤销。'
         }
-        hideClose={patchState.busy}
       >
         {patchState.busy ? (
-          <p className="flex items-center gap-2 py-3 text-copy text-muted">
-            <LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> {patchState.message}
-          </p>
+          <div className="flex items-center justify-between gap-3 py-3">
+            <p className="flex items-center gap-2 text-copy text-muted">
+              <LoaderCircle className="size-5 shrink-0 animate-spin" aria-hidden="true" />
+              <span>
+                {patchState.message}
+                {elapsedSec > 0 && <span className="num ml-2 text-meta text-ink-2">已用时 {elapsedSec} 秒</span>}
+              </span>
+            </p>
+            <Button size="sm" variant="outline" onClick={onDismiss}>
+              取消
+            </Button>
+          </div>
         ) : (
           <>
             <div className="mb-2.5 flex flex-wrap gap-1.5 text-xs font-bold" data-testid="patch-diff-stats">
@@ -48,7 +70,7 @@ export default function PatchProposalDialog({ patchState, onApply, onDismiss }) 
                       <li key={stop.id} className="flex flex-wrap items-center gap-2 rounded-tile bg-white px-2.5 py-1.5">
                         <span className="num w-11 shrink-0 text-xs font-semibold text-muted">{stop.time}</span>
                         <span className="min-w-0 flex-1 truncate font-bold text-ink">{stop.name}</span>
-                        {stop.stay && <span className="text-xs text-muted">{stop.stay}</span>}
+                        {stop.stay && <span className="text-xs text-muted">{formatStayText(stop.stay)}</span>}
                         {stop.diffTag && (
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-bold ${

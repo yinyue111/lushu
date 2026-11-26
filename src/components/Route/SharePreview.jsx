@@ -35,7 +35,11 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const stops = routebook.stops ?? [];
   const days = routebook.days ?? ['Day 1'];
   const trustState = getRouteTrustBadgeState(routebook);
-  const visibleMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 4);
+  const rawMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 4).filter((m) => !/^(平均修改|复制转化)$/.test(String(m?.label ?? '').trim()));
+  const visibleMetrics = rawMetrics.some((m) => !/^(待确认|待核对|待复核|暂无|—|-|)$/.test(String(m?.value ?? '').trim())) ? rawMetrics : [];
+  const shareableValidations = (routebook.validations ?? [])
+    .filter((v) => v?.label && v?.state && !/还没查|时间冲突|未核对|待复核/.test(String(v.state)))
+    .slice(0, 3);
   const requestSequenceRef = useRef(0);
   const latestRoutebookRef = useRef(routebook);
   latestRoutebookRef.current = routebook;
@@ -392,10 +396,10 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
               </p>
             )}
 
-            {routebook.validations?.length > 0 && (
+            {shareableValidations.length > 0 && (
               <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
                 <span className="w-full text-xs font-bold text-muted">出发前检查</span>
-                {routebook.validations.slice(0, 3).map((v) => (
+                {shareableValidations.map((v) => (
                   <span key={v.id} className="rounded-full bg-lemon-soft px-2.5 py-0.5 text-xs font-bold text-lemon-ink">
                     {v.label}：{v.state}
                   </span>

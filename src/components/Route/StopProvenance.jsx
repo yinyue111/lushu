@@ -83,6 +83,7 @@ const DOT = { ok: 'bg-success', warn: 'bg-warn', info: 'bg-info', neutral: 'bg-l
 export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = false, className }) {
   const origin = normalizeStopOrigin(stop?.provenance?.origin);
   const placeOk = stop?.provenance?.reviewedPoi === true && !approximate;
+  const coordOk = !placeOk && !approximate && coordinateVerificationLevel(stop) === 'verified';
   const rawItems = [
     trust.tone === 'verified'
       ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达核对` : trust.label }
@@ -91,7 +92,9 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
         : null, // 内测期大多是 0：没人打卡就不占一格，评分区已有统一说明。
     placeOk
       ? { tone: 'ok', text: '地点已核对', title: '名称和平台已核对的地点对得上' }
-      : { tone: 'warn', text: '位置待确认', title: approximate ? '位置还没精确定位' : '还没和平台地点核对上' },
+      : coordOk
+        ? { tone: 'ok', text: '定位已核对', title: '地图坐标已精确定位，具体出入口出发前再看一眼' }
+        : { tone: 'warn', text: '位置待确认', title: approximate ? '位置还没精确定位' : '还没和平台地点核对上' },
     origin !== 'unknown'
       ? {
           tone: origin === 'model' ? 'warn' : origin === 'user-guide' || origin === 'imported-source' || origin === 'editorial' ? 'ok' : 'neutral',

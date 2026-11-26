@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { compactDays } from '../../lib/dayRepair.js';
+import { curatedRoutes } from '../../lib/content.js';
 import { coordinateForName, cityCenters, isValidCoordinate } from '../../lib/coordinates';
+import { formatStayText } from '../../lib/routeMeta.js';
 import { clickStorageKey, getStoredRoutebookById, saveFavorite, saveRoutebook, safeWriteJsonStorage } from '../../lib/storage';
 import {
   copyRoutebookRemote,
@@ -76,8 +78,9 @@ export function useRoutebookActions({
   const redoStackRef = useRef([]);
   const [syncLabel, setSyncLabel] = useState(() => (hasUnsyncedLocalEdits(routebook) ? '有改动未保存到云端' : '已保存'));
   const [undoEpoch, setUndoEpoch] = useState(0);
+  const patchAbortRef = useRef(/** @type {AbortController | null} */ (null));
   const [patchState, setPatchState] = useState(
-    /** @type {{ busy: boolean, message: string, proposal: any, beforeStops?: any[], scopeType?: string, peek?: any, failed?: boolean }} */ ({
+    /** @type {{ busy: boolean, message: string, proposal: any, beforeStops?: any[], scopeType?: string, peek?: any, failed?: boolean, startedAt?: number }} */ ({
       busy: false,
       message: '',
       proposal: null
@@ -589,7 +592,25 @@ export function useRoutebookActions({
   }
 
   async function copyRoute() {
-    const text = `${routebook.title}\n${routebook.summary}\n\n${stops.map((stop, index) => `${index + 1}. ${stop.time} ${stop.name}｜${stop.stay}｜${stop.cost}`).join('\n')}`;
+    const dayOrder = Array.isArray(routebook.days) && routebook.days.length ? routebook.days : [...new Set(stops.map((s) => s.day || 'Day 1'))];
+    const multiDay = dayOrder.length > 1;
+    const stopBlocks = dayOrder
+      .map((day) => {
+        const dayStops = stops.filter((s) => (s.day || 'Day 1') === day);
+        if (!dayStops.length) return '';
+        const lines = dayStops.map((stop, idx) => {
+          const stay = formatStayText(stop.stay);
+          const parts = [`${idx + 1}. ${stop.time ? `${stop.time} ` : ''}${stop.name}`, stay, stop.cost].filter(Boolean);
+          return parts.join('｜');
+        });
+        return multiDay ? `【${day}】\n${lines.join('\n')}` : lines.join('\n');
+      })
+      .filter(Boolean)
+      .join('\n\n');
+    const text = [routebook.title, routebook.summary, '', stopBlocks]
+      .filter((v) => v !== undefined)
+      .join('\n')
+      .trim();
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(text);
@@ -598,8 +619,9 @@ export function useRoutebookActions({
       return;
     }
     const routeId = routebook.publicId || routebook.id;
-    if (!routeId) {
-      setShareState('已复制路线文本，本地路书保存后会统计复制次数');
+    const isPubliclyListed = Boolean(routeId) && (['published', 'featured'].includes(routebook.publishStatus) || curatedRoutes.some((r) => r.id === routeId));
+    if (!isPubliclyListed) {
+      setShareState('已复制路线文本');
       return;
     }
     try {
@@ -629,8 +651,8 @@ export function useRoutebookActions({
         onSaved?.(next);
       }
       setShareState(`已复制路线文本，并记录第 ${next.copyCount ?? 1} 次复制`);
-    } catch (error) {
-      setShareState(`已复制路线文本（复制次数没记上：${error.message}）`);
+    } catch {
+      setShareState('已复制路线文本');
     }
   }
 
@@ -894,8 +916,12 @@ export function useRoutebookActions({
     }
     const effectiveType = stopIds?.length ? 'window' : scopeType === 'all' ? 'all' : 'day';
     const beforeSnapshot = [...(latestRoutebookRef.current?.stops ?? [])];
+    patchAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    patchAbortRef.current = ctrl;
     setPatchState({
       busy: true,
+      startedAt: Date.now(),
       scopeType: effectiveType,
       beforeStops: beforeSnapshot,
       message: effectiveType === 'all' ? '正在按你的要求调整整本路线…' : '正在局部重排这一天…',
@@ -911,12 +937,17 @@ export function useRoutebookActions({
       }
       const scope =
         effectiveType === 'window' ? { type: 'window', stopIds, day } : effectiveType === 'all' ? { type: 'all' } : { type: 'day', day: day || activeDay };
-      const data = await proposeRoutebookPatch(routeId, {
-        profileId: profile.id,
-        editToken: latestRoutebookRef.current.editToken,
-        scope,
-        instruction
-      });
+      const data = await proposeRoutebookPatch(
+        routeId,
+        {
+          profileId: profile.id,
+          editToken: latestRoutebookRef.current.editToken,
+          scope,
+          instruction
+        },
+        ctrl.signal
+      );
+      if (ctrl.signal.aborted) return null;
       setPatchState({
         busy: false,
         scopeType: effectiveType,
@@ -928,9 +959,16 @@ export function useRoutebookActions({
       setShareState(data.proposal?.summary || '调整方案已出，请确认后应用');
       return data.proposal;
     } catch (error) {
+      if (ctrl.signal.aborted || error?.name === 'AbortError') {
+        setPatchState({ busy: false, message: '', proposal: null });
+        setShareState('已取消本次 AI 调整');
+        return null;
+      }
       setPatchState({ busy: false, message: error.message || 'AI 调整失败', proposal: null });
       setShareState(error.message || 'AI 调整失败');
       return null;
+    } finally {
+      if (patchAbortRef.current === ctrl) patchAbortRef.current = null;
     }
   }
 
@@ -1042,7 +1080,11 @@ export function useRoutebookActions({
     proposePatch,
     applyPatchProposal,
     adoptTripStops,
-    clearPatchProposal: () => setPatchState({ busy: false, message: '', proposal: null }),
+    clearPatchProposal: () => {
+      patchAbortRef.current?.abort();
+      patchAbortRef.current = null;
+      setPatchState({ busy: false, message: '', proposal: null });
+    },
     legTransportOptions: LEG_TRANSPORT_OPTIONS
   };
 }

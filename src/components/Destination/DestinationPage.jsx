@@ -105,10 +105,12 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
           </Button>
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur">
-              <MapPin className="size-3.5" aria-hidden="true" /> {story.kicker}
+              <MapPin className="size-3.5" aria-hidden="true" /> {openForGeneration ? story.kicker : `${city} · 暂未开放生成`}
             </span>
             <h1 className="mt-3 text-4xl leading-tight font-black tracking-tight text-white lg:text-6xl">{city}</h1>
-            <p className="mt-3 max-w-xl text-copy leading-relaxed text-white lg:text-lg">{story.summary}</p>
+            <p className="mt-3 max-w-xl text-copy leading-relaxed text-white lg:text-lg">
+              {openForGeneration ? story.summary : `内测阶段优先打磨上海、江苏、浙江的目的地资料，${city}的路书生成与地点核对将在后续开放。`}
+            </p>
             {openForGeneration ? (
               <>
                 <div className="mt-4 flex flex-wrap gap-2 text-meta font-semibold">

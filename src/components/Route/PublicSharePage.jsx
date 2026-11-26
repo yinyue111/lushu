@@ -964,7 +964,7 @@ function buildShareText(routebook) {
     `${getRouteTrustBadgeState(routebook).compactText}｜${routebook.city}`,
     routebook.summary,
     '',
-    ...stops.slice(0, 10).map((stop, index) => `${index + 1}. ${stop.time} ${stop.name}｜${stop.stay}｜${stop.cost}`),
+    ...stops.slice(0, 10).map((stop, index) => `${index + 1}. ${stop.time} ${stop.name}｜${formatStayText(stop.stay)}｜${stop.cost}`),
     '',
     '由可信路书 AI 生成；有人打卡后会更新可信度。'
   ].join('\n');

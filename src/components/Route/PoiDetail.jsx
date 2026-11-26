@@ -266,7 +266,9 @@ export default function PoiDetail({ stop, routebook, onClose }) {
               const displayValue =
                 fact.field === '费用' && costDisplay(stop).pending && fact.value && !/待确认|未核对/.test(String(fact.value))
                   ? `${fact.value}（AI 估算，待确认）`
-                  : fact.value;
+                  : fact.field === '建议停留'
+                    ? formatStayText(fact.value) || fact.value
+                    : fact.value;
               const body = (
                 <>
                   <span
@@ -550,7 +552,8 @@ function buildPoiTrustState(stop, city) {
     };
   }
 
-  const placeChecked = stop?.provenance?.reviewedPoi === true || stop?.provenance?.origin === 'editorial' || coordinateVerificationLevel(stop) === 'verified';
+  const placeChecked = stop?.provenance?.reviewedPoi === true || stop?.provenance?.origin === 'editorial';
+  const coordVerified = coordinateVerificationLevel(stop) === 'verified';
 
   if (placeChecked) {
     return {
@@ -561,6 +564,19 @@ function buildPoiTrustState(stop, city) {
       label: '地点已核对',
       detailLabel: '地点位置已核对 · 暂无足够打卡评分',
       detail: `已有 ${Math.min(sampleCount, PUBLIC_TRUST_SAMPLE_THRESHOLD)}/${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人到场打卡，满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人后展示实测排队与评分。`,
+      score: null
+    };
+  }
+
+  if (coordVerified) {
+    return {
+      tone: 'verified',
+      badgeClass: 'badge-green',
+      verified: false,
+      value: '定位已核对',
+      label: '定位已核对',
+      detailLabel: '地图坐标已定位 · 暂无足够打卡评分',
+      detail: `坐标已通过地图核对，具体出入口出发前可再看一眼；满 ${PUBLIC_TRUST_SAMPLE_THRESHOLD} 人打卡后展示评分。`,
       score: null
     };
   }

@@ -6,6 +6,9 @@ import { createPrivateRoutebookDraft } from '../../src/lib/privateDraft.js';
 import { isAiGeneratedRoutebook } from '../../src/lib/aigc.js';
 import { buildStopsForMode, navigationForStop } from '../../src/components/Trip/tripModel.js';
 import { curatedRoutes, curatedRouteToRoutebook, getCityPhotos } from '../../src/lib/content.js';
+import { guardRoutebookFacts } from '../../server/ai/factGuard.mjs';
+import { formatStayText } from '../../src/lib/routeMeta.js';
+import { geocodePoiWithAmap } from '../../server/geo/amap.mjs';
 
 test('extractPlaceCandidates filters Nanjing dishes, deduplicates 夫子庙, and recognizes 中山陵', () => {
   const known = Object.entries(knownPoiCoordinates)
@@ -69,4 +72,48 @@ test('Nanjing has at least 2 distinct inspiration photos', () => {
   const photos = getCityPhotos('南京');
   assert.ok(photos.length >= 2);
   assert.notEqual(photos[0].image, photos[1].image);
+});
+
+test('guardRoutebookFacts preserves user-selected ISO travel date when written in Chinese prose', () => {
+  const rb = {
+    title: '苏州亲子一日路书',
+    summary: '11月28日（周六），上午步行串联拙政园和苏州博物馆。',
+    stops: [{ name: '拙政园', cost: '80 元', verify: '11月28日入园请提前预约', risk: '' }],
+    aiNotes: []
+  };
+  const { routebook } = guardRoutebookFacts(rb, {
+    city: '苏州',
+    guide: '想去拙政园门票80元',
+    constraints: { date: '2026-11-28' }
+  });
+  assert.ok(routebook.summary.includes('11月28日'), `date should not be redacted: ${routebook.summary}`);
+  assert.ok(!routebook.summary.includes('日期待确认'), `unexpected 日期待确认 in ${routebook.summary}`);
+  assert.ok(routebook.stops[0].verify.includes('11月28日'));
+});
+
+test('formatStayText strips truncated trailing clauses from legacy stop.stay values', () => {
+  assert.equal(formatStayText('约 2.5 小时，沿湖步行，可随时在'), '约 2.5 小时');
+  assert.equal(formatStayText('约 2–2.5 小时，步行街区可边走'), '约 2–2.5 小时');
+  assert.equal(formatStayText('90分钟'), '90 分钟');
+});
+
+test('extractPlaceCandidates skips activity clauses like 坐船看夜景', () => {
+  const known = Object.entries(knownPoiCoordinates)
+    .filter(([, meta]) => meta.city === '苏州')
+    .map(([name]) => name);
+  const candidates = extractPlaceCandidates('苏州一日游：上午拙政园、苏州博物馆，中午平江路吃面，下午山塘街，晚上想坐船看夜景', {
+    knownPlaces: known
+  });
+  const names = candidates.map((c) => c.name);
+  assert.ok(!names.includes('坐船看夜景'), `activity should not be extracted as place: ${JSON.stringify(names)}`);
+  assert.ok(names.includes('拙政园'));
+  assert.ok(names.includes('苏州博物馆'));
+});
+
+test('geocodePoiWithAmap snaps bare 西湖 to shoreline entrance instead of open water', async () => {
+  const res = await geocodePoiWithAmap('杭州', '西湖');
+  assert.ok(res);
+  assert.equal(res.coordinateSource, 'known-poi');
+  // Must be at shoreline (~120.1615), not open water (~120.1395)
+  assert.ok(res.lng > 120.155, `expected shoreline lng > 120.155, got ${res.lng}`);
 });

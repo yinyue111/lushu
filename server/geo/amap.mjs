@@ -134,7 +134,32 @@ function geocodedStopFields(coordinate, source, precision, choice) {
  * or alter the result).
  * @param {string} city @param {string} name @param {AbortSignal} [signal] @param {any} [options]
  */
+// Broad lakes/waterbodies otherwise resolve to open-water centroids in AMap POI search,
+// breaking road routing and pedestrian navigation. Snap bare lake names to main shoreline entrances (WGS84).
+const SHORELINE_ENTRANCE_OVERRIDES = Object.freeze({
+  '杭州:西湖': { lat: 30.2551, lng: 120.1615, chosenName: '西湖风景名胜区(湖滨一公园入口)' },
+  '杭州:西湖风景名胜区': { lat: 30.2551, lng: 120.1615, chosenName: '西湖风景名胜区(湖滨一公园入口)' },
+  '南京:玄武湖': { lat: 32.0732, lng: 118.7865, chosenName: '玄武湖景区(玄武门入口)' },
+  '南京:玄武湖公园': { lat: 32.0732, lng: 118.7865, chosenName: '玄武湖景区(玄武门入口)' },
+  '苏州:金鸡湖': { lat: 31.3149, lng: 120.6844, chosenName: '金鸡湖景区(月光码头入口)' },
+  '嘉兴:南湖': { lat: 30.7582, lng: 120.7585, chosenName: '南湖旅游区(会景园入口)' },
+  '无锡:蠡湖': { lat: 31.5226, lng: 120.2643, chosenName: '蠡湖风景区(蠡湖之光入口)' }
+});
+
 export async function geocodePoiWithAmap(city, name, signal, options = {}) {
+  const cleanKey = `${String(city ?? '')
+    .trim()
+    .replace(/市$/, '')}:${String(name ?? '').trim()}`;
+  if (!options.fetchImpl && SHORELINE_ENTRANCE_OVERRIDES[cleanKey]) {
+    const ov = SHORELINE_ENTRANCE_OVERRIDES[cleanKey];
+    return geocodedStopFields(ov, 'known-poi', GEOCODE_PRECISION.POI_EXACT, {
+      provider: 'shoreline-override',
+      method: 'shoreline-entrance',
+      candidateCount: 1,
+      matchType: 'exact',
+      chosenName: ov.chosenName
+    });
+  }
   const cacheKey = `${city}:${name}`;
   if (geocodeCache.has(cacheKey)) return geocodeCache.get(cacheKey);
   const controller = new AbortController();

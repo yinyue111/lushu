@@ -103,7 +103,36 @@ export function isSupported(claim, evidence) {
     const digits = evidence.replace(/-/g, '');
     return keys.every((key) => digits.includes(key));
   }
+  if (claim.kind === 'date') {
+    const stripped = keys[0].replace(/日|号/g, '日').replace(/(^|\D)0(\d)/g, '$1$2');
+    const normEvidence = evidence.replace(/号/g, '日').replace(/(^|\D)0(\d)/g, '$1$2');
+    if (normEvidence.includes(stripped)) return true;
+  }
   return keys.every((key) => evidence.includes(key));
+}
+
+/** Expand ISO dates like 2026-11-28 or 2026/11/28 into Chinese date forms so model prose ("11月28日") matches user-chosen travel dates. */
+function expandIsoDatesForEvidence(raw) {
+  const source = String(raw ?? '');
+  const extras = [];
+  for (const m of source.matchAll(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/g)) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    extras.push(
+      `${year}年${month}月${day}日`,
+      `${year}年${month}月${day}号`,
+      `${year}年${mm}月${dd}日`,
+      `${year}年${month}月`,
+      `${month}月${day}日`,
+      `${month}月${day}号`,
+      `${mm}月${dd}日`,
+      `${mm}月${dd}号`
+    );
+  }
+  return extras.join(' ');
 }
 
 /** All text the model was allowed to rely on. */
@@ -111,7 +140,9 @@ export function buildEvidence({ guide = '', importedSources = [], constraints = 
   const imported = (Array.isArray(importedSources) ? importedSources : [])
     .map((source) => [source?.title, source?.text, source?.excerpt, source?.content, source?.summary].filter(Boolean).join(' '))
     .join(' ');
-  return normalize([guide, imported, JSON.stringify(constraints ?? {}), (poiCandidates ?? []).join(' '), city].join(' '));
+  const constraintsJson = JSON.stringify(constraints ?? {});
+  const dateExtras = expandIsoDatesForEvidence(`${guide} ${imported} ${constraintsJson}`);
+  return normalize([guide, imported, constraintsJson, dateExtras, (poiCandidates ?? []).join(' '), city].join(' '));
 }
 
 /**

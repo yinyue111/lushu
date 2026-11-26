@@ -61,16 +61,15 @@ export default function AdjustChatSheet({ routebook, activeDay = undefined, onCl
       });
       return;
     }
-    // AI adjustments already open PatchProposalDialog with full Before/After Diff before mutating anything:
-    // skip a redundant pre-confirm modal so the user goes straight to the Diff preview.
-    if (intent.level === 'L2') {
+    // AI adjustments open PatchProposalDialog with Before/After Diff; free reversible L1 edits apply immediately (toolbar has 撤销).
+    if (intent.level !== 'L4') {
       executeIntent(intent);
       onClose?.();
       return;
     }
     setPending({
       intent,
-      confirmLabel: intent.level === 'L4' ? '去重新生成' : '就这么改',
+      confirmLabel: '去重新生成',
       run: intent
     });
   }
@@ -143,7 +142,13 @@ export default function AdjustChatSheet({ routebook, activeDay = undefined, onCl
             </span>
           </div>
           <Button type="submit" variant="primary" disabled={!text.trim()}>
-            {liveIntent?.level === 'L2' ? '生成修改对比预览' : '看看会怎么改'}
+            {liveIntent?.level === 'L2'
+              ? '生成修改对比预览'
+              : liveIntent?.level === 'L4'
+                ? '去重新生成'
+                : liveIntent && liveIntent.kind !== 'unknown'
+                  ? '立即应用（可撤销）'
+                  : '看看会怎么改'}
           </Button>
         </form>
       </Sheet>

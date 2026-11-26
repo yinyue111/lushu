@@ -564,7 +564,7 @@ export default function ReviewPage({ routebook, onBack }) {
             className="mt-2 max-h-60 overflow-y-auto font-sans text-xs leading-relaxed whitespace-pre-wrap text-ink-2 focus-visible:outline-2 focus-visible:outline-sky"
             data-testid="review-xhs-preview"
           >
-            {xhsNote.fullText}
+            {xhsNote.fullText.startsWith(xhsNote.headline) ? xhsNote.fullText.slice(xhsNote.headline.length).replace(/^\n+/, '') : xhsNote.fullText}
           </pre>
         </div>
 

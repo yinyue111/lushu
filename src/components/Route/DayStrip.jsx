@@ -7,6 +7,7 @@ import { dayCover, smallImage } from '../visual/theme';
 /** "每天怎么玩" — horizontally scrolling day cards acting as day tabs. */
 export default function DayStrip({ city, dayEntries, activeDay, onSelectDay }) {
   const scrollerRef = useRef(null);
+  if (!Array.isArray(dayEntries) || dayEntries.length <= 1) return null;
   const scrollBy = (direction) => scrollerRef.current?.scrollBy({ left: direction * scrollerRef.current.clientWidth * 0.8, behavior: 'smooth' });
 
   return (
