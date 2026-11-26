@@ -17,6 +17,7 @@ import { buildProposalDiff, parseAdjustIntent } from '../../src/lib/adjustIntent
 import { confirmItemsForStop } from '../../src/lib/confirmChecklist.js';
 import { getStopTrustBadge } from '../../src/lib/trust.js';
 import { stopCategory } from '../../src/components/visual/theme.js';
+import { buildXiaohongshuNote } from '../../src/lib/reviewNote.js';
 
 test('extractPlaceCandidates filters Nanjing dishes, deduplicates 夫子庙, and recognizes 中山陵', () => {
   const known = Object.entries(knownPoiCoordinates)
@@ -214,4 +215,16 @@ test('confirmItemsForStop avoids double city prefix, getStopTrustBadge marks geo
   assert.equal(stopCategory({ name: '先锋书店五台山总店' }).id, 'book-cafe');
   assert.equal(stopCategory({ name: '夫子庙秦淮风光带' }).id, 'historic-quarter');
   assert.ok(stopCategory({ name: '老门东' }).scene, '老门东 should have a scene image');
+});
+
+test('buildXiaohongshuNote normalizes bare numeric queue and cost units across guide and vibe templates', () => {
+  const rb = { city: '南京', title: '南京两天慢游' };
+  const stops = [{ id: 's1', day: 'Day 1', time: '12:00', stay: '60 分钟', name: '老门东' }];
+  const latestByStop = new Map([['s1', { worth: '值得', crowd: '适中', queue: '15', cost: '85', comment: '小吃很多' }]]);
+
+  const guide = buildXiaohongshuNote(rb, stops, latestByStop, 'guide');
+  assert.ok(guide.fullText.includes('排15 分钟｜85 元'), `expected normalized units in guide note, got:\n${guide.fullText}`);
+
+  const vibe = buildXiaohongshuNote(rb, stops, latestByStop, 'vibe');
+  assert.ok(vibe.fullText.includes('排队约15 分钟 · 花费 85 元'), `expected normalized units in vibe note, got:\n${vibe.fullText}`);
 });

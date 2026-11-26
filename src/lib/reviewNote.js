@@ -17,6 +17,20 @@ function sanitizeNoteText(value) {
     .trim();
 }
 
+function formatQueueUnit(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+  if (/^\d+(?:\.\d+)?$/.test(text)) return Number(text) === 0 ? '0 分钟' : `${text} 分钟`;
+  return text;
+}
+
+function formatCostUnit(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+  if (/^\d+(?:\.\d+)?$/.test(text)) return Number(text) === 0 ? '免费' : `${text} 元`;
+  return text;
+}
+
 /**
  * 汇总回顾页与游记所需的结构化旅程实测数据。
  * @param {any} routebook
@@ -61,8 +75,8 @@ export function summarizeReviewJourney(routebook, stops = [], latestByStop = new
       name: stop.name || '站点',
       worth: checkin.worth || '',
       crowd: checkin.crowd || '',
-      queue: checkin.queue || '',
-      cost: checkin.cost || '',
+      queue: formatQueueUnit(checkin.queue),
+      cost: formatCostUnit(checkin.cost),
       comment: sanitizeNoteText(checkin.comment || ''),
       pitfall: sanitizeNoteText(checkin.pitfall || '')
     });
@@ -80,7 +94,7 @@ export function summarizeReviewJourney(routebook, stops = [], latestByStop = new
         worth: '',
         crowd: '',
         queue: '',
-        cost: stop.cost || '',
+        cost: formatCostUnit(stop.cost),
         comment: sanitizeNoteText(/^编辑建议[:：]/.test(stop?.verify ?? '') ? stop.verify.replace(/^编辑建议[:：]\s*/, '') : ''),
         pitfall: ''
       }))
@@ -689,8 +703,8 @@ export async function renderReviewSlideCards(routebook, stops = [], latestByStop
           time: stop?.time || '',
           area: stop?.area || '',
           worth: checkin?.worth || '',
-          queue: checkin?.queue || '',
-          cost: checkin?.cost || stop?.cost || '',
+          queue: formatQueueUnit(checkin?.queue),
+          cost: formatCostUnit(checkin?.cost || stop?.cost),
           crowd: checkin?.crowd || '',
           comment: sanitizeNoteText(checkin?.comment || ''),
           pitfall: sanitizeNoteText(checkin?.pitfall || ''),
