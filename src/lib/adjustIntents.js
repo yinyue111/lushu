@@ -145,6 +145,28 @@ export function parseAdjustIntent(text, ctx = {}) {
     return { kind: 'set_transport_pref', confidence: 0.82, label: '交通改为打车/驾车', params: { mode: 'driving' }, level: 'L1' };
   }
 
+  // L1: late / early start shift ("晚点出发" / "早上睡个懒觉" / "早点出发")
+  if (!hasComplexAddOrReplace && raw.length <= 22) {
+    if (/(?:晚点|晚一点|推迟|延后)(?:出发|出门|起床|开始)|睡(?:个)?懒觉|不想早起/.test(raw)) {
+      return {
+        kind: 'shift_day_start',
+        confidence: 0.9,
+        label: day ? `把 ${day} 出发与后续站点顺延 1 小时` : '把各天出发与后续站点顺延 1 小时',
+        params: { deltaMinutes: 60, ...(day ? { day } : {}) },
+        level: 'L1'
+      };
+    }
+    if (/(?:早点|早一点|提前)(?:出发|出门|开始)/.test(raw)) {
+      return {
+        kind: 'shift_day_start',
+        confidence: 0.88,
+        label: day ? `把 ${day} 出发时间提前 1 小时` : '把各天出发时间提前 1 小时',
+        params: { deltaMinutes: -60, ...(day ? { day } : {}) },
+        level: 'L1'
+      };
+    }
+  }
+
   // L1: explicit train/flight transit window update ("高铁改签到 14:30 到杭州东站" / "返程改到 19:30 从上海虹桥站走")
   const transitClockMatch = /(\d{1,2})\s*[:：点]\s*(\d{2}|半)?/.exec(raw);
   if (transitClockMatch && /(?:改签|改到|改成|调整到|调整为)/.test(raw) && /(?:站|机场|到达|到站|返程|回程|离开)/.test(raw)) {
@@ -200,6 +222,24 @@ function parseDayToken(token) {
   return -1;
 }
 
+function normalizeTimeForDiff(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[–—~至]/g, '-');
+}
+
+function sameScheduleTime(prevTime, nextTime) {
+  const a = normalizeTimeForDiff(prevTime);
+  const b = normalizeTimeForDiff(nextTime);
+  if (!a || !b) return true;
+  if (a === b) return true;
+  // Model patch often returns start clock "10:15" when original had "10:15-11:20" with same stay.
+  const startA = a.split('-')[0];
+  const startB = b.split('-')[0];
+  if (startA === startB && (!a.includes('-') || !b.includes('-'))) return true;
+  return false;
+}
 function normalizeStopKey(name) {
   return String(name ?? '')
     .trim()
@@ -246,7 +286,7 @@ export function buildProposalDiff(beforeStops = [], proposal = null) {
       movedCount += 1;
       return { ...stop, diffTag: `从 ${prevDay} 移来`, diffTone: 'moved' };
     }
-    if (prev.time && stop.time && prev.time !== stop.time) {
+    if (prev.time && stop.time && !sameScheduleTime(prev.time, stop.time)) {
       movedCount += 1;
       return { ...stop, diffTag: `原 ${prev.time}`, diffTone: 'retimed' };
     }

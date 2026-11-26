@@ -1,4 +1,5 @@
 import { trustedCities } from './content.js';
+import { coordinateVerificationLevel } from './trustSignals.js';
 
 // 与服务端 publicTrustMeta 契约一致的公开采样阈值：独立有效样本达到该值、
 // source === 'verified-feedback' 且 displayScore 合法（0-100）才允许展示真实可信分。
@@ -115,6 +116,9 @@ export function getStopTrustBadge(stop, routeTone) {
     stop?.coordinatePrecision === 'exact';
   if (catalogChecked) {
     return { tone: 'verified', badgeClass: 'badge-green', verified: true, value: '地点已核对', label: '地点已核对' };
+  }
+  if (coordinateVerificationLevel(stop) === 'verified') {
+    return { tone: 'verified', badgeClass: 'badge-green', verified: true, value: '定位已核对', label: '定位已核对' };
   }
   return { tone: 'prediction', badgeClass: 'badge-blue', verified: false, value: '待核对', label: '地点待核对' };
 }

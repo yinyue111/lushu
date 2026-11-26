@@ -171,18 +171,37 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
   // The request was already validated and fenced when the job was created.
   applyStageEvent(job, { stage: 'parse', state: 'started' });
   applyStageEvent(job, { stage: 'parse', state: 'completed', detail: parseDetail });
-  // timeoutMs is the budget for the whole generation, not per model call: when it runs out, everything
-  // still in flight (model call, geocoding, routing) is aborted and the job fails as MODEL_TIMEOUT.
+  // timeoutMs is the budget for the generation; however, if the LLM stage already succeeded and only
+  // short post-processing (geocode / route / save) remains, grant one 45s completion grace window so
+  // a finished routebook is never discarded right before saving.
+  const POST_MODEL_GRACE_MS = 45000;
   const deadline = timeoutMs > 0 ? nowMs + timeoutMs : 0;
+  let graceTimer = null;
+  const abortOnDeadline = (totalMs) => {
+    if (job.status === 'running') {
+      job.effectiveTimeoutMs = totalMs;
+      controller.abort(Object.assign(new Error('generation deadline'), { code: GENERATION_DEADLINE_REASON }));
+    }
+  };
   const deadlineTimer = deadline
     ? setTimeout(() => {
-        if (job.status === 'running') controller.abort(Object.assign(new Error('generation deadline'), { code: GENERATION_DEADLINE_REASON }));
+        if (job.status !== 'running') return;
+        if (job.stages.model?.status === 'completed' && !job.graceGranted) {
+          job.graceGranted = true;
+          graceTimer = setTimeout(() => abortOnDeadline(timeoutMs + POST_MODEL_GRACE_MS), POST_MODEL_GRACE_MS);
+          graceTimer?.unref?.();
+          return;
+        }
+        abortOnDeadline(timeoutMs);
       }, timeoutMs)
     : null;
   deadlineTimer?.unref?.();
   job.promise = Promise.resolve()
     .then(() => run(controller.signal, (event) => applyStageEvent(job, event), id, deadline))
-    .finally(() => deadlineTimer && clearTimeout(deadlineTimer))
+    .finally(() => {
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      if (graceTimer) clearTimeout(graceTimer);
+    })
     .then(
       (result) => {
         if (job.status !== 'running') return;
@@ -211,7 +230,9 @@ export function startGenerationJob({ dedupKey, clientKey, profileId, estimate = 
         const stage = job.stages[job.stage];
         if (stage?.status === 'running') stage.status = 'failed';
         if (controller.signal.reason?.code === GENERATION_DEADLINE_REASON && error?.code !== 'MODEL_TIMEOUT') {
-          error = createHttpError(`生成超过 ${Math.round(timeoutMs / 1000)} 秒还没完成，已自动停止，请稍后重试`, 504, 'MODEL_TIMEOUT');
+          const limitSec = Math.round((job.effectiveTimeoutMs || timeoutMs) / 1000);
+          const stageHint = job.stages.model?.status === 'completed' ? '后续定位与查路线耗时偏久' : `生成超过 ${limitSec} 秒还没完成`;
+          error = createHttpError(`${stageHint}，已自动停止，请重试一次`, 504, 'MODEL_TIMEOUT');
         }
         job.error = {
           message: String(error?.statusCode && error?.statusCode < 500 ? error.message : publicFailureMessage(error)).slice(0, 200),

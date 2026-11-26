@@ -42,7 +42,7 @@ export function Stepper({ labels, step, onSelectStep = undefined }) {
         const content = (
           <>
             <span className={cn('block h-1.5 rounded-full', state === 'todo' ? 'bg-line' : 'bg-primary')} aria-hidden="true" />
-            <span className={cn('mt-2 flex items-center gap-1 truncate text-xs font-bold', state === 'todo' ? 'text-muted' : 'text-ink')}>
+            <span className={cn('mt-2 flex h-5 items-center gap-1 truncate text-xs font-bold', state === 'todo' ? 'text-muted' : 'text-ink')}>
               {state === 'done' && <Check className="size-3.5 shrink-0 text-success-ink" aria-hidden="true" />}
               <span className="sm:hidden">{i + 1} </span>
               <span className={cn(state !== 'current' && 'max-sm:sr-only')}>{label}</span>
@@ -118,7 +118,11 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
       <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3" role="group" aria-label="首批可信城市">
         {trustedCities.map((item) => {
           const cover = cityCover(item);
-          const active = item === city;
+          const active =
+            item === city &&
+            String(cityQuery ?? '')
+              .trim()
+              .replace(/市$/, '') === item;
           return (
             <button
               key={item}
@@ -629,6 +633,12 @@ export function StepPrefs({ city = '', constraints, setConstraints, toggleTheme,
                   className={inputClass}
                   value={constraints.arrivalHub ?? ''}
                   onChange={(e) => setConstraints((p) => ({ ...p, arrivalHub: e.target.value }))}
+                  onBlur={() =>
+                    setConstraints((p) => {
+                      const arr = String(p.arrivalHub ?? '').trim();
+                      return arr && !String(p.departureHub ?? '').trim() ? { ...p, departureHub: arr } : p;
+                    })
+                  }
                   placeholder={hubs[0] || '如杭州东站'}
                 />
               </Field>
@@ -742,7 +752,7 @@ export function StepPrefs({ city = '', constraints, setConstraints, toggleTheme,
             className={inputClass}
             value={constraints.mustGo}
             onChange={(e) => setConstraints((p) => ({ ...p, mustGo: e.target.value }))}
-            placeholder="西湖、法喜寺"
+            placeholder={{ 南京: '南京博物院、老门东', 上海: '武康路、外滩', 苏州: '拙政园、平江路', 杭州: '西湖、法喜寺' }[city] || `${city || ''}想去的地方`}
           />
         </Field>
         <Field label="想避开">

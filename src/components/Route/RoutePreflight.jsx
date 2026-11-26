@@ -37,6 +37,10 @@ function checkIcon(label, id) {
   return RouteIcon;
 }
 
+function stripInlineMarkdown(value) {
+  return typeof value === 'string' ? value.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/__([^_]+)__/g, '$1') : value;
+}
+
 /** "出发前看一眼" — validations, source analysis and feedback, as friendly tiles. */
 export function RoutePreflight({ routebook }) {
   const checks = (routebook.validations ?? []).slice(0, 9);
@@ -142,8 +146,8 @@ export function RoutePreflight({ routebook }) {
             <ul className="mt-2 grid gap-1.5 text-sm text-ink-2">
               {aiNotes.map((note) => (
                 <li key={`${note.label}-${note.detail}`}>
-                  <b className="font-bold">{note.label}：</b>
-                  {note.detail}
+                  <b className="font-bold">{stripInlineMarkdown(note.label)}：</b>
+                  {stripInlineMarkdown(note.detail)}
                 </li>
               ))}
             </ul>
@@ -170,7 +174,7 @@ function CheckTile({ icon: Icon, title, chip, tone, children }) {
             </Chip>
           )}
         </b>
-        <p className="mt-0.5 text-sm text-muted">{children}</p>
+        <p className="mt-0.5 text-sm text-muted">{stripInlineMarkdown(children)}</p>
       </div>
     </div>
   );

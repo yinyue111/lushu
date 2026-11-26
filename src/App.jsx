@@ -35,7 +35,8 @@ const VIEWS = {
   share: 'share',
   creator: 'creator',
   publicReview: 'publicReview',
-  privacy: 'privacy'
+  privacy: 'privacy',
+  notFound: 'notFound'
 };
 const PUBLIC_VIEWS = new Set([VIEWS.share, VIEWS.publicReview]);
 // Crowd data aggregated from other travellers' check-ins: a local snapshot is never
@@ -81,10 +82,16 @@ function initialRouteState() {
   const tripMatch = window.location.pathname.match(/^\/trip\/([^/]+)\/?$/);
   if (tripMatch) return { view: VIEWS.trip, publicId: decodePathParam(tripMatch[1]) };
   const directView = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (!directView) {
+    return { view: VIEWS.home, publicId: '', city: '' };
+  }
+  if (directView === 'new') {
+    return { view: VIEWS.builder, publicId: '', city: '' };
+  }
   if ([VIEWS.my, VIEWS.builder, VIEWS.privacy].includes(directView)) {
     return { view: directView, publicId: '' };
   }
-  return { view: VIEWS.home, publicId: '', city: '' };
+  return { view: VIEWS.notFound, publicId: '', city: '' };
 }
 
 export default function App() {
@@ -238,6 +245,19 @@ export default function App() {
     // The builder clears the stored job when it finishes; re-read it on every view change.
     setActiveGeneration(readActiveGenerationJob());
   }, [view]);
+
+  useEffect(() => {
+    const base = '可信路书';
+    if (view === VIEWS.home) document.title = `${base}｜把收藏攻略排成可核对的出行路书`;
+    else if (view === VIEWS.builder) document.title = `导入攻略与生成｜${base}`;
+    else if (view === VIEWS.my) document.title = `我的路书与打卡｜${base}`;
+    else if (view === VIEWS.privacy) document.title = `隐私与数据说明｜${base}`;
+    else if (view === VIEWS.destination && destinationCity) document.title = `${destinationCity}｜${base}`;
+    else if ((view === VIEWS.route || view === VIEWS.trip || view === VIEWS.review) && routebook?.title) {
+      const prefix = view === VIEWS.trip ? '行中导航 · ' : view === VIEWS.review ? '旅程回顾 · ' : '';
+      document.title = `${prefix}${routebook.title}｜${base}`;
+    } else if (view === VIEWS.notFound) document.title = `页面不存在｜${base}`;
+  }, [view, destinationCity, routebook?.title]);
 
   useEffect(() => {
     if (PUBLIC_VIEWS.has(view)) return;
@@ -753,6 +773,31 @@ export default function App() {
                 />
               )}
               {view === VIEWS.privacy && <PrivacyPage onBack={() => navigate(VIEWS.home)} />}
+              {view === VIEWS.notFound && (
+                <section className="mx-auto max-w-lg px-4 py-16 text-center" aria-labelledby="not-found-title">
+                  <p className="text-xs font-extrabold tracking-widest text-primary-strong">404</p>
+                  <h1 id="not-found-title" className="mt-2 text-2xl font-extrabold tracking-tight text-ink">
+                    这个页面不存在或链接已变更
+                  </h1>
+                  <p className="mt-2 text-copy text-muted">可以回到首页挑选精选路线，或直接粘贴攻略生成你的专属路书。</p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate(VIEWS.home)}
+                      className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white hover:opacity-90"
+                    >
+                      返回首页
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(VIEWS.builder)}
+                      className="inline-flex min-h-11 items-center rounded-full border border-line-strong bg-white px-5 py-2.5 text-sm font-bold text-ink hover:bg-canvas"
+                    >
+                      导入攻略排路线
+                    </button>
+                  </div>
+                </section>
+              )}
             </Suspense>
           </ErrorBoundary>
         </main>

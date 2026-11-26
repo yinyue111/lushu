@@ -243,8 +243,15 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
                 <input
                   value={cityQuery}
                   onChange={(event) => {
+                    const raw = event.target.value;
                     cityDirtyRef.current = true;
-                    setCityQuery(event.target.value);
+                    setCityQuery(raw);
+                    const clean = raw.trim().replace(/市$/, '');
+                    if (trustedCities.includes(clean) || JZH_CITIES.includes(clean)) {
+                      setCityTouched(true);
+                      setCity(clean);
+                      persistHomeCity(clean);
+                    }
                   }}
                   onBlur={() => commitCity()}
                   onKeyDown={(event) => {
@@ -257,7 +264,7 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
               </label>
               <label className="block">
                 <span className="text-meta font-semibold text-ink-2">天数</span>
-                <select value={duration} onChange={(event) => setDuration(event.target.value)} className={`${inputClass} mt-1.5 w-auto`}>
+                <select value={duration} onChange={(event) => setDuration(event.target.value)} className={`${inputClass} mt-1.5 min-w-[7.25rem]`}>
                   {durations.map((item) => (
                     <option key={item}>{item}</option>
                   ))}
@@ -265,21 +272,24 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
               </label>
             </div>
             <div className="mt-2.5 flex flex-wrap gap-2" aria-label="首批可信城市快捷选择">
-              {quickCities.map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => commitCity(item)}
-                  aria-pressed={item === city}
-                  className={cn(
-                    'h-11 min-w-11 rounded-full px-4 text-sm font-bold sm:h-9',
-                    item === city ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line'
-                  )}
-                >
-                  {item}
-                </button>
-              ))}
+              {quickCities.map((item) => {
+                const active = item === city && cityQuery.trim().replace(/市$/, '') === item;
+                return (
+                  <button
+                    type="button"
+                    key={item}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => commitCity(item)}
+                    aria-pressed={active}
+                    className={cn(
+                      'h-11 min-w-11 rounded-full px-4 text-sm font-bold sm:h-9',
+                      active ? 'bg-lemon text-ink' : 'bg-canvas text-ink-2 hover:bg-line'
+                    )}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
             </div>
             {!isTrustedCity && (
               <p
@@ -469,6 +479,13 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
             </div>
           </section>
         )}
+
+        <footer className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-xs text-muted">
+          <span>可信路书 · 只把有依据的开放时间与真实打卡反馈标为已核对</span>
+          <a href="/privacy" className="font-semibold text-ink-2 underline underline-offset-2 hover:text-ink">
+            隐私与数据说明
+          </a>
+        </footer>
       </div>
     </div>
   );

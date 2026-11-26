@@ -54,7 +54,7 @@ export const MAP_TILE_PROVIDER_CATALOG = {
     hasLabels: false,
     keyEnv: 'AMAP_TILE_KEY',
     keyRequired: false,
-    hostname: (tile) => `webrd0${((tile.x + tile.y) % 4) + 1}.is.autonavi.com`,
+    hostname: (tile) => `webrd0${((tile.x + tile.y + (Number(/** @type {any} */ (tile).retryAttempt) || 0)) % 4) + 1}.is.autonavi.com`,
     path: (tile, _layer, key) =>
       `/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=${tile.x}&y=${tile.y}&z=${tile.z}${key ? `&key=${encodeURIComponent(key)}` : ''}`
   },

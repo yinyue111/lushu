@@ -1,5 +1,5 @@
 import { Coffee, Landmark, Mountain, ShoppingBag, Sparkles, TreePine, Utensils, Waves, Building2, Moon, Palette, TrainFront } from 'lucide-react';
-import { cityStories, defaultCityImage } from '../../lib/content';
+import { cityStories, defaultCityImage } from '../../lib/content.js';
 
 // Day colours (direction B): each day owns a two-stop gradient used by day cards,
 // map ribbons, numbered pins and day pills. Day N > 5 cycles.
@@ -84,21 +84,40 @@ const CATEGORIES = [
     to: '#a3a9b5',
     scene: scene('cat-street')
   },
-  { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市/, icon: Moon, from: '#2b3a67', to: '#7c5cdb' },
+  { id: 'night', label: '夜游', test: /夜|灯光|喷泉|酒吧|夜市|画舫/, icon: Moon, from: '#2b3a67', to: '#7c5cdb', scene: scene('cat-water') },
   { id: 'tea', label: '茶咖', test: /茶|咖啡|甜品|cafe|coffee/i, icon: Coffee, from: '#8a5a2b', to: '#d9a35b', scene: scene('cat-tea') },
   {
     id: 'food',
     label: '吃喝',
-    test: /餐|饭|小吃|面|粉|粥|饺|包|美食|食堂|酒楼|火锅|夜宵|烧烤|菜馆/,
+    test: /餐|饭|小吃|面|粉|粥|饺|包|美食|食堂|酒楼|火锅|夜宵|烧烤|菜馆|糕团/,
     icon: Utensils,
     from: '#e8553d',
     to: '#ffb04a',
     scene: scene('cat-food')
   },
+  // Commercial cultural quarters ("夫子庙秦淮风光带", "城隍庙", "老门东", "1912街区") are historic streets, not Buddhist monasteries.
+  {
+    id: 'historic-quarter',
+    label: '街巷',
+    test: /夫子庙|城隍庙|老门东|新街口|街区|风光带|历史文化街/,
+    icon: Building2,
+    from: '#5c6370',
+    to: '#a3a9b5',
+    scene: scene('cat-street')
+  },
+  {
+    id: 'book-cafe',
+    label: '书店',
+    test: /书店|书局|书房|图书馆/,
+    icon: Coffee,
+    from: '#8a5a2b',
+    to: '#d9a35b',
+    scene: scene('cat-tea')
+  },
   {
     id: 'museum',
     label: '展馆',
-    test: /馆|展|博物|美术|书店|剧场|艺术|画廊/,
+    test: /馆|展|博物|美术|剧场|艺术|画廊|总统府|故居/,
     icon: Palette,
     from: '#7c5cdb',
     to: '#c07cf0',
@@ -118,17 +137,17 @@ const CATEGORIES = [
   {
     id: 'street',
     label: '街巷',
-    test: /街|路|巷|弄|里|坊|古镇|老街/,
+    test: /街|路|巷|弄|里|坊|古镇|老街|门东|门西/,
     icon: Building2,
     from: '#5c6370',
     to: '#a3a9b5',
     scene: scene('cat-street')
   },
+  { id: 'garden', label: '园林', test: /园|林|公园|植物|花|陵|钟山|景区/, icon: TreePine, from: '#157a51', to: '#5cc48d', scene: scene('cat-garden') },
   { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', scene: scene('cat-mountain') },
-  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', scene: scene('cat-garden') },
-  { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c' }
+  { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c', scene: scene('cat-street') }
 ];
-const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0' };
+const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0', scene: scene('cat-street') };
 
 export function stopCategory(stop) {
   // The stop's own name decides first: district names (锦江区, 西湖区) must not turn a

@@ -232,6 +232,8 @@ export function PreTripConciergeCard({
     return advisor.daySchedules.map((s) => ({ sched: s, forecast: byDate.get(s.dateYmd) })).filter((x) => x.forecast?.rainy);
   }, [weatherForecasts, advisor.daySchedules]);
 
+  const [editingDate, setEditingDate] = useState(false);
+
   if (!advisor.totalStops) return null;
 
   const firstSched = advisor.daySchedules[0];
@@ -312,27 +314,53 @@ export function PreTripConciergeCard({
         {hasDate && canEdit && onSelectDate && (
           <button
             type="button"
-            onClick={() => onSelectDate('')}
+            aria-expanded={editingDate}
+            onClick={() => setEditingDate((v) => !v)}
             className="min-h-9 rounded-full bg-canvas px-2.5 py-1 font-semibold text-muted underline underline-offset-2 sm:min-h-0"
           >
-            改日期
+            {editingDate ? '收起日期' : '改日期'}
           </button>
         )}
       </div>
 
-      {!hasDate && canEdit && onSelectDate && (
+      {(!hasDate || editingDate) && canEdit && onSelectDate && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="pretrip-date-quickpick">
-          <span className="text-xs text-muted">选日期自动查周一闭馆：</span>
+          <span className="text-xs text-muted">{hasDate ? '改到其他出行日期：' : '选日期自动查周一闭馆：'}</span>
           {presets.map((preset) => (
             <button
               key={preset.key}
               type="button"
-              onClick={() => onSelectDate(preset.ymd)}
+              onClick={() => {
+                onSelectDate(preset.ymd);
+                setEditingDate(false);
+              }}
               className="min-h-11 rounded-full border border-line-strong bg-canvas px-2.5 text-xs font-bold text-ink hover:bg-line sm:min-h-7"
             >
               {preset.shortLabel}
             </button>
           ))}
+          <input
+            type="date"
+            aria-label="选择具体出行日期"
+            value={String(routebook?.travelDate || routebook?.constraints?.date || '').slice(0, 10)}
+            onChange={(e) => {
+              onSelectDate(e.target.value);
+              if (e.target.value) setEditingDate(false);
+            }}
+            className="min-h-11 rounded-full border border-line-strong bg-white px-2.5 text-xs font-bold text-ink sm:min-h-7"
+          />
+          {hasDate && (
+            <button
+              type="button"
+              onClick={() => {
+                onSelectDate('');
+                setEditingDate(false);
+              }}
+              className="min-h-11 rounded-full border border-dashed border-line-strong px-2.5 text-xs font-semibold text-muted hover:bg-canvas sm:min-h-7"
+            >
+              暂未定
+            </button>
+          )}
         </div>
       )}
 

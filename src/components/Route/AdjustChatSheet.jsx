@@ -37,6 +37,7 @@ export default function AdjustChatSheet({ routebook, activeDay = undefined, onCl
     else if (kind === 'mode_reorder') handlers.applyModeReorder?.(params.mode);
     else if (kind === 'set_transport_pref') handlers.applyTransportPreference?.(params.mode);
     else if (kind === 'update_transit_window') handlers.updateTransitWindow?.(params);
+    else if (kind === 'shift_day_start') handlers.shiftDayStart?.(params.deltaMinutes, params.day);
     else if (kind === 'replace_stop') handlers.openReplaceByName?.(params.stopName, params.query);
     else if (kind === 'remove_stop') handlers.removeStopByName?.(params.stopName);
     else if (kind === 'move_stop_day') handlers.moveStopToDayByName?.(params.stopName, params.day);
@@ -126,7 +127,7 @@ export default function AdjustChatSheet({ routebook, activeDay = undefined, onCl
           {liveIntent && liveIntent.kind !== 'unknown' && (
             <p role="status" data-testid="adjust-live-intent" className="rounded-tile bg-sky-soft/70 px-3 py-2 text-xs font-semibold text-sky-ink">
               {liveIntent.level === 'L2'
-                ? `${liveIntent.label} · 先出前后对比预览，点确认才生效（耗 1 次微调额度）`
+                ? `${liveIntent.label} · 生成前后对比预览会消耗 1 次微调额度，确认后才写入路书`
                 : liveIntent.level === 'L4'
                   ? `${liveIntent.label} · 回到创建页从头生成`
                   : `${liveIntent.label} · 免费秒改，不满意可随时撤销`}

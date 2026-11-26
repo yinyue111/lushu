@@ -1,7 +1,7 @@
 // Map tile proxy with an in-memory LRU cache, provider fallback and
 // placeholder-tile detection (see map-providers.mjs).
 import { createHash } from 'node:crypto';
-import { request as httpsRequest } from 'node:https';
+import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 import {
   MAP_TILE_CACHE_MAX_ENTRIES,
   MAP_TILE_MAX_BYTES,
@@ -14,9 +14,18 @@ import { describeMapTileProviders, isPlaceholderTile, looksLikeImage } from './m
 import { requestIdHeaders, securityHeaders, sendJson } from './response.mjs';
 import { createHttpError } from '../lib/util.mjs';
 
+const tileHttpsAgent = new HttpsAgent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 48,
+  maxFreeSockets: 16
+});
+
 const mapTileCache = new Map();
+const inFlightTiles = new Map();
 // Per provider+layer: hash of the 0/0/0 world tile, used to spot placeholders.
 const referenceHashes = new Map();
+const referenceWarming = new Set();
 // Per provider: timestamp until which it is skipped after serving placeholders.
 const providerCooldowns = new Map();
 const REFERENCE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -78,6 +87,7 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
         port: 443,
         method: 'GET',
         path: upstream.path(tileRequest, tileRequest.layer, upstream.key),
+        agent: tileHttpsAgent,
         signal,
         headers: {
           accept: 'image/png,image/*;q=0.8,*/*;q=0.5',
@@ -130,25 +140,27 @@ function requestMapTileUpstream(upstream, tileRequest, signal) {
   });
 }
 
-async function referenceHashFor(upstream, layer, signal) {
+async function referenceHashFor(upstream, layer) {
   const cacheKey = `${upstream.id}:${layer}`;
   const known = referenceHashes.get(cacheKey);
   if (known && Date.now() - known.at < REFERENCE_TTL_MS) return known.hash;
-  try {
-    const world = await requestMapTileUpstream(upstream, { z: 0, x: 0, y: 0, key: '0/0/0', layer }, signal);
-    const hash = sha256(world.body);
-    referenceHashes.set(cacheKey, { hash, at: Date.now() });
-    return hash;
-  } catch {
-    // Without a reference we can still rely on the known-placeholder list.
-    return null;
+  // Warm 0/0/0 asynchronously so cold z>=3 tiles never pay two sequential cross-border RTTs.
+  if (!referenceWarming.has(cacheKey)) {
+    referenceWarming.add(cacheKey);
+    requestMapTileUpstream(upstream, { z: 0, x: 0, y: 0, key: '0/0/0', layer }, undefined)
+      .then((world) => {
+        referenceHashes.set(cacheKey, { hash: sha256(world.body), at: Date.now() });
+      })
+      .catch(() => {})
+      .finally(() => referenceWarming.delete(cacheKey));
   }
+  return known?.hash ?? null;
 }
 
 async function fetchVerifiedTile(upstream, tileRequest, signal) {
   const tile = await requestMapTileUpstream(upstream, tileRequest, signal);
   const hash = sha256(tile.body);
-  const referenceHash = tileRequest.z >= 3 ? await referenceHashFor(upstream, tileRequest.layer, signal) : null;
+  const referenceHash = tileRequest.z >= 3 ? await referenceHashFor(upstream, tileRequest.layer) : null;
   if (isPlaceholderTile({ hash, z: tileRequest.z, referenceHash })) {
     providerCooldowns.set(upstream.id, Date.now() + MAP_TILE_PROVIDER_COOLDOWN_MS);
     throw createHttpError('地图上游返回了占位图', 502, 'MAP_TILE_PLACEHOLDER');
@@ -171,19 +183,22 @@ export function normalizeTileUpstreamError(error) {
 }
 
 function isRetryableTileError(error) {
-  if (!error || Number.isInteger(error.statusCode)) return false;
+  if (!error) return false;
+  if (error.code === 'MAP_TILE_UPSTREAM_TIMEOUT') return true;
+  if (Number.isInteger(error.statusCode)) return false;
   return RETRYABLE_NETWORK_CODES.has(error.code) || /socket hang up/i.test(String(error.message ?? ''));
 }
 
-// One immediate retry for a transient network error (single-provider setups
-// such as amap-only have no fallback provider to absorb a reset).
+// One immediate retry for a transient network error or single-edge timeout (single-provider
+// setups such as amap-only rotate subdomain on retryAttempt=1).
 export async function fetchTileWithRetry(fetchTile, upstream, tileRequest, signal) {
   try {
     return await fetchTile(upstream, tileRequest, signal);
   } catch (error) {
     if (signal?.aborted || !isRetryableTileError(error)) throw normalizeTileUpstreamError(error);
     try {
-      return await fetchTile(upstream, tileRequest, signal);
+      const nextTileRequest = tileRequest && typeof tileRequest === 'object' ? { ...tileRequest, retryAttempt: 1 } : tileRequest;
+      return await fetchTile(upstream, nextTileRequest, signal);
     } catch (retryError) {
       if (signal?.aborted) throw retryError;
       throw normalizeTileUpstreamError(retryError);
@@ -206,35 +221,49 @@ export async function handleMapTile(req, res, url) {
   const cached = readCachedMapTile(cacheKey);
   if (cached) return sendMapTile(res, cached, 'HIT');
 
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, MAP_TILE_TIMEOUT_MS);
-  req.once('aborted', () => controller.abort());
-  try {
-    let tile = null;
-    let lastError = null;
-    const now = Date.now();
-    const available = upstreams.filter((upstream) => (providerCooldowns.get(upstream.id) ?? 0) <= now);
-    for (const upstream of available.length ? available : upstreams) {
+  let sharedPromise = inFlightTiles.get(cacheKey);
+  if (!sharedPromise) {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, MAP_TILE_TIMEOUT_MS);
+    sharedPromise = (async () => {
       try {
-        tile = await fetchTileWithRetry(fetchVerifiedTile, upstream, tileRequest, controller.signal);
-        break;
+        let tile = null;
+        let lastError = null;
+        const now = Date.now();
+        const available = upstreams.filter((upstream) => (providerCooldowns.get(upstream.id) ?? 0) <= now);
+        for (const upstream of available.length ? available : upstreams) {
+          try {
+            tile = await fetchTileWithRetry(fetchVerifiedTile, upstream, tileRequest, controller.signal);
+            break;
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+            lastError = error;
+          }
+        }
+        if (!tile) throw lastError || createHttpError('地图底图暂时不可用', 502, 'MAP_TILE_UNAVAILABLE');
+        cacheMapTile(cacheKey, tile);
+        return tile;
       } catch (error) {
-        if (controller.signal.aborted) throw error;
-        lastError = error;
+        if (error.name === 'AbortError' && timedOut) throw createHttpError('地图底图请求超时', 504, 'MAP_TILE_TIMEOUT');
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+        inFlightTiles.delete(cacheKey);
       }
-    }
-    if (!tile) throw lastError || createHttpError('地图底图暂时不可用', 502, 'MAP_TILE_UNAVAILABLE');
-    cacheMapTile(cacheKey, tile);
+    })();
+    inFlightTiles.set(cacheKey, sharedPromise);
+  }
+
+  try {
+    const tile = await sharedPromise;
+    if (req.aborted || res.destroyed) return undefined;
     return sendMapTile(res, tile, 'MISS');
   } catch (error) {
     if (req.aborted || res.destroyed) return undefined;
-    if (error.name === 'AbortError' && timedOut) throw createHttpError('地图底图请求超时', 504, 'MAP_TILE_TIMEOUT');
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }

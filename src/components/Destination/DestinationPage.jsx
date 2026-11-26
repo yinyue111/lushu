@@ -4,6 +4,7 @@ import { getCityPhotos, getCityRoutes, getCityStory, curatedRouteToRoutebook, tr
 import { cities as supportedCities, isCityOpenForGeneration } from '../../lib/chinaCities.js';
 import { getCities, getRoutebooksByCity } from '../../lib/api';
 import { Button } from '../ui/button';
+import { cn } from '../ui/cn';
 import { Notice } from '../ui/notice';
 import { SectionHeading } from '../ui/section-heading';
 import { RouteCard } from '../cards/RouteCard';
@@ -173,7 +174,13 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                 }
               />
               {curated.length || serverBooks.length ? (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  className={cn(
+                    'grid grid-cols-1 gap-4',
+                    curated.length + serverBooks.length > 1 && 'sm:grid-cols-2',
+                    curated.length + serverBooks.length > 2 && 'lg:grid-cols-3'
+                  )}
+                >
                   {curated.map((route) => {
                     const book = curatedRouteToRoutebook(route);
                     return (
@@ -183,6 +190,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                         image={route.image}
                         tags={route.tags}
                         curated
+                        layout={curated.length + serverBooks.length === 1 ? 'feature' : 'tall'}
                         meta={route.subtitle}
                         onOpen={() => onOpenBook(book)}
                         actions={
@@ -197,6 +205,7 @@ export default function DestinationPage({ city, onBack, onOpenBook, onNewBook, o
                     <RouteCard
                       key={book.publicId ?? `${book.title}-${idx}`}
                       routebook={book}
+                      layout={curated.length + serverBooks.length === 1 ? 'feature' : 'tall'}
                       meta={`${book.stops?.length ?? 0} 站 · 用户保存`}
                       onOpen={() => onOpenBook(book)}
                     />

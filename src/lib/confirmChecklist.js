@@ -27,6 +27,7 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
   const items = [];
   const add = (kind, label, detail, action) => items.push({ key: `${id}:${kind}`, kind, label, detail, action });
   const cityName = String(city || stop?.city || '').trim();
+  const queryTarget = cityName && name.startsWith(cityName) ? name : `${cityName}${name}`;
   const sentences = notes
     .split(/[；;。\n]+/)
     .map((t) => t.trim())
@@ -48,12 +49,12 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
       /是否(?:要|需要|需)?(?:提前)?预约/.test(notes) && !/(?:需|要|须)(?:提前)?(?:实名)?预约/.test(notes.replace(/是否(?:要|需要|需)?(?:提前)?预约/g, ''));
     add('reservation', unsure ? '是否要预约' : '可能要预约', take(/预约/) || '看官方公众号或官网的预约入口', {
       label: '搜官方预约',
-      url: webSearch(`${cityName}${name} 预约 官方`)
+      url: webSearch(`${queryTarget} 预约 官方`)
     });
   }
   const price = costDisplay(stop);
   if (price.pending && !checked.price) {
-    add('price', '门票 / 价格', price.aiNote || '还没查到有来源的价格', { label: '搜官方票价', url: webSearch(`${cityName}${name} 门票 官网`) });
+    add('price', '门票 / 价格', price.aiNote || '还没查到有来源的价格', { label: '搜官方票价', url: webSearch(`${queryTarget} 门票 官网`) });
   }
   if (!checked.hours && /(开放|营业)时间|闭馆|休息日|几点/.test(notes)) {
     add('hours', '开放时间', take(/(开放|营业)时间|闭馆|休息日|几点/) || '出发当天看一眼，节假日可能调整', {
@@ -65,7 +66,7 @@ export function confirmItemsForStop(stop, { city = '', checked = {} } = {}) {
   const GENERIC =
     /^(?:请)?(?:以(?:现场|当日公告|官方)(?:信息)?为准|(?:需)?(?:出发前)?(?:再)?(?:复核|核对|确认)(?:一下)?|.{0,8}待确认|刚换的店.*|需通过真实打卡.*|.*继续验证|编辑建议[:：].*|.*拍照.*|全天开放.*|.*午餐缓冲.*|.*同质化.*|.*适合慢走.*|.*旅行团偏多.*|.*道路湿滑.*|.*车流偏密.*)$/;
   const rest = sentences.filter((t) => !used.has(t.slice(0, 60)) && !GENERIC.test(t) && !/价格|门票|票价|预约|(开放|营业)时间/.test(t));
-  if (rest.length) add('note', '出发前留意', rest.join('；').slice(0, 80), { label: '搜一下', url: webSearch(`${cityName}${name}`) });
+  if (rest.length) add('note', '出发前留意', rest.join('；').slice(0, 80), { label: '搜一下', url: webSearch(queryTarget) });
   return items;
 }
 

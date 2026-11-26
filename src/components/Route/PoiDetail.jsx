@@ -22,6 +22,7 @@ import { formatStayText } from '../../lib/routeMeta.js';
 export default function PoiDetail({ stop, routebook, onClose }) {
   const profile = useMemo(() => getProfile(), []);
   const [showCorrection, setShowCorrection] = useState(false);
+  const correctionFormRef = useRef(/** @type {HTMLFormElement | null} */ (null));
   const [correction, setCorrection] = useState({ field: '开放时间', suggestedValue: '', reason: '' });
   const [message, setMessage] = useState('');
   const [knowledge, setKnowledge] = useState([]);
@@ -349,17 +350,15 @@ export default function PoiDetail({ stop, routebook, onClose }) {
         </Section>
       )}
 
-      <div className="sticky -bottom-6 -mx-6 mt-6 grid grid-cols-2 gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
-        <Button variant="dark" className="w-full" onClick={openInMap}>
-          <ExternalLink /> {canNavigate ? '在地图中查看' : '在高德按名字搜'}
-        </Button>
-        <Button variant="outline" className="w-full" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
-          <Flag /> 信息有误？纠错
-        </Button>
-      </div>
-
       {showCorrection && (
-        <form className="mt-3 grid gap-3 rounded-tile bg-canvas p-4" onSubmit={submitCorrection}>
+        <form
+          ref={(node) => {
+            correctionFormRef.current = node;
+            if (node) node.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+          }}
+          className="mt-4 grid gap-3 rounded-tile bg-canvas p-4"
+          onSubmit={submitCorrection}
+        >
           <Field label="哪里不对">
             <select className={inputClass} value={correction.field} onChange={(event) => setCorrection((prev) => ({ ...prev, field: event.target.value }))}>
               {['开放时间', '价格', '闭店/暂停', '位置坐标', '排队/拥挤', '适合人群', '其他'].map((item) => (
@@ -393,6 +392,15 @@ export default function PoiDetail({ stop, routebook, onClose }) {
           {message}
         </p>
       )}
+
+      <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 grid grid-cols-2 gap-2 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-mx-5 max-md:-mb-5 max-md:px-5">
+        <Button variant="dark" className="w-full" onClick={openInMap}>
+          <ExternalLink /> {canNavigate ? '在地图中查看' : '在高德按名字搜'}
+        </Button>
+        <Button variant="outline" className="w-full" aria-expanded={showCorrection} onClick={() => setShowCorrection((value) => !value)}>
+          <Flag /> 信息有误？纠错
+        </Button>
+      </div>
     </Sheet>
   );
 }

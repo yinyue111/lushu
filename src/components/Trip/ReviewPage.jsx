@@ -239,7 +239,7 @@ export default function ReviewPage({ routebook, onBack }) {
                   const wasSkipped = stop.tripStatus === 'skipped' || checkin?.worth === '跳过' || checkin?.status === 'skipped';
                   const done = Boolean(checkin) && !wasSkipped;
                   return (
-                    <li key={stop.id ?? idx} className="relative">
+                    <li key={stop.id ?? idx} className="relative min-w-0">
                       <span
                         className={cn(
                           'absolute top-3 -left-9 grid size-7 place-items-center rounded-full border-2 border-white shadow-card',
@@ -252,17 +252,17 @@ export default function ReviewPage({ routebook, onBack }) {
                       </span>
                       <article
                         className={cn(
-                          'rounded-card border p-3.5',
+                          'min-w-0 overflow-hidden rounded-card border p-3.5',
                           done
                             ? 'border-line bg-white shadow-card'
                             : 'border-dashed border-line-strong bg-[repeating-linear-gradient(135deg,#fff_0_10px,#f6f6f4_10px_20px)]'
                         )}
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
                           <StopThumb stop={stop} compact className="size-12 shrink-0" />
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <strong className="truncate text-copy font-extrabold">{stop.name}</strong>
+                            <div className="flex min-w-0 items-baseline justify-between gap-2">
+                              <strong className="min-w-0 truncate text-copy font-extrabold">{stop.name}</strong>
                               <span className="num shrink-0 text-xs font-bold text-muted">{stop.time}</span>
                             </div>
                             {done ? (
@@ -271,12 +271,14 @@ export default function ReviewPage({ routebook, onBack }) {
                                 {checkin.worth && <Tag tone={checkin.worth === '值得' ? 'ok' : checkin.worth === '踩坑' ? 'bad' : 'warn'}>{checkin.worth}</Tag>}
                                 {checkin.queue && (
                                   <span className="inline-flex items-center gap-1 text-ink-2">
-                                    <Clock className="size-3.5 text-muted" aria-hidden="true" /> 排队 {checkin.queue}
+                                    <Clock className="size-3.5 text-muted" aria-hidden="true" /> 排队{' '}
+                                    {/^\d+$/.test(String(checkin.queue).trim()) ? `${String(checkin.queue).trim()} 分钟` : checkin.queue}
                                   </span>
                                 )}
                                 {checkin.cost && (
                                   <span className="inline-flex items-center gap-1 text-ink-2">
-                                    <Wallet className="size-3.5 text-muted" aria-hidden="true" /> {checkin.cost}
+                                    <Wallet className="size-3.5 text-muted" aria-hidden="true" />{' '}
+                                    {/^\d+(?:\.\d+)?$/.test(String(checkin.cost).trim()) ? `${String(checkin.cost).trim()} 元` : checkin.cost}
                                   </span>
                                 )}
                                 {checkin.crowd && <span className="text-ink-2">人流 {checkin.crowd}</span>}
@@ -286,7 +288,9 @@ export default function ReviewPage({ routebook, onBack }) {
                             )}
                           </div>
                         </div>
-                        {checkin?.comment && <p className="mt-2 text-sm text-ink-2">“{checkin.comment}”</p>}
+                        {checkin?.comment && !(wasSkipped && /^行中(?:压缩)?(?:跳过|略过)$/.test(String(checkin.comment).trim())) && (
+                          <p className="mt-2 break-words text-sm text-ink-2">“{checkin.comment}”</p>
+                        )}
                         {checkin?.pitfall && (
                           <p className="mt-1.5 flex items-start gap-1.5 text-sm font-semibold text-danger">
                             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> 踩坑：{checkin.pitfall}

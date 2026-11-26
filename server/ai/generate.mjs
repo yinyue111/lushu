@@ -4,6 +4,7 @@ import { getConfig } from '../config/runtime.mjs';
 import { isCityOpen, generationModeConfig, pickRuntime, runtimeForMode, fallbackModeFor } from '../config/runtimeViews.mjs';
 import { modelPricingFor } from '../admin/cost.mjs';
 import { repairEmptyDays } from '../../src/lib/dayRepair.js';
+import { legScheduleConflict, shiftSubsequentDayTimes } from '../../src/lib/stopTiming.js';
 import { createModelRuntimeLoader, redactBaseUrl } from './runtime.mjs';
 import {
   AI_RUNTIME_FROM_CODEX,
@@ -277,6 +278,9 @@ export function sanitizePayload(payload) {
     throw createHttpError(`攻略内容不能超过 ${MAX_GUIDE_CHARS} 字`, 413, 'GUIDE_TOO_LONG');
   }
 
+  const arrivalHub = truncateString(constraints.arrivalHub, 40);
+  const rawDepartureHub = truncateString(constraints.departureHub, 40);
+  const departureTime = normalizeClockTime(constraints.departureTime);
   return {
     city,
     mode: resolveGenerationMode(payload?.mode),
@@ -294,9 +298,10 @@ export function sanitizePayload(payload) {
       date: truncateString(constraints.date, 30),
       base: truncateString(constraints.base, 80),
       arrivalTime: normalizeClockTime(constraints.arrivalTime),
-      arrivalHub: truncateString(constraints.arrivalHub, 40),
-      departureTime: normalizeClockTime(constraints.departureTime),
-      departureHub: truncateString(constraints.departureHub, 40),
+      arrivalHub,
+      departureTime,
+      // Single-station round-trip users often fill only arrivalHub; mirror it instead of warning "返程枢纽未单独填写".
+      departureHub: rawDepartureHub || arrivalHub,
       mealPlan: truncateString(constraints.mealPlan, 30),
       transport: truncateString(constraints.transport, 60),
       theme: truncateString(constraints.theme, 120),
@@ -317,6 +322,10 @@ function buildScheduleRules(constraints = {}) {
     rules.push(
       `末日返程约束：用户最后一天${constraints.departureTime ? `计划 ${constraints.departureTime}` : ''}${constraints.departureHub ? `从「${constraints.departureHub}」离开` : '返程'}；最后一天末站结束时间必须比返程时间提前至少 75 分钟，且靠近${constraints.departureHub || '返程枢纽'}方便赶车。`
     );
+  }
+  if (constraints.arrivalHub || constraints.departureHub) {
+    const hubs = [...new Set([constraints.arrivalHub, constraints.departureHub].filter(Boolean))].join('、');
+    rules.push(`交通枢纽规则：「${hubs}」仅为抵达/返程交通锚点，严禁把火车站、高铁站或机场本身当作游览景点排进 stops 列表。`);
   }
   const meal = String(constraints.mealPlan || '留出正餐时段').trim();
   if (meal === '顺路简餐') {
@@ -418,6 +427,21 @@ function normalizeStayText(raw) {
   return text.slice(0, 16);
 }
 
+function smartSliceNote(raw, maxLen = 96) {
+  const text = String(raw ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!text) return '';
+  if (text.length <= maxLen) return text;
+  const window = text.slice(0, maxLen);
+  const lastPunct = Math.max(window.lastIndexOf('。'), window.lastIndexOf('；'), window.lastIndexOf(';'), window.lastIndexOf('，'), window.lastIndexOf(','));
+  if (lastPunct >= Math.floor(maxLen * 0.45)) {
+    return window.slice(0, lastPunct).trim();
+  }
+  // Never slice mid-clock ("12:15" -> "12:1") or mid-number.
+  return `${window.replace(/[\d:：\-–—~]+$/, '').trim()}…`;
+}
+
 function mergeConsecutiveDuplicateStops(stops) {
   if (!Array.isArray(stops) || stops.length < 2) return stops;
   const normKey = (name) =>
@@ -441,15 +465,15 @@ function mergeConsecutiveDuplicateStops(stops) {
       const joinDistinct = (a, b, max) => {
         const sa = String(a ?? '').trim();
         const sb = String(b ?? '').trim();
-        if (!sb || sa.includes(sb)) return sa.slice(0, max);
-        if (!sa) return sb.slice(0, max);
-        return `${sa}；${sb}`.slice(0, max);
+        if (!sb || sa.includes(sb)) return smartSliceNote(sa, max);
+        if (!sa) return smartSliceNote(sb, max);
+        return smartSliceNote(`${sa}；${sb}`, max);
       };
       merged[merged.length - 1] = {
         ...prev,
         time: combinedTime,
-        verify: joinDistinct(prev.verify, stop.verify, 60),
-        risk: joinDistinct(prev.risk, stop.risk, 60)
+        verify: joinDistinct(prev.verify, stop.verify, 96),
+        risk: joinDistinct(prev.risk, stop.risk, 96)
       };
       continue;
     }
@@ -480,8 +504,8 @@ function normalizeRoutebook(routebook, payload, runtime) {
       stay: normalizeStayText(stop.stay),
       cost: displayCost,
       costInfo: { ...costInfo, text: displayCost },
-      verify: String(stop.verify ?? '需要真实打卡继续核对').slice(0, 60),
-      risk: String(stop.risk ?? '需出发前复核').slice(0, 60),
+      verify: smartSliceNote(stop.verify ?? '需要真实打卡继续核对', 96) || '需要真实打卡继续核对',
+      risk: smartSliceNote(stop.risk ?? '需出发前复核', 96) || '需出发前复核',
       lat: coordinate.lat,
       lng: coordinate.lng,
       geoConfidence:
@@ -566,6 +590,48 @@ function normalizeRoutebook(routebook, payload, runtime) {
       travelDate: normalizeTravelDate(payload.constraints?.date)
     },
     updatedAt: now.toISOString()
+  };
+}
+
+function resolveGeneratedRouteTimeCollisions(routed) {
+  const stops = Array.isArray(routed?.stops) ? routed.stops : [];
+  const legs = Array.isArray(routed?.routeLegs) ? routed.routeLegs : [];
+  if (stops.length < 2 || !legs.length) return routed;
+  const legByPair = new Map(legs.map((leg) => [`${String(leg?.fromStopId)}\u0000${String(leg?.toStopId)}`, leg]));
+  let working = stops;
+  let adjusted = false;
+  for (let pass = 0; pass < 6; pass += 1) {
+    let shiftedInPass = false;
+    for (let i = 0; i < working.length - 1; i += 1) {
+      const from = working[i];
+      const to = working[i + 1];
+      const day = from?.day || 'Day 1';
+      if (day !== (to?.day || 'Day 1')) continue;
+      const leg = legByPair.get(`${String(from.id)}\u0000${String(to.id)}`);
+      const conflict = legScheduleConflict(from, to, leg);
+      if (conflict?.kind === 'conflict' && Number.isFinite(conflict.earliestArrivalMinutes) && conflict.earliestArrivalMinutes <= 22 * 60 + 30) {
+        const roundedStart = Math.ceil(conflict.earliestArrivalMinutes / 5) * 5;
+        const next = shiftSubsequentDayTimes(working, day, to.id, roundedStart);
+        if (next.some((s, idx) => s !== working[idx])) {
+          working = next;
+          adjusted = true;
+          shiftedInPass = true;
+          break;
+        }
+      }
+    }
+    if (!shiftedInPass) break;
+  }
+  if (!adjusted) return routed;
+  return {
+    ...routed,
+    stops: working,
+    validations: buildRoutebookValidations(working, routed.validations, '真实道路时间顺延校准', {
+      city: routed.city,
+      constraints: routed.constraints,
+      travelDate: routed.provider?.travelDate || routed.travelDate
+    }),
+    metrics: buildRoutebookMetrics(working)
   };
 }
 
@@ -1349,7 +1415,19 @@ async function generateRoutebookWithMode(payload, signal, { onStage = () => {}, 
       detail: AMAP_GEOCODE_KEY ? `${preciseStops}/${geocoded.stops.length} 个站点已定位` : '未配置地图服务，坐标为近似值'
     });
     onStage({ stage: 'route', state: 'started' });
-    const routed = await runStage('routing', () => attachServerRouteLegs(geocoded, signal));
+    let routed = geocoded;
+    const routeStartedAt = Date.now();
+    try {
+      routed = await runStage('routing', () => attachServerRouteLegs(geocoded, signal));
+    } catch (routeError) {
+      // If the LLM + geocoding already succeeded and only road-routing hit the job deadline or upstream hiccup
+      // (without an explicit user cancel), save the routebook with straight-line fallback instead of 504'ing.
+      const isDeadlineAbort = signal?.reason?.code === 'GENERATION_DEADLINE';
+      if (signal?.aborted && !isDeadlineAbort) throw routeError;
+      stages.routing = { durationMs: Date.now() - routeStartedAt, status: 'degraded', timedOut: true };
+      routed = { ...geocoded, routeLegs: [] };
+    }
+    routed = resolveGeneratedRouteTimeCollisions(routed);
     const legs = routed.routeLegs ?? [];
     onStage({
       stage: 'route',

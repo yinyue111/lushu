@@ -98,7 +98,7 @@ export function trustedKnowledgeStop(row, city) {
 }
 
 /** @param {Record<string, any>} options */
-export function buildNearbyFacilities({ current, routebook, poiKnowledge = [], limit = 6, maxDistanceKm = 3 } = {}) {
+export function buildNearbyFacilities({ current, routebook, poiKnowledge = [], limit = 6, maxDistanceKm = 2 } = {}) {
   const city = normalizeCityLabel(routebook?.city || current?.city);
   if (!isSupportedCity(city) || !hasNearbyCoordinate(current)) return [];
   const routeStops = [...(routebook?.stops ?? []), ...(routebook?.variants ?? []).flatMap((variant) => variant.stops ?? [])];
@@ -118,6 +118,7 @@ export function buildNearbyFacilities({ current, routebook, poiKnowledge = [], l
       ({ stop, facilityType, reviewStatus }) =>
         stop &&
         facilityType &&
+        !(facilityType === 'rest' && /城墙|山|峰|岭|陵|徒步/.test(String(stop.name ?? ''))) &&
         reviewStatus !== 'rejected' &&
         hasNearbyCoordinate(stop) &&
         (!stop.city || normalizeCityLabel(stop.city) === city) &&
@@ -148,7 +149,7 @@ export function buildNearbyFacilities({ current, routebook, poiKnowledge = [], l
  * 行中「附近 → 吃饭」：仅使用路书内已有餐饮站与平台可信 POI 库中的餐饮点（绝不编造未核实人均价格）。
  * @param {Record<string, any>} [options]
  */
-export function buildNearbyDining({ current, routebook, catalogDining = [], limit = 6, maxDistanceKm = 4 } = {}) {
+export function buildNearbyDining({ current, routebook, catalogDining = [], limit = 6, maxDistanceKm = 2.2 } = {}) {
   const city = normalizeCityLabel(routebook?.city || current?.city);
   if (!isSupportedCity(city) || !hasNearbyCoordinate(current)) return [];
   const routeMealStops = (routebook?.stops ?? [])

@@ -93,9 +93,9 @@ export const GENERATION_MODES = {
     key: 'fast',
     label: '轻快',
     model: String(process.env.AI_MODEL_FAST ?? 'gemini-3.8-flash-high').trim(),
-    timeoutMs: envNumber('AI_TIMEOUT_MS_FAST', Math.min(120000, AI_TIMEOUT_MS), { min: 1000 }),
+    timeoutMs: envNumber('AI_TIMEOUT_MS_FAST', Math.min(300000, AI_TIMEOUT_MS), { min: 1000 }),
     maxOutputTokens: envNumber('AI_MAX_OUTPUT_TOKENS_FAST', 12000, { min: 256 }),
-    idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_FAST', 30000, { min: 1000 }),
+    idleTimeoutMs: envNumber('AI_STREAM_IDLE_MS_FAST', 45000, { min: 1000 }),
     reasoningEffort: reasoningEffortEnv('AI_REASONING_EFFORT_FAST'),
     typicalSeconds: [20, 45]
   },
@@ -342,9 +342,9 @@ export const ROUTING_CONCURRENCY = envNumber('ROUTING_CONCURRENCY', 3, { min: 1,
 export const AMAP_QPS = envNumber('AMAP_QPS', 3, { min: 1, max: 200 });
 export const AMAP_API_BASE_URL = String(process.env.AMAP_API_BASE_URL ?? '').trim() || 'https://restapi.amap.com';
 export const GEOCODE_TIMEOUT_MS = envNumber('GEOCODE_TIMEOUT_MS', 5000, { min: 100 });
-export const MAP_TILE_TIMEOUT_MS = envNumber('MAP_TILE_TIMEOUT_MS', 12000, { min: 3000, max: 30000 });
-export const MAP_TILE_UPSTREAM_TIMEOUT_MS = envNumber('MAP_TILE_UPSTREAM_TIMEOUT_MS', 4000, { min: 1000, max: 10000 });
-export const MAP_TILE_CACHE_MAX_ENTRIES = envNumber('MAP_TILE_CACHE_MAX_ENTRIES', 600, { min: 50, max: 5000 });
+export const MAP_TILE_TIMEOUT_MS = envNumber('MAP_TILE_TIMEOUT_MS', 18000, { min: 3000, max: 30000 });
+export const MAP_TILE_UPSTREAM_TIMEOUT_MS = envNumber('MAP_TILE_UPSTREAM_TIMEOUT_MS', 8000, { min: 1000, max: 15000 });
+export const MAP_TILE_CACHE_MAX_ENTRIES = envNumber('MAP_TILE_CACHE_MAX_ENTRIES', 2400, { min: 50, max: 10000 });
 export const MAP_TILE_MAX_BYTES = envNumber('MAP_TILE_MAX_BYTES', 1024 * 1024, { min: 64 * 1024, max: 4 * 1024 * 1024 });
 
 // Ordered basemap providers (see server/http/map-providers.mjs and .env.example).

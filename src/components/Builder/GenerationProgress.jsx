@@ -53,8 +53,18 @@ export function GenerationProgress({
     if (outcome === 'failed' || outcome === 'cancelled' || outcome === 'succeeded') headingRef.current?.focus({ preventScroll: true });
   }, [outcome]);
 
+  const failedStage = job?.error?.stage || job?.stage || '';
+  const postModelTimeout = outcome === 'failed' && ['geocode', 'route', 'save'].includes(failedStage);
   const title =
-    outcome === 'succeeded' ? '路书生成完成' : outcome === 'cancelled' ? '已取消生成' : outcome === 'failed' ? failure?.title || '这次没排出来' : '正在排路线';
+    outcome === 'succeeded'
+      ? '路书生成完成'
+      : outcome === 'cancelled'
+        ? '已取消生成'
+        : outcome === 'failed'
+          ? postModelTimeout
+            ? '路线已排好，收尾核对超时了'
+            : failure?.title || '这次没排出来'
+          : '正在排路线';
   const announcement =
     outcome === 'succeeded'
       ? '路书生成完成，正在打开'
@@ -141,48 +151,6 @@ export function GenerationProgress({
         </div>
       )}
 
-      <ol className="mt-4 grid gap-1.5" aria-label="路书生成步骤">
-        {stages.map((stage) => {
-          const stageMs = stageDurationMs(stage, job, elapsedMs);
-          return (
-            <li
-              key={stage.key}
-              className={cn(
-                'flex items-start gap-3 rounded-tile px-3 py-2.5',
-                stage.status === 'running' ? 'bg-primary-soft/60' : stage.status === 'failed' ? 'bg-primary-soft' : ''
-              )}
-              aria-current={stage.status === 'running' ? 'step' : undefined}
-            >
-              <StageIcon status={stage.status} />
-              <span className="min-w-0 flex-1">
-                <span className={cn('block text-copy font-bold', stage.status === 'pending' ? 'text-muted' : 'text-ink')}>
-                  {stage.label}
-                  <span className="sr-only">，{STATUS_TEXT[stage.status] ?? stage.status}</span>
-                </span>
-                {stageDetail(stage) && <span className="block text-sm text-ink-2">{stageDetail(stage)}</span>}
-              </span>
-              {stageMs != null && <span className="num shrink-0 pt-0.5 text-xs font-semibold text-muted tabular-nums">{formatDuration(stageMs)}</span>}
-            </li>
-          );
-        })}
-      </ol>
-
-      {running && (
-        <div className="mt-5 grid gap-2">
-          <Button variant="danger" className="w-full" onClick={onCancel} disabled={cancelling || !job} aria-describedby="generation-cancel-hint">
-            {cancelling ? <Loader2 className="motion-safe:animate-spin" /> : <X />} {cancelling ? '正在取消…' : '取消生成'}
-          </Button>
-          <p id="generation-cancel-hint" className="text-center text-xs text-muted">
-            取消会马上停止，不算一次生成。也可以先离开，生成会在后台继续；30 分钟内在这台设备上回到「创建路书」就能看到。
-          </p>
-          {cancelError && (
-            <p role="alert" className="text-center text-sm font-semibold text-primary-strong">
-              {cancelError}
-            </p>
-          )}
-        </div>
-      )}
-
       {outcome === 'failed' && (
         <div role="alert" className="mt-5 rounded-card border border-primary/30 bg-primary-soft p-4">
           <p className="flex items-start gap-2 text-sm font-semibold text-primary-strong">
@@ -195,7 +163,6 @@ export function GenerationProgress({
             </p>
           )}
           {failure?.suggestFast && mode === 'deep' && failure?.fallbackTriedFast ? (
-            // 轻快 was already tried automatically and failed too: waiting is the honest first suggestion.
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="primary" size="sm" onClick={onBackToPrefs}>
                 <Clock /> 稍后再试
@@ -229,6 +196,48 @@ export function GenerationProgress({
         <div className="mt-5 rounded-card border border-line bg-canvas p-4">
           <p className="text-sm font-semibold text-ink-2">已停止模型请求，这次不计入生成次数。攻略和偏好都还在，可以调整后重新生成。</p>
           <ResultActions onRetry={onRetry} onBackToPrefs={onBackToPrefs} retryLabel="重新生成" />
+        </div>
+      )}
+
+      <ol className="mt-4 grid gap-1.5" aria-label="路书生成步骤">
+        {stages.map((stage) => {
+          const stageMs = stageDurationMs(stage, job, elapsedMs);
+          return (
+            <li
+              key={stage.key}
+              className={cn(
+                'flex items-start gap-3 rounded-tile px-3 py-2.5',
+                stage.status === 'running' ? 'bg-primary-soft/60' : stage.status === 'failed' ? 'bg-primary-soft' : ''
+              )}
+              aria-current={stage.status === 'running' ? 'step' : undefined}
+            >
+              <StageIcon status={stage.status} />
+              <span className="min-w-0 flex-1">
+                <span className={cn('block text-copy font-bold', stage.status === 'pending' ? 'text-muted' : 'text-ink')}>
+                  {stage.label}
+                  <span className="sr-only">，{STATUS_TEXT[stage.status] ?? stage.status}</span>
+                </span>
+                {stageDetail(stage) && <span className="block text-sm text-ink-2">{stageDetail(stage)}</span>}
+              </span>
+              {stageMs != null && <span className="num shrink-0 pt-0.5 text-xs font-semibold text-muted tabular-nums">{formatDuration(stageMs)}</span>}
+            </li>
+          );
+        })}
+      </ol>
+
+      {running && (
+        <div className="mt-5 grid gap-2">
+          <Button variant="danger" className="w-full" onClick={onCancel} disabled={cancelling || !job} aria-describedby="generation-cancel-hint">
+            {cancelling ? <Loader2 className="motion-safe:animate-spin" /> : <X />} {cancelling ? '正在取消…' : '取消生成'}
+          </Button>
+          <p id="generation-cancel-hint" className="text-center text-xs text-muted">
+            取消会马上停止，不算一次生成。也可以先离开，生成会在后台继续；30 分钟内在这台设备上回到「导入攻略」就能看到。
+          </p>
+          {cancelError && (
+            <p role="alert" className="text-center text-sm font-semibold text-primary-strong">
+              {cancelError}
+            </p>
+          )}
         </div>
       )}
     </section>

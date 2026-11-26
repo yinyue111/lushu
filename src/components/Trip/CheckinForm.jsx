@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Check, LocateFixed, Plus } from 'lucide-react';
+import { Camera, Check, LocateFixed, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../ui/cn';
 import { Field, inputClass } from '../ui/field';
@@ -119,7 +119,11 @@ export default function CheckinForm({ onSubmit, onCancel, travelers = ['我'], o
       onSubmit={(e) => {
         e.preventDefault();
         if (photoBusy) return;
-        onSubmit({ queue, cost, paidBy, splitWith, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
+        const cleanQueue = String(queue ?? '').trim();
+        const cleanCost = String(cost ?? '').trim();
+        const normalizedQueue = /^\d+$/.test(cleanQueue) ? `${cleanQueue} 分钟` : cleanQueue;
+        const normalizedCost = /^\d+(?:\.\d+)?$/.test(cleanCost) ? `${cleanCost} 元` : cleanCost;
+        onSubmit({ queue: normalizedQueue, cost: normalizedCost, paidBy, splitWith, worth, crowd, comment, pitfall, audience, photoName, photoData, gps });
       }}
     >
       <ChoiceGroup label="值不值得去" options={['值得', '一般', '踩坑']} value={worth} onChange={setWorth} />
@@ -180,13 +184,19 @@ export default function CheckinForm({ onSubmit, onCancel, travelers = ['我'], o
         </summary>
         <div className="flex flex-col gap-3 border-t border-line p-4">
           <Field label="实际花了多少">
-            <input
-              id={`${fieldPrefix}-cost`}
-              className={inputClass}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="例如 120 元（填总开销可算 AA）"
-            />
+            <div className="relative">
+              <input
+                id={`${fieldPrefix}-cost`}
+                className={cn(inputClass, 'pr-10')}
+                inputMode="decimal"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                placeholder="例如 120（自动按元计入 AA）"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-muted" aria-hidden="true">
+                元
+              </span>
+            </div>
           </Field>
           <div className="rounded-tile bg-canvas/80 p-3 text-xs" data-testid="checkin-aa-fields">
             <p className="font-bold text-ink-2">同行记账（选填，回顾页自动算 AA 转账）</p>
@@ -272,7 +282,19 @@ export default function CheckinForm({ onSubmit, onCancel, travelers = ['我'], o
             )}
           </div>
           <Field label="排队时长补充">
-            <input id={`${fieldPrefix}-queue`} className={inputClass} value={queue} onChange={(e) => setQueue(e.target.value)} placeholder="例如 20 分钟" />
+            <div className="relative">
+              <input
+                id={`${fieldPrefix}-queue`}
+                className={cn(inputClass, 'pr-12')}
+                inputMode="numeric"
+                value={queue}
+                onChange={(e) => setQueue(e.target.value)}
+                placeholder="例如 20"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-muted" aria-hidden="true">
+                分钟
+              </span>
+            </div>
           </Field>
           <Field label="适合谁">
             <input
@@ -301,16 +323,25 @@ export default function CheckinForm({ onSubmit, onCancel, travelers = ['我'], o
               placeholder="关门、涨价、排长队、推销…"
             />
           </Field>
-          <Field
-            label="拍张照（选填）"
-            hint={photoBusy ? '照片压缩中…' : photoData ? `已准备上传：${photoName || '打卡照片'}` : '会压缩后上传；没网时先存在手机里，联网自动补传。'}
-          >
-            <input id={`${fieldPrefix}-photo`} className={`${inputClass} py-2`} type="file" accept="image/*" onChange={handlePhotoChange} />
-          </Field>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-meta font-semibold text-ink-2">拍张照（选填）</span>
+            <label
+              htmlFor={`${fieldPrefix}-photo`}
+              className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-tile border border-dashed border-line-strong bg-canvas/70 px-3.5 py-2.5 text-sm font-semibold text-ink hover:border-ink-2/50"
+            >
+              <span className="inline-flex min-w-0 items-center gap-2 truncate">
+                <Camera className="size-4 shrink-0 text-primary-strong" aria-hidden="true" />
+                <span className="truncate">{photoBusy ? '照片压缩中…' : photoData ? `已选择：${photoName || '打卡照片'}` : '点击选择或拍摄现场照片'}</span>
+              </span>
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-ink-2 shadow-card">{photoData ? '重选' : '添加照片'}</span>
+            </label>
+            <input id={`${fieldPrefix}-photo`} className="sr-only" type="file" accept="image/*" onChange={handlePhotoChange} />
+            <span className="text-meta leading-snug text-muted">会压缩后上传；没网时先存在手机里，联网自动补传。</span>
+          </div>
           {photoError && <p className="text-meta font-semibold text-lemon-ink">{photoError}</p>}
         </div>
       </details>
-      <div className="sticky bottom-0 -mx-5 flex gap-3 border-t border-line bg-white px-5 pt-3 pb-1">
+      <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-3 border-t border-line bg-white px-5 pt-3 pb-4">
         <Button className="flex-1" onClick={onCancel}>
           取消
         </Button>

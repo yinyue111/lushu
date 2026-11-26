@@ -63,8 +63,9 @@ function cleanName(value) {
     .trim();
   if (text.length < 2 || text.length > 18) return '';
   if (STOP_WORDS.test(text) || DISH_SUFFIX.test(text)) return '';
-  // Guide titles ("成都旅游攻略", "杭州三日游") are not places.
+  // Guide titles ("成都旅游攻略", "杭州三日游") and transit stations ("南京南站", "虹桥机场") are not sightseeing places.
   if (/(?:攻略|游记|行程|路线|指南|合集|日游|旅游|旅行|citywalk)$/i.test(text)) return '';
+  if (/(?:东站|西站|南站|北站|虹桥站|园区站|火车站|高铁站|客运站|航站楼|机场)$/.test(text)) return '';
   if (!/[\u4e00-\u9fa5A-Za-z]/.test(text)) return '';
   return text;
 }

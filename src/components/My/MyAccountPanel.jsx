@@ -34,75 +34,8 @@ export function MyAccountPanel({
   const setList = (key) => (event) => setProfile((prev) => ({ ...prev, [key]: event.target.value.split(/[、,\s]+/).filter(Boolean) }));
   return (
     // Preferences are their own form so the account forms beside them are never nested inside it.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <form className="rounded-panel border border-line bg-white p-5 shadow-card" onSubmit={onSave}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-extrabold">旅行偏好</h2>
-            <p className="mt-0.5 text-sm text-muted">下次生成路书会默认套用。</p>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
-          <Field label="常住 / 出发城市">
-            <input className={inputClass} value={profile.homeCity ?? ''} onChange={set('homeCity')} />
-          </Field>
-          <Field label="常去城市">
-            <input className={inputClass} value={(profile.preferredCities ?? []).join('、')} onChange={setList('preferredCities')} />
-          </Field>
-          <Field label="默认预算（每人）">
-            <input className={inputClass} value={profile.budget ?? ''} onChange={set('budget')} placeholder="例如：每人全程 900 元；留空 = 不设预算" />
-          </Field>
-          <Field label="主题偏好">
-            <input className={inputClass} value={(profile.themes ?? []).join('、')} onChange={setList('themes')} />
-          </Field>
-          <Field label="和谁一起">
-            <input className={inputClass} value={profile.companion ?? ''} onChange={set('companion')} />
-          </Field>
-          <Field label="节奏">
-            <input className={inputClass} value={profile.tempo ?? ''} onChange={set('tempo')} />
-          </Field>
-          <Field label="昵称" hint="分享时别人看到的名字">
-            <input id="nickname" className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="比如：周末去哪儿小王" />
-          </Field>
-          <Field label="作者简介（选填）" className="sm:col-span-2">
-            <textarea
-              className={cn(inputClass, 'min-h-20')}
-              value={profile.creatorBio ?? ''}
-              onChange={set('creatorBio')}
-              placeholder="例如：周末短途路线整理者，偏好少绕路和真实打卡反馈"
-            />
-          </Field>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="submit" variant="primary">
-            <Save /> 保存偏好
-          </Button>
-          {hasPublishedRoutes && (
-            <Button type="button" variant="outline" onClick={() => onOpenCreator?.(profile.id)}>
-              <UserRound /> 看我的作者主页
-            </Button>
-          )}
-        </div>
-        {legacyDeviceAccount && (
-          <label className="mt-4 flex items-start gap-2 rounded-tile bg-canvas p-3 text-sm text-ink-2">
-            <input
-              type="checkbox"
-              className="mt-1 size-4"
-              checked={Boolean(profile.profileAccessToken || profile.cloudRegistrationConsentAt)}
-              disabled={Boolean(profile.profileAccessToken) || syncBusy}
-              onChange={(event) =>
-                setProfile((previous) => ({ ...previous, cloudRegistrationConsentAt: event.target.checked ? new Date().toISOString() : '' }))
-              }
-            />
-            <span>同意将资料和旅行记录同步到云端，用于跨设备继续行程。未开启时仅保存在本机；已开启后可在下方注销并删除。</span>
-          </label>
-        )}
-        <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-3">
-          {profileMessage}
-        </p>
-      </form>
-
-      <div className="order-first grid content-start gap-5 lg:order-none">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid content-start gap-5">
         {accountsEnabled && <AccountSection />}
         {!accountsEnabled && (
           <section className="rounded-panel border border-line bg-white p-5">
@@ -182,6 +115,73 @@ export function MyAccountPanel({
           </>
         )}
       </div>
+
+      <form className="rounded-panel border border-line bg-white p-5 shadow-card" onSubmit={onSave}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold">旅行偏好</h2>
+            <p className="mt-0.5 text-sm text-muted">下次生成路书会默认套用。</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
+          <Field label="常住 / 出发城市">
+            <input className={inputClass} value={profile.homeCity ?? ''} onChange={set('homeCity')} />
+          </Field>
+          <Field label="常去城市">
+            <input className={inputClass} value={(profile.preferredCities ?? []).join('、')} onChange={setList('preferredCities')} />
+          </Field>
+          <Field label="默认预算（每人）">
+            <input className={inputClass} value={profile.budget ?? ''} onChange={set('budget')} placeholder="例如：每人全程 900 元；留空 = 不设预算" />
+          </Field>
+          <Field label="主题偏好">
+            <input className={inputClass} value={(profile.themes ?? []).join('、')} onChange={setList('themes')} />
+          </Field>
+          <Field label="和谁一起">
+            <input className={inputClass} value={profile.companion ?? ''} onChange={set('companion')} />
+          </Field>
+          <Field label="节奏">
+            <input className={inputClass} value={profile.tempo ?? ''} onChange={set('tempo')} />
+          </Field>
+          <Field label="昵称" hint="分享时别人看到的名字">
+            <input id="nickname" className={inputClass} value={profile.creatorName ?? ''} onChange={set('creatorName')} placeholder="比如：周末去哪儿小王" />
+          </Field>
+          <Field label="作者简介（选填）" className="sm:col-span-2">
+            <textarea
+              className={cn(inputClass, 'min-h-20')}
+              value={profile.creatorBio ?? ''}
+              onChange={set('creatorBio')}
+              placeholder="例如：周末短途路线整理者，偏好少绕路和真实打卡反馈"
+            />
+          </Field>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="submit" variant="primary">
+            <Save /> 保存偏好
+          </Button>
+          {hasPublishedRoutes && (
+            <Button type="button" variant="outline" onClick={() => onOpenCreator?.(profile.id)}>
+              <UserRound /> 看我的作者主页
+            </Button>
+          )}
+        </div>
+        {legacyDeviceAccount && (
+          <label className="mt-4 flex items-start gap-2 rounded-tile bg-canvas p-3 text-sm text-ink-2">
+            <input
+              type="checkbox"
+              className="mt-1 size-4"
+              checked={Boolean(profile.profileAccessToken || profile.cloudRegistrationConsentAt)}
+              disabled={Boolean(profile.profileAccessToken) || syncBusy}
+              onChange={(event) =>
+                setProfile((previous) => ({ ...previous, cloudRegistrationConsentAt: event.target.checked ? new Date().toISOString() : '' }))
+              }
+            />
+            <span>同意将资料和旅行记录同步到云端，用于跨设备继续行程。未开启时仅保存在本机；已开启后可在下方注销并删除。</span>
+          </label>
+        )}
+        <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-ink-2 [&:not(:empty)]:mt-3">
+          {profileMessage}
+        </p>
+      </form>
     </div>
   );
 }

@@ -114,7 +114,6 @@ span {
 }
 
 button,
-select,
 input,
 textarea {
   font: inherit;
@@ -123,6 +122,22 @@ textarea {
   background: none;
   outline: none;
   min-width: 0;
+}
+
+select {
+  font: inherit;
+  color: inherit;
+  outline: none;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  white-space: nowrap;
+  padding-right: 2.25rem !important;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235c6370' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1rem 1rem;
 }
 
 button {

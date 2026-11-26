@@ -218,6 +218,10 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
   const failedImportUrls = useMemo(() => findFailedImportUrls(guide, importState.sources), [guide, importState.sources]);
 
   useEffect(() => {
+    window.scrollTo?.({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
+  useEffect(() => {
     if (step !== 0) return undefined;
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => {
@@ -875,7 +879,7 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         </div>
       </header>
 
-      {draftResolution === 'pending' && savedDraft && (
+      {draftResolution === 'pending' && savedDraft && step < 3 && !loading && (
         <Notice role="alert" className="mt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>发现一份未完成草稿（{formatDraftTime(savedDraft.updatedAt)}）。请选择继续草稿，或用本次入口的新内容开始，避免误覆盖。</span>

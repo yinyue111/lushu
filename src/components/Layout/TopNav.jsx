@@ -77,7 +77,10 @@ export default function TopNav({ view, onNavigate, modelHealth, hidden = false }
           <button
             type="button"
             onClick={() => onNavigate('my')}
-            className={cn('flex min-h-11 min-w-11 items-center justify-center gap-2.5 text-copy font-semibold', accountsEnabled && !account && 'hidden')}
+            className={cn(
+              'flex min-h-11 min-w-11 items-center justify-center gap-2.5 text-copy font-semibold',
+              (!accountReady || (accountsEnabled && !account)) && 'hidden'
+            )}
             aria-label={account ? `${name || accountLabel(account)}，我的账号` : '我的账号'}
           >
             <span className="grid size-9 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-lemon to-[#ff9a3c] text-copy font-extrabold text-ink shadow-card">

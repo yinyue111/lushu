@@ -328,7 +328,7 @@ function StopRow({
                       <Pencil /> 编辑信息
                     </MenuItem>
                     <MenuItem onSelect={() => handlers.replace?.(stop)}>
-                      <Replace /> 换一家店
+                      <Replace /> 换个地方
                     </MenuItem>
                     <MenuItem disabled={!canMoveUp} onSelect={() => handlers.moveStop(stop.id, -1)}>
                       <ArrowUp /> 上移

@@ -33,7 +33,11 @@ export default function LoginSheet({
   const description =
     view === 'codes'
       ? '忘了密码时，用其中一个就能重设。每个只能用一次。'
-      : reason || (view === 'forgot' ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。' : '随便逛不用登录。导入攻略、生成路书时需要账号。');
+      : view === 'forgot'
+        ? '用邮箱验证码，或注册时存下的恢复码，再设一个新密码。'
+        : view === 'register'
+          ? reason || '填邮箱设个密码就能生成路书、跨设备同步，不用邀请码。'
+          : reason || '随便逛不用登录。导入攻略、生成路书时需要账号。';
   const lockCodes = view === 'codes' && afterRegister && !codesUnlocked;
   return (
     <Sheet title={sheetTitle} description={description} onClose={onClose} preventDismiss={lockCodes} hideClose={lockCodes}>

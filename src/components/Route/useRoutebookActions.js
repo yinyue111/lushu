@@ -72,6 +72,7 @@ export function useRoutebookActions({
   const [variantState, setVariantState] = useState('');
   const [recheckState, setRecheckState] = useState({ busy: false, message: '' });
   const routebookSyncSequenceRef = useRef(0);
+  const cloudMutationQueueRef = useRef(Promise.resolve());
   // 本地是否有尚未同步到服务端的编辑（删除/拖拽/替换等只写 localStorage 的操作）。
   const localEditsDirtyRef = useRef(hasUnsyncedLocalEdits(routebook));
   const undoStackRef = useRef([]);
@@ -115,12 +116,13 @@ export function useRoutebookActions({
       extra.days ?? base.days
     );
     const normalizedStops = compacted.stops;
+    const preservedLegs = extra.routeLegs ?? preserveUnaffectedRouteLegs(base.stops ?? [], normalizedStops, base.routeLegs ?? []);
     const next = {
       ...base,
       ...extra,
       stops: normalizedStops,
       // F12: only legs touched by this edit lose their road verification.
-      routeLegs: preserveUnaffectedRouteLegs(base.stops ?? [], normalizedStops, base.routeLegs ?? []),
+      routeLegs: preservedLegs,
       days: compacted.days,
       trustScore: calculateLocalTrustScore(normalizedStops),
       trustMeta: {
@@ -132,8 +134,11 @@ export function useRoutebookActions({
         aiWeight: 1,
         feedbackWeight: 0
       },
-      metrics: buildEditedMetrics(normalizedStops, base.metrics),
-      validations: withDayNote(buildEditedValidations(normalizedStops, extra.validations ?? base.validations, extra.editReason), compacted.validation),
+      metrics: buildEditedMetrics(normalizedStops, base.metrics, preservedLegs),
+      validations: withDayNote(
+        buildEditedValidations(normalizedStops, extra.validations ?? base.validations, extra.editReason, preservedLegs),
+        compacted.validation
+      ),
       provider: {
         ...(base.provider ?? {}),
         editedAt: new Date().toISOString()
@@ -411,16 +416,64 @@ export function useRoutebookActions({
     setShareState('已更新首末日车次时间窗，并同步核对站点时间');
   }
 
+  function shiftDayStart(deltaMinutes = 60, targetDay = undefined) {
+    const dayList = targetDay
+      ? [targetDay]
+      : Array.isArray(routebook.days) && routebook.days.length
+        ? routebook.days
+        : [...new Set(stops.map((s) => s.day || 'Day 1'))];
+    let working = stops;
+    let changed = false;
+    for (const day of dayList) {
+      const firstStop = working.find((s) => (s.day || 'Day 1') === day);
+      if (!firstStop) continue;
+      const m = /^(\d{1,2}):(\d{2})/.exec(String(firstStop.time ?? '').trim());
+      const curMin = m ? Number(m[1]) * 60 + Number(m[2]) : 9 * 60 + 30;
+      const nextMin = Math.max(7 * 60, Math.min(14 * 60, curMin + deltaMinutes));
+      if (deltaMinutes >= 0) {
+        const shifted = shiftSubsequentDayTimes(working, day, firstStop.id, nextMin);
+        if (shifted.some((item, idx) => item !== working[idx])) {
+          working = shifted;
+          changed = true;
+        }
+      } else {
+        const diff = nextMin - curMin;
+        if (diff !== 0) {
+          working = working.map((s) => {
+            if ((s.day || 'Day 1') !== day) return s;
+            const shiftedTime = String(s.time ?? '').replace(/(\d{1,2}):(\d{2})/g, (_all, hh, mm) => {
+              const total = Math.max(6 * 60, Math.min(23 * 60 + 30, Number(hh) * 60 + Number(mm) + diff));
+              return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+            });
+            return shiftedTime !== s.time ? { ...s, time: shiftedTime } : s;
+          });
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return;
+    updateRoutebook(working, { editReason: deltaMinutes >= 0 ? '晚点出发' : '早点出发' });
+    setShareState(deltaMinutes >= 0 ? '已把出发与后续站点时间顺延，可随时撤销' : '已把出发时间提前，可随时撤销');
+  }
+
   function reorderByMode(mode) {
     const reordered = reorderStopsByMode(stops, mode, {
       preferredDays: routebook.days,
       constraints: routebook.constraints,
       city: routebook.city
     });
-    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, routebook.days), {
-      constraints: routebook.constraints,
-      allDays: routebook.days
+    const days = orderedDays(reordered, routebook.days);
+    const changedDays = days.filter((day) => {
+      const beforeIds = stops.filter((s) => (s.day || 'Day 1') === day).map((s) => stopKey(s.id));
+      const afterIds = reordered.filter((s) => (s.day || 'Day 1') === day).map((s) => stopKey(s.id));
+      return beforeIds.length !== afterIds.length || beforeIds.some((id, idx) => id !== afterIds[idx]);
     });
+    const nextStops = changedDays.length
+      ? retimeReorderedDays(reordered, changedDays, {
+          constraints: routebook.constraints,
+          allDays: routebook.days
+        })
+      : reordered;
     updateRoutebook(nextStops, {
       editReason: `${mode}重排`,
       validations: [
@@ -428,7 +481,9 @@ export function useRoutebookActions({
           id: `mode-${Date.now()}`,
           label: `${mode}重排`,
           state: '已应用',
-          detail: `已按${mode}偏好重排（保留正餐时段与首末日车站衔接），仍需出发前复核营业时间和交通。`
+          detail: changedDays.length
+            ? `已按${mode}偏好重排（保留正餐时段与首末日车站衔接），仍需出发前复核营业时间和交通。`
+            : `当前顺序已符合${mode}偏好（保留既有站点时间与已查车程）。`
         },
         ...(routebook.validations ?? []).slice(0, 5)
       ]
@@ -436,91 +491,138 @@ export function useRoutebookActions({
     return nextStops;
   }
 
+  /**
+   * @template T
+   * @param {() => Promise<T>} fn
+   * @returns {Promise<T>}
+   */
+  function enqueueCloudMutation(fn) {
+    const task = cloudMutationQueueRef.current.catch(() => {}).then(fn);
+    cloudMutationQueueRef.current = task.then(
+      () => undefined,
+      () => undefined
+    );
+    return task;
+  }
+
   async function createVariantByMode(mode, presetStops = null) {
+    const enqueuedSeq = routebookSyncSequenceRef.current;
     setVariantState('正在保存变体…');
-    // 本地有未同步编辑时先提交当前 stops，避免服务端在旧内容上叠加变体。
-    // 直接检查保存的结构化返回：非 'saved' 一律中止云端变体（本地重排已生效）。
-    if (localEditsDirtyRef.current) {
-      const saveResult = await saveCurrentRoutebook();
-      if (saveResult?.status !== 'saved') {
-        const reason =
-          saveResult?.status === 'conflict'
-            ? '云端版本冲突，待提交内容已按保存提示保留'
-            : saveResult?.status === 'stale'
-              ? '保存响应已过期（页面已有后续操作）'
-              : '改动还没同步到云端';
-        setVariantState(`${mode}版已在本机重排生效；${reason}，同步成功后可再试云端变体`);
-        return;
+    return enqueueCloudMutation(async () => {
+      // 若排队期间用户又点了另一个重排模式，跳过中间过期变体请求，只提交最后一次。
+      if (routebookSyncSequenceRef.current > enqueuedSeq) return;
+      if (localEditsDirtyRef.current) {
+        const saveResult = await saveCurrentRoutebookInternal();
+        if (saveResult?.status !== 'saved') {
+          const reason =
+            saveResult?.status === 'conflict'
+              ? '云端版本冲突，待提交内容已按保存提示保留'
+              : saveResult?.status === 'stale'
+                ? '保存响应已过期（页面已有后续操作）'
+                : '改动还没同步到云端';
+          setVariantState(`${mode}版已在本机重排生效；${reason}，同步成功后可再试云端变体`);
+          return;
+        }
       }
-    }
-    const base = latestRoutebookRef.current;
-    const operationSequence = ++routebookSyncSequenceRef.current;
-    const reordered =
-      Array.isArray(presetStops) && presetStops.length
-        ? presetStops
-        : reorderStopsByMode(base.stops ?? [], mode, {
-            preferredDays: base.days,
-            constraints: base.constraints,
-            city: base.city
-          });
-    const nextStops = retimeReorderedDays(reordered, orderedDays(reordered, base.days), {
-      constraints: base.constraints,
-      allDays: base.days
-    });
-    const variant = {
-      id: `${modeSlug(mode)}-${Date.now()}`,
-      mode,
-      label: `${mode}版`,
-      summary: variantSummary(mode),
-      stops: nextStops,
-      metrics: buildEditedMetrics(nextStops, base.metrics),
-      validations: buildEditedValidations(nextStops, base.validations, `${mode}变体`),
-      createdAt: new Date().toISOString()
-    };
-    const localNext = {
-      ...base,
-      variants: [variant, ...(base.variants ?? []).filter((item) => item.mode !== mode)].slice(0, 8),
-      activeVariantId: variant.id
-    };
-    try {
-      const routeId = base.publicId || base.id;
-      if (!routeId) throw new Error('当前路书还没有 publicId，请先保存路书');
-      const expectedVersion = currentRoutebookVersion(base);
-      const data = await saveRoutebookVariant(routeId, {
-        variant,
-        editToken: base.editToken,
-        ...profileRoutebookFields(profile),
-        ...(expectedVersion != null ? { expectedVersion } : {})
+      const base = latestRoutebookRef.current;
+      const operationSequence = ++routebookSyncSequenceRef.current;
+      const reordered =
+        Array.isArray(presetStops) && presetStops.length
+          ? presetStops
+          : reorderStopsByMode(base.stops ?? [], mode, {
+              preferredDays: base.days,
+              constraints: base.constraints,
+              city: base.city
+            });
+      const days = orderedDays(reordered, base.days);
+      const changedDays = days.filter((day) => {
+        const beforeIds = (base.stops ?? []).filter((s) => (s.day || 'Day 1') === day).map((s) => stopKey(s.id));
+        const afterIds = reordered.filter((s) => (s.day || 'Day 1') === day).map((s) => stopKey(s.id));
+        return beforeIds.length !== afterIds.length || beforeIds.some((id, idx) => id !== afterIds[idx]);
       });
-      if (routebookSyncSequenceRef.current !== operationSequence) {
-        // 丢弃整份响应，但把单调版本标量合入最新引用，避免后续保存必 409。
-        adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
-        setVariantState(`${data.variant.label}已存到云端；你后来的改动没有被覆盖。`);
-        return;
+      const nextStops = changedDays.length
+        ? retimeReorderedDays(reordered, changedDays, {
+            constraints: base.constraints,
+            allDays: base.days
+          })
+        : reordered;
+      const preservedLegs = preserveUnaffectedRouteLegs(base.stops ?? [], nextStops, base.routeLegs ?? []);
+      const variant = {
+        id: `${modeSlug(mode)}-${Date.now()}`,
+        mode,
+        label: `${mode}版`,
+        summary: variantSummary(mode),
+        stops: nextStops,
+        metrics: buildEditedMetrics(nextStops, base.metrics, preservedLegs),
+        validations: buildEditedValidations(nextStops, base.validations, `${mode}变体`, preservedLegs),
+        createdAt: new Date().toISOString()
+      };
+      const localNext = {
+        ...base,
+        variants: [variant, ...(base.variants ?? []).filter((item) => item.mode !== mode)].slice(0, 8),
+        activeVariantId: variant.id
+      };
+      try {
+        const routeId = base.publicId || base.id;
+        if (!routeId) throw new Error('当前路书还没有 publicId，请先保存路书');
+        const expectedVersion = currentRoutebookVersion(base);
+        const data = await saveRoutebookVariant(routeId, {
+          variant,
+          editToken: base.editToken,
+          ...profileRoutebookFields(profile),
+          ...(expectedVersion != null ? { expectedVersion } : {})
+        });
+        if (routebookSyncSequenceRef.current !== operationSequence) {
+          adoptNewerServerVersionScalars(latestRoutebookRef.current, data.routebook);
+          setVariantState(`${data.variant.label}已存到云端；你后来的改动没有被覆盖。`);
+          return;
+        }
+        const merged = mergeServerDerivedRoutebookFields(latestRoutebookRef.current, data.routebook);
+        latestRoutebookRef.current = merged;
+        setRoutebook(merged);
+        const localSaved = saveRoutebook(merged);
+        onSaved?.(merged);
+        setVariantState(localSaved ? `已保存 ${data.variant.label}` : '已存到云端，但这台设备没存上');
+      } catch (error) {
+        if (error?.status === 409) {
+          // 同一账号连续快速操作引发版本号滞后时，先拉一次最新版本号静默重试一次，避免误生「冲突副本」。
+          const routeId = base.publicId || base.id;
+          const refreshedRemote = routeId ? await getRoutebookRemote(routeId).catch(() => null) : null;
+          const remoteRb = refreshedRemote?.routebook;
+          const nextVer = currentRoutebookVersion(remoteRb);
+          if (remoteRb && nextVer != null && (remoteRb.profileId === profile.id || remoteRb.ownerAccessVerified)) {
+            try {
+              const retried = await saveRoutebookVariant(routeId, {
+                variant,
+                editToken: remoteRb.editToken || base.editToken,
+                ...profileRoutebookFields(profile),
+                expectedVersion: nextVer
+              });
+              const merged = mergeServerDerivedRoutebookFields(latestRoutebookRef.current, retried.routebook);
+              latestRoutebookRef.current = merged;
+              setRoutebook(merged);
+              saveRoutebook(merged);
+              onSaved?.(merged);
+              setVariantState(`已保存 ${retried.variant.label}`);
+              return;
+            } catch {
+              // 重试仍冲突才走冲突副本保护
+            }
+          }
+          setVariantState(await refreshAfterVersionConflict(error, `${variant.label}未保存`, localNext, operationSequence));
+          return;
+        }
+        if (routebookSyncSequenceRef.current !== operationSequence) return;
+        latestRoutebookRef.current = localNext;
+        localEditsDirtyRef.current = true;
+        setRoutebook(localNext);
+        const localSaved = saveRoutebook(localNext);
+        if (localSaved) onSaved?.(localNext);
+        setVariantState(
+          localSaved ? `${variant.label}只存在这台设备上，云端同步失败：${error.message}` : `${variant.label}没存上（这台设备和云端都失败）：${error.message}`
+        );
       }
-      // 只合并服务端派生字段（variants/version/trustMeta 等），保留本地 stops/days/validations/metrics，
-      // 避免服务端返回的旧 stops 覆盖用户本地未保存的编辑。
-      const merged = mergeServerDerivedRoutebookFields(latestRoutebookRef.current, data.routebook);
-      latestRoutebookRef.current = merged;
-      setRoutebook(merged);
-      const localSaved = saveRoutebook(merged);
-      onSaved?.(merged);
-      setVariantState(localSaved ? `已保存 ${data.variant.label}` : '已存到云端，但这台设备没存上');
-    } catch (error) {
-      if (error?.status === 409) {
-        setVariantState(await refreshAfterVersionConflict(error, `${variant.label}未保存`, localNext, operationSequence));
-        return;
-      }
-      if (routebookSyncSequenceRef.current !== operationSequence) return;
-      latestRoutebookRef.current = localNext;
-      localEditsDirtyRef.current = true;
-      setRoutebook(localNext);
-      const localSaved = saveRoutebook(localNext);
-      if (localSaved) onSaved?.(localNext);
-      setVariantState(
-        localSaved ? `${variant.label}只存在这台设备上，云端同步失败：${error.message}` : `${variant.label}没存上（这台设备和云端都失败）：${error.message}`
-      );
-    }
+    });
   }
 
   function applyVariant(variant) {
@@ -537,16 +639,43 @@ export function useRoutebookActions({
     setVariantState(`已应用 ${variant.label}`);
   }
 
+  function saveCurrentRoutebook() {
+    return enqueueCloudMutation(() => saveCurrentRoutebookInternal());
+  }
+
   // 返回结构化结果 { status: 'saved'|'conflict'|'stale'|'error', routebook }，
   // 供 createVariantByMode 等后续动作按真实保存结果决定是否继续。
-  async function saveCurrentRoutebook() {
+  async function saveCurrentRoutebookInternal() {
     const operationSequence = ++routebookSyncSequenceRef.current;
     // 用最新引用而非渲染闭包，保证同一事件里“先本地重排、再保存”能提交刚更新的 stops。
     const current = latestRoutebookRef.current;
     setSaving(true);
     setShareState('');
     try {
-      const data = await saveRoutebookRemote({ ...current, ...profileRoutebookFields(profile) });
+      let data;
+      try {
+        data = await saveRoutebookRemote({ ...current, ...profileRoutebookFields(profile) });
+      } catch (firstError) {
+        const routeId = current?.publicId || current?.id;
+        if (firstError?.status === 409 && routeId) {
+          const remoteRes = await getRoutebookRemote(routeId).catch(() => null);
+          const remoteRb = remoteRes?.routebook;
+          const remoteVer = currentRoutebookVersion(remoteRb);
+          if (remoteRb && remoteVer != null && (remoteRb.profileId === profile.id || remoteRb.ownerAccessVerified)) {
+            data = await saveRoutebookRemote({
+              ...latestRoutebookRef.current,
+              ...profileRoutebookFields(profile),
+              editToken: remoteRb.editToken || current.editToken,
+              version: remoteVer,
+              expectedVersion: remoteVer
+            });
+          } else {
+            throw firstError;
+          }
+        } else {
+          throw firstError;
+        }
+      }
       // 保留本地所有权与凭证：未注册用户被服务端匿名化时，本机存档不被洗掉所有权。
       const next = {
         ...data.routebook,
@@ -1053,6 +1182,7 @@ export function useRoutebookActions({
     updateTransitWindow,
     swapWholeDays,
     shiftDayTimesFrom,
+    shiftDayStart,
     moveStop,
     moveStopBefore,
     moveStopToDayEnd,

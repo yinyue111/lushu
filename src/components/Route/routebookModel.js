@@ -179,17 +179,38 @@ export function stopKey(value) {
   return String(value ?? '').trim();
 }
 
-export function buildEditedMetrics(stops, existingMetrics = []) {
+function allAdjacentLegsVerified(stops, routeLegs = []) {
+  if (!Array.isArray(stops) || stops.length < 2) return true;
+  const verifiedPairs = new Set(
+    (Array.isArray(routeLegs) ? routeLegs : [])
+      .filter((leg) => leg?.status === 'verified')
+      .map((leg) => `${String(leg.fromStopId)}\u0000${String(leg.toStopId)}`)
+  );
+  let sameDayPairs = 0;
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if ((a?.day || 'Day 1') !== (b?.day || 'Day 1')) continue;
+    sameDayPairs += 1;
+    if (!verifiedPairs.has(`${String(a.id)}\u0000${String(b.id)}`)) return false;
+  }
+  return sameDayPairs > 0;
+}
+
+export function buildEditedMetrics(stops, existingMetrics = [], routeLegs = []) {
   const evidence = routeEvidenceScore(stops);
   const lowGeo = stops.filter((stop) => coordinateVerificationLevel(stop) !== 'verified').length;
   const budget = sumStopCosts(stops);
+  const legsIntact = allAdjacentLegsVerified(stops, routeLegs);
+  const totalMeters = legsIntact ? (routeLegs ?? []).reduce((sum, leg) => sum + (Number(leg?.distanceMeters) || 0), 0) : 0;
+  const totalSeconds = legsIntact ? (routeLegs ?? []).reduce((sum, leg) => sum + (Number(leg?.durationSeconds) || 0), 0) : 0;
   const budgetText = !budget.knownCount
     ? '待补充'
     : `约 ${budget.min === budget.max ? budget.min : `${budget.min}–${budget.max}`} 元${budget.unknownCount ? `（另有 ${budget.unknownCount} 处待补充）` : ''}`;
   const calculated = [
-    { label: '路线已查', value: '改动的路段还没重新查' },
-    { label: '道路距离', value: '路线还没查' },
-    { label: '道路耗时', value: '路线还没查' },
+    { label: '路线已查', value: legsIntact ? '全部已核对' : '改动的路段还没重新查' },
+    { label: '道路距离', value: legsIntact && totalMeters > 0 ? `约 ${(totalMeters / 1000).toFixed(1)} km` : '路线还没查' },
+    { label: '道路耗时', value: legsIntact && totalSeconds > 0 ? `约 ${Math.max(1, Math.round(totalSeconds / 60))} 分钟` : '路线还没查' },
     { label: '资料核对分', value: evidence.score == null ? '—' : `${evidence.score}` },
     { label: '定位待复核', value: lowGeo ? `${lowGeo} 处` : '0 处' },
     { label: '预算估算', value: budgetText }
@@ -197,7 +218,7 @@ export function buildEditedMetrics(stops, existingMetrics = []) {
   return [...calculated, ...(existingMetrics ?? []).filter((item) => !calculated.some((next) => next.label === item.label))].slice(0, 6);
 }
 
-export function buildEditedValidations(stops, existingValidations = [], reason = '编辑') {
+export function buildEditedValidations(stops, existingValidations = [], reason = '编辑', routeLegs = []) {
   const dayCounts = stops.reduce((acc, stop) => {
     const day = stop.day || 'Day 1';
     acc[day] = (acc[day] ?? 0) + 1;
@@ -206,13 +227,18 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
   const dense = Object.entries(dayCounts).find(([, count]) => count > 6);
   const lowGeo = stops.filter((stop) => Number(stop.geoConfidence ?? 0) < 60).length;
   const longestLeg = longestRouteLeg(stops);
+  const legsIntact = allAdjacentLegsVerified(stops, routeLegs);
   const calculated = [
     { id: 'client-edit-route', label: `${reason || '编辑'}后动线`, state: '已更新', detail: '已重新计算站点顺序、天数分组和地图连线。' },
     {
       id: 'client-edit-density',
       label: '节奏密度',
-      state: dense ? '偏紧' : '路线还没查',
-      detail: dense ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。` : '站点密度正常；道路耗时已失效，需重新核对后判断可达性。'
+      state: dense ? '偏紧' : legsIntact ? '适中' : '路线还没查',
+      detail: dense
+        ? `${dense[0]} 有 ${dense[1]} 站，建议继续删减或拆天。`
+        : legsIntact
+          ? '各天站点密度与已测算的站间车程衔接正常。'
+          : '站点密度正常；改动路段的车程待重新核对。'
     },
     {
       id: 'client-edit-geo',
@@ -223,15 +249,23 @@ export function buildEditedValidations(stops, existingValidations = [], reason =
     {
       id: 'client-edit-leg',
       label: '转场距离',
-      state: '路线还没查',
-      detail: longestLeg ? `最长相邻直线约 ${(longestLeg / 1000).toFixed(1)} km，不代表真实道路距离或耗时。` : '站点距离信息不足，建议补充坐标。'
+      state: legsIntact ? '已查路线' : '路线还没查',
+      detail: legsIntact
+        ? '相邻同日站点的真实交通距离与耗时均已保留。'
+        : longestLeg
+          ? `最长相邻直线约 ${(longestLeg / 1000).toFixed(1)} km，不代表真实道路距离或耗时。`
+          : '站点距离信息不足，建议补充坐标。'
     },
-    {
-      id: 'client-edit-ai-stale',
-      label: '核对状态',
-      state: '需复核',
-      detail: '路线改过了，之前的核对只作参考；分享前建议重新保存，并按实际日期复核开放时间。'
-    }
+    ...(legsIntact
+      ? []
+      : [
+          {
+            id: 'client-edit-ai-stale',
+            label: '核对状态',
+            state: '需复核',
+            detail: '路线改过了，之前的核对只作参考；分享前建议重新保存，并按实际日期复核开放时间。'
+          }
+        ])
   ];
   const staleIds = new Set(['hours', 'walk', 'budget', 'crowd', 'edit-routing', 'edit-tempo', 'edit-detour']);
   return [...calculated, ...(existingValidations ?? []).filter((item) => !calculated.some((next) => next.id === item.id) && !staleIds.has(item.id))].slice(

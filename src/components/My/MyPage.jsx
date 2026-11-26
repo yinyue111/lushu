@@ -1,6 +1,6 @@
 import { NETWORK_ERROR_TEXT } from '../../lib/networkCopy.js';
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Camera, Copy, ExternalLink, Heart, MapPin, Navigation, Plus, Route, Ticket, Trash2, UserRound } from 'lucide-react';
+import { Camera, Copy, ExternalLink, Heart, MapPin, Navigation, Plus, Route, Trash2, UserRound } from 'lucide-react';
 import { Tabs } from 'radix-ui';
 import { ACCOUNT_DETACHED_EVENT } from '../../lib/account';
 import { LOCAL_ROUTEBOOKS_CHANGED_EVENT } from '../../lib/routebookTombstones';
@@ -209,7 +209,7 @@ export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook,
   // 避免本地行还没回写服务端 id 时本地 + 服务端双倍计数。
   const checkins = mergeRows(localCheckins, serverData.checkins, (item) =>
     String(item.clientLocalId || item.id || `${item.routeTitle ?? ''}:${item.stopId ?? item.stopName ?? ''}:${item.time ?? item.createdAt ?? ''}`)
-  );
+  ).filter((item) => !(item?.status === 'skipped' || item?.worth === '跳过' || item?.clientAction?.type === 'skip'));
   // 点击优先用 productId + 分钟级时间复合键（服务端行也能匹配到未回写 id 的本地行），拼不出复合键再退服务端 id。
   const clicks = mergeRows(localClicks, serverData.clicks, (item) => {
     const productKey = String(item.productId ?? item.productTitle ?? item.title ?? '').trim();
@@ -977,7 +977,7 @@ export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook,
           </section>
         </Tabs.Content>
 
-        <Tabs.Content value="checkins" className="mt-5 grid gap-6 lg:grid-cols-2">
+        <Tabs.Content value="checkins" className={cn('mt-5 grid gap-6', clicks.length > 0 && 'lg:grid-cols-2')}>
           <section aria-labelledby="my-checkins">
             <h2 id="my-checkins" className="mb-3 text-lg font-extrabold">
               我的打卡 <span className="num text-muted">{checkins.length}</span>
@@ -985,20 +985,26 @@ export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook,
             {checkins.length ? (
               <>
                 <ul className="grid gap-2.5">
-                  {visibleRows('checkins', checkins, 12).map((item, index) => (
-                    <li key={`${item.id ?? item.stopName}-${index}`} className="flex gap-3 rounded-card border border-line bg-white p-3.5">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-success-ink">
-                        <MapPin className="size-4" aria-hidden="true" />
-                      </span>
-                      <span className="min-w-0">
-                        <strong className="text-sm font-bold">{item.stopName || '未命名地点'}</strong>
-                        <span className="block text-xs text-muted">
-                          {[item.city || '城市待补充', item.worth || '体验未填', item.queue ? `排队 ${item.queue}` : ''].filter(Boolean).join(' · ')}
+                  {visibleRows('checkins', checkins, 12).map((item, index) => {
+                    const formattedQueue = item.queue ? (/^\d+$/.test(String(item.queue).trim()) ? `${String(item.queue).trim()} 分钟` : item.queue) : '';
+                    const formattedCost = item.cost ? (/^\d+(?:\.\d+)?$/.test(String(item.cost).trim()) ? `${String(item.cost).trim()} 元` : item.cost) : '';
+                    return (
+                      <li key={`${item.id ?? item.stopName}-${index}`} className="flex gap-3 rounded-card border border-line bg-white p-3.5">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-success-ink">
+                          <MapPin className="size-4" aria-hidden="true" />
                         </span>
-                        {(item.comment || item.pitfall) && <span className="mt-1 block text-sm text-ink-2">{item.comment || item.pitfall}</span>}
-                      </span>
-                    </li>
-                  ))}
+                        <span className="min-w-0">
+                          <strong className="text-sm font-bold">{item.stopName || '未命名地点'}</strong>
+                          <span className="block text-xs text-muted">
+                            {[item.city || '城市待补充', item.worth || '已打卡', formattedQueue ? `排队 ${formattedQueue}` : '', formattedCost]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                          {(item.comment || item.pitfall) && <span className="mt-1 block text-sm text-ink-2">{item.comment || item.pitfall}</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <ShowAllToggle
                   total={checkins.length}
@@ -1011,31 +1017,27 @@ export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook,
               <Empty icon={Camera} text="出行时在路书里点“我到了”，GPS 和体验反馈会记在这里。" />
             )}
           </section>
-          <section aria-labelledby="my-clicks">
-            <h2 id="my-clicks" className="mb-3 text-lg font-extrabold">
-              最近看过的门票/商品 <span className="num text-muted">{clicks.length}</span>
-            </h2>
-            {clicks.length ? (
-              <>
-                <ul className="grid gap-2.5">
-                  {visibleRows('clicks', clicks, 12).map((item, index) => (
-                    <li key={`${item.productTitle ?? item.title}-${index}`} className="flex items-start gap-3 rounded-card border border-line bg-white p-3.5">
-                      <span className="shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{item.type || '商品'}</span>
-                      <span className="min-w-0">
-                        <strong className="text-sm font-bold">{item.productTitle || item.title || '未命名商品'}</strong>
-                        <span className="block text-xs text-muted">
-                          {item.poi || '关联地点待补充'} · {item.provider || '本地记录'}
-                        </span>
+          {clicks.length > 0 && (
+            <section aria-labelledby="my-clicks">
+              <h2 id="my-clicks" className="mb-3 text-lg font-extrabold">
+                最近看过的门票/商品 <span className="num text-muted">{clicks.length}</span>
+              </h2>
+              <ul className="grid gap-2.5">
+                {visibleRows('clicks', clicks, 12).map((item, index) => (
+                  <li key={`${item.productTitle ?? item.title}-${index}`} className="flex items-start gap-3 rounded-card border border-line bg-white p-3.5">
+                    <span className="shrink-0 rounded-full bg-sky-soft px-2 py-0.5 text-xs font-bold text-sky-ink">{item.type || '商品'}</span>
+                    <span className="min-w-0">
+                      <strong className="text-sm font-bold">{item.productTitle || item.title || '未命名商品'}</strong>
+                      <span className="block text-xs text-muted">
+                        {item.poi || '关联地点待补充'} · {item.provider || '本地记录'}
                       </span>
-                    </li>
-                  ))}
-                </ul>
-                <ShowAllToggle total={clicks.length} collapsedCount={12} expanded={expandedSections.has('clicks')} onToggle={() => toggleExpanded('clicks')} />
-              </>
-            ) : (
-              <Empty icon={Ticket} text="在路书里点过的门票或商品会记在这里。" />
-            )}
-          </section>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <ShowAllToggle total={clicks.length} collapsedCount={12} expanded={expandedSections.has('clicks')} onToggle={() => toggleExpanded('clicks')} />
+            </section>
+          )}
         </Tabs.Content>
 
         <Tabs.Content value="account" className="mt-5">

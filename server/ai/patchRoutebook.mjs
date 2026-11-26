@@ -119,7 +119,7 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
         `用户要求：${instruction}`,
         ...(constraintLines.length ? ['既有硬约束（必须继续遵守）：', ...constraintLines.map((l) => `- ${l}`)] : []),
         '输出格式：{"summary":"一句话说明本次改了什么","stops":[{"day":"Day 1","name":"","time":"HH:MM","stay":"60 分钟","cost":"","area":"","verify":"","risk":""}]}',
-        '约束：保留用户未要求删改的站点，允许按要求跨天挪站、增删站点或重排时间；不要编造未给出的票价/电话/精确地址，不确定写「待确认」。总站点数 2–16。',
+        '约束：保留用户未要求删改的站点，允许按要求跨天挪站、增删站点或重排时间；新增任何餐厅、咖啡馆、茶馆或景点时，必须填写该城市该片区真实存在的具体店名或地标名称（严禁写「安静咖啡馆」「附近餐厅」「某某店（店名待确认）」等泛指占位名）；不要编造未给出的票价/电话/精确地址，不确定写「待确认」。总站点数 2–16。',
         '当前全部站点：',
         JSON.stringify(allStops.map((s) => ({ day: s.day || 'Day 1', name: s.name, time: s.time, stay: s.stay, cost: s.cost, area: s.area }))),
         ...(poiCandidates.length ? [`可选已核对地点参考：${poiCandidates.slice(0, 20).join('；')}`] : [])
@@ -131,7 +131,7 @@ export async function proposeDayPatch(routebook, scope, opts = {}) {
         `要求：${instruction}`,
         ...(constraintLines.length ? ['既有硬约束（必须继续遵守）：', ...constraintLines.map((l) => `- ${l}`)] : []),
         '输出格式：{"summary":"一句话说明改了什么","stops":[{"name":"","time":"HH:MM","stay":"60 分钟","cost":"","area":"","verify":"","risk":""}]}',
-        '约束：不要编造未给出的票价/电话/精确地址；不确定写「待确认」。站点数建议 2–6。',
+        '约束：新增任何餐厅、咖啡馆、茶馆或景点时，必须填写该城市该片区真实存在的具体店名或地标名称（严禁写「安静咖啡馆」「附近餐厅」「某某店（店名待确认）」等泛指占位名）；不要编造未给出的票价/电话/精确地址，不确定写「待确认」。站点数建议 2–6。',
         '当前这一天的站：',
         JSON.stringify(scoped.map((s) => ({ name: s.name, time: s.time, stay: s.stay, cost: s.cost, area: s.area }))),
         '路书里其他天保留不动：',

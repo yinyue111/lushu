@@ -38,7 +38,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
   const rawMetrics = maskTrustMetrics(routebook.metrics, trustState.tone, 4).filter((m) => !/^(平均修改|复制转化)$/.test(String(m?.label ?? '').trim()));
   const visibleMetrics = rawMetrics.some((m) => !/^(待确认|待核对|待复核|暂无|—|-|)$/.test(String(m?.value ?? '').trim())) ? rawMetrics : [];
   const shareableValidations = (routebook.validations ?? [])
-    .filter((v) => v?.label && v?.state && !/还没查|时间冲突|未核对|待复核/.test(String(v.state)))
+    .filter((v) => v?.label && v?.state && !/还没查|时间冲突|未核对|待复核|无预算约束|未设置/.test(String(v.state)))
     .slice(0, 3);
   const requestSequenceRef = useRef(0);
   const latestRoutebookRef = useRef(routebook);
@@ -481,7 +481,7 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
           )}
         </div>
 
-        <div className="sticky -bottom-6 z-10 -mx-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-bottom-5 max-md:-mx-5 max-md:px-5">
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-4 border-t border-line bg-white/95 px-6 py-3 backdrop-blur max-md:-mx-5 max-md:-mb-5 max-md:px-5">
           <div className="flex flex-wrap gap-2">
             {/* V-U19: most people just want to send it to a friend; 申请公开 is the secondary path. */}
             {shareUrl ? (
@@ -524,9 +524,14 @@ export default function SharePreview({ routebook, onClose, onShared, onConflictD
             >
               <Share2 /> <span className="max-md:sr-only">系统分享</span>
             </Button>
-            {shareUrl && (
-              <a className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft" href={shareUrl}>
-                <ExternalLink className="size-[18px]" aria-hidden="true" /> 打开公开页
+            {(shareUrl || friendUrl) && (
+              <a
+                className="inline-flex h-11 items-center gap-2 rounded-chip px-4 text-copy font-bold text-sky-ink hover:bg-sky-soft"
+                href={shareUrl || friendUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="size-[18px]" aria-hidden="true" /> {shareUrl ? '打开公开页' : '预览朋友页'}
               </a>
             )}
           </div>

@@ -890,7 +890,11 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
               <span className="shrink-0 whitespace-nowrap text-meta text-muted">{nearbyItems.length} 个</span>
             </summary>
             <div className="flex flex-wrap gap-2 border-t border-line p-3" aria-label="附近地点筛选">
-              {NEARBY_FILTERS.map((filter) => (
+              {NEARBY_FILTERS.filter((filter) => {
+                if (filter.value === 'toilet') return nearbyItems.some((item) => item.kind === 'facility' && item.facilityType === 'toilet');
+                if (filter.value === 'rest') return nearbyItems.some((item) => item.kind === 'facility' && item.facilityType === 'rest');
+                return true;
+              }).map((filter) => (
                 <Button
                   key={filter.value}
                   size="sm"
