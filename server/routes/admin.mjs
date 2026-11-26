@@ -326,7 +326,11 @@ export const adminRoutes = [
   r('POST', '/api/admin/admins', async ({ req, res }) => {
     const admin = await guard(req, 'admins.manage', { write: true });
     const body = await readJsonBody(req);
-    const { admin: created, initialPassword } = await createAdminAccount({ username: body.username, role: body.role });
+    const { admin: created, initialPassword } = await createAdminAccount({
+      username: body.username,
+      role: body.role,
+      password: typeof body.password === 'string' ? body.password : ''
+    });
     await adminAudit(req, { admin, action: 'admin.create', target: `admin:${created.username}`, after: { role: created.role } });
     return sendJson(res, 200, { ok: true, admin: adminView(created), initialPassword });
   }),

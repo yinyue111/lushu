@@ -1,7 +1,7 @@
 import { NETWORK_ERROR_KEPT_TEXT } from './networkCopy.js';
 // Plain-language copy for account errors. Server messages are already user-facing; these cover
 // network failures and keep wording consistent.
-export const PASSWORD_HINT = '至少 8 位，别用生日或手机号';
+export const PASSWORD_HINT = '大于 6 位，别用生日或手机号';
 
 /** Loose client-side check; the server normalizes and decides. */
 export function isEmail(value) {

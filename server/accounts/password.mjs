@@ -4,7 +4,7 @@ import { scrypt as scryptCallback, randomBytes, timingSafeEqual, createHmac } fr
 import { AUTH_PASSWORD_PEPPER, AUTH_SCRYPT_CONCURRENCY } from '../config/index.mjs';
 import { createHttpError } from '../lib/util.mjs';
 
-export const PASSWORD_MIN = 8;
+export const PASSWORD_MIN = 7;
 export const PASSWORD_MAX = 72;
 const CURRENT = { version: 'v1', logN: 15, r: 8, p: 1, keyLength: 64 };
 const MAXMEM = 96 * 1024 * 1024;

@@ -255,3 +255,12 @@ test('corrections: report → queue with sources; reset / verify (source require
   assert.equal(audits[1].detail.before.value, '80 元');
   assert.equal(audits[1].detail.after.value, '淡季 70 元');
 });
+
+test('createAdminAccount accepts email usernames and >6-char passwords while rejecting <=6-char passwords', async () => {
+  const { createAdminAccount } = await import('../../server/admin/auth.mjs');
+  const created = await createAdminAccount({ username: 'Owner.Admin@Example.com', role: 'admin', password: 'abc1234' });
+  assert.equal(created.admin.username, 'owner.admin@example.com');
+  assert.equal(created.admin.role, 'admin');
+  await assert.rejects(createAdminAccount({ username: 'shortpw@example.com', role: 'admin', password: '123456' }), { code: 'ADMIN_PASSWORD_WEAK' });
+  await assert.rejects(createAdminAccount({ username: 'bad user@', role: 'admin', password: 'abc1234' }), { code: 'ADMIN_USERNAME_INVALID' });
+});

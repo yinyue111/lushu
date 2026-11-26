@@ -19,6 +19,8 @@ const sha = (value) => createHash('sha256').update(String(value)).digest('hex');
 const hashSid = (sid) => sha(`admin-sid:v1:${sid}`);
 const hashBackup = (code) => createHmac('sha256', `${PROFILE_ID_SECRET}:admin-backup`).update(normalizeRecoveryCode(code)).digest('hex');
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+const ADMIN_EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+const ADMIN_PASSWORD_MIN = Math.max(PASSWORD_MIN, 7);
 
 export function clientIp(req) {
   return String(req?.socket?.remoteAddress ?? '').slice(0, 64);
@@ -68,10 +70,11 @@ export async function createAdminAccount({ username, role, password = '' }) {
   const name = String(username ?? '')
     .trim()
     .toLowerCase();
-  if (!USERNAME_RE.test(name)) throw createHttpError('用户名 3–32 位：小写字母、数字、. _ -', 400, 'ADMIN_USERNAME_INVALID');
+  const isValidUsername = USERNAME_RE.test(name) || (name.length <= 128 && ADMIN_EMAIL_RE.test(name));
+  if (!isValidUsername) throw createHttpError('用户名需为 3–32 位（小写字母、数字、. _ -）或有效邮箱', 400, 'ADMIN_USERNAME_INVALID');
   if (!ADMIN_ROLES.includes(role)) throw createHttpError('角色只能是 operator 或 admin', 400, 'ADMIN_ROLE_INVALID');
   const initialPassword = password || randomBytes(12).toString('base64url');
-  if (initialPassword.length < Math.max(PASSWORD_MIN, 12)) throw createHttpError('后台密码至少 12 位', 400, 'ADMIN_PASSWORD_WEAK');
+  if (initialPassword.length < ADMIN_PASSWORD_MIN) throw createHttpError('后台密码需大于 6 位', 400, 'ADMIN_PASSWORD_WEAK');
   const admin = await adminStore().createAdmin({
     id: `adm_${cryptoRandomId()}`,
     username: name,

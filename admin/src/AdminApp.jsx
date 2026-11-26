@@ -197,7 +197,17 @@ function LoginScreen({ ready, onSignedIn }) {
               ) : (
                 <>
                   <Field label="用户名">
-                    {(id) => <input id={id} className={inputClass} autoComplete="username" value={form.username} onChange={set('username')} required />}
+                    {(id) => (
+                      <input
+                        id={id}
+                        className={inputClass}
+                        placeholder="用户名或邮箱"
+                        autoComplete="username"
+                        value={form.username}
+                        onChange={set('username')}
+                        required
+                      />
+                    )}
                   </Field>
                   <Field label="密码">
                     {(id) => (

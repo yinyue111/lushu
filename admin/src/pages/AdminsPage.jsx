@@ -4,7 +4,7 @@ import { Button, Card, Field, Notice, Page, ReasonAction, Table, formatTime, inp
 
 export default function AdminsPage({ admin }) {
   const { data, error, reload } = useLoad(() => adminGet('/admins'));
-  const [form, setForm] = useState({ username: '', role: 'operator' });
+  const [form, setForm] = useState({ username: '', role: 'operator', password: '' });
   const [created, setCreated] = useState(null);
   const [createError, setCreateError] = useState('');
   const act =
@@ -18,13 +18,14 @@ export default function AdminsPage({ admin }) {
     <Page title="后台账号" description="角色：运营（日常处理）和管理员（配置、批量、账号）。新账号首次登录时绑定动态码。">
       <Card title="新建账号">
         <form
-          className="grid gap-3 sm:grid-cols-3"
+          className="grid gap-3 sm:grid-cols-4"
           onSubmit={async (event) => {
             event.preventDefault();
             setCreateError('');
             try {
               const result = await adminPost('/admins', form);
               setCreated(result);
+              setForm({ username: '', role: 'operator', password: '' });
               reload();
             } catch (err) {
               setCreateError(err.message);
@@ -33,7 +34,26 @@ export default function AdminsPage({ admin }) {
         >
           <Field label="用户名">
             {(id) => (
-              <input id={id} className={inputClass} value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
+              <input
+                id={id}
+                className={inputClass}
+                placeholder="用户名或邮箱"
+                value={form.username}
+                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                required
+              />
+            )}
+          </Field>
+          <Field label="初始密码（选填）">
+            {(id) => (
+              <input
+                id={id}
+                type="password"
+                className={inputClass}
+                placeholder="留空随机生成，需大于 6 位"
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              />
             )}
           </Field>
           <Field label="角色">
