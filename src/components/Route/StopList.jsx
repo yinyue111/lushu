@@ -399,20 +399,25 @@ function StopRow({
               </button>
             </p>
           )}
-          {selected && (trustBadge.verified || evidence.length > 0) && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {trustBadge.verified && (
-                <Chip size="sm" tone="ok">
-                  最近核对 {formatVerifiedDate(stop.poiTrust?.latestVerifiedAt)}
-                </Chip>
-              )}
-              {evidence.map((item) => (
-                <Chip key={item.id || item.label} size="sm" tone={item.type === 'approved-correction' ? 'ok' : 'sky'}>
-                  {item.type === 'approved-correction' ? '已核对的纠错' : '攻略来源'} {sourceEvidencePrediction(item)}
-                </Chip>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const verifiedDate = trustBadge.verified && stop.poiTrust?.latestVerifiedAt ? formatVerifiedDate(stop.poiTrust.latestVerifiedAt) : '';
+            const showVerifiedDate = Boolean(verifiedDate && verifiedDate !== '待核对');
+            if (!selected || (!showVerifiedDate && evidence.length === 0)) return null;
+            return (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {showVerifiedDate && (
+                  <Chip size="sm" tone="ok">
+                    最近核对 {verifiedDate}
+                  </Chip>
+                )}
+                {evidence.map((item) => (
+                  <Chip key={item.id || item.label} size="sm" tone={item.type === 'approved-correction' ? 'ok' : 'sky'}>
+                    {item.type === 'approved-correction' ? '已核对的纠错' : '攻略来源'} {sourceEvidencePrediction(item)}
+                  </Chip>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </li>
       {next && <LegRow from={stop} to={next} roadLeg={roadLeg} transport={transport} canEdit={canEdit} handlers={handlers} />}

@@ -12,9 +12,10 @@ export function CityBackdrop({ city, position = 'center 60%' }) {
   if (cover) {
     return (
       <img
+        key={cover}
         {...heroImageProps(cover)}
         alt=""
-        className="absolute inset-0 -z-20 size-full object-cover"
+        className="absolute inset-0 -z-20 size-full bg-[#1c2230] object-cover"
         style={{ objectPosition: position }}
         fetchPriority="high"
       />

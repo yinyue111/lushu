@@ -441,7 +441,11 @@ export default function MyPage({ onOpenBook, onStartTrip = undefined, onNewBook,
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-title font-extrabold tracking-tight lg:text-display-sm">我的</h1>
-          <p className="mt-1 max-w-[36em] text-meta leading-relaxed text-muted max-sm:hidden">本机和云端的记录合在一起显示。换设备时用恢复码接着用。</p>
+          <p className="mt-1 max-w-[36em] text-meta leading-relaxed text-muted max-sm:hidden">
+            {account || profile.accountUserId
+              ? '路书、收藏和打卡会自动云端同步，换设备登录就能接着用。'
+              : '本机和云端的记录合在一起显示。换设备时用恢复码接着用。'}
+          </p>
         </div>
         <Button variant="primary" className={cn('max-sm:w-full', activeTab === 'routebooks' && !books.length && 'max-sm:hidden')} onClick={() => onNewBook({})}>
           <Plus /> 新建路书

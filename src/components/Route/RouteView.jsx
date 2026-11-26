@@ -34,6 +34,7 @@ import AdjustChatSheet from './AdjustChatSheet';
 import PatchProposalDialog from './PatchProposalDialog';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { DayActionsMenu } from './DayActionsMenu';
+import { useAccount } from '../Account/AccountProvider';
 
 // Overlays and Leaflet map load on demand so mobile list mode stays off Leaflet's critical path.
 const RouteMap = lazy(() => import('./RouteMap'));
@@ -44,6 +45,7 @@ const StopEditor = lazy(() => import('./StopEditor'));
 
 /** @param {Record<string, any>} props */
 export default function RouteView({ routebook, setRoutebook, onSaved, onCustomize, onRegenerate = undefined, onStartTrip, onBack }) {
+  const { emailDelivery } = useAccount();
   const profile = useMemo(() => getProfile(), []);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [activeDay, setActiveDay] = useState(routebook.days?.[0] ?? 'Day 1');
@@ -187,6 +189,15 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       (focusable || /** @type {HTMLElement|null} */ (card))?.focus?.();
     }, 60);
   };
+
+  useEffect(() => {
+    if (isDesktop || mobileView !== 'map') return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileView('list');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDesktop, mobileView]);
 
   const openedRouteId = routebook?.publicId || routebook?.id || '';
   useEffect(() => trackRouteOpen(openedRouteId), [openedRouteId]);
@@ -352,7 +363,13 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
       />
 
       <div className="mx-auto max-w-[1376px] items-start lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] lg:gap-8 lg:px-8 lg:pt-7 lg:pb-20">
-        <div className="relative z-[3] -mt-[26px] min-w-0 rounded-t-[26px] bg-white px-4 pt-[18px] pb-10 lg:mt-0 lg:rounded-none lg:p-0">
+        <div
+          aria-hidden={mapMode || undefined}
+          className={cn(
+            'relative z-[3] -mt-[26px] min-w-0 rounded-t-[26px] bg-white px-4 pt-[18px] pb-10 lg:mt-0 lg:rounded-none lg:p-0',
+            mapMode && 'pointer-events-none select-none'
+          )}
+        >
           {trustState.tone === 'verified' && <RouteStats routebook={routebook} trust={trust} trustState={trustState} />}
 
           {canEdit && (
@@ -385,7 +402,7 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
             onSelectDate={actions.setTravelDate}
             onSwapDays={actions.swapWholeDays}
             onSaveReminder={actions.saveTripReminder}
-            onSendEmailReminder={actions.sendEmailReminder}
+            onSendEmailReminder={emailDelivery ? actions.sendEmailReminder : undefined}
             onApplyMode={actions.applyModeReorder}
             entries={routeConfirmEntries}
             acks={confirmAcks}
@@ -544,17 +561,17 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
                       aria-pressed={pressed}
                       onClick={() => selectDay(entry.day)}
                       className={cn(
-                        'inline-flex h-11 shrink-0 items-center gap-2 rounded-full pr-3.5 pl-1.5 text-sm font-bold whitespace-nowrap shadow-pop sm:h-[38px]',
+                        'inline-flex h-11 max-w-[180px] shrink-0 items-center gap-2 rounded-full pr-3.5 pl-1.5 text-sm font-bold whitespace-nowrap shadow-pop sm:h-[38px] sm:max-w-[210px]',
                         pressed ? 'bg-ink text-white' : 'bg-white text-ink'
                       )}
                     >
                       <i
-                        className="num grid size-[26px] place-items-center rounded-full text-meta text-white not-italic"
+                        className="num grid size-[26px] shrink-0 place-items-center rounded-full text-meta text-white not-italic"
                         style={{ background: entry.theme.ink }}
                       >
                         {entry.number}
                       </i>
-                      {entry.label}
+                      <span className="min-w-0 truncate">{entry.label}</span>
                     </button>
                   );
                 })}
@@ -646,15 +663,21 @@ export default function RouteView({ routebook, setRoutebook, onSaved, onCustomiz
               {mapMode ? '列表' : '地图'}
             </Button>
             {canEdit ? (
-              <Button
-                className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs"
-                onClick={actions.saveCurrentRoutebook}
-                disabled={actions.saving}
-                aria-label="保存到我的路书"
-              >
-                <CloudUpload size={18} />
-                保存
-              </Button>
+              (() => {
+                const alreadySaved =
+                  !actions.saving && Number.isInteger(routebook.version) && routebook.version >= 1 && !/未保存/.test(actions?.syncLabel || '');
+                return (
+                  <Button
+                    className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs"
+                    onClick={actions.saveCurrentRoutebook}
+                    disabled={actions.saving || alreadySaved}
+                    aria-label={alreadySaved ? '已保存' : '保存到我的路书'}
+                  >
+                    <CloudUpload size={18} />
+                    {actions.saving ? '保存中' : alreadySaved ? '已保存' : '保存'}
+                  </Button>
+                );
+              })()
             ) : (
               <Button className="h-[50px] shrink-0 flex-col gap-0 px-3 text-xs" onClick={customize} aria-label="改成我的">
                 <Copy size={18} />

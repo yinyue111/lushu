@@ -238,7 +238,7 @@ export const curatedRoutes = [
     title: '博物院 + 古鸡鸣寺 + 老门东夜秦淮',
     subtitle: '2 天 1 晚 · 人文不绕路 · 朋友/亲子',
     tags: ['人文', '少绕路', '夜游'],
-    image: localImage('/assets/old-street.webp'),
+    image: localImage('/assets/scene-cat-temple.webp'),
     summary: '第一天把城东南京博物院与鸡鸣寺城墙走顺，第二天慢逛老门东街巷并在秦淮河畔收尾。',
     stops: [
       {
@@ -304,7 +304,8 @@ export const inspirationPhotos = [
   { city: '上海', poi: '外滩', title: '城市水岸', source: '目的地图片', image: localImage('/assets/shanghai-bund.webp') },
   { city: '苏州', poi: '平江路', title: '江南水巷', source: '目的地图片', image: localImage('/assets/suzhou-water-town.webp') },
   { city: '苏州', poi: '姑苏古城', title: '园林与假山', source: '目的地图片', image: localImage('/assets/suzhou-garden.webp') },
-  { city: '南京', poi: '老门东', title: '城南街巷与梧桐', source: '目的地图片', image: localImage('/assets/old-street.webp') }
+  { city: '南京', poi: '老门东', title: '城南街巷与梧桐', source: '目的地图片', image: localImage('/assets/old-street.webp') },
+  { city: '南京', poi: '南京博物院', title: '金陵博物与钟山秋意', source: '目的地图片', image: localImage('/assets/scene-cat-museum.webp') }
 ];
 
 export const defaultCityImage = localImage('/assets/city-aerial.webp');

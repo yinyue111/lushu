@@ -271,6 +271,46 @@ export function buildAlternativeStop(current, alternative) {
   };
 }
 
+function parseClockMinutes(timeText) {
+  const m = /^\s*(\d{1,2}):(\d{2})/.exec(String(timeText ?? ''));
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  return hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59 ? hh * 60 + mm : null;
+}
+
+function formatClockMinutes(totalMinutes) {
+  const clamped = Math.max(6 * 60, Math.min(22 * 60 + 30, Math.round(totalMinutes / 5) * 5));
+  const hh = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function parseStayMinutes(stayText) {
+  const text = String(stayText ?? '');
+  const hourMatch = /(\d+(?:\.\d+)?)\s*小时/.exec(text);
+  if (hourMatch) return Math.max(20, Math.min(240, Math.round(Number(hourMatch[1]) * 60)));
+  const minMatch = /(\d+)\s*分/.exec(text);
+  if (minMatch) return Math.max(20, Math.min(240, Number(minMatch[1])));
+  return 60;
+}
+
+function recalculateDayStopTimes(reordered, originalDayStops) {
+  if (!reordered.length) return reordered;
+  const parsedOriginal = originalDayStops.map((s) => parseClockMinutes(s?.time)).filter((m) => m != null);
+  let cursor = parsedOriginal.length ? Math.min(...parsedOriginal) : 9 * 60 + 30;
+  return reordered.map((stop, idx) => {
+    if (idx > 0) {
+      const prev = reordered[idx - 1];
+      const stay = parseStayMinutes(prev?.stay);
+      const km = distanceKm(prev, stop);
+      const travel = Number.isFinite(km) ? Math.max(10, Math.min(50, Math.round(km * 12 + 8))) : 20;
+      cursor += stay + travel;
+    }
+    return { ...stop, time: formatClockMinutes(cursor) };
+  });
+}
+
 export function buildStopsForMode(mode, sourceStops, routebook, anchorStop, processedKeys) {
   const matchingVariant = (routebook?.variants ?? []).find((variant) => variant.mode === mode || String(variant.label ?? '').includes(mode));
   if (matchingVariant?.stops?.length) {
@@ -286,13 +326,13 @@ export function buildStopsForMode(mode, sourceStops, routebook, anchorStop, proc
     }
   }
 
-  // 贪心重排复用 lib/routeModes 的共享实现，与行前「一键重排」保持同一套权重。
+  // 贪心重排复用 lib/routeModes 的共享实现，与行前「一键重排」保持同一套权重，并顺推重算时间避免时间倒流。
   const days = [...new Set(sourceStops.map((stop) => stop.day || 'Day 1'))];
   let anchor = anchorStop;
   const ordered = [];
   for (const day of days) {
     const dayStops = sourceStops.filter((stop) => (stop.day || 'Day 1') === day);
-    const reordered = greedyModeOrder(dayStops, anchor, mode);
+    const reordered = recalculateDayStopTimes(greedyModeOrder(dayStops, anchor, mode), dayStops);
     ordered.push(...reordered);
     anchor = reordered.at(-1) ?? anchor;
   }
@@ -311,18 +351,27 @@ export function navigationForStop(stops, currentIndex, routebook, latestByStop) 
     }) ?? stops[currentIndex - 1];
   const distance = previous && current ? distanceKm(previous, current) : null;
   // 站点上并没有 transport/transfer 之类的转场字段；从实际存在的 verify/risk 文本
-  // 与路书约束里的交通偏好推断导航模式。
+  // 与路书约束/主交通偏好推断导航模式（walk / bus / car）。
   const legHint = `${current?.verify ?? ''} ${current?.risk ?? ''}`;
-  const routeHint = String(routebook?.constraints?.transport ?? '');
+  const routeHint = `${routebook?.transport ?? ''} ${routebook?.constraints?.transport ?? ''}`;
   let mode = 'walk';
-  if (/打车|驾车|自驾|租车|网约车|car/i.test(legHint)) mode = 'car';
-  else if (/步行|走路|walk/i.test(legHint)) mode = 'walk';
-  else if (Number.isFinite(distance)) mode = distance <= 1.5 ? 'walk' : 'car';
-  else if (/打车|驾车|自驾|地铁|少走路|少换乘|car/i.test(routeHint)) mode = 'car';
-  return {
-    mode,
-    label: mode === 'car' ? '驾车导航' : '步行导航'
-  };
+  if (/自驾|驾车|租车|car/i.test(legHint) || /自驾|驾车/.test(routeHint)) {
+    mode = 'car';
+  } else if (/打车|网约车/.test(legHint)) {
+    mode = 'car';
+  } else if (/步行|走路|walk/i.test(legHint)) {
+    mode = 'walk';
+  } else if (Number.isFinite(distance) && distance <= 1.5) {
+    mode = 'walk';
+  } else if (/公交|地铁|公共交通|少换乘/.test(routeHint)) {
+    mode = 'bus';
+  } else if (Number.isFinite(distance)) {
+    mode = 'car';
+  } else if (/打车|少走路|car/i.test(routeHint)) {
+    mode = 'car';
+  }
+  const label = mode === 'car' ? '驾车导航' : mode === 'bus' ? '公交地铁导航' : '步行导航';
+  return { mode, label };
 }
 
 export function stopCategory(stop) {

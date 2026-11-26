@@ -626,8 +626,8 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
             <p className="truncate text-meta text-muted">{review}</p>
           </div>
           <TripSyncBadge state={tripCloud.state} />
-          <span className="num shrink-0 rounded-full bg-ink px-3 py-1.5 text-sm text-white">
-            {effectiveIdx + 1} / {stops.length}
+          <span className="num shrink-0 rounded-full bg-ink px-3 py-1.5 text-sm whitespace-nowrap text-white">
+            第 {effectiveIdx + 1}/{stops.length} 站
           </span>
         </div>
         <p className="sr-only" role="status" aria-live="polite">
@@ -887,7 +887,7 @@ export default function TripView({ routebook, onBack, onAdoptTrip = undefined, o
                 <span className="block text-copy font-bold">{current?.name ? `「${current.name}」附近找吃的、替代点与设施` : '附近找吃的、替代点与设施'}</span>
                 <span className="block text-meta text-muted">以当前计划站点为中心，含同片区老字号餐饮与顺路点</span>
               </span>
-              <span className="text-meta text-muted">{nearbyItems.length} 个</span>
+              <span className="shrink-0 whitespace-nowrap text-meta text-muted">{nearbyItems.length} 个</span>
             </summary>
             <div className="flex flex-wrap gap-2 border-t border-line p-3" aria-label="附近地点筛选">
               {NEARBY_FILTERS.map((filter) => (

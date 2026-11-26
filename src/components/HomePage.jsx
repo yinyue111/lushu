@@ -11,6 +11,7 @@ import { SectionHeading } from './ui/section-heading';
 import { CityBackdrop } from './visual/CityBackdrop';
 import { hasCityPhotos, smallImage } from './visual/theme';
 import { curatedRouteToRoutebook, getCityPhotos, getCityRoutes, getCityStory, seasonNoteFor, trustedCities } from '../lib/content';
+import { JZH_CITIES } from '../lib/chinaCities.js';
 import { isJzhCity } from '../lib/openCities.js';
 import { getCmsConfig, getRoutebooksByCity } from '../lib/api';
 import { getProfile } from '../lib/profile';
@@ -127,7 +128,16 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
   function startFromImport() {
     const guide = guideSeed.trim();
     if (!guide) return;
-    onNewBook({ city, duration, theme: [theme], guide, initialStep: 1, autoImport: true });
+    let targetCity = city;
+    if (!guide.includes(city)) {
+      const candidates = [...trustedCities, ...JZH_CITIES.filter((c) => !trustedCities.includes(c))];
+      const detected = candidates.find((name) => name !== city && name.length >= 2 && guide.includes(name));
+      if (detected) {
+        targetCity = detected;
+        commitCity(detected);
+      }
+    }
+    onNewBook({ city: targetCity, duration, theme: [theme], guide, initialStep: 1, autoImport: true });
   }
 
   const quickCities = ['杭州', '上海', '苏州', '南京'];
@@ -422,12 +432,13 @@ export default function HomePage({ books, onNewBook, onOpenBook, onCustomize = u
             {(hasCityPhotos(city) ? cityPhotos : []).slice(0, 4).map((photo) => (
               <figure
                 key={`${photo.city}-${photo.poi}-${photo.title}`}
-                className="relative isolate aspect-[4/5] w-56 shrink-0 snap-start overflow-hidden rounded-card lg:aspect-[4/3] lg:w-auto"
+                className="relative isolate aspect-[4/5] w-56 shrink-0 snap-start overflow-hidden rounded-card bg-white/10 lg:aspect-[4/3] lg:w-auto"
               >
                 <img
+                  key={photo.image}
                   src={smallImage(photo.image)}
                   alt={`${photo.poi} ${photo.title}`}
-                  loading="lazy"
+                  loading="eager"
                   className="absolute inset-0 -z-10 size-full object-cover"
                 />
                 <figcaption className="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,rgba(10,12,16,0)_0%,rgba(10,12,16,.72)_42%,rgba(10,12,16,.9)_100%)] p-3 pt-10 text-white">

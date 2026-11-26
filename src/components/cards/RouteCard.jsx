@@ -27,7 +27,7 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
         type="button"
         onClick={onOpen}
         className={cn(
-          'relative isolate shrink-0 overflow-hidden text-left',
+          'relative isolate shrink-0 overflow-hidden bg-canvas text-left',
           layout === 'tall'
             ? 'aspect-[16/10] w-full'
             : layout === 'feature'
@@ -41,7 +41,13 @@ export function RouteCard({ routebook, image, tags = [], meta, curated = false, 
         style={cover ? undefined : { backgroundImage: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
       >
         {cover ? (
-          <img src={smallImage(cover)} alt="" loading="lazy" className="absolute inset-0 -z-10 size-full object-cover" />
+          <img
+            key={cover}
+            src={smallImage(cover)}
+            alt=""
+            loading={layout === 'feature' ? 'eager' : 'lazy'}
+            className="absolute inset-0 -z-10 size-full object-cover"
+          />
         ) : (
           <>
             <RouteIcon className="absolute -right-4 -bottom-4 -z-20 size-28 text-white/20" strokeWidth={1.5} aria-hidden="true" />

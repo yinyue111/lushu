@@ -23,7 +23,10 @@ const LEADING_INTENT =
 const PREFERENCE_CLAUSE =
   /^(?:不想|不要|不去|别|避开|避免|少|尽量|最好|不喜欢|喜欢|希望|怕|不能|不用|不需要|带|跟|和朋友|一个人)|走路|太多|太累|太远|人多|排队|预算|小时|分钟|天|晚上|早上|上午|下午|中午|时间|休息|拍照|好吃|好看|好玩|轻松|松弛|适合|亲子|老人|孩子/;
 const STOP_WORDS =
-  /^(?:这个|那个|这里|那里|今天|明天|周末|我们|他们|攻略|路线|推荐|打卡|地方|景点|美食|东西|一下|一些|很多|附近|周边|市区|城市|杭州|上海|苏州|南京|北京|咖啡|喝茶|茶|茶水|小吃|夜景|日落|日出|拍照|照片|晚饭|午饭|早饭|吃饭|斋饭|素斋|早茶|下午茶|宵夜|门票|香花券|预约|特产|散步|骑行|坐船|划船)$/;
+  /^(?:这个|那个|这里|那里|今天|明天|周末|我们|他们|攻略|路线|推荐|打卡|地方|景点|美食|东西|一下|一些|很多|附近|周边|市区|城市|杭州|上海|苏州|南京|北京|咖啡|喝茶|茶|茶水|小吃|夜景|日落|日出|拍照|照片|晚饭|午饭|早饭|吃饭|斋饭|素斋|早茶|下午茶|宵夜|门票|香花券|预约|特产|散步|骑行|坐船|划船|鸭血粉丝汤|盐水鸭|牛肉锅贴|糖芋苗|赤豆元宵|小笼包|生煎包|锅贴|桂花糕|梅花糕|阳春面|片儿川|东坡肉|西湖醋鱼|龙井虾仁|叫花鸡|定胜糕|松鼠鳜鱼|大闸蟹|臭豆腐|蟹黄汤包|烤鸭|杭帮菜|苏帮菜|本帮菜|淮扬菜|金陵菜|本帮面|地道美食|特色小吃)$/;
+// Dish/cuisine names ("鸭血粉丝汤", "盐水鸭", "杭帮菜") belong to dining preference, not scenic POIs.
+const DISH_SUFFIX =
+  /(?:粉丝汤|盐水鸭|板鸭|烤鸭|小笼包|生煎包|汤包|锅贴|醋鱼|虾仁|叫花鸡|东坡肉|片儿川|阳春面|定胜糕|桂花糕|梅花糕|糖芋苗|帮菜|淮扬菜|金陵菜|本帮菜|苏帮菜|杭帮菜)$/;
 const AVOID_INTENT = /^(?:不想去|不要去|别去|避开|不去)/;
 // Itinerary labels that prefix a clause in real guides: "DAY1：", "D2", "第一天：", "Day 3 -", "P4".
 const DAY_LABEL = /^(?:(?:day|d)\s*\d{1,2}|第[一二三四五六七八九十\d]{1,3}[天日站]|早起|[上下中]午|傍晚|晚上|p\d{1,2})\s*[:：.、-]?\s*/i;
@@ -59,7 +62,7 @@ function cleanName(value) {
     .replace(/[「」“”"'【】[\]()（）]/g, '')
     .trim();
   if (text.length < 2 || text.length > 18) return '';
-  if (STOP_WORDS.test(text)) return '';
+  if (STOP_WORDS.test(text) || DISH_SUFFIX.test(text)) return '';
   // Guide titles ("成都旅游攻略", "杭州三日游") are not places.
   if (/(?:攻略|游记|行程|路线|指南|合集|日游|旅游|旅行|citywalk)$/i.test(text)) return '';
   if (!/[\u4e00-\u9fa5A-Za-z]/.test(text)) return '';
@@ -140,7 +143,11 @@ export function extractPlaceCandidates(text, { knownPlaces = [] } = {}) {
       }
       if (
         item.rule !== 'dictionary' &&
-        values.some((other) => other !== item && other.rule === 'dictionary' && itemKey.endsWith(normalizeCandidateKey(other.name)))
+        values.some((other) => {
+          if (other === item || other.rule !== 'dictionary') return false;
+          const otherKey = normalizeCandidateKey(other.name);
+          return itemKey.endsWith(otherKey) || itemKey.startsWith(otherKey);
+        })
       ) {
         return false;
       }

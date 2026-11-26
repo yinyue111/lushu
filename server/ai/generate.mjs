@@ -218,6 +218,7 @@ function systemPrompt() {
     '不要给路线或站点打可信分，也不要声称任何检查已经通过；可信度由平台根据来源、坐标和真实打卡计算。',
     '每个 stop 必须包含真实地图可用的 lat/lng。',
     'stop.costInfo 用结构化字段表示费用：amount 为确定金额（元），有区间时填 min/max，per 表示按人/组/份计价，free 表示免费，reservationRequired 表示需预约；不知道时金额填 null，不要编造价格。stop.cost 是给用户看的简短文字。',
+    'stop.stay 只写简短时长（如“60 分钟”“约 2 小时”“1.5–2 小时”），不要写长句建议；stop.area 只写简短片区名（8 字以内，如“西湖湖滨”“上城区”）。',
     'lat/lng 使用 WGS84，经纬度必须落在对应城市附近；无法精确定位时返回街区级近似坐标并降低 geoConfidence。',
     '每个 stop 的 coordinateSystem 固定返回 WGS84，geoConfidence 为 0-100。',
     '不许编造具体信息：门店/分店名（如“总店”“XX店”）、街道门牌号、门票或票价、人均价格、营业或开放时间、电话、活动日期，只有在用户攻略、导入来源或 approvedPoiCandidates 里出现过才能写；没有就写“待确认”或不写。站点名用攻略里的叫法，不要自己加门店后缀。行程站点只使用用户攻略（含导入来源）里明确出现的地点；不要为凑天数、好看或补路线而自行添加攻略未写的景点。若点位偏少，宁可少站或写清留白，也不要发明新站。平台会自动检查，攻略里没有的具体信息会被改成“待确认”。',
@@ -405,6 +406,17 @@ export function parseJsonFromText(text) {
   }
 }
 
+function normalizeStayText(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '60 分钟';
+  if (text.length <= 16) return text;
+  const firstClause = text.split(/[，,。；;（(]/)[0]?.trim() || '';
+  if (firstClause && firstClause.length <= 16) return firstClause;
+  const durationMatch = text.match(/(?:约\s*)?\d+(?:\.\d+)?(?:\s*[–—\-~至]\s*\d+(?:\.\d+)?)?\s*(?:小时|分钟|半天)/);
+  if (durationMatch) return durationMatch[0].trim();
+  return text.slice(0, 16);
+}
+
 function normalizeRoutebook(routebook, payload, runtime) {
   const now = new Date();
   const rawDays = Array.isArray(routebook.days) && routebook.days.length ? routebook.days : [];
@@ -424,7 +436,7 @@ function normalizeRoutebook(routebook, payload, runtime) {
       time: String(stop.time ?? '10:00'),
       name,
       area: String(stop.area ?? '待确认').slice(0, 24),
-      stay: String(stop.stay ?? '60 分钟').slice(0, 18),
+      stay: normalizeStayText(stop.stay),
       cost: displayCost,
       costInfo: { ...costInfo, text: displayCost },
       verify: String(stop.verify ?? '需要真实打卡继续核对').slice(0, 60),
@@ -575,7 +587,7 @@ function buildServerProcessLog(routebook, stages, { geocodingConfigured, modeLab
   return serverProcessLogs([
     {
       stage: '模型生成',
-      input: modeLabel ? `你的攻略与约束（${modeLabel} · ${model}）` : '你的攻略与约束',
+      input: modeLabel ? `${modeLabel} · ${model}` : '你的攻略与约束',
       result: `返回 ${stops.length} 个站点 ${duration('model')}`.trim(),
       status: '完成',
       time: at

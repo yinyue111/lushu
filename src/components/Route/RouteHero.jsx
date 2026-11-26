@@ -189,7 +189,7 @@ export default function RouteHero({
             {canEdit ? (
               <>
                 {(() => {
-                  const alreadySaved = !saving && Number.isInteger(routebook.version) && !/未保存/.test(actions?.syncLabel || '');
+                  const alreadySaved = !saving && Number.isInteger(routebook.version) && routebook.version >= 1 && !/未保存/.test(actions?.syncLabel || '');
                   return (
                     <Button variant="light" className="flex-1" onClick={actions.saveCurrentRoutebook} disabled={saving || alreadySaved}>
                       <Check /> {saving ? '保存中…' : alreadySaved ? '已保存' : '保存到我的路书'}

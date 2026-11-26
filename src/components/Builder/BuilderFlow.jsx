@@ -906,6 +906,15 @@ export default function BuilderFlow({ modelHealth, defaults = {}, onGenerated, o
         {step === 1 && (
           <StepGuide
             city={city}
+            onSwitchCity={(nextCity) => {
+              const committed = commitCity(nextCity);
+              if (committed) {
+                const extracted = extractPlaceCandidates(stripShareCommandBoilerplate(guideRef.current), {
+                  knownPlaces: knownPlacesForCity(committed)
+                });
+                setCandidatePlaces((prev) => reconcileTextCandidates(prev, extracted));
+              }
+            }}
             guide={guide}
             setGuide={handleGuideChange}
             handleScreenshotFiles={handleScreenshotFiles}

@@ -451,26 +451,27 @@ export default function App() {
         setStorageNotice('这台设备存不下更多路书了，去「我的」删掉几份不需要的再试。');
         return null;
       }
-      setRoutebook(draft);
+      /** @type {any} */
+      let activeDraft = draft;
+      if (activeProfile.profileAccessToken || activeProfile.accountUserId) {
+        try {
+          const data = await saveRoutebookRemote(draft);
+          activeDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
+          persistRoutebook(activeDraft, { claimOwnership: true });
+        } catch {
+          /* keep local draft when offline or cloud save fails */
+        }
+      }
+      setRoutebook(activeDraft);
       setSavedBooks(getStoredRoutebooks(activeProfile.id));
-      navigate(VIEWS.route, { routeId: draft.id });
+      navigate(VIEWS.route, { routeId: activeDraft.publicId || activeDraft.id });
 
       if (meta.recordCopy !== false) {
         recordSharedRoutebookCopy(book, activeProfile, meta.surface || 'customize').catch(() => {
           /* 401 in login mode opens LoginSheet via api.js; local copy stays intact */
         });
       }
-      if (activeProfile.profileAccessToken || activeProfile.accountUserId) {
-        saveRoutebookRemote(draft)
-          .then((data) => {
-            const savedDraft = normalizeSavedPrivateDraft(data.routebook, draft, activeProfile);
-            persistRoutebook(savedDraft, { claimOwnership: true });
-            setRoutebook((current) => ((current?.publicId || current?.id) === draft.id ? savedDraft : current));
-            setSavedBooks(getStoredRoutebooks(activeProfile.id));
-          })
-          .catch(() => {});
-      }
-      return draft;
+      return activeDraft;
     },
     [navigate]
   );

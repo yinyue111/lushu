@@ -114,9 +114,7 @@ const CATEGORIES = [
     to: '#3fc1f0',
     scene: scene('cat-water')
   },
-  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', scene: scene('cat-mountain') },
-  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', scene: scene('cat-garden') },
-  { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c' },
+  // Street before mountain: 「北山街日落线」「山塘街」 are streets, not mountain trails.
   {
     id: 'street',
     label: '街巷',
@@ -125,7 +123,10 @@ const CATEGORIES = [
     from: '#5c6370',
     to: '#a3a9b5',
     scene: scene('cat-street')
-  }
+  },
+  { id: 'mountain', label: '山野', test: /山|峰|岭|村|谷/, icon: Mountain, from: '#1e9e6a', to: '#9bd24a', scene: scene('cat-mountain') },
+  { id: 'garden', label: '园林', test: /园|林|公园|植物|花/, icon: TreePine, from: '#157a51', to: '#5cc48d', scene: scene('cat-garden') },
+  { id: 'shopping', label: '逛街', test: /商场|银泰|购物|市集|广场|中心/, icon: ShoppingBag, from: '#d9822b', to: '#ffc93c' }
 ];
 const FALLBACK_CATEGORY = { id: 'spot', label: '地点', icon: Sparkles, from: '#e8553d', to: '#1f7ae0' };
 

@@ -145,7 +145,7 @@ export function StepCity({ cityQuery, setCityQuery, citySuggestions, commitCity,
                 <span className="flex items-center gap-1 text-copy font-extrabold sm:text-lead">
                   <MapPin className="size-4 shrink-0" aria-hidden="true" /> {item}
                 </span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-white max-sm:hidden">已有真实打卡</span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-white max-sm:hidden">精选路线已整理</span>
               </span>
             </button>
           );
@@ -247,12 +247,27 @@ export function StepGuide(props) {
           )}
         </div>
       )}
-      {otherCityMentioned(guide, city) && (
-        <p role="status" className="mt-2 flex items-start gap-1.5 text-meta font-semibold text-ink">
-          <AlertCircle className="mt-0.5 size-4 shrink-0 text-lemon-ink" aria-hidden="true" />
-          攻略里写的是{otherCityMentioned(guide, city)}，你选的城市是{city}。不对的话回上一步改城市。
-        </p>
-      )}
+      {(() => {
+        const mentioned = otherCityMentioned(guide, city);
+        if (!mentioned) return null;
+        return (
+          <p role="status" className="mt-2 flex flex-wrap items-center gap-2 text-meta font-semibold text-ink">
+            <span className="inline-flex items-start gap-1.5">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-lemon-ink" aria-hidden="true" />
+              攻略里写的是{mentioned}，你选的城市是{city}。
+            </span>
+            {props.onSwitchCity && (
+              <button
+                type="button"
+                onClick={() => props.onSwitchCity(mentioned)}
+                className="inline-flex min-h-9 items-center rounded-full bg-ink px-3 py-1 text-xs font-bold text-white hover:opacity-90 sm:min-h-0"
+              >
+                一键切换到{mentioned}
+              </button>
+            )}
+          </p>
+        );
+      })()}
 
       <div className={cn('mt-3 grid gap-3', hasUrls && 'sm:grid-cols-2')}>
         <label
@@ -403,7 +418,9 @@ export function StepGuide(props) {
                 addManualPlace();
               }
             }}
-            placeholder="手动加一个，例如：法喜寺、武康路"
+            placeholder={`手动加一个，例如：${
+              { 杭州: '西湖、法喜寺', 上海: '武康路、外滩', 苏州: '拙政园、平江路', 南京: '中山陵、老门东' }[city] || '想去的景点、老街或餐馆'
+            }`}
           />
           <Button variant="dark" className="shrink-0" onClick={addManualPlace}>
             <Plus /> 添加

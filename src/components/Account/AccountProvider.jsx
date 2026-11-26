@@ -16,7 +16,7 @@ const LoginSheet = lazy(() => import('./LoginSheet'));
 
 const AccountContext = createContext(/** @type {any} */ (null));
 
-/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, account: any, generation: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean, accountDeleted?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
+/** @returns {{ mode: string, registration: string, enabled: boolean, required: boolean, emailDelivery?: boolean, account: any, generation: any, ready: boolean, requireLogin: (reason?: string, resume?: () => void) => boolean, openLogin: (view?: string, reason?: string) => void, showRecoveryCodes: (codes: string[]) => void, logout: (options?: { everywhere?: boolean, accountDeleted?: boolean }) => Promise<void>, refresh: () => Promise<void>, setAccount: (account: any) => void }} */
 export function useAccount() {
   return useContext(AccountContext) ?? FALLBACK;
 }
@@ -26,6 +26,7 @@ const FALLBACK = {
   registration: 'closed',
   enabled: false,
   required: false,
+  emailDelivery: false,
   account: null,
   generation: null,
   ready: true,
@@ -39,7 +40,7 @@ const FALLBACK = {
 
 /** @param {{ children: any, onProfileChanged?: (profile: any) => void }} props */
 export function AccountProvider({ children, onProfileChanged }) {
-  const [config, setConfig] = useState({ mode: 'access-code', registration: 'closed', emailVerificationRequired: true });
+  const [config, setConfig] = useState({ mode: 'access-code', registration: 'closed', emailVerificationRequired: true, emailDelivery: false });
   const [account, setAccount] = useState(null);
   const [generation, setGeneration] = useState(null);
   const [ready, setReady] = useState(false);
@@ -87,7 +88,8 @@ export function AccountProvider({ children, onProfileChanged }) {
       setConfig({
         mode: nextMode,
         registration: authConfig.registration,
-        emailVerificationRequired: authConfig.emailVerificationRequired !== false
+        emailVerificationRequired: authConfig.emailVerificationRequired !== false,
+        emailDelivery: Boolean(authConfig.emailDelivery)
       });
       const pendingLogout = readPendingLogout();
       setAccount(meAccount);

@@ -83,7 +83,7 @@ const DOT = { ok: 'bg-success', warn: 'bg-warn', info: 'bg-info', neutral: 'bg-l
 export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = false, className }) {
   const origin = normalizeStopOrigin(stop?.provenance?.origin);
   const placeOk = stop?.provenance?.reviewedPoi === true && !approximate;
-  const items = [
+  const rawItems = [
     trust.tone === 'verified'
       ? { tone: 'ok', text: verifiedCount ? `${verifiedCount} 人到达核对` : trust.label }
       : trust.tone === 'trial'
@@ -100,6 +100,12 @@ export function StopTrustLine({ stop, trust, verifiedCount = 0, approximate = fa
         }
       : null
   ].filter(Boolean);
+  const seenTexts = new Set();
+  const items = rawItems.filter((item) => {
+    if (!item?.text || seenTexts.has(item.text)) return false;
+    seenTexts.add(item.text);
+    return true;
+  });
   return (
     <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-meta font-semibold text-muted', className)}>
       {items.map((item) => (

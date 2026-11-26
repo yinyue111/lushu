@@ -5,6 +5,7 @@
 // no budget/must-go/avoid constraints, no matchedText guide quotes).
 import { modernTermCopy, publicValidationRows, redactPrivatePreferenceProse } from '../../server/lib/termCopy.mjs';
 import { TRANSPORT_OPTIONS } from '../components/Builder/builderModel.js';
+import { isAiGeneratedRoutebook } from './aigc.js';
 import { createRouteEditToken, profileRoutebookFields } from './profile.js';
 
 const VALID_TRANSPORTS = new Set(TRANSPORT_OPTIONS);
@@ -156,7 +157,7 @@ export function createPrivateRoutebookDraft(source, profile) {
     copyCount: 0,
     provider: {
       ...(fellBackFrom ? { fellBackFrom } : {}),
-      generatedAt: now,
+      ...(isAiGeneratedRoutebook(source) ? { generatedAt: source?.provider?.generatedAt || now } : { name: 'curation' }),
       copiedAt: now
     },
     updatedAt: now
